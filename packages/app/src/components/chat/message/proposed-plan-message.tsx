@@ -45,16 +45,16 @@ export function ProposedPlanMessage({
     <div className="box-border flex w-full min-w-0 justify-start">
       <div
         data-proposed-plan-message=""
-        className="flex w-full min-w-0 flex-col overflow-hidden rounded-honk-card border border-honk-stroke-secondary bg-honk-bg-secondary text-conversation text-honk-fg-primary shadow-honk-card"
+        className="group/proposed-plan flex w-full min-w-0 flex-col text-conversation text-honk-fg-primary"
       >
-        <div className="flex min-w-0 items-center gap-2 border-b border-honk-stroke-tertiary px-3 py-2">
-          <div className="min-w-0 flex-1 truncate text-title font-medium">{title}</div>
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="min-w-0 flex-1 truncate text-title font-semibold">{title}</div>
           {canEdit && !editing ? (
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="h-6 gap-1 px-2 text-detail"
+              className="h-6 gap-1 px-1.5 text-detail text-honk-fg-tertiary opacity-0 transition-opacity duration-100 group-hover/proposed-plan:opacity-100 hover:text-honk-fg-secondary focus-visible:opacity-100"
               onClick={() => {
                 setDraft(proposedPlan.planMarkdown);
                 setEditing(true);
@@ -66,11 +66,10 @@ export function ProposedPlanMessage({
           ) : null}
         </div>
         {editing ? (
-          <form onSubmit={submit} className="flex min-w-0 flex-col gap-2 p-3">
+          <form onSubmit={submit} className="flex min-w-0 flex-col gap-2 pt-2">
             <Textarea
               value={draft}
               onChange={(event) => setDraft(event.currentTarget.value)}
-              className="bg-honk-bg-primary"
               controlClassName="min-h-48 resize-y px-2 py-2 font-honk-mono text-detail leading-relaxed"
               data-proposed-plan-editor=""
               aria-label="Edit plan"
@@ -103,7 +102,7 @@ export function ProposedPlanMessage({
             </div>
           </form>
         ) : (
-          <div className="min-w-0 px-3 py-2">
+          <div className="min-w-0 pt-1.5">
             <ChatMarkdown
               text={displayedMarkdown}
               cwd={markdownCwd}

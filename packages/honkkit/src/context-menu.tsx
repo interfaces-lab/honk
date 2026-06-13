@@ -49,10 +49,7 @@ function WorkbenchContextMenuPopup({
   return (
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Positioner
-        className={cn(
-          "z-(--z-index-workbench-context-menu) outline-none",
-          positionerClassName,
-        )}
+        className={cn("z-(--z-index-workbench-context-menu) outline-none", positionerClassName)}
         sideOffset={sideOffset}
         align={align}
       >

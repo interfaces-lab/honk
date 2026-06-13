@@ -23,7 +23,7 @@ The server stores and exports **durable orchestration facts** only. It does not 
 
 | Owns                                                 | Does not own                                            |
 | ---------------------------------------------------- | ------------------------------------------------------- |
-| Messages, thread entries, activities, proposed plans | Pi agent execution (`@honk/runtime`, desktop main)     |
+| Messages, thread entries, activities, proposed plans | Pi agent execution (`@honk/runtime`, desktop main)      |
 | Session metadata, turns, projects, pending approvals | Runtime display timelines or overlay rows               |
 | Event-sourced projection into `OrchestrationThread`  | `chatTimelineRows` or other pre-rendered chat row lists |
 | WebSocket RPC for `EnvironmentApi`                   | Branch navigation order for the chat UI                 |

@@ -2,12 +2,15 @@ import {
   fauxAssistantMessage,
   fauxText,
   fauxThinking,
+  fauxToolCall,
   type AssistantMessage,
   type UserMessage,
 } from "@earendil-works/pi-ai";
-import type { SessionEntry } from "@earendil-works/pi-coding-agent";
+import { Type } from "@earendil-works/pi-ai";
+import { defineTool, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it } from "vitest";
 import { MessageId, threadEntryIdForMessageId } from "@honk/contracts";
+import { projectRuntimeDisplayTimeline } from "../src/display-timeline-projection";
 import { projectRuntimeSessionEntry } from "../src/session-tree-projection";
 import {
   createRuntimeHarness,
@@ -114,6 +117,151 @@ describe("Pi session tree contract", () => {
       role: "assistant",
       text: "Provider error: 400 usage limit reached",
     });
+  });
+
+  it("branches edited prompts from the replaced user message parent", async () => {
+    const harness = await createRuntimeHarness();
+    harnesses.push(harness);
+    harness.setResponses([
+      fauxAssistantMessage("old response"),
+      fauxAssistantMessage("new response"),
+    ]);
+
+    const firstClientMessageId = MessageId.make("client:edit-original");
+    const revisedClientMessageId = MessageId.make("client:edit-revised");
+    await waitForEvent(harness.runtime, "tree.updated", () =>
+      harness.runtime.sendMessage("old prompt", {
+        ...EMPTY_SEND_MESSAGE_OPTIONS,
+        clientMessageId: firstClientMessageId,
+      }),
+    );
+    const originalTree = harness.runtime.getSessionTree();
+    const originalUserEntry = originalTree.entries.find(
+      (entry) => entry.role === "user" && entry.clientMessageId === firstClientMessageId,
+    );
+    expect(originalUserEntry).toBeDefined();
+
+    await waitForEvent(harness.runtime, "tree.updated", () =>
+      harness.runtime.sendMessage("new prompt", {
+        ...EMPTY_SEND_MESSAGE_OPTIONS,
+        clientMessageId: revisedClientMessageId,
+        replacesClientMessageId: firstClientMessageId,
+      }),
+    );
+
+    const tree = harness.runtime.getSessionTree();
+    const oldUserEntry = tree.entries.find(
+      (entry) => entry.role === "user" && entry.clientMessageId === firstClientMessageId,
+    );
+    const oldAssistantEntry = tree.entries.find(
+      (entry) => entry.role === "assistant" && entry.text === "old response",
+    );
+    const newUserEntry = tree.entries.find(
+      (entry) => entry.role === "user" && entry.clientMessageId === revisedClientMessageId,
+    );
+    const newAssistantEntry = tree.entries.find(
+      (entry) => entry.role === "assistant" && entry.text === "new response",
+    );
+
+    expect(oldUserEntry).toBeDefined();
+    expect(oldAssistantEntry).toBeDefined();
+    expect(newUserEntry).toBeDefined();
+    expect(newAssistantEntry).toBeDefined();
+    expect(newUserEntry?.parentId).toBe(oldUserEntry?.parentId);
+    expect(newUserEntry?.parentThreadEntryId).toBe(oldUserEntry?.parentThreadEntryId);
+
+    const newUserNode = tree.nodes.find((node) => node.entryId === newUserEntry?.id);
+    const oldUserNode = tree.nodes.find((node) => node.entryId === oldUserEntry?.id);
+    expect(tree.leafEntryId).toBe(newAssistantEntry?.id);
+    expect(newUserNode?.isActivePath).toBe(true);
+    expect(oldUserNode?.isActivePath).toBe(false);
+
+    const timeline = projectRuntimeDisplayTimeline({
+      threadId: harness.runtime.threadId,
+      runtimeSessionId: harness.runtime.runtimeSessionId,
+      sessionTree: tree,
+    });
+    expect(timeline.items).toEqual(
+      expect.arrayContaining([expect.objectContaining({ text: "new prompt" })]),
+    );
+    expect(timeline.items).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ text: "old prompt" })]),
+    );
+    expect(timeline.items).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ text: "old response" })]),
+    );
+    expect(
+      harness.runtime.session.messages
+        .filter((message): message is UserMessage => message.role === "user")
+        .map((message) => message.content),
+    ).toEqual([[{ type: "text", text: "new prompt" }]]);
+  });
+
+  it("rejects revision when the replaced client message id cannot be resolved", async () => {
+    const harness = await createRuntimeHarness();
+    harnesses.push(harness);
+
+    await expect(
+      harness.runtime.sendMessage("new prompt", {
+        ...EMPTY_SEND_MESSAGE_OPTIONS,
+        replacesClientMessageId: MessageId.make("client:missing"),
+      }),
+    ).rejects.toThrow("Cannot revise message client:missing");
+
+    expect(harness.runtime.getSessionTree().entries.map((entry) => entry.text)).not.toContain(
+      "new prompt",
+    );
+  });
+
+  it("rejects revision while a runtime turn is in progress", async () => {
+    let releaseToolExecution: (() => void) | undefined;
+    const toolRelease = new Promise<void>((resolve) => {
+      releaseToolExecution = resolve;
+    });
+    const waitTool = defineTool({
+      name: "wait",
+      label: "Wait",
+      description: "Wait for release",
+      parameters: Type.Object({}),
+      execute: async () => {
+        await toolRelease;
+        return {
+          content: [{ type: "text", text: "released" }],
+          details: {},
+        };
+      },
+    });
+    const harness = await createRuntimeHarness({ customTools: [waitTool], tools: ["wait"] });
+    harnesses.push(harness);
+    harness.setResponses([
+      fauxAssistantMessage("original response"),
+      fauxAssistantMessage(fauxToolCall("wait", {}), { stopReason: "toolUse" }),
+      fauxAssistantMessage("done"),
+    ]);
+
+    const firstClientMessageId = MessageId.make("client:active-original");
+    await waitForEvent(harness.runtime, "tree.updated", () =>
+      harness.runtime.sendMessage("original prompt", {
+        ...EMPTY_SEND_MESSAGE_OPTIONS,
+        clientMessageId: firstClientMessageId,
+      }),
+    );
+    await waitForEvent(harness.runtime, "tool.started", () =>
+      harness.runtime.sendMessage("active prompt", EMPTY_SEND_MESSAGE_OPTIONS),
+    );
+
+    await expect(
+      harness.runtime.sendMessage("revised prompt", {
+        ...EMPTY_SEND_MESSAGE_OPTIONS,
+        replacesClientMessageId: firstClientMessageId,
+      }),
+    ).rejects.toThrow("Cannot revise a message while a runtime turn is in progress.");
+
+    releaseToolExecution?.();
+    await harness.runtime.session.agent.waitForIdle();
+    expect(harness.runtime.getSessionTree().entries.map((entry) => entry.text)).not.toContain(
+      "revised prompt",
+    );
   });
 
   it("projects the client message id before turn-completed tree publication", async () => {

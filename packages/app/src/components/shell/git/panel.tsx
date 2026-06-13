@@ -76,10 +76,7 @@ import { shellPanelsActions, useSecondaryRail } from "~/stores/shell-panels-stor
 import { GitChangesFileTree } from "./git-changes-file-tree";
 import { GitDiffCardHeader } from "./git-diff-card";
 import { GitImageView } from "./git-image-view";
-import {
-  WorkbenchChromeActionGroup,
-  WorkbenchChromeRow,
-} from "@honk/honkkit/workbench-chrome-row";
+import { WorkbenchChromeActionGroup, WorkbenchChromeRow } from "@honk/honkkit/workbench-chrome-row";
 import { WorkbenchIconButton, workbenchIconButtonVariants } from "@honk/honkkit/workbench-button";
 import { RightWorkbenchLayout } from "../shell/right-workbench-layout";
 
@@ -378,7 +375,10 @@ function createHeaderOnlyFileDiff(
   };
 }
 
-function createImageAnnotationFileDiff(file: DiffRow, patch: GitImagePatchResult): FileDiffMetadata {
+function createImageAnnotationFileDiff(
+  file: DiffRow,
+  patch: GitImagePatchResult,
+): FileDiffMetadata {
   const cacheKey = [
     "git-panel-image",
     file.id,

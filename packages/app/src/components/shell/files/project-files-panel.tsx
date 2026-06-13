@@ -15,11 +15,6 @@ import {
   CommandList,
   CommandPanel,
 } from "@honk/honkkit/command";
-import {
-  IconBarsThree,
-  IconChevronLeftMedium,
-  IconChevronRightMedium,
-} from "central-icons";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -27,38 +22,28 @@ import {
   useHasSecondaryRailState,
   useSecondaryRail,
 } from "~/stores/shell-panels-store";
-import { ProjectFileTree, type ProjectFileTreeHandle } from "./project-file-tree";
+import {
+  ProjectFileTree,
+  openProjectFilePath,
+  type ProjectFileTreeHandle,
+} from "./project-file-tree";
 import { useRightWorkbenchPanelRuntime } from "../shell/app";
 import { RightWorkbenchLayout } from "../shell/right-workbench-layout";
 import { EmptyFilePreview } from "./empty-file-preview";
-import { ModeButton, NavButton } from "./project-files-panel-buttons";
-import { SourcePreview } from "./source-preview";
 import { FileTreeFileIcon, FileTreeIconSprite } from "../../tree";
 import { projectSearchEntriesQueryOptions } from "~/lib/project-react-query";
+import {
+  useWorkspaceEditorFileState,
+  workspaceEditorActions,
+} from "~/stores/workspace-editor-store";
+import { markProjectModelClosed } from "~/lib/monaco/project-models";
+import {
+  ProjectFileEditorShell,
+  type ProjectFileEditorShellHandle,
+} from "./project-file-editor-shell";
+import { ProjectEditorToolbar } from "./project-editor-toolbar";
 
-type PreviewHistory = {
-  readonly index: number;
-  readonly paths: readonly string[];
-};
-
-const EMPTY_PREVIEW_HISTORY: PreviewHistory = {
-  index: -1,
-  paths: [],
-};
-const MAX_PREVIEW_HISTORY = 50;
 const MAX_OPEN_FILE_RESULTS = 100;
-
-function pushPreviewHistory(current: PreviewHistory, relativePath: string): PreviewHistory {
-  if (current.paths[current.index] === relativePath) {
-    return current;
-  }
-  const nextPaths = [...current.paths.slice(0, current.index + 1), relativePath];
-  const trimmedPaths = nextPaths.slice(-MAX_PREVIEW_HISTORY);
-  return {
-    index: trimmedPaths.length - 1,
-    paths: trimmedPaths,
-  };
-}
 
 function filterOpenFilePaths(paths: readonly string[], query: string): string[] {
   const normalizedQuery = normalizeSearchQuery(query);
@@ -87,18 +72,25 @@ function ProjectFilesPanelContent(props: {
   environmentId: EnvironmentId | null;
   availableEditors: readonly EditorId[];
 }) {
-  const [history, setHistory] = useState<PreviewHistory>(EMPTY_PREVIEW_HISTORY);
   const [loadedFilePaths, setLoadedFilePaths] = useState<readonly string[]>([]);
   const [openFileDialogOpen, setOpenFileDialogOpen] = useState(false);
+  const [dirtyByPath, setDirtyByPath] = useState<Record<string, boolean>>({});
   const fileTreeRef = useRef<ProjectFileTreeHandle | null>(null);
+  const editorShellRef = useRef<ProjectFileEditorShellHandle | null>(null);
   const runtime = useRightWorkbenchPanelRuntime();
   const isFilesPanelActive = runtime.open && runtime.activeTab === "files";
   const fileRail = useSecondaryRail(props.workspaceKey, "files");
   const fileRailInitialized = useHasSecondaryRailState(props.workspaceKey, "files");
   const fileRailOpen = isFilesPanelActive && (fileRailInitialized ? fileRail.open : true);
-  const selectedPath = history.index >= 0 ? (history.paths[history.index] ?? null) : null;
-  const canGoBack = history.index > 0;
-  const canGoForward = history.index >= 0 && history.index < history.paths.length - 1;
+  const editorState = useWorkspaceEditorFileState(props.workspaceKey);
+  const selectedPath = editorState.activePath;
+  const centerEditorActive = editorState.placement === "center" && selectedPath !== null;
+  const selectedPathDirty = selectedPath ? (dirtyByPath[selectedPath] ?? false) : false;
+  // The toolbar is a static second nav: it stays above the tree and viewer even
+  // with no file open. When the editor lives in the center surface this panel
+  // owns no file, so the toolbar's file-specific controls go inert.
+  const panelFilePath = centerEditorActive ? null : selectedPath;
+  const panelFileDirty = panelFilePath !== null && selectedPathDirty;
 
   useEffect(() => {
     if (!isFilesPanelActive || fileRailInitialized) {
@@ -107,30 +99,22 @@ function ProjectFilesPanelContent(props: {
     shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", true);
   }, [fileRailInitialized, isFilesPanelActive, props.workspaceKey]);
 
-  const openPreviewPath = (relativePath: string) => {
-    setHistory((current) => pushPreviewHistory(current, relativePath));
+  const openEditorPath = (relativePath: string) => {
+    workspaceEditorActions.openFile(props.workspaceKey, relativePath);
   };
 
-  const navigatePreviewHistory = (delta: -1 | 1) => {
-    setHistory((current) => {
-      const nextIndex = current.index + delta;
-      if (nextIndex < 0 || nextIndex >= current.paths.length) {
-        return current;
-      }
-      return {
-        ...current,
-        index: nextIndex,
-      };
-    });
+  const navigateEditorHistory = (delta: -1 | 1) => {
+    workspaceEditorActions.navigateFileHistory(props.workspaceKey, delta);
   };
 
   const tree = (
     <ProjectFileTree
       ref={fileTreeRef}
       cwd={props.cwd}
+      workspaceKey={props.workspaceKey}
       environmentId={props.environmentId}
       availableEditors={props.availableEditors}
-      onOpenFile={openPreviewPath}
+      onOpenFile={openEditorPath}
       onFilePathsChange={setLoadedFilePaths}
       selectedPath={selectedPath}
       active={fileRailOpen || openFileDialogOpen}
@@ -140,36 +124,49 @@ function ProjectFilesPanelContent(props: {
 
   return (
     <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
-      <div className="honk-workbench-panel-title-row gap-(--honk-workbench-chrome-action-gap)">
-        <ModeButton
-          active={fileRailOpen}
-          chrome="panel"
-          label={fileRailOpen ? "Hide file tree" : "Show file tree"}
-          onClick={() => {
-            shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", !fileRailOpen);
-          }}
-        >
-          <IconBarsThree className="size-[15px]" aria-hidden />
-        </ModeButton>
-        <NavButton
-          disabled={!canGoBack}
-          chrome="panel"
-          label="Back"
-          onClick={() => navigatePreviewHistory(-1)}
-        >
-          <IconChevronLeftMedium className="size-4" />
-        </NavButton>
-        <NavButton
-          chrome="panel"
-          disabled={!canGoForward}
-          label="Forward"
-          onClick={() => navigatePreviewHistory(1)}
-        >
-          <IconChevronRightMedium className="size-4" />
-        </NavButton>
-        <div className="min-w-0 flex-1" />
-      </div>
-
+      <ProjectEditorToolbar
+        workspaceKey={props.workspaceKey}
+        cwd={props.cwd}
+        relativePath={panelFilePath}
+        availableEditors={props.availableEditors}
+        fileRailOpen={fileRailOpen}
+        dirty={panelFileDirty}
+        canGoBack={editorState.canGoBack}
+        canGoForward={editorState.canGoForward}
+        placement={editorState.placement}
+        onToggleFileTree={() => {
+          shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", !fileRailOpen);
+        }}
+        onOpenFile={() => {
+          setOpenFileDialogOpen(true);
+        }}
+        onBack={() => navigateEditorHistory(-1)}
+        onForward={() => navigateEditorHistory(1)}
+        onSave={() => editorShellRef.current?.save()}
+        onClose={() => {
+          if (panelFilePath && props.cwd && props.environmentId) {
+            markProjectModelClosed({
+              environmentId: props.environmentId,
+              cwd: props.cwd,
+              relativePath: panelFilePath,
+            });
+          }
+          workspaceEditorActions.closeEditor(props.workspaceKey);
+        }}
+        onRevealInFileTree={() => {
+          if (!panelFilePath) return;
+          shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", true);
+          fileTreeRef.current?.revealPath(panelFilePath);
+        }}
+        onOpenExternalEditor={() => {
+          if (!panelFilePath) return;
+          openProjectFilePath({
+            relativePath: panelFilePath,
+            cwd: props.cwd,
+            availableEditors: props.availableEditors,
+          });
+        }}
+      />
       <RightWorkbenchLayout
         workspaceKey={props.workspaceKey}
         tab="files"
@@ -178,12 +175,26 @@ function ProjectFilesPanelContent(props: {
       >
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--honk-workbench-editor-surface-background)">
           <div className="flex min-h-0 flex-1 flex-col">
-            {selectedPath ? (
-              <SourcePreview
+            {selectedPath && centerEditorActive ? (
+              <EmptyFilePreview
+                label="Return editor to panel"
+                onOpenFile={() => {
+                  workspaceEditorActions.setEditorPlacement(props.workspaceKey, "right-panel");
+                }}
+              />
+            ) : selectedPath ? (
+              <ProjectFileEditorShell
+                key={selectedPath}
+                ref={editorShellRef}
                 cwd={props.cwd}
                 environmentId={props.environmentId}
-                selectedPath={selectedPath}
-                wordWrap
+                relativePath={selectedPath}
+                onDirtyChange={(dirty) => {
+                  setDirtyByPath((current) => ({ ...current, [selectedPath]: dirty }));
+                }}
+                onAddSelectionToChat={() => {
+                  workspaceEditorActions.setEditorPlacement(props.workspaceKey, "right-panel");
+                }}
               />
             ) : (
               <EmptyFilePreview
@@ -201,7 +212,7 @@ function ProjectFilesPanelContent(props: {
         filePaths={loadedFilePaths}
         open={openFileDialogOpen}
         onOpenChange={setOpenFileDialogOpen}
-        onOpenFile={openPreviewPath}
+        onOpenFile={openEditorPath}
       />
     </div>
   );
@@ -301,11 +312,9 @@ function OpenFileCommandDialog(props: {
               </CommandList>
             ) : (
               <div className="py-8 text-center text-body text-muted-foreground">
-                {isSearching || (searchQuery.length === 0 && props.filePaths.length === 0) ? (
-                  "Loading files..."
-                ) : (
-                  "No matching files."
-                )}
+                {isSearching || (searchQuery.length === 0 && props.filePaths.length === 0)
+                  ? "Loading files..."
+                  : "No matching files."}
               </div>
             )}
           </CommandPanel>

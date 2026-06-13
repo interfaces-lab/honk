@@ -2,6 +2,7 @@ import fsPromises from "node:fs/promises";
 
 import { getFiletypeFromFileName } from "@pierre/diffs";
 import { Effect, FileSystem, Layer, Path } from "effect";
+import { ProjectDeleteFileError, ProjectWriteConflictError } from "@honk/contracts";
 
 import {
   ProjectFileSystem,
@@ -16,6 +17,21 @@ const BINARY_DETECTION_BYTES = 8_000;
 
 function isProbablyBinary(bytes: Buffer): boolean {
   return bytes.subarray(0, BINARY_DETECTION_BYTES).includes(0);
+}
+
+function errorCode(cause: unknown): string | undefined {
+  if (typeof cause !== "object" || cause === null || !("code" in cause)) {
+    return undefined;
+  }
+  const code = (cause as { readonly code?: unknown }).code;
+  return typeof code === "string" ? code : undefined;
+}
+
+function hasWriteExpectations(input: {
+  readonly expectedMtimeMs?: number | undefined;
+  readonly expectedSizeBytes?: number | undefined;
+}): boolean {
+  return input.expectedMtimeMs !== undefined || input.expectedSizeBytes !== undefined;
 }
 
 export const makeProjectFileSystem = Effect.gen(function* () {
@@ -101,6 +117,8 @@ export const makeProjectFileSystem = Effect.gen(function* () {
         relativePath: target.relativePath,
         contents: new TextDecoder("utf-8").decode(bytes),
         sizeBytes: stat.size,
+        mtimeMs: stat.mtimeMs,
+        readBytes: bytes.length,
         truncated: stat.size > READ_FILE_PREVIEW_MAX_BYTES,
         syntax: {
           languageId: getFiletypeFromFileName(target.relativePath),
@@ -116,6 +134,37 @@ export const makeProjectFileSystem = Effect.gen(function* () {
         projectRoot: normalizedCwd,
         relativePath: input.relativePath,
       });
+
+      if (hasWriteExpectations(input)) {
+        const currentStat = yield* Effect.tryPromise({
+          try: () => fsPromises.stat(target.absolutePath),
+          catch: (cause) => {
+            if (errorCode(cause) === "ENOENT") {
+              return new ProjectWriteConflictError({
+                relativePath: target.relativePath,
+                message: "File changed before save.",
+              });
+            }
+            return new ProjectFileSystemError({
+              cwd: normalizedCwd,
+              relativePath: input.relativePath,
+              operation: "projectFileSystem.writeFile.stat",
+              detail: cause instanceof Error ? cause.message : String(cause),
+              cause,
+            });
+          },
+        });
+
+        if (
+          (input.expectedMtimeMs !== undefined && currentStat.mtimeMs !== input.expectedMtimeMs) ||
+          (input.expectedSizeBytes !== undefined && currentStat.size !== input.expectedSizeBytes)
+        ) {
+          return yield* new ProjectWriteConflictError({
+            relativePath: target.relativePath,
+            message: "File changed before save.",
+          });
+        }
+      }
 
       yield* fileSystem.makeDirectory(path.dirname(target.absolutePath), { recursive: true }).pipe(
         Effect.mapError(
@@ -141,11 +190,69 @@ export const makeProjectFileSystem = Effect.gen(function* () {
             }),
         ),
       );
+      const stat = yield* Effect.tryPromise({
+        try: () => fsPromises.stat(target.absolutePath),
+        catch: (cause) =>
+          new ProjectFileSystemError({
+            cwd: normalizedCwd,
+            relativePath: input.relativePath,
+            operation: "projectFileSystem.writeFile.statAfterWrite",
+            detail: cause instanceof Error ? cause.message : String(cause),
+            cause,
+          }),
+      });
       yield* projectEntries.invalidate(normalizedCwd);
-      return { relativePath: target.relativePath };
+      return { relativePath: target.relativePath, mtimeMs: stat.mtimeMs, sizeBytes: stat.size };
     },
   );
-  return { readFile, writeFile } satisfies ProjectFileSystemShape;
+
+  const deleteFile: ProjectFileSystemShape["deleteFile"] = Effect.fn(
+    "ProjectFileSystem.deleteFile",
+  )(function* (input) {
+    const normalizedCwd = yield* projectPaths.normalizeProjectRoot(input.cwd);
+    const target = yield* projectPaths.resolveRelativePathWithinRoot({
+      projectRoot: normalizedCwd,
+      relativePath: input.relativePath,
+    });
+
+    // lstat (not stat) so a symlink leaf is never followed/classified as a
+    // regular file — fileSystem.remove then unlinks the symlink itself rather
+    // than its target.
+    const stat = yield* Effect.tryPromise({
+      try: () => fsPromises.lstat(target.absolutePath),
+      catch: (cause) =>
+        new ProjectFileSystemError({
+          cwd: normalizedCwd,
+          relativePath: input.relativePath,
+          operation: "projectFileSystem.deleteFile.stat",
+          detail: cause instanceof Error ? cause.message : String(cause),
+          cause,
+        }),
+    });
+
+    if (!stat.isFile() && !stat.isSymbolicLink()) {
+      return yield* new ProjectDeleteFileError({
+        message: "Not a file.",
+      });
+    }
+
+    yield* fileSystem.remove(target.absolutePath).pipe(
+      Effect.mapError(
+        (cause) =>
+          new ProjectFileSystemError({
+            cwd: normalizedCwd,
+            relativePath: input.relativePath,
+            operation: "projectFileSystem.deleteFile",
+            detail: cause.message,
+            cause,
+          }),
+      ),
+    );
+    yield* projectEntries.invalidate(normalizedCwd);
+    return { relativePath: target.relativePath };
+  });
+
+  return { readFile, writeFile, deleteFile } satisfies ProjectFileSystemShape;
 });
 
 export const ProjectFileSystemLive = Layer.effect(ProjectFileSystem, makeProjectFileSystem);

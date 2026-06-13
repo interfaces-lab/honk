@@ -38,6 +38,7 @@ export interface ComposerPromptEditorHandle {
   focusAt: (cursor: number) => void;
   focusAtEnd: () => void;
   insertText: (text: string) => void;
+  insertMention: (payload: ComposerMentionPayload) => void;
   getText: () => string;
   getCommands: () => ComposerCommandData[];
   getMentions: () => ComposerMentionData[];

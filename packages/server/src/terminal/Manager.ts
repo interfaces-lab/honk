@@ -81,17 +81,23 @@ const toTerminalProcessOperationError =
 // Keep shell identity out of the inherited process environment.
 //
 // Honk may be launched from Electron, a dev server, Codex, or a real terminal.
-// Inheriting TERM/COLORTERM from that parent makes the child shell render for the
-// parent terminal instead of the PTY we actually create. The visible regression
-// is prompt/theme tools taking an xterm-256color branch and showing the wrong
-// prompt text. Do not add TERM or COLORTERM defaults here; node-pty supplies the
-// PTY baseline unless a caller explicitly passes a runtime override.
+// Inheriting TERM/COLORTERM from that parent would describe the parent terminal
+// instead of the PTY we actually create, so both are stripped here and
+// createTerminalSpawnEnv re-advertises the embedded terminal's real
+// capabilities explicitly (TERM=xterm-256color, COLORTERM=truecolor — the same
+// contract opencode uses for its embedded PTYs).
 const TERMINAL_ENV_BLOCKLIST = new Set([
   "PORT",
   "ELECTRON_RENDERER_PORT",
   "ELECTRON_RUN_AS_NODE",
   "TERM",
   "COLORTERM",
+  // SSH session markers inherited from however Honk was launched make prompt
+  // tools (starship username module, etc.) render the remote-session prompt
+  // in what is a purely local embedded terminal.
+  "SSH_CONNECTION",
+  "SSH_CLIENT",
+  "SSH_TTY",
 ]);
 
 const TERMINAL_LOGIN_SHELL_CLEAR_WHEN_ABSENT = new Set([
@@ -745,6 +751,12 @@ function createTerminalSpawnEnv(
     spawnEnv[key] = value;
   }
   applyLoginShellEnvironment(spawnEnv, loginShellEnv);
+  // Advertise the embedded terminal's real capabilities, the way opencode does
+  // for its PTYs: xterm.js draws 24-bit SGR, so TUIs should emit exact RGB
+  // instead of approximating with the 16-color palette. Explicit values (not
+  // inherited) so the terminal that launched Honk can never leak through.
+  spawnEnv.TERM = "xterm-256color";
+  spawnEnv.COLORTERM = "truecolor";
   // Runtime env is the only supported escape hatch for terminal identity vars.
   // Keep this explicit so app/bootstrap env cannot silently reintroduce xterm.
   if (runtimeEnv) {

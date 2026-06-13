@@ -25,6 +25,7 @@ import { ThreadAgentRuntime, type SendMessageOptions } from "../src/thread-agent
 
 export const EMPTY_SEND_MESSAGE_OPTIONS = {
   clientMessageId: null,
+  replacesClientMessageId: null,
   interactionMode: "agent",
   sourceProposedPlan: null,
   images: [],

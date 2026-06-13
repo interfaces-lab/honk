@@ -17,6 +17,7 @@ export {
   type RuntimeOrchestrationCommandContext,
 } from "./runtime-orchestration-commands";
 export { runtimeSubagentActivitiesForToolEvent } from "./runtime-subagent-activities";
+export { runtimeToolItemTypeForName } from "./runtime-tool-item-type";
 export {
   CLIENT_MESSAGE_ID_SIDECAR_TYPE,
   clientMessageIdSidecarData,

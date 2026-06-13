@@ -28,6 +28,7 @@ export function createEnvironmentApi(rpcClient: WsRpcClient): EnvironmentApi {
       readFile: rpcClient.projects.readFile,
       searchEntries: rpcClient.projects.searchEntries,
       writeFile: rpcClient.projects.writeFile,
+      deleteFile: rpcClient.projects.deleteFile,
     },
     filesystem: {
       browse: rpcClient.filesystem.browse,

@@ -16,9 +16,7 @@ describe("browser URL normalization", () => {
 
   it("adds http for localhost shortcuts", () => {
     expect(normalizeBrowserNavigationInput("localhost:5173")).toBe("http://localhost:5173");
-    expect(normalizeBrowserNavigationInput("127.0.0.1:3000/app")).toBe(
-      "http://127.0.0.1:3000/app",
-    );
+    expect(normalizeBrowserNavigationInput("127.0.0.1:3000/app")).toBe("http://127.0.0.1:3000/app");
   });
 
   it("adds https for bare domains", () => {

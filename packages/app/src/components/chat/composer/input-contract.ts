@@ -13,6 +13,7 @@ import type { UnifiedSettings } from "@honk/contracts/settings";
 import type { RefObject, ReactNode } from "react";
 
 import type { ComposerImageAttachment, DraftId } from "../../../stores/chat-drafts";
+import type { ComposerMentionPayload } from "./prompt-editor/types";
 import type { QueuedComposerItem } from "../../../stores/chat-send-queue";
 import type { PendingUserInputDraftAnswer } from "./pending/user-input";
 import type { ContextWindowSnapshot } from "../../../lib/context-window";
@@ -49,6 +50,8 @@ export interface ComposerInputHandle {
   restoreComposer: (snapshot: ComposerSubmitContext) => void;
   /** Read prompt and attachments for dispatch. */
   getSendContext: () => ComposerSubmitContext;
+  /** Insert an existing composer mention token without replacing typed text. */
+  insertMention: (payload: ComposerMentionPayload) => void;
 }
 
 export type ComposerInputVariant = "expanded" | "compact";

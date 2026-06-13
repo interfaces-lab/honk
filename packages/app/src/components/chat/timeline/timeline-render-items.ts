@@ -217,16 +217,7 @@ export function runtimeToolHasPendingApproval(
   const display = tool.display;
   const toolName = normalizeRuntimeToolName(tool.toolName);
   return matchesPendingApprovalKinds(kinds, {
-    isCommand:
-      display?.kind === "shell" ||
-      toolName === "shell" ||
-      toolName === "bash" ||
-      toolName === "terminal" ||
-      toolName === "exec" ||
-      toolName === "command" ||
-      toolName.includes("shell") ||
-      toolName.includes("command_execution") ||
-      typeof tool.command === "string",
+    isCommand: isCommandLikeRuntimeTool(toolName, tool.command, display?.kind),
     isEdit:
       display?.kind === "edit" ||
       toolName.includes("edit") ||
@@ -780,6 +771,23 @@ function normalizeRuntimeToolName(toolName: string): string {
   return toolName.trim().toLowerCase().replaceAll("-", "_");
 }
 
+function isCommandLikeRuntimeTool(
+  normalizedToolName: string,
+  command: unknown,
+  displayKind: RuntimeDisplayTimelineToolItem["display"]["kind"] | undefined,
+): boolean {
+  return (
+    displayKind === "shell" ||
+    normalizedToolName === "bash" ||
+    normalizedToolName === "terminal" ||
+    normalizedToolName === "exec" ||
+    normalizedToolName === "command" ||
+    normalizedToolName.includes("shell") ||
+    normalizedToolName.includes("command_execution") ||
+    typeof command === "string"
+  );
+}
+
 function countAwaitJobStats(awaitSteps: ReadonlyArray<TimelineRuntimeToolStep>): {
   jobCount: number;
   completeCount: number;
@@ -928,7 +936,9 @@ function isExploreWorkEntry(entry: WorkLogEntry): boolean {
     entry.requestKind === "file-read" ||
     entry.itemType === "file_read" ||
     entry.itemType === "file_search" ||
-    Boolean(entry.artifacts?.some((artifact) => artifact.type === "read" || artifact.type === "search"))
+    Boolean(
+      entry.artifacts?.some((artifact) => artifact.type === "read" || artifact.type === "search"),
+    )
   );
 }
 
@@ -947,7 +957,9 @@ function groupedRunDurationMs(
   }
   const startMs = Date.parse(firstStep.createdAt);
   const endAt =
-    lastStep.kind === "work" ? (lastStep.entry.completedAt ?? lastStep.createdAt) : lastStep.createdAt;
+    lastStep.kind === "work"
+      ? (lastStep.entry.completedAt ?? lastStep.createdAt)
+      : lastStep.createdAt;
   const endMs = Date.parse(endAt);
   const spanMs =
     Number.isFinite(startMs) && Number.isFinite(endMs) ? Math.max(0, endMs - startMs) : 0;
@@ -1151,7 +1163,6 @@ function summarizeRuntimeBrowserGroup(
   };
 }
 
-
 // At Balanced, only thinking-only runs may collapse; grouped compact keeps Cursor rules.
 // Pure committed-work runs keep the work thresholds; any run touching runtime steps uses the
 // runtime thresholds so a step flipping source mid-turn never changes the group decision.
@@ -1272,20 +1283,34 @@ function suppressRedundantWaitingGroups(
   items: TimelineRenderItem[],
   isTurnActive: boolean,
 ): TimelineRenderItem[] {
-  if (!isTurnActive || !items.some(isLiveThinkingStatusRenderItem)) {
+  if (!isTurnActive || !items.some(isLiveActivityStatusRenderItem)) {
     return items;
   }
   return items.filter((item) => item.kind !== "waitingGroup");
 }
 
-function isLiveThinkingStatusRenderItem(item: TimelineRenderItem): boolean {
-  if (item.kind === "single") {
-    return item.step.kind === "runtime-thinking" && item.step.message.streaming === true;
+// A running group (keepTailGroupRunning holds the trailing group running for the whole
+// active turn) or a live single step is already the loading surface; the generic waiting
+// row only adds value when nothing else on screen is moving. Running subagent tasks are
+// excluded: a backgrounded subagent above a quiet tail must not hide the only signal that
+// the main turn is still waiting.
+function isLiveActivityStatusRenderItem(item: TimelineRenderItem): boolean {
+  if (item.kind === "group") {
+    return item.group.isRunning;
   }
-  if (item.kind !== "group") {
+  if (item.kind !== "single") {
     return false;
   }
-  return item.group.isRunning && item.group.isThinkingGroup;
+  const step = item.step;
+  switch (step.kind) {
+    case "message":
+    case "runtime-thinking":
+    case "runtime-tool":
+    case "work":
+      return isActivelyRunningGroupedStep(step);
+    default:
+      return false;
+  }
 }
 
 export function isActivelyRunningGroupedStep(step: TimelineGroupedStep): boolean {
@@ -1538,20 +1563,8 @@ function isRunningRuntimeStep(
 }
 
 function isRuntimeCommandToolStep(step: TimelineRuntimeToolStep): boolean {
-  if (step.tool.display?.kind === "shell") {
-    return true;
-  }
   const toolName = normalizeRuntimeToolName(step.tool.toolName);
-  return (
-    toolName === "shell" ||
-    toolName === "bash" ||
-    toolName === "terminal" ||
-    toolName === "exec" ||
-    toolName === "command" ||
-    toolName.includes("shell") ||
-    toolName.includes("command_execution") ||
-    typeof step.tool.command === "string"
-  );
+  return isCommandLikeRuntimeTool(toolName, step.tool.command, step.tool.display?.kind);
 }
 
 function isRuntimeBrowserToolStep(step: TimelineRuntimeToolStep): boolean {

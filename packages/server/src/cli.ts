@@ -151,12 +151,8 @@ const EnvServerConfig = Config.all({
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  otlpExportIntervalMs: Config.int("HONK_OTLP_EXPORT_INTERVAL_MS").pipe(
-    Config.withDefault(10_000),
-  ),
-  otlpServiceName: Config.string("HONK_OTLP_SERVICE_NAME").pipe(
-    Config.withDefault("honk-server"),
-  ),
+  otlpExportIntervalMs: Config.int("HONK_OTLP_EXPORT_INTERVAL_MS").pipe(Config.withDefault(10_000)),
+  otlpServiceName: Config.string("HONK_OTLP_SERVICE_NAME").pipe(Config.withDefault("honk-server")),
   mode: Config.schema(RuntimeMode, "HONK_MODE").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),

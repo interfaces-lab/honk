@@ -117,9 +117,9 @@ export const useComposerQueueStore = create<ComposerQueueStoreState>()((set, get
   getQueueItem: (threadKey, itemId) => {
     const normalizedThreadKey = normalizeThreadKey(threadKey);
     return normalizedThreadKey
-      ? (get().queueItemsByThreadKey[normalizedThreadKey] ?? EMPTY_QUEUE_ITEMS).find(
+      ? ((get().queueItemsByThreadKey[normalizedThreadKey] ?? EMPTY_QUEUE_ITEMS).find(
           (item) => item.id === itemId,
-        ) ?? null
+        ) ?? null)
       : null;
   },
   getEditingQueueItemId: (threadKey) => {

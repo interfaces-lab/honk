@@ -11,12 +11,13 @@ import {
   type SessionTreeProjection,
   type ThreadEntryId,
   type ThreadId,
-  type ToolLifecycleItemType,
 } from "@honk/contracts";
 import { toJsonValue } from "@honk/shared/schema-json";
 import { Schema } from "effect";
 
 import { runtimeSubagentActivitiesForToolEvent } from "./runtime-subagent-activities";
+import { asRecord } from "./runtime-record";
+import { runtimeToolItemTypeForName } from "./runtime-tool-item-type";
 
 const isThreadTokenUsageSnapshot = Schema.is(ThreadTokenUsageSnapshot);
 
@@ -33,10 +34,6 @@ export function runtimeAssistantEntryIngestionKey(
   entry: SessionTreeEntry,
 ): string {
   return `${tree.threadId}:${tree.runtimeSessionId}:${entry.id}`;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 }
 
 function asTrimmedString(value: unknown): string | null {
@@ -133,27 +130,6 @@ export function runtimeSessionTreeAssistantCompleteCommands(input: {
     }
   }
   return commands;
-}
-
-function runtimeToolItemTypeForName(toolName: string): ToolLifecycleItemType {
-  switch (toolName) {
-    case "bash":
-    case "shell":
-      return "command_execution";
-    case "read":
-      return "file_read";
-    case "grep":
-    case "find":
-    case "ls":
-      return "file_search";
-    case "edit":
-    case "write":
-      return "file_change";
-    case "subagent":
-      return "collab_agent_tool_call";
-    default:
-      return "dynamic_tool_call";
-  }
 }
 
 function compactSubagentParentRun(

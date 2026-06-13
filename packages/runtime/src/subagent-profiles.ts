@@ -117,7 +117,9 @@ function asBoolean(value: unknown, fallback: boolean): boolean {
 
 function parseToolList(value: unknown): readonly string[] | null {
   if (Array.isArray(value)) {
-    const tools = value.map((entry) => asTrimmedString(entry)).filter((t): t is string => t !== null);
+    const tools = value
+      .map((entry) => asTrimmedString(entry))
+      .filter((t): t is string => t !== null);
     return tools.length > 0 ? tools : null;
   }
   const text = asTrimmedString(value);
@@ -240,7 +242,9 @@ function mergedProfiles(input: {
   readonly cwd: string;
   readonly agentDir: string;
 }): Map<string, ResolvedSubagentProfile> {
-  const merged = new Map<string, ResolvedSubagentProfile>(Object.entries(BUILTIN_SUBAGENT_PROFILES));
+  const merged = new Map<string, ResolvedSubagentProfile>(
+    Object.entries(BUILTIN_SUBAGENT_PROFILES),
+  );
   if (input.scope === "user" || input.scope === "both") {
     for (const [name, profile] of loadAgentsFromDir(userAgentsDir(input.agentDir), "user")) {
       merged.set(name, profile);

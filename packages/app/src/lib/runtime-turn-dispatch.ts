@@ -23,6 +23,7 @@ interface RuntimeTurnInput {
   readonly interactionMode: AgentInteractionMode;
   readonly sourceProposedPlan: SourceProposedPlanReference | null;
   readonly clientMessageId: MessageId;
+  readonly replacesClientMessageId: MessageId | null;
   readonly images: readonly ThreadAgentRuntimeImageAttachment[];
   readonly modelSelection: ModelSelection;
 }
@@ -62,6 +63,7 @@ export async function sendRuntimeTurnWithPreparedPolicy(
     interactionMode: input.interactionMode,
     sourceProposedPlan: input.sourceProposedPlan,
     clientMessageId: input.clientMessageId,
+    replacesClientMessageId: input.replacesClientMessageId,
     images: [...input.images],
     policy: await input.preparedPolicy.policy,
   });

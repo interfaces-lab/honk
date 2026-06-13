@@ -523,9 +523,9 @@ export const makeServerRuntimeStartup = Effect.gen(function* () {
         yield* Effect.logDebug("startup phase: browser open check");
         const startupBrowserTarget = yield* resolveStartupBrowserTarget;
         if (serverConfig.mode !== "desktop") {
-          yield* Effect.logInfo(
-            "Authentication required. Open Honk using the bootstrap URL.",
-          ).pipe(Effect.annotateLogs({ bootstrapUrl: startupBrowserTarget }));
+          yield* Effect.logInfo("Authentication required. Open Honk using the bootstrap URL.").pipe(
+            Effect.annotateLogs({ bootstrapUrl: startupBrowserTarget }),
+          );
         }
         yield* runStartupPhase("browser.open", maybeOpenBrowser(startupBrowserTarget));
       }

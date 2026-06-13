@@ -49,6 +49,11 @@ export interface CoordinateTurnSendInput {
    * client cannot know reliably while runtime persistence is in flight.
    */
   readonly parentEntryId?: ThreadEntryId | null;
+  /**
+   * Message this runtime send revises. Omit for tip-append sends; branching edit
+   * sends pass the original client message so runtime can create a sibling turn.
+   */
+  readonly replacesClientMessageId?: MessageId | null;
   readonly modelSelection: ModelSelection;
   readonly titleSeed: string;
   readonly runtimeMode?: RuntimeMode;
@@ -136,6 +141,7 @@ export async function coordinateTurnSend(
         interactionMode: input.interactionMode,
         sourceProposedPlan: input.sourceProposedPlan ?? null,
         clientMessageId: input.clientMessageId,
+        replacesClientMessageId: input.replacesClientMessageId ?? null,
         images: turnAttachments as ThreadAgentRuntimeImageAttachment[],
         modelSelection: input.modelSelection,
         preparedPolicy: input.preparedPolicy,

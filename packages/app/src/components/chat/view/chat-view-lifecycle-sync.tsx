@@ -138,7 +138,9 @@ export function RuntimeThreadHydrationSync({
 
 function setRuntimeThreadFocus(threadId: ThreadId, focused: boolean): void {
   try {
-    void readHonkRuntimeApi().setThreadFocus({ threadId, focused }).catch(() => undefined);
+    void readHonkRuntimeApi()
+      .setThreadFocus({ threadId, focused })
+      .catch(() => undefined);
   } catch {
     return;
   }

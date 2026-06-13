@@ -42,6 +42,8 @@ function createRuntimeApi(input: {
     },
     abort: async () => undefined,
     respondToExtensionUiRequest: async () => undefined,
+    listSkills: async () => ({ skills: [] }),
+    getThreadSessionFile: async () => ({ path: null }),
     onHostEvent: () => () => undefined,
   };
 }
@@ -56,6 +58,7 @@ function createLocalApi(runtime: HonkRuntimeApi): LocalApi {
     shell: {
       openInEditor: async () => notCalled(),
       openExternal: async () => undefined,
+      showItemInFolder: async () => undefined,
     },
     contextMenu: {
       show: async () => null,
@@ -147,6 +150,7 @@ describe("sendRuntimeTurn", () => {
         interactionMode: "agent",
         sourceProposedPlan: null,
         clientMessageId: MessageId.make("message:missing-runtime-host"),
+        replacesClientMessageId: null,
         images: [],
         modelSelection: codexModelSelection,
       }),
@@ -177,6 +181,7 @@ describe("sendRuntimeTurn", () => {
       interactionMode: "agent",
       sourceProposedPlan: null,
       clientMessageId: MessageId.make("message:runtime-host"),
+      replacesClientMessageId: null,
       images: [],
       modelSelection: codexModelSelection,
     });
@@ -189,6 +194,7 @@ describe("sendRuntimeTurn", () => {
         interactionMode: "agent",
         sourceProposedPlan: null,
         clientMessageId: MessageId.make("message:runtime-host"),
+        replacesClientMessageId: null,
         images: [],
         policy: expect.objectContaining({
           modelSelection: expect.objectContaining({
@@ -234,6 +240,7 @@ describe("sendRuntimeTurn", () => {
       interactionMode: "agent",
       sourceProposedPlan: null,
       clientMessageId: MessageId.make("message:smart-runtime-host"),
+      replacesClientMessageId: null,
       images: [],
       modelSelection: codexModelSelection,
     });
@@ -278,6 +285,7 @@ describe("sendRuntimeTurn", () => {
       interactionMode: "agent",
       sourceProposedPlan: null,
       clientMessageId: MessageId.make("message:claude-runtime-host"),
+      replacesClientMessageId: null,
       images: [],
       modelSelection: claudeModelSelection,
     });
@@ -329,6 +337,7 @@ describe("sendRuntimeTurn", () => {
       interactionMode: "agent",
       sourceProposedPlan: null,
       clientMessageId: MessageId.make("message:prepared-policy"),
+      replacesClientMessageId: MessageId.make("message:original"),
       images: [],
       modelSelection: codexModelSelection,
     });
@@ -343,6 +352,7 @@ describe("sendRuntimeTurn", () => {
       expect.objectContaining({
         threadId: ThreadId.make("thread:prepared-policy"),
         input: "hi",
+        replacesClientMessageId: MessageId.make("message:original"),
       }),
     ]);
   });

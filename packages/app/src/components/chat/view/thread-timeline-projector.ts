@@ -539,9 +539,7 @@ function shouldPreferCommittedWorkEntryForRuntimeTool(
   if (!workEntryHasDiffArtifact(committedEntry.entry)) {
     return false;
   }
-  return (
-    runtimeEntry.tool.display?.kind === "edit" || isFileChangeWorkEntry(committedEntry.entry)
-  );
+  return runtimeEntry.tool.display?.kind === "edit" || isFileChangeWorkEntry(committedEntry.entry);
 }
 
 function workEntryHasDiffArtifact(entry: WorkLogEntry): boolean {
@@ -737,10 +735,7 @@ function appendWaitingTimelineEntry(input: {
 }): ReadonlyArray<TimelineEntry> {
   const shouldAppendWaiting =
     input.isWorking || (input.isTurnActive && timelineEntriesEndWithUserMessage(input.entries));
-  if (
-    !shouldAppendWaiting ||
-    timelineEntriesEndWithStatusSurface(input.entries)
-  ) {
+  if (!shouldAppendWaiting || timelineEntriesEndWithStatusSurface(input.entries)) {
     return input.entries;
   }
   const waitingStatus = resolveWaitingTimelineStatus({

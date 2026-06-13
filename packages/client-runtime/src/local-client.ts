@@ -102,6 +102,13 @@ export function createLocalApi(rpcClient: LocalApiRpcClient): LocalApi {
 
         window.open(url, "_blank", "noopener,noreferrer");
       },
+      showItemInFolder: async (path) => {
+        if (typeof window.desktopBridge?.showItemInFolder === "function") {
+          await window.desktopBridge.showItemInFolder(path);
+          return;
+        }
+        throw unavailableDesktopRuntimeMethod("Show item in folder");
+      },
     },
     contextMenu: {
       show: showContextMenu,
@@ -149,6 +156,13 @@ function createDesktopLocalApi(): LocalApi {
         }
 
         window.open(url, "_blank", "noopener,noreferrer");
+      },
+      showItemInFolder: async (path) => {
+        if (typeof window.desktopBridge?.showItemInFolder === "function") {
+          await window.desktopBridge.showItemInFolder(path);
+          return;
+        }
+        throw unavailableDesktopRuntimeMethod("Show item in folder");
       },
     },
     contextMenu: {

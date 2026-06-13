@@ -13,9 +13,11 @@ import {
   type OrchestrationThreadStreamItem,
   OrchestrationGetSnapshotError,
   ORCHESTRATION_WS_METHODS,
+  ProjectDeleteFileError,
   ProjectListDirectoryError,
   ProjectReadFileError,
   ProjectSearchEntriesError,
+  ProjectWriteConflictError,
   ProjectWriteFileError,
   OrchestrationReplayEventsError,
   FilesystemBrowseError,
@@ -96,6 +98,8 @@ function threadRpcAttributes(input: unknown): Record<string, unknown> {
 
 const isOrchestrationDispatchCommandError = Schema.is(OrchestrationDispatchCommandError);
 const isProjectPathOutsideRootError = Schema.is(ProjectPathOutsideRootError);
+const isProjectWriteConflictError = Schema.is(ProjectWriteConflictError);
+const isProjectDeleteFileError = Schema.is(ProjectDeleteFileError);
 
 function toAuthAccessStreamEvent(
   change: BootstrapCredentialChange | SessionCredentialChange,
@@ -569,10 +573,32 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
             WS_METHODS.projectsWriteFile,
             projectFileSystem.writeFile(input).pipe(
               Effect.mapError((cause) => {
+                if (isProjectWriteConflictError(cause)) {
+                  return cause;
+                }
                 const message = isProjectPathOutsideRootError(cause)
                   ? "Project file path must stay within the project root."
                   : "Failed to write project file";
                 return new ProjectWriteFileError({
+                  message,
+                  cause,
+                });
+              }),
+            ),
+            { "rpc.aggregate": "project" },
+          ),
+        [WS_METHODS.projectsDeleteFile]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.projectsDeleteFile,
+            projectFileSystem.deleteFile(input).pipe(
+              Effect.mapError((cause) => {
+                if (isProjectDeleteFileError(cause)) {
+                  return cause;
+                }
+                const message = isProjectPathOutsideRootError(cause)
+                  ? "Project file path must stay within the project root."
+                  : "Failed to delete project file";
+                return new ProjectDeleteFileError({
                   message,
                   cause,
                 });

@@ -75,8 +75,7 @@ function probeLocalhostPort(host: string, port: number): Promise<boolean> {
 
 async function isLocalhostPortOpen(port: number): Promise<boolean> {
   return (
-    (await probeLocalhostPort("127.0.0.1", port)) ||
-    (await probeLocalhostPort("localhost", port))
+    (await probeLocalhostPort("127.0.0.1", port)) || (await probeLocalhostPort("localhost", port))
   );
 }
 
@@ -247,10 +246,7 @@ export const setDisplayZoom = makeIpcMethod({
       return;
     }
 
-    const clamped = Math.min(
-      DISPLAY_ZOOM_FACTOR_MAX,
-      Math.max(DISPLAY_ZOOM_FACTOR_MIN, factor),
-    );
+    const clamped = Math.min(DISPLAY_ZOOM_FACTOR_MAX, Math.max(DISPLAY_ZOOM_FACTOR_MIN, factor));
     window.value.webContents.setZoomFactor(clamped);
   }),
 });
@@ -341,5 +337,15 @@ export const openExternal = makeIpcMethod({
   handler: Effect.fn("desktop.ipc.window.openExternal")(function* (url) {
     const shell = yield* ElectronShell.ElectronShell;
     return yield* shell.openExternal(url);
+  }),
+});
+
+export const showItemInFolder = makeIpcMethod({
+  channel: IpcChannels.SHOW_ITEM_IN_FOLDER_CHANNEL,
+  payload: Schema.String,
+  result: Schema.Boolean,
+  handler: Effect.fn("desktop.ipc.window.showItemInFolder")(function* (path) {
+    const shell = yield* ElectronShell.ElectronShell;
+    return yield* shell.showItemInFolder(path);
   }),
 });

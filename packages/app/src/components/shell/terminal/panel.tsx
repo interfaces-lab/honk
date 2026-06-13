@@ -11,7 +11,11 @@ import {
   readTerminalHostThemeForMount,
 } from "~/components/shell/terminal/terminal-host-theme";
 import { subscribeTerminalHostDocument } from "~/components/shell/terminal/terminal-xterm-host-sync";
-import { terminalDeleteShortcutData, terminalNavigationShortcutData } from "~/keybindings";
+import {
+  isTerminalClearShortcut,
+  terminalDeleteShortcutData,
+  terminalNavigationShortcutData,
+} from "~/keybindings";
 import {
   readWorkbenchTerminalApi,
   workbenchTerminalThreadId,
@@ -133,6 +137,7 @@ function TerminalPanelSession({
         fontSize,
         fontFamily: family,
         cursorBlink: true,
+        cursorStyle: "bar",
         lineHeight: 1.2,
         theme: cfg,
         scrollback: 10_000,
@@ -207,13 +212,7 @@ function TerminalPanelSession({
         return false;
       }
 
-      const hit =
-        event.metaKey &&
-        !event.ctrlKey &&
-        !event.altKey &&
-        !event.shiftKey &&
-        event.code === "KeyK";
-      if (!hit) return true;
+      if (!isTerminalClearShortcut(event)) return true;
       event.preventDefault();
       event.stopPropagation();
       clear();

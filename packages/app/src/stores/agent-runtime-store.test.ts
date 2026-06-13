@@ -20,6 +20,7 @@ import { createEmptyRuntimeHostSnapshot } from "../lib/honk-runtime-api";
 import { getThreadFromEnvironmentState } from "../thread-derivation";
 import {
   latestRuntimeEventTurnId,
+  runtimeAgentRunEventState,
   runtimeEventsIndicateActiveAgentRun,
   runtimeEventsIndicateTerminalAgentRun,
   selectIsRuntimeThread,
@@ -837,6 +838,24 @@ describe("agent runtime store", () => {
         threadId,
       ),
     ).toBe(true);
+    expect(
+      runtimeAgentRunEventState(
+        [agentStartedEvent, turnCompletedEvent, toolCompletedEvent],
+        threadId,
+      ),
+    ).toEqual({
+      lifecycle: "active",
+      latestTurnId: turnId,
+    });
+    expect(
+      runtimeAgentRunEventState(
+        [agentStartedEvent, turnCompletedEvent, agentCompletedEvent],
+        threadId,
+      ),
+    ).toEqual({
+      lifecycle: "terminal",
+      latestTurnId: turnId,
+    });
   });
 
   it("resolves the latest runtime event turn id for interruption fallback", () => {

@@ -4,21 +4,21 @@ The app is a Promise-client UI layer. It coordinates user turns, projects chat r
 
 ## Package Boundaries
 
-| Package                 | Allowed                                                                              | Forbidden                                                                                                                                       |
-| ----------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/app`          | `@honk/contracts`, `@honk/client-runtime`, `@honk/shared`, React/Zustand UI state | Pi imports, `@honk/runtime`, server internals, Effect services in stores, IPC channel strings, renderer orchestration ingestion from Pi events |
-| `@honk/client-runtime` | Promise clients for `HonkRuntimeApi`, `EnvironmentApi`, `LocalApi`                  | Pi, server internals, UI state                                                                                                                  |
-| `@honk/runtime`        | Pi SDK, projections, `ThreadAgentRuntime`, sidecars                                  | React, app stores, desktop IPC                                                                                                                  |
-| `packages/desktop`      | `@honk/runtime`, IPC, runtime ingestion, Effect services                            | Pi types in renderer/preload                                                                                                                    |
-| `packages/server`       | Durable orchestration facts and projections                                          | Pi execution, runtime display rows, `chatTimelineRows`                                                                                          |
+| Package                | Allowed                                                                           | Forbidden                                                                                                                                      |
+| ---------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/app`         | `@honk/contracts`, `@honk/client-runtime`, `@honk/shared`, React/Zustand UI state | Pi imports, `@honk/runtime`, server internals, Effect services in stores, IPC channel strings, renderer orchestration ingestion from Pi events |
+| `@honk/client-runtime` | Promise clients for `HonkRuntimeApi`, `EnvironmentApi`, `LocalApi`                | Pi, server internals, UI state                                                                                                                 |
+| `@honk/runtime`        | Pi SDK, projections, `ThreadAgentRuntime`, sidecars                               | React, app stores, desktop IPC                                                                                                                 |
+| `packages/desktop`     | `@honk/runtime`, IPC, runtime ingestion, Effect services                          | Pi types in renderer/preload                                                                                                                   |
+| `packages/server`      | Durable orchestration facts and projections                                       | Pi execution, runtime display rows, `chatTimelineRows`                                                                                         |
 
 ## Agent-Adjacent SDK Surfaces
 
-| API               | Transport     | Owns                                                                         |
-| ----------------- | ------------- | ---------------------------------------------------------------------------- |
+| API              | Transport     | Owns                                                                         |
+| ---------------- | ------------- | ---------------------------------------------------------------------------- |
 | `HonkRuntimeApi` | Electron IPC  | Pi execution: `sendTurn`, `abort`, `hydrateThread`, credentials, host events |
-| `EnvironmentApi`  | WebSocket RPC | Durable orchestration facts, projects, git, terminal, thread snapshots       |
-| `LocalApi`        | IPC           | Shell/local UI operations only                                               |
+| `EnvironmentApi` | WebSocket RPC | Durable orchestration facts, projects, git, terminal, thread snapshots       |
+| `LocalApi`       | IPC           | Shell/local UI operations only                                               |
 
 ## Chat Invariants
 
@@ -61,19 +61,19 @@ Honk supports exactly three densities (`detailed`, `compact-ungrouped` = Balance
 equivalents (from `workbench.desktop.main.js`) are listed so reverse-engineering lands in
 the right layer.
 
-| Layer              | Cursor symbol            | Honk file / symbol                                                          |
-| ------------------ | ------------------------ | ---------------------------------------------------------------------------- |
-| Storage + migrate  | `HFr` key, `XBn` aliases | `contracts/settings.ts` `ConversationDensity` (decode-time legacy migration) |
-| Settings UI        | `ETA` + `ATA` slider     | `settings/appearance/appearance-settings-panel.tsx` + `tool-call-density-control.tsx` (slider + live preview) |
-| Config read        | `f4o` / `GMS` / `Cjt`    | `hooks/use-settings.ts` → `hooks/use-conversation-density.ts`                |
-| Distribution       | `F5r` / `SCe` context    | hook + prop (`messages-timeline.tsx`, `tool-message.tsx`) — no provider      |
-| Transcript rows    | `aof` + `pqb`/`cof`      | `thread-timeline-projector.ts` (density-agnostic) → `timeline-render-items.ts` `deriveTimelineRenderItems` (density-aware) |
-| Step grouping      | `NAm` + `Wot`/`Hot`      | `deriveTimelineRenderItems` + `@honk/shared/conversation-density` predicates |
-| Group chrome       | `A4b` / `LRm`            | `timeline/step-renderer.tsx` `GroupedStepsRenderer` (header verb + `WorkGroupPreview` 144px strip) |
-| Tool router        | `MRm`                    | `message/tool-renderer.tsx` `ToolCallRenderer`                               |
-| Edit UI            | `XJr`                    | `EditToolCall` (detailed card + collapsed diff; compact minimal line)        |
-| Shell UI           | `kRm`                    | `ShellToolCall` detailed card; compact = `ExpandableToolMetadataLine` accordion |
-| Subagent task      | `O4b`                    | `taskToolCall` branch (`TaskToolCall`); nested transcript lives in the subagent tray, not inline |
+| Layer             | Cursor symbol            | Honk file / symbol                                                                                                         |
+| ----------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Storage + migrate | `HFr` key, `XBn` aliases | `contracts/settings.ts` `ConversationDensity` (decode-time legacy migration)                                               |
+| Settings UI       | `ETA` + `ATA` slider     | `settings/appearance/appearance-settings-panel.tsx` + `tool-call-density-control.tsx` (slider + live preview)              |
+| Config read       | `f4o` / `GMS` / `Cjt`    | `hooks/use-settings.ts` → `hooks/use-conversation-density.ts`                                                              |
+| Distribution      | `F5r` / `SCe` context    | hook + prop (`messages-timeline.tsx`, `tool-message.tsx`) — no provider                                                    |
+| Transcript rows   | `aof` + `pqb`/`cof`      | `thread-timeline-projector.ts` (density-agnostic) → `timeline-render-items.ts` `deriveTimelineRenderItems` (density-aware) |
+| Step grouping     | `NAm` + `Wot`/`Hot`      | `deriveTimelineRenderItems` + `@honk/shared/conversation-density` predicates                                               |
+| Group chrome      | `A4b` / `LRm`            | `timeline/step-renderer.tsx` `GroupedStepsRenderer` (header verb + `WorkGroupPreview` 144px strip)                         |
+| Tool router       | `MRm`                    | `message/tool-renderer.tsx` `ToolCallRenderer`                                                                             |
+| Edit UI           | `XJr`                    | `EditToolCall` (detailed card + collapsed diff; compact minimal line)                                                      |
+| Shell UI          | `kRm`                    | `ShellToolCall` detailed card; compact = `ExpandableToolMetadataLine` accordion                                            |
+| Subagent task     | `O4b`                    | `taskToolCall` branch (`TaskToolCall`); nested transcript lives in the subagent tray, not inline                           |
 
 Grouping boundaries are user-visible entries only (user messages, extension UI requests,
 transcript-scale assistant text). Orchestration turn ids are ignored: runtime-driven

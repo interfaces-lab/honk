@@ -386,9 +386,7 @@ function MenuSubPopup({
 }) {
   const defaultAlignOffset = align !== "center" ? -5 : undefined;
   const positionerLayerClassName =
-    variant === "workbench"
-      ? "z-(--z-index-workbench-submenu)"
-      : "z-(--z-index-submenu)";
+    variant === "workbench" ? "z-(--z-index-workbench-submenu)" : "z-(--z-index-submenu)";
 
   return (
     <MenuPopup

@@ -12,10 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizePathSeparators } from "@honk/shared/paths";
 
 import { WorkbenchIconButton } from "@honk/honkkit/workbench-button";
-import {
-  WorkbenchChromeActionGroup,
-  WorkbenchChromeRow,
-} from "@honk/honkkit/workbench-chrome-row";
+import { WorkbenchChromeActionGroup, WorkbenchChromeRow } from "@honk/honkkit/workbench-chrome-row";
 
 import { resolveShortcutCommand, type ShortcutEventLike } from "~/keybindings";
 import { useServerKeybindings } from "~/rpc/server-state";
@@ -43,21 +40,7 @@ type BrowserWebviewIpcMessageEvent = Event & {
 };
 
 const BROWSER_LOCALHOST_PORT_CANDIDATES = [
-  3000,
-  3001,
-  3002,
-  4000,
-  4173,
-  4321,
-  5000,
-  5173,
-  5174,
-  6006,
-  7000,
-  8000,
-  8080,
-  8787,
-  8888,
+  3000, 3001, 3002, 4000, 4173, 4321, 5000, 5173, 5174, 6006, 7000, 8000, 8080, 8787, 8888,
 ] as const;
 
 interface DetectedLocalhostServer {

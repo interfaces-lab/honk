@@ -4,8 +4,7 @@
  */
 
 :root {
-  --honk-font-ui:
-    -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, sans-serif;
+  --honk-font-ui: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, sans-serif;
   --honk-font-mono: "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
   --honk-font-smoothing-webkit: antialiased;
   --honk-font-smoothing-moz: grayscale;
@@ -49,8 +48,7 @@
   --honk-base-foreground: #141414;
   --honk-cursor-base: var(--honk-base-foreground);
   --foreground: var(--honk-base-foreground);
-  --honk-swatch-inset-shadow: inset 0 0 0 1px
-    color-mix(in srgb, var(--foreground) 16%, transparent);
+  --honk-swatch-inset-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 16%, transparent);
   --card: var(--cursor-bg-editor);
   --card-foreground: var(--foreground);
   --popover: var(--cursor-bg-editor);
@@ -139,8 +137,7 @@
   --honk-base-foreground: #e4e4e4;
   --honk-cursor-base: var(--honk-base-foreground);
   --foreground: var(--honk-base-foreground);
-  --honk-swatch-inset-shadow: inset 0 0 0 1px
-    color-mix(in srgb, var(--foreground) 16%, transparent);
+  --honk-swatch-inset-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 16%, transparent);
   --card: var(--cursor-bg-editor);
   --card-foreground: var(--foreground);
   --popover: var(--cursor-bg-editor);

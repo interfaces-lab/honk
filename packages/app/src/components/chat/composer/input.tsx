@@ -50,7 +50,6 @@ import {
   type AgentThinkingLevel,
   type MessageId,
   type AgentInteractionMode,
-  type ModelSelection,
   type ScopedThreadRef,
   type ThreadId,
 } from "@honk/contracts";
@@ -82,6 +81,7 @@ import {
   composerMenuPopoverAnchorFromElement,
   type ComposerMenuPopoverAnchor,
 } from "./command-menu/anchor";
+import { buildThreadMentionToken } from "./command-menu/thread-items";
 import { ComposerPendingApprovalActions } from "./pending/approval-actions";
 import { ComposerPendingApprovalPanel } from "./pending/approval-panel";
 import { ComposerPendingUserInputPanel } from "./pending/user-input-panel";
@@ -104,11 +104,11 @@ import { ComposerContextUsageBar } from "./context/context-usage-bar";
 import { PlanFollowUpTray } from "./plan-follow-up/plan-follow-up-tray";
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { useMountEffect } from "~/hooks/use-mount-effect";
-import { readHonkRuntimeApi } from "~/lib/honk-runtime-api";
-import {
-  selectRuntimeIdentityForThread,
-  useAgentRuntimeStore,
-} from "~/stores/agent-runtime-store";
+import { isDesktopRuntimeApiAvailable, readHonkRuntimeApi } from "~/lib/honk-runtime-api";
+import { useQueryClient } from "@tanstack/react-query";
+import { runtimeSkillsQueryOptions } from "~/lib/runtime-skills";
+import { projectSearchEntriesQueryOptions } from "~/lib/project-react-query";
+import { selectRuntimeIdentityForThread, useAgentRuntimeStore } from "~/stores/agent-runtime-store";
 import {
   AGENT_MODE_LABELS,
   AGENT_MODE_THINKING_LEVELS,
@@ -294,26 +294,8 @@ function AgentModeProviderIcon(props: { agentMode: AgentMode; className?: string
   return <Icon className={props.className} aria-hidden />;
 }
 
-function modelSelectionIcon(modelSelection: ModelSelection): ComponentType<CentralIconBaseProps> {
-  return modelSelection.instanceId === "claudeAgent" || modelSelection.model.startsWith("claude-")
-    ? IconClawd
-    : IconOpenaiCodex;
-}
-
-function modelSelectionLabel(modelSelection: ModelSelection): string {
-  switch (modelSelection.model) {
-    case "claude-opus-4-8":
-      return "Claude Opus 4.8";
-    case "gpt-5.5":
-      return "GPT-5.5";
-    default:
-      return modelSelection.model;
-  }
-}
-
-function ComposerReadOnlyModelChip(props: { modelSelection: ModelSelection }) {
-  const Icon = modelSelectionIcon(props.modelSelection);
-  const label = modelSelectionLabel(props.modelSelection);
+function ComposerReadOnlyAgentModeChip(props: { agentMode: AgentMode }) {
+  const label = AGENT_MODE_LABELS[props.agentMode];
 
   return (
     <span
@@ -321,10 +303,13 @@ function ComposerReadOnlyModelChip(props: { modelSelection: ModelSelection }) {
         workbenchChromeTextControlVariants(),
         "max-w-44 cursor-default rounded-full px-2 transition-none hover:bg-transparent hover:text-honk-fg-secondary",
       )}
-      aria-label={`Model: ${label}`}
+      aria-label={`Mode: ${label}`}
       title={label}
     >
-      <Icon className="size-3 shrink-0 text-honk-icon-secondary" aria-hidden />
+      <AgentModeProviderIcon
+        agentMode={props.agentMode}
+        className="size-3 shrink-0 text-honk-icon-secondary"
+      />
       <span className="min-w-0 truncate">{label}</span>
     </span>
   );
@@ -372,6 +357,30 @@ function isAgentModeEditTarget(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest("[data-agent-mode-edit]") !== null;
 }
 
+const ComposerAgentModePickerTrigger = memo(function ComposerAgentModePickerTrigger(props: {
+  agentMode: AgentMode;
+  disabled: boolean;
+}) {
+  return (
+    <MenuTrigger
+      type="button"
+      className={cn(
+        workbenchChromeTextControlVariants(),
+        "max-w-40 rounded-full pr-1.5 pl-2 transition-none disabled:pointer-events-none disabled:opacity-50",
+      )}
+      aria-label="Agent mode"
+      disabled={props.disabled}
+    >
+      <AgentModeProviderIcon
+        agentMode={props.agentMode}
+        className="size-3 shrink-0 text-honk-icon-secondary"
+      />
+      <span className="min-w-0 truncate">{AGENT_MODE_LABELS[props.agentMode]}</span>
+      <IconChevronDownSmall className="size-3 shrink-0 text-honk-icon-tertiary" aria-hidden />
+    </MenuTrigger>
+  );
+});
+
 function ComposerAgentModePicker(props: {
   agentMode: AgentMode;
   thinkingLevel: AgentThinkingLevel;
@@ -380,27 +389,25 @@ function ComposerAgentModePicker(props: {
   onAgentModeChange: (agentMode: AgentMode) => void;
   onAgentModeThinkingLevelChange: (agentMode: AgentMode, thinkingLevel: AgentThinkingLevel) => void;
 }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState<AgentModeSubmenuState>(null);
-  const triggerLabel = AGENT_MODE_LABELS[props.agentMode];
+
+  const setPickerOpenState = (open: boolean) => {
+    setPickerOpen(open);
+    if (!open) {
+      setOpenSubmenu(null);
+    }
+  };
+
+  const selectAgentMode = (mode: AgentMode) => {
+    setOpenSubmenu(null);
+    setPickerOpen(false);
+    props.onAgentModeChange(mode);
+  };
 
   return (
-    <Menu>
-      <MenuTrigger
-        type="button"
-        className={cn(
-          workbenchChromeTextControlVariants(),
-          "max-w-40 rounded-full pr-1.5 pl-2 transition-none disabled:pointer-events-none disabled:opacity-50",
-        )}
-        aria-label="Agent mode"
-        disabled={props.disabled}
-      >
-        <AgentModeProviderIcon
-          agentMode={props.agentMode}
-          className="size-3 shrink-0 text-honk-icon-secondary"
-        />
-        <span className="min-w-0 truncate">{triggerLabel}</span>
-        <IconChevronDownSmall className="size-3 shrink-0 text-honk-icon-tertiary" aria-hidden />
-      </MenuTrigger>
+    <Menu open={pickerOpen} onOpenChange={setPickerOpenState}>
+      <ComposerAgentModePickerTrigger agentMode={props.agentMode} disabled={props.disabled} />
       <MenuPopup
         align="end"
         side="top"
@@ -450,8 +457,7 @@ function ComposerAgentModePicker(props: {
                   if (isAgentModeEditTarget(event.target) || selected || modeUnavailable) {
                     return;
                   }
-                  setOpenSubmenu(null);
-                  props.onAgentModeChange(mode);
+                  selectAgentMode(mode);
                 }}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter" && event.key !== " ") {
@@ -460,21 +466,11 @@ function ComposerAgentModePicker(props: {
                   if (isAgentModeEditTarget(event.target) || selected || modeUnavailable) {
                     return;
                   }
-                  setOpenSubmenu(null);
-                  props.onAgentModeChange(mode);
+                  selectAgentMode(mode);
                 }}
                 onClick={(event) => {
                   if (!modeUnavailable && isAgentModeEditTarget(event.target)) {
                     setOpenSubmenu({ mode, kind: "effort" });
-                  }
-                }}
-                onPointerMove={(event) => {
-                  if (
-                    !isAgentModeEditTarget(event.target) &&
-                    openSubmenu?.mode === mode &&
-                    openSubmenu.kind !== "details"
-                  ) {
-                    setOpenSubmenu({ mode, kind: "details" });
                   }
                 }}
               >
@@ -493,13 +489,14 @@ function ComposerAgentModePicker(props: {
                 {isThinkingAgentMode(mode) && !modeUnavailable ? (
                   <span
                     className={cn(
-                      "hidden shrink-0 text-detail text-honk-fg-secondary",
-                      "group-hover/model:inline group-data-[highlighted]/model:inline",
-                      "data-[selected=true]:inline",
+                      "-my-px hidden shrink-0 items-center rounded-[4px] px-1 py-px text-detail text-honk-fg-secondary",
+                      "hover:bg-honk-bg-quaternary hover:text-honk-fg-primary active:bg-honk-bg-tertiary",
+                      "group-hover/model:inline-flex group-data-[highlighted]/model:inline-flex",
+                      "data-[selected=true]:inline-flex",
+                      showEffortSettings && "bg-honk-bg-tertiary text-honk-fg-primary",
                     )}
                     data-agent-mode-edit=""
                     data-selected={selected ? "true" : undefined}
-                    onPointerEnter={() => setOpenSubmenu({ mode, kind: "effort" })}
                   >
                     Edit
                   </span>
@@ -618,6 +615,8 @@ const extendReplacementRangeForTrailingSpace = (
   }
   return text[rangeEnd] === " " ? rangeEnd + 1 : rangeEnd;
 };
+
+const EMPTY_COMPOSER_MENU_EXPANDED_SECTIONS: ReadonlySet<string> = new Set();
 
 type ComposerTriggerDismissal =
   | { kind: "path"; key: string }
@@ -766,7 +765,7 @@ function ComposerDraftResetSync({
   promptRef: RefObject<string>;
   setComposerCursor: Dispatch<SetStateAction<number>>;
   setComposerHighlightedItemId: Dispatch<SetStateAction<string | null>>;
-  setComposerTrigger: Dispatch<SetStateAction<ComposerTrigger | null>>;
+  setComposerTrigger: (trigger: ComposerTrigger | null) => void;
   suppressInitialComposerTriggerDetectionRef: RefObject<boolean>;
 }) {
   useMountEffect(() => {
@@ -1242,7 +1241,6 @@ export const ComposerInput = memo(
       activeProposedPlan = null,
       planSurfaceOpen = false,
       interactionMode,
-      modelSelection,
       activeContextWindow,
       resolvedTheme,
       settings,
@@ -1329,7 +1327,6 @@ export const ComposerInput = memo(
       syncRevision: 0,
     }));
     const composerImages = composerDraft.images;
-    const nonPersistedComposerImageIds = composerDraft.nonPersistedImageIds;
     const runtimePreferences = useAgentRuntimeStore((state) => state.snapshot.preferences);
     const runtimeAuthStatuses = useAgentRuntimeStore((state) => state.snapshot.authStatuses);
     const setRuntimeSnapshot = useAgentRuntimeStore((state) => state.setSnapshot);
@@ -1355,12 +1352,35 @@ export const ComposerInput = memo(
     const [composerCursor, setComposerCursor] = useState(() =>
       collapseExpandedComposerCursor(draftPrompt, draftPrompt.length),
     );
-    const [composerTrigger, setComposerTrigger] = useState<ComposerTrigger | null>(null);
+    const [composerTrigger, setComposerTriggerState] = useState<ComposerTrigger | null>(null);
+    const [expandedComposerMenuSections, setExpandedComposerMenuSections] = useState<
+      ReadonlySet<string>
+    >(EMPTY_COMPOSER_MENU_EXPANDED_SECTIONS);
+    const previousComposerTriggerRef = useRef<ComposerTrigger | null>(null);
+    // Expanded "Show N more" sections survive only while a same-kind trigger
+    // stays on an empty query: closing the menu, switching trigger kind, or
+    // typing a query resets the collapse state.
+    const setComposerTrigger = (next: ComposerTrigger | null) => {
+      const previous = previousComposerTriggerRef.current;
+      previousComposerTriggerRef.current = next;
+      if (
+        next === null ||
+        previous === null ||
+        next.kind !== previous.kind ||
+        next.query.trim().length > 0
+      ) {
+        setExpandedComposerMenuSections((current) =>
+          current.size === 0 ? current : EMPTY_COMPOSER_MENU_EXPANDED_SECTIONS,
+        );
+      }
+      setComposerTriggerState(next);
+    };
     const [composerHighlightedItemId, setComposerHighlightedItemId] = useState<string | null>(null);
     const [composerHighlightedSearchKey, setComposerHighlightedSearchKey] = useState<string | null>(
       null,
     );
     const [isComposerEditorMultiline, setIsComposerEditorMultiline] = useState(false);
+    const composerMenuPrefetchClient = useQueryClient();
 
     // ------------------------------------------------------------------
     // Refs
@@ -1373,6 +1393,7 @@ export const ComposerInput = memo(
       composerMenuPopoverAnchorFromElement(() => composerMenuAnchorRef.current),
     );
     const composerSelectLockRef = useRef(false);
+    const composerMenuPrefetchedCwdRef = useRef<string | null>(null);
     const composerMenuOpenRef = useRef(false);
     const composerMenuItemsRef = useRef<ComposerCommandItem[]>([]);
     const activeComposerMenuItemRef = useRef<ComposerCommandItem | null>(null);
@@ -1404,6 +1425,32 @@ export const ComposerInput = memo(
       window.requestAnimationFrame(() => {
         composerEditorRef.current?.focusAtEnd();
       });
+    };
+
+    // Warm the slash (skills) and `@` (default files) menus before the first
+    // trigger so opening them does not block on a cold runtime/index scan.
+    // Fires on the composer's first focus per project; the 15s query staleTime
+    // dedupes repeats and the live menus reuse these exact cache keys.
+    const prefetchComposerMenuData = () => {
+      if (!isDesktopRuntimeApiAvailable() || !gitCwd) {
+        return;
+      }
+      if (composerMenuPrefetchedCwdRef.current === gitCwd) {
+        return;
+      }
+      composerMenuPrefetchedCwdRef.current = gitCwd;
+      void composerMenuPrefetchClient.prefetchQuery(
+        runtimeSkillsQueryOptions({ cwd: gitCwd, enabled: true }),
+      );
+      void composerMenuPrefetchClient.prefetchQuery(
+        projectSearchEntriesQueryOptions({
+          environmentId,
+          cwd: gitCwd,
+          query: "",
+          allowEmptyQuery: true,
+          limit: 80,
+        }),
+      );
     };
 
     const updateAgentRuntimePreferences = (
@@ -1518,9 +1565,11 @@ export const ComposerInput = memo(
       composerMenuKind,
       composerMenuIsSearching,
     } = useComposerCommandMenu({
+      activeThreadId,
       allowModeSlashCommands: showModeControls,
       composerTrigger,
       environmentId,
+      expandedSections: expandedComposerMenuSections,
       gitCwd,
       highlightedItemId: composerHighlightedItemId,
       highlightedSearchKey: composerHighlightedSearchKey,
@@ -1548,9 +1597,7 @@ export const ComposerInput = memo(
 
     const {
       composerImageInputRef,
-      composerImageAttachmentPersistenceSync,
       isDragOverComposer,
-      nonPersistedComposerImageIdSet,
       onComposerPaste,
       onComposerDragEnter,
       onComposerDragOver,
@@ -1562,8 +1609,6 @@ export const ComposerInput = memo(
       composerDraftTarget,
       activeThreadId,
       pendingUserInputCount: pendingUserInputs.length,
-      composerImages,
-      nonPersistedComposerImageIds,
       composerImagesRef,
       focusComposer,
       setThreadError,
@@ -1708,7 +1753,13 @@ export const ComposerInput = memo(
       );
       promptRef.current = next.text;
       setLivePrompt((current) => (current === next.text ? current : next.text));
-      syncEditorToPrompt(next.text, nextCursor);
+      // forceRewrite: the dedupe in syncEditorToPrompt compares against the last
+      // value PUSHED to the editor (user typing never updates it), so a removal
+      // that collapses the prompt back to that stale value (e.g. "/deb" -> ""
+      // after selecting a mode in an initially-empty composer) would skip the
+      // revision bump, leave the Lexical document untouched, and let focusAt
+      // resurrect the leftover text into the draft.
+      syncEditorToPrompt(next.text, nextCursor, true);
       const activePendingQuestion = activePendingProgress?.activeQuestion;
       if (activePendingQuestion && activePendingUserInput) {
         handleChangeActivePendingUserInputCustomAnswer(
@@ -1961,9 +2012,61 @@ export const ComposerInput = memo(
             setComposerMenuAnchorRevision={setComposerMenuAnchorRevision}
           />
         ) : null}
-        {composerImageAttachmentPersistenceSync}
       </>
     );
+
+    const applyComposerTokenReplacement = (
+      snapshot: { value: string },
+      trigger: ComposerTrigger,
+      replacement: string,
+    ): boolean => {
+      const replacementRangeEnd = extendReplacementRangeForTrailingSpace(
+        snapshot.value,
+        trigger.rangeEnd,
+        replacement,
+      );
+      const applied = applyPromptReplacement(trigger.rangeStart, replacementRangeEnd, replacement, {
+        expectedText: snapshot.value.slice(trigger.rangeStart, replacementRangeEnd),
+      });
+      if (applied) {
+        clearComposerCommandMenuState();
+      }
+      return applied;
+    };
+
+    const selectComposerThreadMention = async (
+      item: Extract<ComposerCommandItem, { type: "thread" }>,
+      captured: { trigger: ComposerTrigger },
+    ) => {
+      if (!isDesktopRuntimeApiAvailable()) return;
+      let sessionFilePath: string | null = null;
+      try {
+        sessionFilePath = (
+          await readHonkRuntimeApi().getThreadSessionFile({ threadId: item.threadId })
+        ).path;
+      } catch {
+        sessionFilePath = null;
+      }
+      // Re-resolve after the await: Escape, outside-click, or edits during the
+      // IPC round-trip must abort silently instead of inserting over new text.
+      const { snapshot: liveSnapshot, trigger: liveTrigger } = resolveActiveComposerTrigger();
+      if (
+        !liveTrigger ||
+        liveTrigger.kind !== captured.trigger.kind ||
+        liveTrigger.rangeStart !== captured.trigger.rangeStart
+      ) {
+        return;
+      }
+      if (sessionFilePath === null) {
+        dismissComposerCommandMenu();
+        return;
+      }
+      applyComposerTokenReplacement(
+        liveSnapshot,
+        liveTrigger,
+        buildThreadMentionToken(item.title, sessionFilePath),
+      );
+    };
 
     const onSelectComposerItem = (item: ComposerCommandItem) => {
       if (composerSelectLockRef.current) return;
@@ -1971,24 +2074,34 @@ export const ComposerInput = memo(
       window.requestAnimationFrame(() => {
         composerSelectLockRef.current = false;
       });
+      if (item.type === "expander") {
+        // Toggles the collapsed section and hands the highlight to the first
+        // revealed item; the editor text and the open menu stay untouched.
+        setExpandedComposerMenuSections((current) => {
+          const next = new Set(current);
+          if (next.has(item.sectionId)) {
+            next.delete(item.sectionId);
+          } else {
+            next.add(item.sectionId);
+          }
+          return next;
+        });
+        setComposerHighlightedItemId(item.firstRevealedItemId);
+        setComposerHighlightedSearchKey(composerMenuSearchKey);
+        return;
+      }
       const { snapshot, trigger } = resolveActiveComposerTrigger();
       if (!trigger) return;
       if (item.type === "path") {
-        const replacement = `@${item.path} `;
-        const replacementRangeEnd = extendReplacementRangeForTrailingSpace(
-          snapshot.value,
-          trigger.rangeEnd,
-          replacement,
-        );
-        const applied = applyPromptReplacement(
-          trigger.rangeStart,
-          replacementRangeEnd,
-          replacement,
-          { expectedText: snapshot.value.slice(trigger.rangeStart, replacementRangeEnd) },
-        );
-        if (applied) {
-          clearComposerCommandMenuState();
-        }
+        applyComposerTokenReplacement(snapshot, trigger, `@${item.path} `);
+        return;
+      }
+      if (item.type === "skill") {
+        applyComposerTokenReplacement(snapshot, trigger, `[$${item.name}](${item.path}) `);
+        return;
+      }
+      if (item.type === "thread") {
+        void selectComposerThreadMention(item, { trigger });
         return;
       }
       if (item.type === "slash-command") {
@@ -2152,6 +2265,10 @@ export const ComposerInput = memo(
             }),
           };
         },
+        insertMention: (payload) => {
+          composerEditorRef.current?.insertMention(payload);
+          composerEditorRef.current?.focusAtEnd();
+        },
       }),
       [composerImagesRef, promptRef, updateComposerDraft],
     );
@@ -2195,7 +2312,7 @@ export const ComposerInput = memo(
             onAgentModeThinkingLevelChange={handleAgentModeThinkingLevelChange}
           />
         ) : (
-          <ComposerReadOnlyModelChip modelSelection={modelSelection} />
+          <ComposerReadOnlyAgentModeChip agentMode={runtimePreferences.agentMode} />
         )}
       </span>
     ) : null;
@@ -2222,6 +2339,7 @@ export const ComposerInput = memo(
         ref={composerFormRef}
         onSubmit={handleComposerSubmit}
         onBlurCapture={handleComposerBlurCapture}
+        onFocusCapture={prefetchComposerMenuData}
         className={cn(
           "w-full min-w-0",
           !isInlineEditComposer && !isNewAgentComposer && "mx-auto max-w-agent-chat",
@@ -2347,7 +2465,6 @@ export const ComposerInput = memo(
                   composerImages.length > 0 && (
                     <ComposerImageAttachmentStrip
                       images={composerImages}
-                      nonPersistedImageIds={nonPersistedComposerImageIdSet}
                       onExpandImage={onExpandImage}
                       onRemoveImage={removeComposerImage}
                     />
@@ -2397,9 +2514,7 @@ export const ComposerInput = memo(
               {/* Bottom toolbar */}
               {activePendingApproval ? (
                 <div
-                  data-honk-composer-toolbar={
-                    composerShellMode === "thread" ? "bottom" : undefined
-                  }
+                  data-honk-composer-toolbar={composerShellMode === "thread" ? "bottom" : undefined}
                   className={cn(
                     "flex items-center justify-end",
                     isDockComposerExpanded ? "gap-[0.55rem]" : "gap-2 px-3 pb-2.5 sm:pb-3",
@@ -2469,6 +2584,11 @@ export const ComposerInput = memo(
           isSearching={composerMenuIsSearching}
           emptyStateText={composerMenuEmptyState}
           activeItemId={activeComposerMenuItem?.id ?? null}
+          activePathPreview={
+            activeComposerMenuItem?.type === "path"
+              ? { path: activeComposerMenuItem.path, pathKind: activeComposerMenuItem.pathKind }
+              : null
+          }
           onHighlightedItemChange={onComposerMenuItemHighlighted}
           onSelect={onSelectComposerItem}
         />

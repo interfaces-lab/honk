@@ -111,7 +111,8 @@ export function ComposerCommandChip({ content, name }: ComposerCommandPayload) {
   );
 }
 
-const SkillIcon: ComponentType<CentralIconBaseProps> = IconBuildingBlocks;
+/** Canonical skill glyph — shared by the inserted skill chip and the slash menu rows. */
+export const SkillIcon: ComponentType<CentralIconBaseProps> = IconBuildingBlocks;
 
 export function ComposerSkillChip({ description, label }: ComposerSkillPayload) {
   const chip = (

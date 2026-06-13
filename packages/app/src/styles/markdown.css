@@ -19,11 +19,7 @@
   --honk-markdown-blockquote-border: color-mix(in srgb, var(--foreground) 18%, transparent);
   --honk-markdown-blockquote-foreground: color-mix(in srgb, var(--foreground) 68%, transparent);
   --honk-markdown-link-foreground: var(--primary);
-  --honk-markdown-link-active-foreground: color-mix(
-    in srgb,
-    var(--primary) 72%,
-    var(--foreground)
-  );
+  --honk-markdown-link-active-foreground: color-mix(in srgb, var(--primary) 72%, var(--foreground));
   --honk-markdown-marker-foreground: color-mix(in srgb, var(--foreground) 30%, transparent);
   --honk-markdown-preformat-foreground: var(--foreground);
   --honk-markdown-request-border: var(--border);

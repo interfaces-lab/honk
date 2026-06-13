@@ -125,10 +125,10 @@ export const layer = Layer.effect(
     return {
       spawn: Effect.fn(function* (input) {
         yield* ensureNodePtySpawnHelperExecutableCached;
-        // Intentionally omit node-pty's `name` option. On Unix that option
-        // becomes TERM for the shell; forcing xterm-256color here regresses the
-        // native-terminal prompt path. TERM/COLORTERM belong in input.env only
-        // when the caller deliberately requested them.
+        // Intentionally omit node-pty's `name` option: on Unix it would
+        // override TERM, and terminal identity is owned by the Manager's
+        // spawn-env builder (TERM=xterm-256color, COLORTERM=truecolor), with
+        // input.env as the per-call override channel.
         const ptyProcess = yield* Effect.try({
           try: () =>
             nodePty.spawn(input.shell, input.args ?? [], {

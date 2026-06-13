@@ -38,6 +38,7 @@ const IGNORED_DIRECTORY_NAMES = new Set([
   ".cache",
   ".electron-runtime",
   "dist-electron",
+  ".pnpm-store",
 ]);
 
 interface ProjectIndex {

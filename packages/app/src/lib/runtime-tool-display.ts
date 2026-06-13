@@ -53,6 +53,7 @@ export function runtimeToolDisplaySignature(
         display.output ?? "",
         display.additions ?? "",
         display.deletions ?? "",
+        display.diff ?? "",
       ].join("\u0000");
     case "mcp":
       return [display.kind, display.providerIdentifier ?? ""].join("\u0000");

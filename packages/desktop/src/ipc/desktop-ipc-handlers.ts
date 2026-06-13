@@ -7,7 +7,9 @@ import {
   configureRuntimeCredential,
   getRuntimeHostSnapshot,
   getRuntimePreferences,
+  getRuntimeThreadSessionFile,
   hydrateRuntimeThread,
+  listRuntimeSkills,
   respondToRuntimeExtensionUiRequest,
   sendRuntimeTurn,
   setRuntimeThreadFocus,
@@ -32,6 +34,7 @@ import {
   setTheme,
   setVibrancy,
   showContextMenu,
+  showItemInFolder,
 } from "./methods/window";
 
 export const installDesktopIpcHandlers = Effect.gen(function* () {
@@ -54,6 +57,8 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(sendRuntimeTurn);
   yield* ipc.handle(abortRuntimeThread);
   yield* ipc.handle(respondToRuntimeExtensionUiRequest);
+  yield* ipc.handle(listRuntimeSkills);
+  yield* ipc.handle(getRuntimeThreadSessionFile);
 
   yield* ipc.handle(getServerExposureState);
   yield* ipc.handle(setServerExposureMode);
@@ -69,6 +74,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(setVibrancy);
   yield* ipc.handle(showContextMenu);
   yield* ipc.handle(openExternal);
+  yield* ipc.handle(showItemInFolder);
 
   yield* ipc.handle(getUpdateState);
   yield* ipc.handle(downloadUpdate);

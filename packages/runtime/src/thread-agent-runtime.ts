@@ -94,6 +94,7 @@ export interface ThreadAgentRuntimeOptions {
 
 export interface SendMessageOptions {
   readonly clientMessageId: MessageId | null;
+  readonly replacesClientMessageId: MessageId | null;
   readonly interactionMode: AgentInteractionMode;
   readonly sourceProposedPlan: SourceProposedPlanReference | null;
   readonly images: readonly ThreadAgentRuntimeImageAttachment[];
@@ -261,7 +262,6 @@ export class ThreadAgentRuntime {
         ...(options.extensionFactories
           ? {
               noExtensions: true,
-              noSkills: true,
               noPromptTemplates: true,
               noThemes: true,
             }
@@ -374,6 +374,9 @@ export class ThreadAgentRuntime {
   }
 
   async sendMessage(text: string, options: SendMessageOptions): Promise<TurnId> {
+    if (options.replacesClientMessageId !== null) {
+      this.prepareRevisionBranch(options.replacesClientMessageId);
+    }
     const turnId = makeTurnId(this.threadId, ++this.turnSequence);
     this.pendingFirstTurnId = turnId;
     this.activeRunFirstTurnId = turnId;
@@ -526,6 +529,48 @@ export class ThreadAgentRuntime {
   private nextEventSequence(): number {
     this.eventSequence += 1;
     return this.eventSequence;
+  }
+
+  private prepareRevisionBranch(replacesClientMessageId: MessageId): void {
+    if (this.isTurnInProgress()) {
+      throw new Error("Cannot revise a message while a runtime turn is in progress.");
+    }
+
+    const entryId = this.entryIdForClientMessageId(replacesClientMessageId);
+    if (!entryId) {
+      throw new Error(`Cannot revise message ${replacesClientMessageId}: message entry not found.`);
+    }
+
+    const entry = this.session.sessionManager
+      .getEntries()
+      .find((candidate) => candidate.id === entryId);
+    if (!entry || entry.type !== "message" || entry.message.role !== "user") {
+      throw new Error(`Cannot revise message ${replacesClientMessageId}: message entry not found.`);
+    }
+
+    if (entry.parentId) {
+      this.session.sessionManager.branch(entry.parentId);
+    } else {
+      this.session.sessionManager.resetLeaf();
+    }
+    this.session.agent.state.messages = this.session.sessionManager.buildSessionContext().messages;
+  }
+
+  private isTurnInProgress(): boolean {
+    return (
+      this.pendingFirstTurnId !== undefined ||
+      this.activeTurnId !== undefined ||
+      this.activeRunFirstTurnId !== undefined
+    );
+  }
+
+  private entryIdForClientMessageId(clientMessageId: MessageId): string | null {
+    for (const [entryId, mappedClientMessageId] of this.clientMessageIdByEntryId) {
+      if (String(mappedClientMessageId) === String(clientMessageId)) {
+        return entryId;
+      }
+    }
+    return null;
   }
 
   private createEvent(
@@ -820,7 +865,7 @@ function createThreadSessionManager(
   return SessionManager.continueRecent(cwd, sessionDir);
 }
 
-function encodeThreadIdForPath(threadId: ThreadId): string {
+export function encodeThreadIdForPath(threadId: ThreadId): string {
   return Buffer.from(threadId, "utf8").toString("base64url");
 }
 

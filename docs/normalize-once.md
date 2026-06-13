@@ -2,7 +2,7 @@
 
 **Goal**: every normalization concern in honk has exactly one definition, applied at the value's entry boundary (schema decode, service entry, or store write). Downstream code never re-normalizes — the type or the data flow carries the proof. The net diff of this work must be negative: this is a deletion task, not an abstraction task.
 
-**The principle** (from the pi study, `pi-codebase-patterns.md` §4): defensive re-normalization exists only when nothing proves normalization already happened. Provide the proof once — a branded type whose decode *is* the normalization, or a single producer that owns the boundary — then delete every later re-application. Verb taxonomy: `normalize*` canonicalizes form, `clamp*` snaps to a range, `resolve*` picks from a source chain. One function per concern, named for its job.
+**The principle** (from the pi study, `pi-codebase-patterns.md` §4): defensive re-normalization exists only when nothing proves normalization already happened. Provide the proof once — a branded type whose decode _is_ the normalization, or a single producer that owns the boundary — then delete every later re-application. Verb taxonomy: `normalize*` canonicalizes form, `clamp*` snaps to a range, `resolve*` picks from a source chain. One function per concern, named for its job.
 
 Line numbers below are from June 2026 (`bigrefactor` branch, pre-rename survey). **Verify each site before editing; do not trust the numbers.**
 
@@ -17,8 +17,8 @@ Line numbers below are from June 2026 (`bigrefactor` branch, pre-rename survey).
   - `packages/server/src/project/ProjectEntries.ts:404` — local `normalizeProjectRoot` that calls the service and remaps the error to stamp `operation: "projectEntries.normalizeProjectRoot"`.
   - `packages/server/src/project/ProjectFileSystem.ts:27` — same wrapper, `operation: "projectFileSystem.normalizeProjectRoot"`.
   - ~10 `normalizedCwd` re-derivations across service methods (`ProjectEntries.ts:467,519,555`, `ProjectFileSystem.ts:47,132`, …).
-- **Why it must not be normalized again**: commands entering through ws dispatch are *already* normalized at the dispatch boundary (`orchestration/Normalizer.ts` calls `ProjectPaths` during `normalizeDispatchCommand`) — services re-normalizing per method is repeated work on every request. The wrappers' only payload is error attribution, which `Effect.fn("ProjectEntries.normalizeProjectRoot")` spans already record; attribution-by-error-remap pays twice for the same information.
-- **Change**: call `projectPaths.normalizeProjectRoot` directly where a raw path genuinely enters (and only there); delete the wrappers. Where the same request value is normalized at dispatch *and* again in a service, keep only the dispatch-boundary call and pass the normalized value through.
+- **Why it must not be normalized again**: commands entering through ws dispatch are _already_ normalized at the dispatch boundary (`orchestration/Normalizer.ts` calls `ProjectPaths` during `normalizeDispatchCommand`) — services re-normalizing per method is repeated work on every request. The wrappers' only payload is error attribution, which `Effect.fn("ProjectEntries.normalizeProjectRoot")` spans already record; attribution-by-error-remap pays twice for the same information.
+- **Change**: call `projectPaths.normalizeProjectRoot` directly where a raw path genuinely enters (and only there); delete the wrappers. Where the same request value is normalized at dispatch _and_ again in a service, keep only the dispatch-boundary call and pass the normalized value through.
 
 ### Entry 2 — Thread key (app)
 
@@ -34,7 +34,7 @@ Line numbers below are from June 2026 (`bigrefactor` branch, pre-rename survey).
   - `packages/app/src/components/command-palette-model.ts:50` — `normalizeSearchText` (`trim().toLowerCase().replace(/\s+/g, " ")`).
   - Inline `query.trim().toLowerCase()` in `honkkit-gallery.tsx:29`, `project-files-panel.tsx:63`, `workspace-toolbar.tsx:179–181`.
 - **Why it must not be normalized again**: there is already a single shared home with documented pre-normalization contract; the app-side copies drifted (whitespace-collapse exists only in the app copy). Two near-equal canonicalizers guarantee eventual mismatch between what's ranked and what's displayed.
-- **Change**: reconcile the two behaviors into the `shared` function (decide once whether whitespace-collapse is part of the contract), import it everywhere, delete the app copy and the inline trims. Normalize where the query state is *set*, not where it is consumed.
+- **Change**: reconcile the two behaviors into the `shared` function (decide once whether whitespace-collapse is part of the contract), import it everywhere, delete the app copy and the inline trims. Normalize where the query state is _set_, not where it is consumed.
 
 ### Entry 4 — Filesystem path canonicalization (app + server fragments)
 
@@ -45,7 +45,7 @@ Line numbers below are from June 2026 (`bigrefactor` branch, pre-rename survey).
   - Inline slash-normalization `path.replace(...)` in `browser-workbench-panel.tsx:70`, `chat-markdown.tsx:655`, `command-palette.tsx:110–111`.
   - `normalizeCwd` — `packages/server/src/git/GitStatusBroadcaster.ts`. (`normalizeWorktreePath` in `app/src/git/worktree-cleanup.ts` was initially listed here but is a non-entry: trim-or-null on an optional string, single definition, not a path-canonicalization concern.)
 - **Why it must not be normalized again**: these are 3 distinct concerns (separator/segment canonicalization, Windows drive-letter casing, home-dir display contraction) implemented ~9 times with slight drift. Display paths are derived data: derive once where server data enters the app (store/view-model boundary), not per component render.
-- **Change**: one `packages/shared/src/paths.ts` exposing the three named concerns (e.g. `normalizePathSeparators`, `canonicalizeWindowsDrive`, `contractHomeDir`); replace all fragments with imports. Server keeps `path-expansion.ts` (tilde *expansion* is a server concern; display *contraction* is a client concern — do not merge those two).
+- **Change**: one `packages/shared/src/paths.ts` exposing the three named concerns (e.g. `normalizePathSeparators`, `canonicalizeWindowsDrive`, `contractHomeDir`); replace all fragments with imports. Server keeps `path-expansion.ts` (tilde _expansion_ is a server concern; display _contraction_ is a client concern — do not merge those two).
 
 ### Entry 5 — Misnamed clamps (rename only, no consolidation)
 
@@ -63,7 +63,7 @@ Line numbers below are from June 2026 (`bigrefactor` branch, pre-rename survey).
 ## Execution constraints
 
 - Subtract before add: no new abstraction layers; `shared/paths.ts` is the only new file permitted.
-- No behavior changes. Where two duplicate implementations *differ* (Entry 3 whitespace-collapse), surface the difference and pick one explicitly in the diff description.
+- No behavior changes. Where two duplicate implementations _differ_ (Entry 3 whitespace-collapse), surface the difference and pick one explicitly in the diff description.
 - Verifier: `pnpm run typecheck` (full output), per `AGENTS.md`. Do not run dev/build/broad tests. If a touched file has an existing co-located test, run that one test.
 - Brands: only consider a `Schema.transform` brand where a value crosses the wire through `contracts` (Entry 1's project root is the candidate); skip brands for app-local strings.
 - Respect multi-agent worktree rules in `AGENTS.md`: touch only files this task requires; never commit.

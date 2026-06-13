@@ -667,6 +667,7 @@ async function runSubagentTask(input: {
       : input.task.prompt;
     await runtime.sendMessage(childMessage, {
       clientMessageId: null,
+      replacesClientMessageId: null,
       interactionMode: "agent",
       sourceProposedPlan: null,
       images: [],

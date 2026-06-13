@@ -55,13 +55,7 @@ import {
 } from "../../stores/thread-store";
 import { formatRelativeTimeLabel } from "../../lib/timestamp-format";
 import { Button } from "@honk/honkkit/button";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@honk/honkkit/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@honk/honkkit/empty";
 import { Input } from "@honk/honkkit/input";
 import {
   Menu,
@@ -72,13 +66,7 @@ import {
   MenuSubTrigger,
   MenuTrigger,
 } from "@honk/honkkit/menu";
-import {
-  Select,
-  SelectItem,
-  SelectPopup,
-  SelectTrigger,
-  SelectValue,
-} from "@honk/honkkit/select";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@honk/honkkit/select";
 import { Switch } from "@honk/honkkit/switch";
 import { Text, textVariants } from "@honk/honkkit/text";
 import { toastManager } from "~/app/toast";

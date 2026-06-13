@@ -89,6 +89,62 @@ describe("deriveWorkLogEntries", () => {
     );
   });
 
+  it("extracts a unified diff artifact from persisted pi-agent edit result details", () => {
+    const patch = [
+      "--- packages/app/src/components/chat/view/chat-view.tsx",
+      "+++ packages/app/src/components/chat/view/chat-view.tsx",
+      "@@ -315,2 +315,2 @@",
+      "-old line",
+      "+new line",
+      "+added line",
+    ].join("\n");
+    const entries = deriveWorkLogEntries(
+      [
+        {
+          id: EventId.make("event:edit-completed"),
+          kind: "tool.completed",
+          tone: "tool",
+          summary: "Edited chat-view.tsx",
+          turnId,
+          createdAt,
+          payload: {
+            itemId: "tool-call-edit",
+            itemType: "file_change",
+            status: "completed",
+            data: {
+              args: { path: "packages/app/src/components/chat/view/chat-view.tsx" },
+              result: {
+                content: [{ type: "text", text: "Successfully replaced 1 block(s)." }],
+                details: {
+                  diff: "  315   tips.push({\n- 319 old\n+ 319 new",
+                  patch,
+                  firstChangedLine: 319,
+                },
+              },
+            },
+          },
+        } satisfies OrchestrationThreadActivity,
+      ],
+      undefined,
+    );
+
+    expect(entries[0]?.artifacts).toEqual([
+      expect.objectContaining({
+        type: "diff",
+        format: "unified",
+        source: "result",
+        files: [
+          {
+            path: "packages/app/src/components/chat/view/chat-view.tsx",
+            additions: 2,
+            deletions: 1,
+          },
+        ],
+        unifiedDiff: patch,
+      }),
+    ]);
+  });
+
   it("keeps compact persisted subagent tool rows visible without child activities", () => {
     const entries = deriveWorkLogEntries(
       [

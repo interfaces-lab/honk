@@ -164,10 +164,7 @@ function SidebarTrayRowContent({ className, ...props }: SidebarButtonProps) {
 function SidebarTrayRowLabel({ className, ...props }: ComponentProps<"span">) {
   return (
     <span
-      className={cn(
-        "ui-tray-row__label min-w-0 flex-1 truncate text-honk-fg-secondary",
-        className,
-      )}
+      className={cn("ui-tray-row__label min-w-0 flex-1 truncate text-honk-fg-secondary", className)}
       data-slot="sidebar-tray-row-label"
       {...props}
     />

@@ -16,7 +16,6 @@ import {
   runtimeAssistantEntryIngestionKey,
   runtimeContextWindowActivityCommands,
   runtimeEventIngestionKey,
-  runtimeSessionTreeAssistantCompleteCommand,
   runtimeSessionTreeAssistantCompleteCommands,
   runtimeToolCompletedActivityCommands,
 } from "../src/runtime-orchestration-commands";

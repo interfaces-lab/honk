@@ -23,6 +23,14 @@ export function normalizePlanMarkdownForExport(planMarkdown: string): string {
   return `${planMarkdown.trim()}\n`;
 }
 
+export function ensurePlanMarkdownPath(relativePath: string): string {
+  const trimmedPath = relativePath.trim();
+  if (trimmedPath.length === 0 || /\.(?:md|markdown)$/i.test(trimmedPath)) {
+    return trimmedPath;
+  }
+  return `${trimmedPath}.md`;
+}
+
 export function buildProposedPlanMarkdownFilename(planMarkdown: string): string {
   const title = proposedPlanTitle(planMarkdown) ?? "proposed-plan";
   const slug = title
@@ -30,7 +38,7 @@ export function buildProposedPlanMarkdownFilename(planMarkdown: string): string 
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 64);
-  return `${slug || "proposed-plan"}.md`;
+  return ensurePlanMarkdownPath(slug || "proposed-plan");
 }
 
 export function buildPlanImplementationPrompt(planMarkdown: string): string {

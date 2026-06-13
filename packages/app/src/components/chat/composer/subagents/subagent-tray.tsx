@@ -5,6 +5,7 @@ import {
   type ThreadId,
   type ToolLifecycleItemType,
 } from "@honk/contracts";
+import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { IconCrossSmall } from "central-icons";
 import {
   memo,
@@ -46,6 +47,12 @@ const DEFAULT_SUBAGENT_TRAY_RECT = { width: 0, height: 360 };
 const SUBAGENT_TRANSCRIPT_OVERSCAN = 8;
 const SUBAGENT_TRANSCRIPT_ROW_GAP_PX = 8;
 const SUBAGENT_TRANSCRIPT_NEAR_BOTTOM_PX = 48;
+const SUBAGENT_TRAY_SIDE_OFFSET = 8;
+const SUBAGENT_TRAY_COLLISION_AVOIDANCE = {
+  side: "shift",
+  align: "shift",
+  fallbackAxisSide: "none",
+} as const;
 
 type SubagentTrayVirtualRow =
   | {
@@ -73,10 +80,12 @@ export function SubagentTrayStack(props: {
   const focus = useSubagentTrayStore((state) => state.focus);
   const closeTray = useSubagentTrayStore((state) => state.closeTray);
   const setTrayPresented = useSubagentTrayStore((state) => state.setTrayPresented);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
   const trayKey = focus?.key ?? null;
   const trayActiveThreadId = focus?.activeThreadId ?? null;
   const belongsToActiveThread =
     props.activeThreadId !== null && trayActiveThreadId === props.activeThreadId;
+  const trayRendered = focus !== null && belongsToActiveThread && props.visible;
   const presented = shouldPresentSubagentTray({
     activeThreadId: props.activeThreadId,
     hasFocus: focus !== null,
@@ -94,7 +103,7 @@ export function SubagentTrayStack(props: {
     />
   );
 
-  if (!focus || !belongsToActiveThread || !props.visible) {
+  if (!trayRendered || focus === null) {
     return activeThreadSync;
   }
 
@@ -105,13 +114,37 @@ export function SubagentTrayStack(props: {
         className={cn("relative w-full min-w-0", props.compact ? "mx-auto w-full" : "")}
         data-subagent-followup-tray-stack=""
       >
-        <div
-          className={cn("font-honk text-conversation", props.compact ? "w-full" : "")}
-          data-subagent-followup-tray=""
-          data-subagent-tray-open=""
+        <div ref={anchorRef} aria-hidden="true" data-subagent-followup-tray-anchor="" />
+        <PopoverPrimitive.Root
+          modal={false}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              closeTray();
+            }
+          }}
         >
-          <SubagentTray selection={focus} onClose={closeTray} />
-        </div>
+          <PopoverPrimitive.Portal>
+            <PopoverPrimitive.Positioner
+              anchor={anchorRef}
+              align="center"
+              collisionAvoidance={SUBAGENT_TRAY_COLLISION_AVOIDANCE}
+              positionMethod="fixed"
+              side="top"
+              sideOffset={SUBAGENT_TRAY_SIDE_OFFSET}
+              className="z-(--z-index-workbench-popover)"
+            >
+              <PopoverPrimitive.Popup
+                initialFocus={false}
+                finalFocus={false}
+                className={cn("font-honk text-conversation", props.compact ? "w-full" : "")}
+                data-subagent-followup-tray=""
+              >
+                <SubagentTray selection={focus} onClose={closeTray} />
+              </PopoverPrimitive.Popup>
+            </PopoverPrimitive.Positioner>
+          </PopoverPrimitive.Portal>
+        </PopoverPrimitive.Root>
       </div>
     </>
   );
@@ -360,9 +393,7 @@ function SubagentTrayVirtualRows({
 
     const updateShouldFollowScroll = () => {
       shouldFollowScrollRef.current =
-        scrollElement.scrollHeight -
-          scrollElement.scrollTop -
-          scrollElement.clientHeight <=
+        scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight <=
         SUBAGENT_TRANSCRIPT_NEAR_BOTTOM_PX;
     };
 

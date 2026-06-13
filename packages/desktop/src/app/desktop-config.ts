@@ -41,9 +41,7 @@ export const DesktopConfig = Config.all({
   commitHashOverride: trimmedString("HONK_COMMIT_HASH"),
   desktopLanHostOverride: trimmedString("HONK_DESKTOP_LAN_HOST"),
   otlpTracesUrl: trimmedString("HONK_OTLP_TRACES_URL"),
-  otlpExportIntervalMs: Config.int("HONK_OTLP_EXPORT_INTERVAL_MS").pipe(
-    Config.withDefault(10_000),
-  ),
+  otlpExportIntervalMs: Config.int("HONK_OTLP_EXPORT_INTERVAL_MS").pipe(Config.withDefault(10_000)),
   appImagePath: trimmedString("APPIMAGE"),
   disableAutoUpdate: optionalBoolean("HONK_DISABLE_AUTO_UPDATE"),
   mockUpdates: optionalBoolean("HONK_DESKTOP_MOCK_UPDATES"),

@@ -2,11 +2,7 @@
 
 import pierreDark from "@pierre/theme/pierre-dark";
 import pierreLight from "@pierre/theme/pierre-light";
-import type {
-  FileTreeOptions,
-  TreeThemeInput,
-  TreeThemeStyles,
-} from "@pierre/trees";
+import type { FileTreeOptions, TreeThemeInput, TreeThemeStyles } from "@pierre/trees";
 import {
   createFileTreeIconResolver,
   getBuiltInSpriteSheet,
@@ -168,7 +164,10 @@ export function FileTreeFileIcon(props: {
   className?: string;
   style?: CSSProperties;
 }) {
-  const icon = fileTreeIconResolver.resolveIcon("file-tree-icon-file", normalizeTreePath(props.path));
+  const icon = fileTreeIconResolver.resolveIcon(
+    "file-tree-icon-file",
+    normalizeTreePath(props.path),
+  );
   const href = `#${icon.name.replace(/^#/, "")}`;
   const width = icon.width ?? 16;
   const height = icon.height ?? 16;
@@ -180,9 +179,9 @@ export function FileTreeFileIcon(props: {
       className={props.className}
       data-align-capitals="false"
       data-icon-name={icon.remappedFrom ?? icon.name}
-        data-icon-token={icon.token}
-        height={height}
-        style={props.style}
+      data-icon-token={icon.token}
+      height={height}
+      style={props.style}
       viewBox={viewBox}
       width={width}
     >

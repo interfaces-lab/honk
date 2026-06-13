@@ -19,6 +19,7 @@ const SET_DISPLAY_ZOOM_CHANNEL = "desktop:set-display-zoom";
 const EXPAND_WINDOW_WIDTH_CHANNEL = "desktop:expand-window-width";
 const CONTEXT_MENU_CHANNEL = "desktop:context-menu";
 const OPEN_EXTERNAL_CHANNEL = "desktop:open-external";
+const SHOW_ITEM_IN_FOLDER_CHANNEL = "desktop:show-item-in-folder";
 const MENU_ACTION_CHANNEL = "desktop:menu-action";
 const UPDATE_STATE_CHANNEL = "desktop:update-state";
 const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
@@ -45,6 +46,8 @@ const RUNTIME_SET_THREAD_FOCUS_CHANNEL = "desktop:runtime-set-thread-focus";
 const RUNTIME_SEND_TURN_CHANNEL = "desktop:runtime-send-turn";
 const RUNTIME_ABORT_CHANNEL = "desktop:runtime-abort";
 const RUNTIME_RESPOND_EXTENSION_UI_CHANNEL = "desktop:runtime-respond-extension-ui";
+const RUNTIME_LIST_SKILLS_CHANNEL = "desktop:runtime-list-skills";
+const RUNTIME_GET_THREAD_SESSION_FILE_CHANNEL = "desktop:runtime-get-thread-session-file";
 const RUNTIME_HOST_EVENT_CHANNEL = "desktop:runtime-host-event";
 const LOG_RENDERER_DIAGNOSTIC_CHANNEL = "desktop:log-renderer-diagnostic";
 
@@ -59,6 +62,9 @@ const desktopRuntimeApi = {
   abort: (input) => ipcRenderer.invoke(RUNTIME_ABORT_CHANNEL, input),
   respondToExtensionUiRequest: (input) =>
     ipcRenderer.invoke(RUNTIME_RESPOND_EXTENSION_UI_CHANNEL, input),
+  listSkills: (input) => ipcRenderer.invoke(RUNTIME_LIST_SKILLS_CHANNEL, input),
+  getThreadSessionFile: (input) =>
+    ipcRenderer.invoke(RUNTIME_GET_THREAD_SESSION_FILE_CHANNEL, input),
   onHostEvent: (listener) => {
     const wrappedListener = (_event: IpcRendererEvent, hostEvent: HonkRuntimeHostEvent) => {
       listener(hostEvent);
@@ -129,6 +135,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(EXPAND_WINDOW_WIDTH_CHANNEL, additionalWidth),
   showContextMenu: (items, position) => ipcRenderer.invoke(CONTEXT_MENU_CHANNEL, items, position),
   openExternal: (url: string) => ipcRenderer.invoke(OPEN_EXTERNAL_CHANNEL, url),
+  showItemInFolder: (path: string) => ipcRenderer.invoke(SHOW_ITEM_IN_FOLDER_CHANNEL, path),
   onMenuAction: (listener) => {
     const wrappedListener = (_event: IpcRendererEvent, action: unknown) => {
       if (typeof action !== "string") return;

@@ -182,6 +182,5 @@ describe("chat drafts", () => {
     const restored = useComposerDraftStore.getState().getComposerDraft(draft.draftId);
     expect(restored?.prompt).toBe("Describe this image");
     expect(restored?.images).toEqual([]);
-    expect(restored?.persistedAttachments).toEqual([]);
   });
 });

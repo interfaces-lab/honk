@@ -57,9 +57,7 @@ function PopoverPopup({
   sticky?: PopoverPrimitive.Positioner.Props["sticky"];
 }) {
   const positionerLayerClassName =
-    variant === "workbench"
-      ? "z-(--z-index-workbench-popover)"
-      : "z-(--z-index-popover)";
+    variant === "workbench" ? "z-(--z-index-workbench-popover)" : "z-(--z-index-popover)";
 
   return (
     <PopoverPrimitive.Portal>

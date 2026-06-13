@@ -29,6 +29,8 @@ function createRuntimeApi(snapshot: HonkRuntimeHostSnapshot): HonkRuntimeApi {
     sendTurn: async (input) => TurnId.make(`test:${input.threadId}`),
     abort: async () => undefined,
     respondToExtensionUiRequest: async () => undefined,
+    listSkills: async () => ({ skills: [] }),
+    getThreadSessionFile: async () => ({ path: null }),
     onHostEvent: () => () => undefined,
   };
 }
@@ -43,6 +45,7 @@ function createLocalApi(runtime: HonkRuntimeApi): LocalApi {
     shell: {
       openInEditor: async () => notCalled(),
       openExternal: async () => undefined,
+      showItemInFolder: async () => undefined,
     },
     contextMenu: {
       show: async () => null,

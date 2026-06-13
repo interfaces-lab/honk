@@ -1392,9 +1392,7 @@ function EditToolCall({
             aria-expanded={isExpanded}
             onClick={toggleExpanded}
           >
-            {showIcon ? (
-              <IconFileEdit className="size-3.5 shrink-0 text-honk-fg-tertiary" />
-            ) : null}
+            {showIcon ? <IconFileEdit className="size-3.5 shrink-0 text-honk-fg-tertiary" /> : null}
             <span className={toolCallLineActionVariants()}>{action}</span>
             <span className={editToolCallFilenameVariants({ loading, isDelete })}>{path}</span>
             <EditStats stats={stats} />

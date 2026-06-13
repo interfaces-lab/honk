@@ -11,7 +11,11 @@ import { describe, expect, it } from "vitest";
 
 import { scopeThreadRef } from "~/lib/environment-scope";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "../types";
-import { initialState, selectSidebarThreadSummaryByRef, selectSidebarThreadsAcrossEnvironments } from "./thread-store";
+import {
+  initialState,
+  selectSidebarThreadSummaryByRef,
+  selectSidebarThreadsAcrossEnvironments,
+} from "./thread-store";
 import { applyOrchestrationEvent, syncServerShellSnapshot } from "./thread-sync";
 
 const environmentId = EnvironmentId.make("environment:sidebar-live-state");

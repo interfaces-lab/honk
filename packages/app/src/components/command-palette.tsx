@@ -902,7 +902,6 @@ function OpenCommandPaletteDialog() {
         await navigate({ to: "/dev/honkkit" });
       },
     });
-
   }
 
   const rootGroups = buildRootGroups({

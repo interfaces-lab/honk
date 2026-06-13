@@ -343,10 +343,12 @@ const otherThreadId = ThreadId.make("thread:pi-runtime-store:other");
 const otherSubagentThreadId = "thread:pi-runtime-store:other:subagent";
 const siblingSubagentThreadId = "thread:pi-runtime-store:sibling-subagent";
 
-function openSubagentTrayForTests(input: {
-  readonly threadId?: ThreadId;
-  readonly subagentThreadId?: string;
-} = {}): void {
+function openSubagentTrayForTests(
+  input: {
+    readonly threadId?: ThreadId;
+    readonly subagentThreadId?: string;
+  } = {},
+): void {
   const activeThreadId = input.threadId ?? threadId;
   const focusedSubagentThreadId = input.subagentThreadId ?? subagentThreadId;
   useSubagentTrayStore.getState().openTray({

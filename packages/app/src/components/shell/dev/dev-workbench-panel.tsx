@@ -339,9 +339,7 @@ function ContextSection(props: { usage: ContextWindowSnapshot | null }) {
                 }}
                 aria-hidden
               />
-              <span className="min-w-0 flex-1 truncate text-honk-fg-primary">
-                {category.label}
-              </span>
+              <span className="min-w-0 flex-1 truncate text-honk-fg-primary">{category.label}</span>
               <span className="shrink-0 text-honk-fg-secondary tabular-nums">
                 {formatContextWindowTokens(category.tokens)}
               </span>

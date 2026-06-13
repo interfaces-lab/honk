@@ -1,3 +1,4 @@
+import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
   AuthProviderId,
@@ -19,6 +20,11 @@ import {
   type HonkRuntimeHostEvent,
   type HonkRuntimeHostSnapshot,
   type RuntimeDisplayTimelineProjection,
+  type RuntimeGetThreadSessionFileInput,
+  type RuntimeGetThreadSessionFileResult,
+  type RuntimeListSkillsInput,
+  type RuntimeListSkillsResult,
+  type RuntimeSkillSummary,
   type RuntimeThreadIdentity,
   type SessionTreeProjection,
   type ThreadAgentRuntimeAbortInput,
@@ -29,14 +35,16 @@ import {
 import { getSupportedThinkingLevels, type OAuthLoginCallbacks } from "@earendil-works/pi-ai";
 import {
   AuthStorage,
+  DefaultResourceLoader,
   ModelRegistry,
+  SettingsManager,
   type AuthCredential,
   type AuthStatus,
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
 import { createDesktopExtensionUi, type DesktopExtensionUiController } from "./extension-ui";
 import { createDesktopAgentExtensionFactories } from "./desktop-agent-extensions";
-import { ThreadAgentRuntime } from "./thread-agent-runtime";
+import { ThreadAgentRuntime, encodeThreadIdForPath } from "./thread-agent-runtime";
 import {
   projectRuntimeDisplayTimeline,
   projectRuntimeDisplayTimelineEvent,
@@ -140,7 +148,13 @@ type RuntimeThreadStartInput = Pick<ThreadAgentRuntimeSendTurnInput, "threadId" 
 
 type RuntimeThreadSendInput = Pick<
   ThreadAgentRuntimeSendTurnInput,
-  "threadId" | "input" | "interactionMode" | "sourceProposedPlan" | "clientMessageId" | "images"
+  | "threadId"
+  | "input"
+  | "interactionMode"
+  | "sourceProposedPlan"
+  | "clientMessageId"
+  | "replacesClientMessageId"
+  | "images"
 >;
 
 export interface DesktopRuntimeHostOptions {
@@ -175,6 +189,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
   private readonly pendingDisplayTimelineDeadlines = new Map<string, number>();
   private readonly focusedThreadIds = new Set<string>();
   private displayTimelineFlushHandle: ReturnType<typeof setTimeout> | null = null;
+  private displayTimelineFlushDeadline: number | null = null;
 
   constructor(options: DesktopRuntimeHostOptions) {
     if (options.agentDir.trim().length === 0) {
@@ -395,8 +410,9 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       });
       const ui = createDesktopExtensionUi();
       const unsubscribeRuntime = runtime.subscribe((event) => {
-        this.recordRuntimeEvent(event);
-        this.emit({ type: "runtime-event", event: toWireRuntimeEvent(event) });
+        const wireEvent = toWireRuntimeEvent(event);
+        this.recordRuntimeEvent(event, wireEvent);
+        this.emit({ type: "runtime-event", event: wireEvent });
         this.applyRuntimeEventToDisplayTimeline(runtime, event);
         this.scheduleDisplayTimelineEmit(runtime.threadId);
         if (event.type === "tree.updated") {
@@ -440,6 +456,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     }
     return entry.runtime.sendMessage(input.input, {
       clientMessageId: input.clientMessageId,
+      replacesClientMessageId: input.replacesClientMessageId ?? null,
       interactionMode: input.interactionMode,
       sourceProposedPlan: input.sourceProposedPlan,
       images: input.images,
@@ -467,6 +484,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       interactionMode: input.interactionMode,
       sourceProposedPlan: input.sourceProposedPlan,
       clientMessageId: input.clientMessageId,
+      replacesClientMessageId: input.replacesClientMessageId,
       images: input.images,
     };
     const startInput: RuntimeThreadStartInput = {
@@ -510,6 +528,47 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     this.scheduleDisplayTimelineEmit(entry.runtime.threadId);
   }
 
+  async listSkills(input: RuntimeListSkillsInput): Promise<RuntimeListSkillsResult> {
+    const resourceLoader = new DefaultResourceLoader({
+      cwd: input.cwd,
+      agentDir: this.agentDir,
+      settingsManager: SettingsManager.create(input.cwd, this.agentDir, { projectTrusted: true }),
+      noExtensions: true,
+      noPromptTemplates: true,
+      noThemes: true,
+    });
+    await resourceLoader.reload();
+    const skills = resourceLoader.getSkills().skills.map(
+      (skill): RuntimeSkillSummary => ({
+        name: skill.name,
+        description: skill.description,
+        filePath: skill.filePath,
+        scope: skill.sourceInfo.scope === "user" ? "user" : "project",
+      }),
+    );
+    return { skills };
+  }
+
+  async getThreadSessionFile(
+    input: RuntimeGetThreadSessionFileInput,
+  ): Promise<RuntimeGetThreadSessionFileResult> {
+    const entry = this.runtimes.get(input.threadId);
+    if (entry) {
+      // A brand-new SessionManager names its file before the first persist, so only trust
+      // live paths that exist on disk and fall through to the cold scan otherwise.
+      const liveSessionFile = entry.runtime.session.sessionManager.getSessionFile();
+      if (liveSessionFile && fileMtimeMs(liveSessionFile) !== null) {
+        return { path: liveSessionFile };
+      }
+    }
+    const sessionDir = join(
+      this.agentDir,
+      "honk-thread-sessions",
+      encodeThreadIdForPath(input.threadId),
+    );
+    return { path: findNewestSessionFile(sessionDir) };
+  }
+
   async setThreadFocus(input: ThreadAgentRuntimeSetThreadFocusInput): Promise<void> {
     if (input.focused) {
       this.focusedThreadIds.add(input.threadId);
@@ -536,6 +595,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     if (this.displayTimelineFlushHandle !== null) {
       clearTimeout(this.displayTimelineFlushHandle);
       this.displayTimelineFlushHandle = null;
+      this.displayTimelineFlushDeadline = null;
     }
     this.pendingDisplayTimelineDeadlines.clear();
     this.focusedThreadIds.clear();
@@ -559,8 +619,13 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     const existingDeadline = this.pendingDisplayTimelineDeadlines.get(threadId);
     if (existingDeadline === undefined || deadline < existingDeadline) {
       this.pendingDisplayTimelineDeadlines.set(threadId, deadline);
+      if (
+        this.displayTimelineFlushDeadline === null ||
+        deadline < this.displayTimelineFlushDeadline
+      ) {
+        this.rescheduleDisplayTimelineFlush();
+      }
     }
-    this.rescheduleDisplayTimelineFlush();
   }
 
   private flushDisplayTimelineEmits(): void {
@@ -590,6 +655,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       clearTimeout(this.displayTimelineFlushHandle);
       this.displayTimelineFlushHandle = null;
     }
+    this.displayTimelineFlushDeadline = null;
     let nextDeadline: number | null = null;
     for (const deadline of this.pendingDisplayTimelineDeadlines.values()) {
       if (nextDeadline === null || deadline < nextDeadline) {
@@ -599,14 +665,19 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     if (nextDeadline === null) {
       return;
     }
-    this.displayTimelineFlushHandle = setTimeout(() => {
-      this.displayTimelineFlushHandle = null;
-      this.flushDisplayTimelineEmits();
-    }, Math.max(0, nextDeadline - Date.now()));
+    this.displayTimelineFlushDeadline = nextDeadline;
+    this.displayTimelineFlushHandle = setTimeout(
+      () => {
+        this.displayTimelineFlushHandle = null;
+        this.displayTimelineFlushDeadline = null;
+        this.flushDisplayTimelineEmits();
+      },
+      Math.max(0, nextDeadline - Date.now()),
+    );
   }
 
-  private recordRuntimeEvent(event: AgentRuntimeEvent): void {
-    boundedPush(this.runtimeEvents, toWireRuntimeEvent(event), MAX_RUNTIME_EVENTS_IN_SNAPSHOT);
+  private recordRuntimeEvent(event: AgentRuntimeEvent, wireEvent: AgentRuntimeEvent): void {
+    boundedPush(this.runtimeEvents, wireEvent, MAX_RUNTIME_EVENTS_IN_SNAPSHOT);
     const threadEvents = this.runtimeEventsByThreadId.get(event.threadId);
     if (threadEvents) {
       boundedPush(threadEvents, event, MAX_RUNTIME_EVENTS_PER_THREAD);
@@ -774,4 +845,36 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
 
 function isMissingRuntimeThreadError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("No runtime thread exists");
+}
+
+function fileMtimeMs(path: string): number | null {
+  try {
+    const stats = statSync(path);
+    return stats.isFile() ? stats.mtimeMs : null;
+  } catch {
+    return null;
+  }
+}
+
+function findNewestSessionFile(sessionDir: string): string | null {
+  let fileNames: string[];
+  try {
+    fileNames = readdirSync(sessionDir);
+  } catch {
+    return null;
+  }
+  let newestPath: string | null = null;
+  let newestMtimeMs = Number.NEGATIVE_INFINITY;
+  for (const fileName of fileNames) {
+    if (!fileName.endsWith(".jsonl")) {
+      continue;
+    }
+    const filePath = join(sessionDir, fileName);
+    const mtimeMs = fileMtimeMs(filePath);
+    if (mtimeMs !== null && mtimeMs > newestMtimeMs) {
+      newestMtimeMs = mtimeMs;
+      newestPath = filePath;
+    }
+  }
+  return newestPath;
 }

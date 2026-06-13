@@ -21,6 +21,8 @@ import {
 } from "@honk/contracts";
 import { Option, Schema } from "effect";
 
+import { asRecord } from "./runtime-record";
+
 const decodeSubagentToolDetailsOption = Schema.decodeUnknownOption(SubagentToolDetails);
 
 export interface RuntimeDisplayTimelineProjectionInput {
@@ -98,7 +100,11 @@ export function projectRuntimeDisplayTimeline(
 ): RuntimeDisplayTimelineProjection {
   const items: RuntimeDisplayTimelineItem[] = [];
   const committedMessagesByKey = new Map<string, RuntimeDisplayTimelineMessageItem>();
+  const activeEntryIds = activeSessionTreeEntryIds(input.sessionTree);
   for (const entry of input.sessionTree?.entries ?? []) {
+    if (activeEntryIds && !activeEntryIds.has(entry.id)) {
+      continue;
+    }
     const item = projectSessionTreeEntry(entry);
     if (item) {
       items.push(item);
@@ -139,6 +145,15 @@ export function projectRuntimeDisplayTimeline(
     runtimeSessionId: input.runtimeSessionId,
     items: mergeRuntimeDisplayTimelineItems([], items),
   };
+}
+
+function activeSessionTreeEntryIds(
+  sessionTree: SessionTreeProjection | null | undefined,
+): ReadonlySet<string> | null {
+  if (!sessionTree) {
+    return null;
+  }
+  return new Set(sessionTree.nodes.filter((node) => node.isActivePath).map((node) => node.entryId));
 }
 
 export function projectRuntimeDisplayTimelineEvent(
@@ -1051,18 +1066,21 @@ function projectRuntimeToolDisplay(input: {
   }
   if (isEditToolName(normalizedToolName)) {
     const path = extractToolPath(input.args);
-    const additions = extractNonNegativeNumber(input.details, ["additions", "added", "linesAdded"]);
-    const deletions = extractNonNegativeNumber(input.details, [
-      "deletions",
-      "deleted",
-      "linesDeleted",
-    ]);
+    const diff = extractUnifiedEditDiff(input.details);
+    const diffStats = diff !== undefined ? countUnifiedDiffStats(diff) : undefined;
+    const additions =
+      extractNonNegativeNumber(input.details, ["additions", "added", "linesAdded"]) ??
+      diffStats?.additions;
+    const deletions =
+      extractNonNegativeNumber(input.details, ["deletions", "deleted", "linesDeleted"]) ??
+      diffStats?.deletions;
     return {
       kind: "edit",
       ...(path !== undefined ? { path } : {}),
       ...(input.output !== undefined ? { output: input.output } : {}),
       ...(additions !== undefined ? { additions } : {}),
       ...(deletions !== undefined ? { deletions } : {}),
+      ...(diff !== undefined ? { diff } : {}),
     };
   }
   if (isMcpToolName(normalizedToolName, input.args, input.details)) {
@@ -1186,6 +1204,43 @@ function extractProviderIdentifier(args: unknown, details: unknown): string | un
   );
 }
 
+// pi-agent edit results carry `details.patch` as a unified diff; `details.diff` is a
+// pretty-printed numbered view in pi-agent but a unified diff in other runtimes, so it is
+// only accepted when it actually parses as one.
+function extractUnifiedEditDiff(details: unknown): string | undefined {
+  const patch = firstTrimmedRecordString(details, ["patch", "unifiedDiff", "udiff"]);
+  if (patch !== undefined && isUnifiedDiffText(patch)) {
+    return patch;
+  }
+  const diff = firstTrimmedRecordString(details, ["diff"]);
+  if (diff !== undefined && isUnifiedDiffText(diff)) {
+    return diff;
+  }
+  return undefined;
+}
+
+function isUnifiedDiffText(text: string): boolean {
+  const lines = text.split("\n");
+  return (
+    lines.some((line) => line.startsWith("--- ")) &&
+    lines.some((line) => line.startsWith("+++ ")) &&
+    lines.some((line) => line.startsWith("@@"))
+  );
+}
+
+function countUnifiedDiffStats(diff: string): { additions: number; deletions: number } {
+  let additions = 0;
+  let deletions = 0;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+") && !line.startsWith("+++")) {
+      additions += 1;
+    } else if (line.startsWith("-") && !line.startsWith("---")) {
+      deletions += 1;
+    }
+  }
+  return { additions, deletions };
+}
+
 function firstTrimmedRecordString(value: unknown, keys: ReadonlyArray<string>): string | undefined {
   const record = asRecord(value);
   if (!record) {
@@ -1273,10 +1328,6 @@ function extractMatchedFiles(result: unknown, details: unknown): string[] | unde
 
 function buildOrderKey(createdAt: string, tieBreaker: string): string {
   return `${createdAt}:${tieBreaker}`;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 }
 
 function asTrimmedString(value: unknown): string | null {

@@ -15,7 +15,6 @@ import {
 } from "~/lib/environment-scope";
 import * as Schema from "effect/Schema";
 import { DeepMutable } from "effect/Types";
-import { getLocalStorageItem } from "../hooks/use-local-storage";
 import { DEFAULT_INTERACTION_MODE, type ChatImageAttachment } from "../types";
 import {
   type TerminalContextDraft,
@@ -126,8 +125,6 @@ export interface ComposerThreadDraftState {
   prompt: string;
   richTextJson: string | null;
   images: ComposerImageAttachment[];
-  nonPersistedImageIds: string[];
-  persistedAttachments: PersistedComposerImageAttachment[];
   terminalContexts: TerminalContextDraft[];
   interactionMode: AgentInteractionMode | null;
 }
@@ -288,11 +285,6 @@ interface ComposerDraftStoreState {
   addTerminalContexts: (threadRef: ComposerThreadTarget, contexts: TerminalContextDraft[]) => void;
   removeTerminalContext: (threadRef: ComposerThreadTarget, contextId: string) => void;
   clearTerminalContexts: (threadRef: ComposerThreadTarget) => void;
-  clearPersistedAttachments: (threadRef: ComposerThreadTarget) => void;
-  syncPersistedAttachments: (
-    threadRef: ComposerThreadTarget,
-    attachments: PersistedComposerImageAttachment[],
-  ) => void;
   clearComposerContent: (threadRef: ComposerThreadTarget) => void;
 }
 
@@ -303,18 +295,12 @@ const EMPTY_PERSISTED_DRAFT_STORE_STATE = Object.freeze<PersistedComposerDraftSt
 });
 
 const EMPTY_IMAGES: ComposerImageAttachment[] = [];
-const EMPTY_IDS: string[] = [];
-const EMPTY_PERSISTED_ATTACHMENTS: PersistedComposerImageAttachment[] = [];
 const EMPTY_TERMINAL_CONTEXTS: TerminalContextDraft[] = [];
 Object.freeze(EMPTY_IMAGES);
-Object.freeze(EMPTY_IDS);
-Object.freeze(EMPTY_PERSISTED_ATTACHMENTS);
 const EMPTY_THREAD_DRAFT = Object.freeze<ComposerThreadDraftState>({
   prompt: "",
   richTextJson: null,
   images: EMPTY_IMAGES,
-  nonPersistedImageIds: EMPTY_IDS,
-  persistedAttachments: EMPTY_PERSISTED_ATTACHMENTS,
   terminalContexts: EMPTY_TERMINAL_CONTEXTS,
   interactionMode: null,
 });
@@ -324,8 +310,6 @@ function createEmptyThreadDraft(): ComposerThreadDraftState {
     prompt: "",
     richTextJson: null,
     images: [],
-    nonPersistedImageIds: [],
-    persistedAttachments: [],
     terminalContexts: [],
     interactionMode: null,
   };
@@ -398,7 +382,6 @@ function shouldRemoveDraft(draft: ComposerThreadDraftState): boolean {
   return (
     !hasComposerDraftText(draft) &&
     draft.images.length === 0 &&
-    draft.persistedAttachments.length === 0 &&
     draft.terminalContexts.length === 0 &&
     draft.interactionMode === null
   );
@@ -849,12 +832,11 @@ function normalizePersistedDraftsByThreadKey(
     }
     const draftCandidate = draftValue;
     const promptCandidate = typeof draftCandidate.prompt === "string" ? draftCandidate.prompt : "";
-    const attachments = Array.isArray(draftCandidate.attachments)
-      ? draftCandidate.attachments.flatMap((entry) => {
-          const normalized = normalizePersistedAttachment(entry);
-          return normalized ? [normalized] : [];
-        })
-      : [];
+    if (Array.isArray(draftCandidate.attachments)) {
+      for (const entry of draftCandidate.attachments) {
+        normalizePersistedAttachment(entry);
+      }
+    }
     const terminalContexts = Array.isArray(draftCandidate.terminalContexts)
       ? draftCandidate.terminalContexts.flatMap((entry) => {
           const normalized = normalizePersistedTerminalContextDraft(entry);
@@ -873,7 +855,6 @@ function normalizePersistedDraftsByThreadKey(
     if (
       promptCandidate.length === 0 &&
       richTextCandidate.length === 0 &&
-      attachments.length === 0 &&
       terminalContexts.length === 0 &&
       !interactionMode
     ) {
@@ -881,7 +862,7 @@ function normalizePersistedDraftsByThreadKey(
     }
     nextDraftsByThreadKey[threadKey] = {
       prompt,
-      attachments,
+      attachments: [],
       ...(richTextCandidate.length > 0 ? { richText: richTextCandidate } : {}),
       ...(terminalContexts.length > 0 ? { terminalContexts } : {}),
       ...(interactionMode ? { interactionMode } : {}),
@@ -960,126 +941,6 @@ function normalizeCurrentPersistedComposerDraftStoreState(
   };
 }
 
-function readPersistedAttachmentIdsFromStorage(threadKey: string): string[] {
-  if (threadKey.length === 0) {
-    return [];
-  }
-  try {
-    const persisted = getLocalStorageItem(
-      COMPOSER_DRAFT_STORAGE_KEY,
-      PersistedComposerDraftStoreStorage,
-    );
-    if (!persisted || persisted.version !== COMPOSER_DRAFT_STORAGE_VERSION) {
-      return [];
-    }
-    return (persisted.state.draftsByThreadKey[threadKey]?.attachments ?? []).map(
-      (attachment) => attachment.id,
-    );
-  } catch {
-    return [];
-  }
-}
-
-function verifyPersistedAttachments(
-  threadKey: string,
-  attachments: PersistedComposerImageAttachment[],
-  set: (
-    partial:
-      | ComposerDraftStoreState
-      | Partial<ComposerDraftStoreState>
-      | ((
-          state: ComposerDraftStoreState,
-        ) => ComposerDraftStoreState | Partial<ComposerDraftStoreState>),
-    replace?: false,
-  ) => void,
-): void {
-  let persistedIdSet = new Set<string>();
-  try {
-    composerDebouncedStorage.flush();
-    persistedIdSet = new Set(readPersistedAttachmentIdsFromStorage(threadKey));
-  } catch {
-    persistedIdSet = new Set();
-  }
-  set((state) => {
-    const current = state.draftsByThreadKey[threadKey];
-    if (!current) {
-      return state;
-    }
-    const imageIdSet = new Set(current.images.map((image) => image.id));
-    const persistedAttachments = attachments.filter(
-      (attachment) => imageIdSet.has(attachment.id) && persistedIdSet.has(attachment.id),
-    );
-    const nonPersistedImageIds = current.images
-      .map((image) => image.id)
-      .filter((imageId) => !persistedIdSet.has(imageId));
-    const nextDraft: ComposerThreadDraftState = {
-      ...current,
-      persistedAttachments,
-      nonPersistedImageIds,
-    };
-    const nextDraftsByThreadKey = { ...state.draftsByThreadKey };
-    if (shouldRemoveDraft(nextDraft)) {
-      delete nextDraftsByThreadKey[threadKey];
-    } else {
-      nextDraftsByThreadKey[threadKey] = nextDraft;
-    }
-    return { draftsByThreadKey: nextDraftsByThreadKey };
-  });
-}
-
-function hydratePersistedComposerImageAttachment(
-  attachment: PersistedComposerImageAttachment,
-): File | null {
-  const commaIndex = attachment.dataUrl.indexOf(",");
-  const header = commaIndex === -1 ? attachment.dataUrl : attachment.dataUrl.slice(0, commaIndex);
-  const payload = commaIndex === -1 ? "" : attachment.dataUrl.slice(commaIndex + 1);
-  if (payload.length === 0) {
-    return null;
-  }
-  try {
-    const isBase64 = header.includes(";base64");
-    if (!isBase64) {
-      const decodedText = decodeURIComponent(payload);
-      const inferredMimeType =
-        header.startsWith("data:") && header.includes(";")
-          ? header.slice("data:".length, header.indexOf(";"))
-          : attachment.mimeType;
-      return new File([decodedText], attachment.name, {
-        type: inferredMimeType || attachment.mimeType,
-      });
-    }
-    const binary = atob(payload);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) {
-      bytes[index] = binary.charCodeAt(index);
-    }
-    return new File([bytes], attachment.name, { type: attachment.mimeType });
-  } catch {
-    return null;
-  }
-}
-
-function hydrateImagesFromPersisted(
-  attachments: ReadonlyArray<PersistedComposerImageAttachment>,
-): ComposerImageAttachment[] {
-  return attachments.flatMap((attachment) => {
-    const file = hydratePersistedComposerImageAttachment(attachment);
-    if (!file) return [];
-
-    return [
-      {
-        type: "image" as const,
-        id: attachment.id,
-        name: attachment.name,
-        mimeType: attachment.mimeType,
-        sizeBytes: attachment.sizeBytes,
-        previewUrl: attachment.dataUrl,
-        file,
-      } satisfies ComposerImageAttachment,
-    ];
-  });
-}
-
 function toHydratedThreadDraft(
   persistedDraft: PersistedComposerThreadDraftState,
 ): ComposerThreadDraftState {
@@ -1090,9 +951,7 @@ function toHydratedThreadDraft(
   return {
     prompt: persistedDraft.prompt,
     richTextJson,
-    images: hydrateImagesFromPersisted(persistedDraft.attachments),
-    nonPersistedImageIds: [],
-    persistedAttachments: [...persistedDraft.attachments],
+    images: [],
     terminalContexts:
       persistedDraft.terminalContexts?.map((context) => ({
         ...context,
@@ -1705,10 +1564,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
             const nextDraft: ComposerThreadDraftState = {
               ...current,
               images: current.images.filter((image) => image.id !== imageId),
-              nonPersistedImageIds: current.nonPersistedImageIds.filter((id) => id !== imageId),
-              persistedAttachments: current.persistedAttachments.filter(
-                (attachment) => attachment.id !== imageId,
-              ),
             };
             const nextDraftsByThreadKey = { ...state.draftsByThreadKey };
             if (shouldRemoveDraft(nextDraft)) {
@@ -1864,65 +1719,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
             };
           });
         },
-        clearPersistedAttachments: (threadRef) => {
-          const threadKey = resolveComposerDraftKey(get(), threadRef) ?? "";
-          if (threadKey.length === 0) {
-            return;
-          }
-          const updatedAt = new Date().toISOString();
-          set((state) => {
-            const current = state.draftsByThreadKey[threadKey];
-            if (!current) {
-              return state;
-            }
-            const nextDraft: ComposerThreadDraftState = {
-              ...current,
-              persistedAttachments: [],
-              nonPersistedImageIds: [],
-            };
-            const nextDraftsByThreadKey = { ...state.draftsByThreadKey };
-            if (shouldRemoveDraft(nextDraft)) {
-              delete nextDraftsByThreadKey[threadKey];
-            } else {
-              nextDraftsByThreadKey[threadKey] = nextDraft;
-            }
-            return {
-              draftsByThreadKey: nextDraftsByThreadKey,
-              draftThreadsByThreadKey: touchDraftThreadUpdatedAt(state, threadKey, updatedAt),
-            };
-          });
-        },
-        syncPersistedAttachments: (threadRef, attachments) => {
-          const threadKey = resolveComposerDraftKey(get(), threadRef);
-          if (!threadKey) {
-            return;
-          }
-          const attachmentIdSet = new Set(attachments.map((attachment) => attachment.id));
-          set((state) => {
-            const current = state.draftsByThreadKey[threadKey];
-            if (!current) {
-              return state;
-            }
-            const nextDraft: ComposerThreadDraftState = {
-              ...current,
-              // Stage attempted attachments so persist middleware can try writing them.
-              persistedAttachments: attachments,
-              nonPersistedImageIds: current.nonPersistedImageIds.filter(
-                (id) => !attachmentIdSet.has(id),
-              ),
-            };
-            const nextDraftsByThreadKey = { ...state.draftsByThreadKey };
-            if (shouldRemoveDraft(nextDraft)) {
-              delete nextDraftsByThreadKey[threadKey];
-            } else {
-              nextDraftsByThreadKey[threadKey] = nextDraft;
-            }
-            return { draftsByThreadKey: nextDraftsByThreadKey };
-          });
-          void Promise.resolve().then(() => {
-            verifyPersistedAttachments(threadKey, attachments, set);
-          });
-        },
         clearComposerContent: (threadRef) => {
           const threadKey = resolveComposerDraftKey(get(), threadRef) ?? "";
           if (threadKey.length === 0) {
@@ -1939,8 +1735,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               prompt: "",
               richTextJson: null,
               images: [],
-              nonPersistedImageIds: [],
-              persistedAttachments: [],
               terminalContexts: [],
             };
             const nextDraftsByThreadKey = { ...state.draftsByThreadKey };

@@ -20,8 +20,8 @@ export type ComposerPromptSegment =
     };
 
 const MENTION_TOKEN_REGEX = /(^|\s)@([^\s@]+)(?=\s)/g;
-const SKILL_TOKEN_REGEX = /(^|\s)\$([a-zA-Z][a-zA-Z0-9:_-]*)(?=\s)/g;
-const MARKDOWN_SKILL_TOKEN_REGEX = /(^|\s)\[\$([a-zA-Z][a-zA-Z0-9:_-]*)\]\(([^)]*)\)(?=\s)/g;
+const SKILL_TOKEN_REGEX = /(^|\s)\$([a-zA-Z0-9][a-zA-Z0-9:_-]*)(?=\s)/g;
+const MARKDOWN_SKILL_TOKEN_REGEX = /(^|\s)\[\$([a-zA-Z0-9][a-zA-Z0-9:_-]*)\]\(([^)]*)\)(?=\s)/g;
 const MARKDOWN_INLINE_TOKEN_REGEX = /(^|\s)\[([^\]]+)]\(([^)\s]+)\)(?=\s|$)/g;
 
 function rangeIncludesIndex(start: number, end: number, index: number): boolean {

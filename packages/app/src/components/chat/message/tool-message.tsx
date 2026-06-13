@@ -5,13 +5,7 @@ import {
   type ThreadId,
 } from "@honk/contracts";
 import { Button } from "@honk/honkkit/button";
-import {
-  IconBubbleQuestion,
-  IconChevronRightMedium,
-  IconClock,
-  IconRobot,
-  IconSummary,
-} from "central-icons";
+import { IconBubbleQuestion, IconChevronRightMedium, IconClock, IconSummary } from "central-icons";
 import { memo, type KeyboardEvent, type MouseEvent, useMemo } from "react";
 import {
   type ToolDiffArtifact,
@@ -166,13 +160,31 @@ export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
   const subagentStatusSurface = canRenderSubagents ? (
     <SubagentStatusSurface
       activeThreadId={activeThreadId}
-      embeddedInTask
       environmentId={environmentId}
       projectRoot={projectRoot}
       subagentDetailsEnabled={subagentDetailsEnabled}
       subagents={runtimeSubagents}
     />
   ) : null;
+
+  // Cursor parity: a subagent Task renders as the status rows themselves (name, model,
+  // latest update) — never as a "Task <prompt>" header duplicating them. The prompt and
+  // transcript live in the tray opened from the row. The taskToolCall chrome below remains
+  // only as the fallback while no runs are reportable yet.
+  if (tool.display?.kind === "subagent" && subagentStatusSurface) {
+    return (
+      <div
+        className="flex w-full min-w-0 max-w-full flex-col"
+        data-tool-call-id={tool.toolCallId}
+        data-runtime-tool-call=""
+        data-runtime-tool-name={tool.toolName}
+        data-tool-status={status}
+        data-tool-has-error={status === "error" ? "true" : undefined}
+      >
+        {subagentStatusSurface}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -195,8 +207,7 @@ export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
             : undefined
         }
         conversationDensity={conversationDensity}
-        subagentConversation={subagentStatusSurface}
-        defaultExpanded={tool.display?.kind === "subagent" || (isLoading && hasStreamingOutput)}
+        defaultExpanded={isLoading && hasStreamingOutput}
         defaultEditExpanded={defaultEditExpanded}
       />
     </div>
@@ -580,6 +591,7 @@ function runtimeEditDisplayToToolCall(
           deletions: display.deletions,
         }
       : null;
+  const diffArtifact = runtimeEditDiffArtifact(tool, display, path);
 
   return {
     tool: {
@@ -590,8 +602,35 @@ function runtimeEditDisplayToToolCall(
         path: path ?? null,
         output: output ?? null,
         ...(stats ? { stats } : {}),
+        ...(diffArtifact ? { artifacts: [diffArtifact] } : {}),
       },
     },
+  };
+}
+
+function runtimeEditDiffArtifact(
+  tool: RuntimeDisplayTimelineToolItem,
+  display: Extract<NonNullable<RuntimeDisplayTimelineToolItem["display"]>, { kind: "edit" }>,
+  path: string | undefined,
+): ToolDiffArtifact | null {
+  const unifiedDiff = runtimeTrimmedString(display.diff);
+  if (!unifiedDiff) {
+    return null;
+  }
+  const source = tool.status === "running" ? "preview" : "result";
+  return {
+    type: "diff",
+    format: "unified",
+    source,
+    files: [
+      {
+        path: path ?? "file",
+        ...(display.additions !== undefined ? { additions: display.additions } : {}),
+        ...(display.deletions !== undefined ? { deletions: display.deletions } : {}),
+      },
+    ],
+    unifiedDiff,
+    ...(source === "preview" ? { isPreview: true } : {}),
   };
 }
 
@@ -663,14 +702,12 @@ function ToolSummaryRow({ text }: { text: string }) {
 
 function SubagentStatusSurface({
   activeThreadId,
-  embeddedInTask = false,
   environmentId,
   projectRoot,
   subagentDetailsEnabled,
   subagents,
 }: {
   activeThreadId: ThreadId;
-  embeddedInTask?: boolean | undefined;
   environmentId: EnvironmentId;
   projectRoot: string | undefined;
   subagentDetailsEnabled: boolean;
@@ -682,12 +719,8 @@ function SubagentStatusSurface({
   return (
     <div
       data-subagent-status-container=""
-      data-subagent-status-embedded={embeddedInTask ? "" : undefined}
       data-subagent-open={hasOpenTray ? "" : undefined}
-      className={cn(
-        "w-full min-w-0 max-w-full text-conversation",
-        embeddedInTask ? "py-0" : "px-3 py-1",
-      )}
+      className="w-full min-w-0 max-w-full px-(--conversation-text-inset) py-1 text-conversation"
     >
       <div data-subagent-status-stack="" className="flex w-full min-w-0 flex-col items-start gap-1">
         {subagents.map((subagent) => (
@@ -747,12 +780,14 @@ function SubagentStatusRow({
     );
   };
 
+  // Cursor parity: two-line row — indicator + name + model badge, with the latest update
+  // on its own line under the name — instead of one truncated inline run.
   return (
     <Button
       type="button"
       variant="ghost"
       className={cn(
-        "group/subagent-row inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1.5 overflow-hidden",
+        "group/subagent-row flex min-h-6 w-fit max-w-full min-w-0 flex-col items-start gap-0.5 overflow-hidden",
         "h-auto border-0 bg-transparent p-0 text-left text-conversation text-honk-fg-secondary shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent disabled:opacity-100",
         hasDetails &&
           "cursor-pointer hover:text-honk-fg-primary focus-visible:text-honk-fg-primary focus-visible:outline-hidden focus-visible:shadow-[0_0_0_1px_var(--honk-stroke-focused)]",
@@ -767,8 +802,10 @@ function SubagentStatusRow({
       onClick={handleOpenTray}
       onKeyDown={stopSubagentStatusRowKeyDown}
     >
-      <SubagentStatusIndicator subagent={subagent} />
-      <span className="inline-flex min-w-0 max-w-full items-baseline gap-1.5 overflow-hidden">
+      <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden">
+        <span className="inline-flex w-3 shrink-0 items-center justify-center">
+          <SubagentStatusIndicator subagent={subagent} />
+        </span>
         <span
           data-subagent-name=""
           className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium text-honk-fg-primary"
@@ -780,34 +817,34 @@ function SubagentStatusRow({
             {subagent.model}
           </span>
         ) : null}
-        {statusText ? (
-          <span
-            data-subagent-task=""
-            className={cn(
-              "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-tertiary",
-              subagent.isActive && "tool-call-shimmer",
-            )}
-          >
-            {statusText}
-          </span>
-        ) : null}
         {subagent.usedTokens !== undefined && subagent.usedTokens > 0 ? (
           <span className="shrink-0 text-caption text-honk-fg-tertiary tabular-nums">
             {formatSubagentUsageLabel(subagent)}
           </span>
         ) : null}
+        {hasDetails ? (
+          <span
+            className={cn(
+              "ml-1 inline-flex shrink-0 opacity-0 transition-opacity duration-100",
+              "group-hover/subagent-row:opacity-100 group-focus-visible/subagent-row:opacity-100",
+              isTrayOpen && "opacity-100",
+            )}
+            data-subagent-open=""
+            aria-hidden="true"
+          >
+            <IconChevronRightMedium className="size-3" />
+          </span>
+        ) : null}
       </span>
-      {hasDetails ? (
+      {statusText ? (
         <span
+          data-subagent-task=""
           className={cn(
-            "ml-1 inline-flex shrink-0 opacity-0 transition-opacity duration-100",
-            "group-hover/subagent-row:opacity-100 group-focus-visible/subagent-row:opacity-100",
-            isTrayOpen && "opacity-100",
+            "min-w-0 max-w-full overflow-hidden pl-4.5 text-ellipsis whitespace-nowrap text-honk-fg-tertiary",
+            subagent.isActive && "tool-call-shimmer",
           )}
-          data-subagent-open=""
-          aria-hidden="true"
         >
-          <IconChevronRightMedium className="size-3" />
+          {statusText}
         </span>
       ) : null}
     </Button>
@@ -832,10 +869,9 @@ function SubagentStatusIndicator({ subagent }: { subagent: WorkLogSubagent }) {
       <span className="size-1.5 shrink-0 rounded-full bg-honk-fg-red-primary" aria-hidden="true" />
     );
   }
+  // Cursor parity: completed runs get a quiet bullet, not an icon.
   return (
-    <span className="inline-flex shrink-0 items-center justify-center text-honk-icon-tertiary">
-      <IconRobot className="size-3" />
-    </span>
+    <span className="size-1.5 shrink-0 rounded-full bg-honk-icon-tertiary" aria-hidden="true" />
   );
 }
 

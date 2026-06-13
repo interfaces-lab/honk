@@ -36,6 +36,7 @@ import { formatProjectErrorDescription } from "~/lib/project-error-description";
 import { cn } from "~/lib/utils";
 import {
   buildProposedPlanMarkdownFilename,
+  ensurePlanMarkdownPath,
   normalizePlanMarkdownForExport,
   proposedPlanTitle,
   stripDisplayedPlanMarkdown,
@@ -315,7 +316,7 @@ function PlanActions(props: {
 
   const savePlan = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
-    const trimmedPath = relativePath.trim();
+    const trimmedPath = ensurePlanMarkdownPath(relativePath);
     if (!props.markdownCwd) {
       toast.error("No project path is available.");
       return;
@@ -328,6 +329,8 @@ function PlanActions(props: {
       toast.error("Enter a project-relative path.");
       return;
     }
+
+    setRelativePath(trimmedPath);
 
     const api = readEnvironmentApi(props.environmentId);
     if (!api) {
@@ -380,6 +383,7 @@ function PlanActions(props: {
           <MenuItem
             variant="workbench"
             onClick={() => {
+              setRelativePath(buildProposedPlanMarkdownFilename(props.planMarkdown));
               setSaveError(null);
               setSaveDialogOpen(true);
             }}

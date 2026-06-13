@@ -6,11 +6,7 @@ import {
   type DraftId as DraftIdType,
 } from "~/stores/chat-drafts";
 import type { AppRouter } from "~/router";
-import {
-  draftRouteParams,
-  readChatRouteTarget,
-  threadRouteParams,
-} from "~/app/chat-route-state";
+import { draftRouteParams, readChatRouteTarget, threadRouteParams } from "~/app/chat-route-state";
 import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
 import { useThreadSendIntentStore } from "~/stores/thread-send-intent-store";
 

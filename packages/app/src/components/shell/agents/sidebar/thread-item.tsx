@@ -12,6 +12,7 @@ import { ThreadContextMenu } from "./context-menu";
 import { SidebarIconButton, SidebarItemTime, SidebarItemTitle } from "./item-parts";
 import { StatusSlot } from "./status";
 import type { SidebarChatItem } from "./types";
+import { composerDraftHasVisibleContent } from "./use-agent-sidebar-model";
 import { deriveSidebarDraftTitle } from "./view-model";
 
 type DraftSidebarChatItem = Extract<SidebarChatItem, { kind: "draft" }>;
@@ -27,17 +28,13 @@ function useDraftSidebarTitle(item: DraftSidebarChatItem): string {
   return useComposerDraftStore((store) => {
     const draft = store.draftsByThreadKey[item.id];
     if (!draft) return item.title;
-    const hasVisibleDraftContent =
-      draft.prompt.trim().length > 0 ||
-      draft.images.length > 0 ||
-      draft.persistedAttachments.length > 0;
-    if (!hasVisibleDraftContent && item.title.trim().length > 0) {
+    if (!composerDraftHasVisibleContent(draft) && item.title.trim().length > 0) {
       return item.title;
     }
-    const firstAttachment = draft.images[0] ?? draft.persistedAttachments[0];
+    const firstAttachment = draft.images[0];
     return deriveSidebarDraftTitle({
       text: draft.prompt,
-      attachmentCount: draft.images.length + draft.persistedAttachments.length,
+      attachmentCount: draft.images.length,
       firstAttachmentName: firstAttachment?.name ?? null,
     });
   });

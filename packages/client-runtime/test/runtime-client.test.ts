@@ -38,6 +38,8 @@ function createRuntimeApi(
     sendTurn: async (input) => TurnId.make(`test:${input.threadId}`),
     abort: async () => undefined,
     respondToExtensionUiRequest: async () => undefined,
+    listSkills: async () => ({ skills: [] }),
+    getThreadSessionFile: async () => ({ path: null }),
     onHostEvent: () => () => undefined,
     ...overrides,
   };
@@ -53,6 +55,7 @@ function createTestLocalApi(runtime: HonkRuntimeApi): LocalApi {
     shell: {
       openInEditor: async () => notCalled(),
       openExternal: async () => undefined,
+      showItemInFolder: async () => undefined,
     },
     contextMenu: {
       show: async () => null,
@@ -173,5 +176,27 @@ describe("readHonkRuntimeApi", () => {
 
     expect(isDesktopRuntimeApiAvailable()).toBe(false);
     expect(() => readHonkRuntimeApi()).toThrow("Runtime host unavailable.");
+  });
+
+  it("degrades listSkills and getThreadSessionFile when the bridge lacks them", async () => {
+    const snapshot = {
+      ...createEmptyRuntimeHostSnapshot(),
+      diagnostics: [],
+    };
+    const legacyRuntime: Partial<HonkRuntimeApi> = createRuntimeApi(snapshot);
+    delete legacyRuntime.listSkills;
+    delete legacyRuntime.getThreadSessionFile;
+    vi.stubGlobal("window", {
+      desktopBridge: {
+        runtime: legacyRuntime,
+      },
+    });
+
+    await expect(readHonkRuntimeApi().listSkills({ cwd: "/tmp/project" })).resolves.toEqual({
+      skills: [],
+    });
+    await expect(
+      readHonkRuntimeApi().getThreadSessionFile({ threadId: ThreadId.make("thread:legacy") }),
+    ).resolves.toEqual({ path: null });
   });
 });

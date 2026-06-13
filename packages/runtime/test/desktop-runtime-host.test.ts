@@ -711,7 +711,9 @@ describe("DesktopRuntimeHost", () => {
       }),
     });
     expect(runtimeEvent?.type === "runtime-event" && "data" in runtimeEvent.event).toBe(false);
-    expect(displayTimelineEvent?.type === "display-timeline" && displayTimelineEvent.timeline.items).toEqual(
+    expect(
+      displayTimelineEvent?.type === "display-timeline" && displayTimelineEvent.timeline.items,
+    ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           kind: "message",
@@ -790,7 +792,9 @@ describe("DesktopRuntimeHost", () => {
 
     const snapshot = await host.getHostSnapshot();
     const messageEvent = snapshot.runtimeEvents.find((event) => event.type === "message.updated");
-    const displayTimeline = snapshot.displayTimelines.find((timeline) => timeline.threadId === threadId);
+    const displayTimeline = snapshot.displayTimelines.find(
+      (timeline) => timeline.threadId === threadId,
+    );
     expect(messageEvent).toEqual(
       expect.objectContaining({
         type: "message.updated",

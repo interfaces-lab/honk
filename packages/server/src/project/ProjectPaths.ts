@@ -89,6 +89,47 @@ export const makeProjectPaths = Effect.gen(function* () {
         });
       }
 
+      // The lexical check above blocks `..`/absolute escapes but cannot see a
+      // SYMLINKED directory component inside the root (e.g. root/link -> /etc,
+      // relativePath "link/passwd"), which would let read/write/delete escape
+      // the root. Canonicalize with realpath and require containment. The leaf
+      // may not exist yet (writeFile creates files/dirs), so resolve the nearest
+      // existing ancestor — any dirs created beneath it cannot be symlinks.
+      const realRoot = yield* fileSystem
+        .realPath(input.projectRoot)
+        .pipe(Effect.catch(() => Effect.succeed(input.projectRoot)));
+      let ancestor = path.dirname(absolutePath);
+      // Bounded by the filesystem root: dirname stops changing there, and
+      // absolutePath is lexically under projectRoot so the walk halts at/above
+      // the (existing) root at the latest.
+      for (;;) {
+        const exists = yield* fileSystem
+          .exists(ancestor)
+          .pipe(Effect.catch(() => Effect.succeed(false)));
+        if (exists) {
+          break;
+        }
+        const parent = path.dirname(ancestor);
+        if (parent === ancestor) {
+          break;
+        }
+        ancestor = parent;
+      }
+      const realAncestor = yield* fileSystem
+        .realPath(ancestor)
+        .pipe(Effect.catch(() => Effect.succeed(ancestor)));
+      const realRelative = path.relative(realRoot, realAncestor);
+      if (
+        realRelative === ".." ||
+        realRelative.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(realRelative)
+      ) {
+        return yield* new ProjectPathOutsideRootError({
+          projectRoot: input.projectRoot,
+          relativePath: input.relativePath,
+        });
+      }
+
       return {
         absolutePath,
         relativePath: relativeToRoot,

@@ -1,0 +1,11 @@
+.project-monaco-editor {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.project-monaco-editor .monaco-editor,
+.project-monaco-editor .monaco-editor-background,
+.project-monaco-editor .monaco-editor .margin {
+  background: var(--honk-workbench-editor-surface-background);
+}

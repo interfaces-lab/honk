@@ -3,7 +3,7 @@
 import { TabsList, TabsTab } from "@honk/honkkit/tabs";
 import { Button } from "@honk/honkkit/button";
 import { IconConsole, IconCrossMediumDefault, IconPlusLarge } from "central-icons";
-import type { ComponentType, ReactNode } from "react";
+import { memo, type ComponentType, type ReactNode } from "react";
 
 import type { TerminalSessionEntry } from "~/stores/shell-panels-store";
 import type { WorkbenchTab } from "~/lib/workbench-tabs";
@@ -141,7 +141,9 @@ interface RightWorkbenchHeaderProps {
   trailing?: ReactNode;
 }
 
-export function RightWorkbenchHeader(props: RightWorkbenchHeaderProps) {
+export const RightWorkbenchHeader = memo(function RightWorkbenchHeader(
+  props: RightWorkbenchHeaderProps,
+) {
   const isTerminal = props.activeTab === "terminal";
   const sessions = props.terminalSessions ?? [];
   const showTerminalSessionTabs = isTerminal && sessions.length > 0;
@@ -194,4 +196,4 @@ export function RightWorkbenchHeader(props: RightWorkbenchHeaderProps) {
       </>
     </RightWorkbenchToolIsland>
   );
-}
+});

@@ -617,9 +617,7 @@ function runtimeSessionTreeMessageId(
   tree: SessionTreeProjection,
   entry: ProjectedRuntimeMessageEntry,
 ): MessageId {
-  return (
-    entry.clientMessageId ?? runtimeSessionEntryMessageId(tree.runtimeSessionId, entry.id)
-  );
+  return entry.clientMessageId ?? runtimeSessionEntryMessageId(tree.runtimeSessionId, entry.id);
 }
 
 function mergeRuntimeSessionMessages(
@@ -787,6 +785,28 @@ function sidebarThreadSummaryFromThread(
   };
 }
 
+function sidebarThreadSummaryInputsUnchanged(
+  previousThread: Thread | undefined,
+  nextThread: Thread,
+): boolean {
+  return (
+    previousThread !== undefined &&
+    previousThread.id === nextThread.id &&
+    previousThread.environmentId === nextThread.environmentId &&
+    previousThread.projectId === nextThread.projectId &&
+    previousThread.title === nextThread.title &&
+    previousThread.interactionMode === nextThread.interactionMode &&
+    previousThread.session === nextThread.session &&
+    previousThread.createdAt === nextThread.createdAt &&
+    previousThread.archivedAt === nextThread.archivedAt &&
+    previousThread.updatedAt === nextThread.updatedAt &&
+    previousThread.latestTurn === nextThread.latestTurn &&
+    previousThread.branch === nextThread.branch &&
+    previousThread.worktreePath === nextThread.worktreePath &&
+    previousThread.messages === nextThread.messages
+  );
+}
+
 function sourceProposedPlansEqual(
   left: OrchestrationLatestTurn["sourceProposedPlan"] | undefined,
   right: OrchestrationLatestTurn["sourceProposedPlan"] | undefined,
@@ -939,6 +959,7 @@ function buildMessageSlice(thread: Thread): {
 }
 
 function toolItemTypeForName(toolName: string): ToolLifecycleItemType {
+  // TODO: Use runtimeToolItemTypeForName from @honk/runtime if @honk/app gains that dependency.
   switch (toolName) {
     case "bash":
       return "command_execution";
@@ -2271,15 +2292,17 @@ function writeThreadState(
   }
 
   const previousSummary = state.sidebarThreadSummaryById[nextThread.id];
-  const nextSummary = sidebarThreadSummaryFromThread(nextThread, previousSummary);
-  if (!sidebarThreadSummariesEqual(previousSummary, nextSummary)) {
-    nextState = {
-      ...nextState,
-      sidebarThreadSummaryById: {
-        ...nextState.sidebarThreadSummaryById,
-        [nextThread.id]: nextSummary,
-      },
-    };
+  if (!sidebarThreadSummaryInputsUnchanged(previousThread, nextThread)) {
+    const nextSummary = sidebarThreadSummaryFromThread(nextThread, previousSummary);
+    if (!sidebarThreadSummariesEqual(previousSummary, nextSummary)) {
+      nextState = {
+        ...nextState,
+        sidebarThreadSummaryById: {
+          ...nextState.sidebarThreadSummaryById,
+          [nextThread.id]: nextSummary,
+        },
+      };
+    }
   }
 
   return nextState;

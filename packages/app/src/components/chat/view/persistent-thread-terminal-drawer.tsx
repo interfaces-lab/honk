@@ -11,6 +11,16 @@ import { selectProjectsAcrossEnvironments, useStore } from "../../../stores/thre
 import { randomUUID } from "~/lib/utils";
 import ThreadTerminalDrawer from "../../thread-terminal-drawer";
 import { findWorkspaceProjectForSource } from "~/lib/workspace-target";
+import {
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogPopup,
+  AlertDialogTitle,
+} from "@honk/honkkit/alert-dialog";
+import { Button } from "@honk/honkkit/button";
 
 export interface TerminalLaunchContext {
   threadId: ThreadId;
@@ -53,6 +63,7 @@ export function PersistentThreadTerminalDrawer(props: {
   const storeSetActiveTerminal = useTerminalStateStore((state) => state.setActiveTerminal);
   const storeCloseTerminal = useTerminalStateStore((state) => state.closeTerminal);
   const [localFocusRequestId, setLocalFocusRequestId] = useState(0);
+  const [pendingCloseTerminalId, setPendingCloseTerminalId] = useState<string | null>(null);
   const worktreePath = serverThread?.worktreePath ?? draftThread?.worktreePath ?? null;
   const effectiveWorktreePath = launchContext !== null ? launchContext.worktreePath : worktreePath;
   const cwd =
@@ -97,6 +108,14 @@ export function PersistentThreadTerminalDrawer(props: {
   };
 
   const closeTerminal = (terminalId: string) => {
+    if (terminalState.runningTerminalIds.includes(terminalId)) {
+      setPendingCloseTerminalId(terminalId);
+      return;
+    }
+    forceCloseTerminal(terminalId);
+  };
+
+  const forceCloseTerminal = (terminalId: string) => {
     const api = readEnvironmentApi(threadRef.environmentId);
     if (!api) return;
     const isFinalTerminal = terminalState.terminalIds.length <= 1;
@@ -150,6 +169,34 @@ export function PersistentThreadTerminalDrawer(props: {
         onCloseTerminal={closeTerminal}
         onHeightChange={setTerminalHeight}
       />
+      <AlertDialog
+        open={pendingCloseTerminalId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingCloseTerminalId(null);
+        }}
+      >
+        <AlertDialogPopup>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Close terminal?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A process is still running in this terminal. Closing it will terminate the process.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const terminalId = pendingCloseTerminalId;
+                setPendingCloseTerminalId(null);
+                if (terminalId) forceCloseTerminal(terminalId);
+              }}
+            >
+              Close terminal
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogPopup>
+      </AlertDialog>
     </div>
   );
 }

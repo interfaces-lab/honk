@@ -10,8 +10,12 @@ import { Schema, Context } from "effect";
 import type { Effect } from "effect";
 
 import type {
+  ProjectDeleteFileError,
+  ProjectDeleteFileInput,
+  ProjectDeleteFileResult,
   ProjectReadFileInput,
   ProjectReadFileResult,
+  ProjectWriteConflictError,
   ProjectWriteFileInput,
   ProjectWriteFileResult,
 } from "@honk/contracts";
@@ -58,7 +62,26 @@ export interface ProjectFileSystemShape {
     input: ProjectWriteFileInput,
   ) => Effect.Effect<
     ProjectWriteFileResult,
-    ProjectFileSystemError | ProjectPathOutsideRootError | ProjectRootNormalizeError
+    | ProjectFileSystemError
+    | ProjectPathOutsideRootError
+    | ProjectRootNormalizeError
+    | ProjectWriteConflictError
+  >;
+
+  /**
+   * Delete a file relative to the project root.
+   *
+   * Rejects paths that escape the project root and refuses to delete
+   * directories.
+   */
+  readonly deleteFile: (
+    input: ProjectDeleteFileInput,
+  ) => Effect.Effect<
+    ProjectDeleteFileResult,
+    | ProjectFileSystemError
+    | ProjectPathOutsideRootError
+    | ProjectRootNormalizeError
+    | ProjectDeleteFileError
   >;
 }
 

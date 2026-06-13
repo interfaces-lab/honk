@@ -1,7 +1,7 @@
 # pi (earendil-works/pi) — Codebase Patterns: A Learning Document
 
 Source studied: https://github.com/earendil-works/pi (cloned at `/tmp/pi-study`, June 2026, ~155k lines of TypeScript).
-pi is Armin Ronacher–school engineering: a coding agent shipped as a 4-package npm monorepo. This document is a spec of *how* it is written — function patterns, value normalization, function hierarchy, type setup — with real excerpts, so the patterns can be borrowed deliberately.
+pi is Armin Ronacher–school engineering: a coding agent shipped as a 4-package npm monorepo. This document is a spec of _how_ it is written — function patterns, value normalization, function hierarchy, type setup — with real excerpts, so the patterns can be borrowed deliberately.
 
 ---
 
@@ -19,7 +19,7 @@ Strict one-directional layering: `ai → agent → coding-agent`, with `tui` as 
 
 **Toolchain choices worth noting:**
 
-- TypeScript with `"strict": true` **and `"erasableSyntaxOnly": true`** — the code must run under Node's strip-types mode. This single compiler flag *bans* `enum`, `namespace`, parameter properties, and `import =`. It mechanically forces several style patterns described below (string-literal unions instead of enums, explicit constructor field assignment).
+- TypeScript with `"strict": true` **and `"erasableSyntaxOnly": true`** — the code must run under Node's strip-types mode. This single compiler flag _bans_ `enum`, `namespace`, parameter properties, and `import =`. It mechanically forces several style patterns described below (string-literal unions instead of enums, explicit constructor field assignment).
 - Biome for lint+format: tabs, indent width 3, line width 120. `noNonNullAssertion` off (they use `!` where they've proven non-null), `noExplicitAny` off (pragmatic `any` allowed at generic boundaries).
 - Direct external deps are **pinned to exact versions**; lockfile changes are treated as reviewed code; `npm install --ignore-scripts` always. Dependency count is treated as a liability — tui has two runtime deps (`marked`, `get-east-asian-width`).
 - Generated code is committed (`models.generated.ts`) but never hand-edited; the generator script is the source of truth.
@@ -79,8 +79,17 @@ Three discriminator field conventions, used consistently:
 
 ```ts
 // agent/src/agent-loop.ts — local pipeline states, not exported
-type PreparedToolCall = { kind: "prepared"; toolCall: AgentToolCall; tool: AgentTool<any>; args: unknown };
-type ImmediateToolCallOutcome = { kind: "immediate"; result: AgentToolResult<any>; isError: boolean };
+type PreparedToolCall = {
+  kind: "prepared";
+  toolCall: AgentToolCall;
+  tool: AgentTool<any>;
+  args: unknown;
+};
+type ImmediateToolCallOutcome = {
+  kind: "immediate";
+  result: AgentToolResult<any>;
+  isError: boolean;
+};
 ```
 
 Event unions are written as single `type` aliases with inline object members and section comments:
@@ -93,18 +102,26 @@ export type AgentEvent =
   // Turn lifecycle - a turn is one assistant response + any tool calls/results
   | { type: "turn_start" }
   | { type: "turn_end"; message: AgentMessage; toolResults: ToolResultMessage[] }
-  | { type: "tool_execution_end"; toolCallId: string; toolName: string; result: any; isError: boolean };
+  | {
+      type: "tool_execution_end";
+      toolCallId: string;
+      toolName: string;
+      result: any;
+      isError: boolean;
+    };
 ```
 
 ### 2.4 Schema-first tool typing: TypeBox + `Static<typeof schema>`
 
-The runtime validation schema is the single source of truth; the static type is *derived from it*, never written twice:
+The runtime validation schema is the single source of truth; the static type is _derived from it_, never written twice:
 
 ```ts
 // coding-agent/src/core/tools/read.ts
 const readSchema = Type.Object({
   path: Type.String({ description: "Path to the file to read (relative or absolute)" }),
-  offset: Type.Optional(Type.Number({ description: "Line number to start reading from (1-indexed)" })),
+  offset: Type.Optional(
+    Type.Number({ description: "Line number to start reading from (1-indexed)" }),
+  ),
   limit: Type.Optional(Type.Number({ description: "Maximum number of lines to read" })),
 });
 export type ReadToolInput = Static<typeof readSchema>;
@@ -114,29 +131,43 @@ The generic chain threads the schema type all the way through execution, so `exe
 
 ```ts
 // agent/src/types.ts
-export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = any> extends Tool<TParameters> {
+export interface AgentTool<
+  TParameters extends TSchema = TSchema,
+  TDetails = any,
+> extends Tool<TParameters> {
   label: string;
-  prepareArguments?: (args: unknown) => Static<TParameters>;   // pre-validation normalization shim
-  execute: (toolCallId: string, params: Static<TParameters>, signal?: AbortSignal,
-            onUpdate?: AgentToolUpdateCallback<TDetails>) => Promise<AgentToolResult<TDetails>>;
+  prepareArguments?: (args: unknown) => Static<TParameters>; // pre-validation normalization shim
+  execute: (
+    toolCallId: string,
+    params: Static<TParameters>,
+    signal?: AbortSignal,
+    onUpdate?: AgentToolUpdateCallback<TDetails>,
+  ) => Promise<AgentToolResult<TDetails>>;
 }
 ```
 
-Descriptions for the LLM live *in the schema options*, not in separate prompt files.
+Descriptions for the LLM live _in the schema options_, not in separate prompt files.
 
 ### 2.5 Generics parameterized by capability, with conditional refinement
 
-`Model<TApi>` carries its API in the type, and the `compat` field's type is *conditionally selected* by which API it is:
+`Model<TApi>` carries its API in the type, and the `compat` field's type is _conditionally selected_ by which API it is:
 
 ```ts
 export interface Model<TApi extends Api> {
-  id: string; api: TApi; provider: Provider; baseUrl: string;
-  contextWindow: number; maxTokens: number;
+  id: string;
+  api: TApi;
+  provider: Provider;
+  baseUrl: string;
+  contextWindow: number;
+  maxTokens: number;
   cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
-  compat?: TApi extends "openai-completions" ? OpenAICompletionsCompat
-         : TApi extends "openai-responses"   ? OpenAIResponsesCompat
-         : TApi extends "anthropic-messages" ? AnthropicMessagesCompat
-         : never;
+  compat?: TApi extends "openai-completions"
+    ? OpenAICompletionsCompat
+    : TApi extends "openai-responses"
+      ? OpenAIResponsesCompat
+      : TApi extends "anthropic-messages"
+        ? AnthropicMessagesCompat
+        : never;
 }
 ```
 
@@ -169,7 +200,7 @@ The core loop works with `AgentMessage[]` throughout and only narrows to LLM `Me
 
 Two notable moves:
 
-**Accessor properties in an interface** to express copy-on-assign semantics in the *type*:
+**Accessor properties in an interface** to express copy-on-assign semantics in the _type_:
 
 ```ts
 export interface AgentState {
@@ -206,7 +237,7 @@ Every callback in `AgentLoopConfig` documents its contract this way ("must not t
 
 Counted across all of src: **547 `export function` declarations vs 1 exported arrow-const**. Arrow consts appear in exactly two situations:
 
-1. When a value must be *typed as* a function type (the exception that proves the rule):
+1. When a value must be _typed as_ a function type (the exception that proves the rule):
 
 ```ts
 // the function IS an instance of a named contract type
@@ -217,7 +248,8 @@ export const streamAnthropic: StreamFunction<"anthropic-messages", AnthropicOpti
 
 ```ts
 const toClaudeCodeName = (name: string) => ccToolLookup.get(name.toLowerCase()) ?? name;
-const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(value, max));
+const clamp = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(value, max));
 ```
 
 Everything else — helpers, entry points, factories — is `function name(…): ReturnType` with explicit return types on exports.
@@ -226,12 +258,12 @@ Everything else — helpers, entry points, factories — is `function name(…):
 
 91 classes, and every one falls into one of these buckets:
 
-| Bucket | Examples | Why a class |
-|---|---|---|
+| Bucket                   | Examples                                                                                         | Why a class                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------ | --------------------------------------------- |
 | Stateful runtime objects | `Agent`, `AgentSession`, `SessionManager`, `SettingsManager`, `ModelRegistry`, `ExtensionRunner` | own mutable state + lifecycle + subscriptions |
-| UI components | `Text`, `Editor`, `SelectList`, ~40 `*Component` in coding-agent | per-instance render caches and input state |
-| Generic data structures | `EventStream<T,R>`, `UndoStack<S>`, `KillRing`, `PendingMessageQueue` | small, self-contained, reusable |
-| Error taxonomy | `AgentHarnessError`, `CompactionError`, `SessionError` … `extends Error` | catch-by-instanceof |
+| UI components            | `Text`, `Editor`, `SelectList`, ~40 `*Component` in coding-agent                                 | per-instance render caches and input state    |
+| Generic data structures  | `EventStream<T,R>`, `UndoStack<S>`, `KillRing`, `PendingMessageQueue`                            | small, self-contained, reusable               |
+| Error taxonomy           | `AgentHarnessError`, `CompactionError`, `SessionError` … `extends Error`                         | catch-by-instanceof                           |
 
 Nothing else is a class. There are no "service classes" wrapping pure logic, no static-method namespaces. Pure logic is module functions; classes appear when identity + mutation + time are intrinsic. Constructors do plain field assignment (no parameter properties — banned by `erasableSyntaxOnly`), with options normalized inline:
 
@@ -261,7 +293,7 @@ THE exported entry point(s)
 more private helpers used only by the entry point, below it
 ```
 
-Private helpers are **module-level siblings**, never nested inside the function that calls them, and never exported just for tests. A 1,200-line provider file is considered fine *because* it is one self-contained unit: ~25 small named functions orbiting one exported stream function.
+Private helpers are **module-level siblings**, never nested inside the function that calls them, and never exported just for tests. A 1,200-line provider file is considered fine _because_ it is one self-contained unit: ~25 small named functions orbiting one exported stream function.
 
 ### 3.4 Function hierarchy: orchestrator → phase functions → leaf helpers
 
@@ -322,19 +354,19 @@ Adapters between layer vocabularies are tiny explicit `wrap*` functions, not inh
 
 The verb prefix tells you the function's category at a glance:
 
-| Prefix | Meaning | Examples |
-|---|---|---|
-| `create*` | factory returning a new value/closure | `createReadTool`, `createAssistantMessageEventStream`, `createErrorToolResult` |
-| `build*` | assemble a request/derived structure from parts | `buildParams`, `buildBaseOptions`, `buildSessionContext` |
-| `resolve*` | compute an effective value from option → env → default chain | `resolveCacheRetention`, `resolveApiProvider`, `resolveConfigValue` |
-| `normalize*` | canonicalize an input into the accepted form | `normalizePromptInput`, `normalizeToolCallId`, `normalizeKeys` |
-| `clamp*` | force into a supported range with graceful fallback | `clampThinkingLevel`, `clampReasoning` |
-| `convert*` / `transform*` | map between layer vocabularies | `convertToLlm`, `convertMessages`, `convertTools`, `transformMessages` |
-| `with*` | return augmented copy of options | `withEnvApiKey` |
-| `get*` | lookup/derive, no mutation | `getModel`, `getAnthropicCompat`, `getSupportedThinkingLevels` |
-| `is*` / `has*` / `should*` | boolean predicates, including type guards | `isRecord`, `hasExplicitApiKey`, `shouldTerminateToolBatch` |
-| `prepare*` / `finalize*` | pipeline phases | `prepareToolCall`, `finalizeExecutedToolCall` |
-| `emit*` | event-sink side effects | `emitToolExecutionEnd` |
+| Prefix                     | Meaning                                                      | Examples                                                                       |
+| -------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `create*`                  | factory returning a new value/closure                        | `createReadTool`, `createAssistantMessageEventStream`, `createErrorToolResult` |
+| `build*`                   | assemble a request/derived structure from parts              | `buildParams`, `buildBaseOptions`, `buildSessionContext`                       |
+| `resolve*`                 | compute an effective value from option → env → default chain | `resolveCacheRetention`, `resolveApiProvider`, `resolveConfigValue`            |
+| `normalize*`               | canonicalize an input into the accepted form                 | `normalizePromptInput`, `normalizeToolCallId`, `normalizeKeys`                 |
+| `clamp*`                   | force into a supported range with graceful fallback          | `clampThinkingLevel`, `clampReasoning`                                         |
+| `convert*` / `transform*`  | map between layer vocabularies                               | `convertToLlm`, `convertMessages`, `convertTools`, `transformMessages`         |
+| `with*`                    | return augmented copy of options                             | `withEnvApiKey`                                                                |
+| `get*`                     | lookup/derive, no mutation                                   | `getModel`, `getAnthropicCompat`, `getSupportedThinkingLevels`                 |
+| `is*` / `has*` / `should*` | boolean predicates, including type guards                    | `isRecord`, `hasExplicitApiKey`, `shouldTerminateToolBatch`                    |
+| `prepare*` / `finalize*`   | pipeline phases                                              | `prepareToolCall`, `finalizeExecutedToolCall`                                  |
+| `emit*`                    | event-sink side effects                                      | `emitToolExecutionEnd`                                                         |
 
 Files are kebab-case and named after the one thing they export (`select-list.ts` → `SelectList`). Suffix conventions in coding-agent: `*ToolInput` / `*ToolDetails` / `*ToolOptions` / `*Operations` / `*Context` / `*Event` / `*Handler`.
 
@@ -346,7 +378,7 @@ pi's central design problem is "many providers × many models × messy LLM outpu
 
 ### 4.1 One unified internal model
 
-Every provider, no matter how alien its wire format, is forced into the same `AssistantMessage` / `AssistantMessageEvent` shapes (ai/types.ts). Usage tokens, costs, stop reasons, thinking blocks, tool calls — one vocabulary. Providers also *receive* the canonical form and convert outward in their own `convertMessages`/`convertTools` helpers. Nothing between the provider and the UI ever switches on the provider name for message handling.
+Every provider, no matter how alien its wire format, is forced into the same `AssistantMessage` / `AssistantMessageEvent` shapes (ai/types.ts). Usage tokens, costs, stop reasons, thinking blocks, tool calls — one vocabulary. Providers also _receive_ the canonical form and convert outward in their own `convertMessages`/`convertTools` helpers. Nothing between the provider and the UI ever switches on the provider name for message handling.
 
 ### 4.2 Effective-value resolution: option → env → default
 
@@ -354,9 +386,9 @@ The pattern for any setting with multiple sources is a tiny pure `resolve*` func
 
 ```ts
 function resolveCacheRetention(cacheRetention?: CacheRetention): CacheRetention {
-  if (cacheRetention) return cacheRetention;                                   // explicit option
+  if (cacheRetention) return cacheRetention; // explicit option
   if (typeof process !== "undefined" && process.env.PI_CACHE_RETENTION === "long") return "long"; // env
-  return "short";                                                              // default
+  return "short"; // default
 }
 ```
 
@@ -377,7 +409,7 @@ function getAnthropicCompat(model: Model<"anthropic-messages">): Required<Omit<A
 }
 ```
 
-The `Required<>` return type is the trick: after this function, the type system *guarantees* no downstream `??`.
+The `Required<>` return type is the trick: after this function, the type system _guarantees_ no downstream `??`.
 
 ### 4.4 Clamping with graceful nearest-neighbor fallback
 
@@ -399,7 +431,9 @@ In the TUI, constructor inputs get the same treatment — validate, floor, clamp
 
 ```ts
 const maxVisible = options.autocompleteMaxVisible ?? 5;
-this.autocompleteMaxVisible = Number.isFinite(maxVisible) ? Math.max(3, Math.min(20, Math.floor(maxVisible))) : 5;
+this.autocompleteMaxVisible = Number.isFinite(maxVisible)
+  ? Math.max(3, Math.min(20, Math.floor(maxVisible)))
+  : 5;
 ```
 
 Budget arithmetic normalizes interdependent values (`adjustMaxTokensForThinking`: merge default+custom budgets, fit thinking inside the model cap, guarantee `minOutputTokens` headroom).
@@ -410,11 +444,11 @@ Tool arguments from a model are hostile input. `validateToolArguments` (ai/utils
 
 1. `structuredClone(toolCall.arguments)` — never mutate the original;
 2. `Value.Convert(schema, args)` — TypeBox's own type coercion;
-3. for non-TypeBox raw JSON schemas, a hand-written recursive `coerceWithJsonSchema` (string→number, `"true"`→true, null→defaults, per-property/per-item recursion, `anyOf` resolved by *trying each candidate on a clone and keeping the first that validates*);
+3. for non-TypeBox raw JSON schemas, a hand-written recursive `coerceWithJsonSchema` (string→number, `"true"`→true, null→defaults, per-property/per-item recursion, `anyOf` resolved by _trying each candidate on a clone and keeping the first that validates_);
 4. compiled validators cached in a `WeakMap` keyed by schema object;
-5. on failure, throw one Error whose message is formatted *for the model to read*: dotted paths, per-field messages, and the received arguments echoed back as JSON.
+5. on failure, throw one Error whose message is formatted _for the model to read_: dotted paths, per-field messages, and the received arguments echoed back as JSON.
 
-A second hook, `AgentTool.prepareArguments?(args: unknown)`, runs *before* validation as a compatibility shim (e.g., accepting Claude-Code-style `file_path` for a tool whose schema says `path`).
+A second hook, `AgentTool.prepareArguments?(args: unknown)`, runs _before_ validation as a compatibility shim (e.g., accepting Claude-Code-style `file_path` for a tool whose schema says `path`).
 
 ### 4.6 Transcript normalization for cross-model replay
 
@@ -431,7 +465,7 @@ Strings get `sanitizeSurrogates(...)` exactly where they leave for the API; stre
 
 ### 4.8 Config: tiered merge with explicit semantics
 
-Settings come from defaults → global file → project file, merged by a `deepMergeSettings` with documented, *bounded* semantics: `undefined` never overrides, plain objects merge one level, arrays and primitives replace. Config string values support three forms — literal, `$ENV_VAR`, `` !shell command `` — collapsed by one `resolveConfigValue`.
+Settings come from defaults → global file → project file, merged by a `deepMergeSettings` with documented, _bounded_ semantics: `undefined` never overrides, plain objects merge one level, arrays and primitives replace. Config string values support three forms — literal, `$ENV_VAR`, `!shell command` — collapsed by one `resolveConfigValue`.
 
 ---
 
@@ -452,7 +486,7 @@ export type AssistantMessageEvent =
 
 Genuine misuse, by contrast, throws immediately with instructive messages: `"Agent is already processing a prompt. Use steer() or followUp() to queue messages, or wait for completion."`
 
-The division of labor for tools: **tools throw freely** ("Throw on failure instead of encoding errors in `content`"), and the *loop* catches and converts to `{ content: [{type:"text", text: message}], isError: true }` tool results. Authors write natural code; the boundary owns the encoding. Aborts are checked between phases (`if (signal?.aborted) break`), and even `Agent.handleRunFailure` replays a full synthetic event sequence (`message_start → message_end → turn_end → agent_end`) so consumers see one protocol no matter what happened.
+The division of labor for tools: **tools throw freely** ("Throw on failure instead of encoding errors in `content`"), and the _loop_ catches and converts to `{ content: [{type:"text", text: message}], isError: true }` tool results. Authors write natural code; the boundary owns the encoding. Aborts are checked between phases (`if (signal?.aborted) break`), and even `Agent.handleRunFailure` replays a full synthetic event sequence (`message_start → message_end → turn_end → agent_end`) so consumers see one protocol no matter what happened.
 
 ### 5.2 `EventStream<T, R>`: one 60-line primitive instead of a streaming library
 
@@ -470,13 +504,13 @@ Push-based, queue + waiting-resolvers, terminal-event predicate passed to the co
 
 ### 5.3 Layer boundaries are functions, named as conversions
 
-The loop works on `AgentMessage[]` (app vocabulary, may include UI-only types) and converts to `Message[]` (LLM vocabulary) at exactly one point, with the conversion *supplied by the caller*:
+The loop works on `AgentMessage[]` (app vocabulary, may include UI-only types) and converts to `Message[]` (LLM vocabulary) at exactly one point, with the conversion _supplied by the caller_:
 
 ```ts
 // the ONLY place AgentMessage[] → Message[] happens (agent-loop.ts, streamAssistantResponse)
 let messages = context.messages;
-if (config.transformContext) messages = await config.transformContext(messages, signal);  // prune/inject, same vocabulary
-const llmMessages = await config.convertToLlm(messages);                                   // change vocabulary
+if (config.transformContext) messages = await config.transformContext(messages, signal); // prune/inject, same vocabulary
+const llmMessages = await config.convertToLlm(messages); // change vocabulary
 ```
 
 Hooks (`beforeToolCall` / `afterToolCall` / `shouldStopAfterTurn` / `prepareNextTurn`) all follow the same grammar: receive a typed context object + the abort signal, return a partial override or undefined, with replace-not-merge semantics documented per field.
@@ -489,7 +523,7 @@ Providers register into module-level `Map`s, with a thin wrapper validating inva
 
 ## 6. State, persistence, and testing (briefly)
 
-- **Sessions are append-only JSONL** with a typed header + tagged entries (`message`, `compaction`, `custom`, …), forming a *tree* via `id`/`parentId` for branching. A `version` field plus in-place `migrateV1ToV2 → migrateV2ToV3` chain runs at load (`migrateToCurrentVersion` returns whether anything changed). Extension data rides in `CustomEntry<T>` without schema changes.
+- **Sessions are append-only JSONL** with a typed header + tagged entries (`message`, `compaction`, `custom`, …), forming a _tree_ via `id`/`parentId` for branching. A `version` field plus in-place `migrateV1ToV2 → migrateV2ToV3` chain runs at load (`migrateToCurrentVersion` returns whether anything changed). Extension data rides in `CustomEntry<T>` without schema changes.
 - **Testing uses a faux provider**, not mocks-per-test: `createFauxStreamFn(responses)` takes a declarative script of responses (`string | { text?, toolCalls?, thinking?, error?, delayMs? }`), replays them as realistic token-level delta streams, and records every context it was called with for assertions. A `Harness` factory bundles session + agent + faux state + recorded events + `cleanup()`. House rule: regression tests live in `test/suite/regressions/<issue-number>-<slug>.test.ts`.
 - **TUI rendering** is `render(width): string[]` + line-diffing against the previous frame — components cache their rendered lines keyed by inputs and expose `invalidate()`. No virtual DOM, no framework.
 
@@ -509,5 +543,5 @@ If you want code that reads like pi:
 8. **Decompose orchestration into phase functions** with typed intermediate results (`prepare → execute → finalize`, each returning a named type) and inject effects (`emit` sinks, `streamFn`, `*Operations` objects with `default*` implementations) rather than importing them.
 9. **Expected failures are data** (stop reasons + error messages flowing through the same event protocol as success); **misuse throws** with messages that tell the caller what to do instead. Tool/leaf code throws naturally; the boundary converts.
 10. **One small primitive over a dependency**: a 60-line `EventStream`, a 25-line `PendingMessageQueue`, a hand-rolled fuzzy matcher. Dependencies are pinned exactly, installed with `--ignore-scripts`, and counted.
-11. **Document contracts, not mechanics**: JSDoc states must-not-throw obligations, default values, and merge semantics ("replaces in full, no deep merge"); inline comments explain *why* (provider quirks, API requirements), never *what*.
+11. **Document contracts, not mechanics**: JSDoc states must-not-throw obligations, default values, and merge semantics ("replaces in full, no deep merge"); inline comments explain _why_ (provider quirks, API requirements), never _what_.
 12. **Persist as versioned, tagged, append-only entries** with explicit in-place migrations; leave a `CustomEntry<T>` escape hatch so extensions never force schema changes.

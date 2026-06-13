@@ -106,43 +106,31 @@ function extractFenceLanguage(className: string | undefined): string {
     return CODE_FENCE_LINE_REFERENCE_REGEX.test(normalized) ? "text" : normalized;
   }
 
-  return inferFenceLanguageFromFilename(raw) ?? "text";
+  return (
+    inferLanguageFromFilename(raw, {
+      fallback: undefined,
+      requirePathLikeCandidate: true,
+    }) ?? "text"
+  );
 }
 
-function inferFenceLanguageFromFilename(raw: string): string | undefined {
+function inferLanguageFromFilename(
+  raw: string,
+  options: {
+    fallback: string | undefined;
+    requirePathLikeCandidate: boolean;
+  },
+): string | undefined {
   const candidates = [raw, ...raw.split(":")].filter((candidate) => candidate.length > 0);
   for (const candidate of candidates) {
-    if (!PATH_SEPARATOR_REGEX.test(candidate) && !candidate.startsWith(".")) {
+    if (
+      options.requirePathLikeCandidate &&
+      !PATH_SEPARATOR_REGEX.test(candidate) &&
+      !candidate.startsWith(".")
+    ) {
       continue;
     }
 
-    const basename = candidate.split(/[\\/]/).at(-1)?.toLowerCase();
-    if (basename === ".zshrc" || basename === ".zshenv" || basename === ".zprofile") {
-      return "zsh";
-    }
-    if (basename === ".bashrc" || basename === ".bash_profile" || basename === ".profile") {
-      return "zsh";
-    }
-
-    const language = getFiletypeFromFileName(candidate);
-    if (language !== "text") {
-      return language;
-    }
-  }
-
-  return undefined;
-}
-
-export function inferCodeLanguageFromFilePath(filePath: string | null | undefined): string {
-  const normalized = filePath?.trim();
-  if (!normalized) {
-    return "text";
-  }
-
-  const candidates = [normalized, ...normalized.split(":")].filter(
-    (candidate) => candidate.length > 0,
-  );
-  for (const candidate of candidates) {
     const basename = candidate.split(/[\\/]/).at(-1)?.toLowerCase();
     // Shiki doesn't bundle a gitignore grammar; ini is a close match (#685)
     if (basename === ".gitignore") {
@@ -161,7 +149,21 @@ export function inferCodeLanguageFromFilePath(filePath: string | null | undefine
     }
   }
 
-  return "text";
+  return options.fallback;
+}
+
+export function inferCodeLanguageFromFilePath(filePath: string | null | undefined): string {
+  const normalized = filePath?.trim();
+  if (!normalized) {
+    return "text";
+  }
+
+  return (
+    inferLanguageFromFilename(normalized, {
+      fallback: "text",
+      requirePathLikeCandidate: false,
+    }) ?? "text"
+  );
 }
 
 function isMermaidFenceLanguage(language: string): boolean {
@@ -643,11 +645,7 @@ export function FileCodeBlock({
   return (
     <div className={cn("chat-markdown w-full min-w-0", className)}>
       <MarkdownCodeBlock code={code}>
-        <ShikiCodeBlock
-          className={`language-${language}`}
-          code={code}
-          themeName={diffThemeName}
-        />
+        <ShikiCodeBlock className={`language-${language}`} code={code} themeName={diffThemeName} />
       </MarkdownCodeBlock>
     </div>
   );
@@ -1043,9 +1041,7 @@ function ChatMarkdownParagraph({
   ...props
 }: ComponentProps<"p"> & { node?: unknown }) {
   const { isStreaming } = useChatMarkdownRenderContext();
-  return (
-    <p {...props} className={cn("my-1.5", !isStreaming && "text-pretty", className)} />
-  );
+  return <p {...props} className={cn("my-1.5", !isStreaming && "text-pretty", className)} />;
 }
 
 function ChatMarkdownHeading1({
@@ -1150,10 +1146,7 @@ function ChatMarkdownUnorderedList({
   ...props
 }: ComponentProps<"ul"> & { node?: unknown }) {
   return (
-    <ul
-      {...props}
-      className={cn("my-1.5 flex list-disc flex-col gap-1.5 ps-[2em]", className)}
-    />
+    <ul {...props} className={cn("my-1.5 flex list-disc flex-col gap-1.5 ps-[2em]", className)} />
   );
 }
 
@@ -1285,10 +1278,7 @@ function ChatMarkdownTable({
 }: ComponentProps<"table"> & { node?: unknown }) {
   return (
     <div className="my-[1em] max-w-full overflow-x-auto rounded-md border border-(--honk-markdown-request-border)">
-      <table
-        {...props}
-        className={cn("w-max min-w-full border-collapse text-left", className)}
-      />
+      <table {...props} className={cn("w-max min-w-full border-collapse text-left", className)} />
     </div>
   );
 }

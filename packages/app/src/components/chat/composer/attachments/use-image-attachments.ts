@@ -59,8 +59,6 @@ export function useComposerImageAttachments(input: {
   composerDraftTarget: ScopedThreadRef | DraftId;
   activeThreadId: ThreadId | null;
   pendingUserInputCount: number;
-  composerImages: ComposerImageAttachment[];
-  nonPersistedComposerImageIds: string[];
   composerImagesRef: RefObject<ComposerImageAttachment[]>;
   focusComposer: () => void;
   setThreadError: (threadId: ThreadId | null, error: string | null) => void;
@@ -69,7 +67,6 @@ export function useComposerImageAttachments(input: {
     composerDraftTarget,
     activeThreadId,
     pendingUserInputCount,
-    nonPersistedComposerImageIds,
     composerImagesRef,
     focusComposer,
     setThreadError,
@@ -91,11 +88,6 @@ export function useComposerImageAttachments(input: {
   const addComposerDraftImage = useComposerDraftStore((store) => store.addImage);
   const addComposerDraftImages = useComposerDraftStore((store) => store.addImages);
   const removeComposerDraftImage = useComposerDraftStore((store) => store.removeImage);
-
-  const nonPersistedComposerImageIdSet = new Set(nonPersistedComposerImageIds);
-  // Image blobs stay in memory until send. Persisting them as base64 in localStorage
-  // blocks the renderer on paste and scales with every attached image.
-  const composerImageAttachmentPersistenceSync = null;
 
   const addComposerImages = (files: File[]) => {
     if (!activeThreadId || files.length === 0) return;
@@ -228,9 +220,7 @@ export function useComposerImageAttachments(input: {
 
   return {
     composerImageInputRef,
-    composerImageAttachmentPersistenceSync,
     isDragOverComposer,
-    nonPersistedComposerImageIdSet,
     onComposerPaste,
     onComposerDragEnter,
     onComposerDragOver,

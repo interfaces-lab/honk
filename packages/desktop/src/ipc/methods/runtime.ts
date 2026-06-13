@@ -5,6 +5,10 @@ import {
   DesktopExtensionUiRespondInput,
   HonkRuntimeHostEvent,
   HonkRuntimeHostSnapshot,
+  RuntimeGetThreadSessionFileInput,
+  RuntimeGetThreadSessionFileResult,
+  RuntimeListSkillsInput,
+  RuntimeListSkillsResult,
   ThreadAgentRuntimeAbortInput,
   ThreadAgentRuntimeHydrateInput,
   ThreadAgentRuntimeSetThreadFocusInput,
@@ -236,6 +240,39 @@ export const respondToRuntimeExtensionUiRequest = makeIpcMethod({
       yield* Effect.promise(() => host.respondToExtensionUiRequest(input)).pipe(
         Effect.tapError((error) =>
           logRuntimeFailure("runtime extension ui response failed", input, error),
+        ),
+      );
+    }),
+});
+
+export const listRuntimeSkills = makeIpcMethod({
+  channel: IpcChannels.RUNTIME_LIST_SKILLS_CHANNEL,
+  payload: RuntimeListSkillsInput,
+  result: RuntimeListSkillsResult,
+  handler: (input) =>
+    Effect.gen(function* () {
+      const host = yield* requireRuntimeHost;
+      return yield* Effect.promise(() => host.listSkills(input)).pipe(
+        Effect.tapError((error: unknown) =>
+          elog.error("runtime skills list failed", {
+            cwd: input.cwd,
+            cause: error instanceof Error ? error.message : String(error),
+          }),
+        ),
+      );
+    }),
+});
+
+export const getRuntimeThreadSessionFile = makeIpcMethod({
+  channel: IpcChannels.RUNTIME_GET_THREAD_SESSION_FILE_CHANNEL,
+  payload: RuntimeGetThreadSessionFileInput,
+  result: RuntimeGetThreadSessionFileResult,
+  handler: (input) =>
+    Effect.gen(function* () {
+      const host = yield* requireRuntimeHost;
+      return yield* Effect.promise(() => host.getThreadSessionFile(input)).pipe(
+        Effect.tapError((error) =>
+          logRuntimeFailure("runtime thread session file lookup failed", input, error),
         ),
       );
     }),

@@ -436,16 +436,19 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
           return input.messageTurnId;
         }
 
-        const [currentTurn, messageTurn] = yield* Effect.all([
-          projectionTurnRepository.getByTurnId({
-            threadId: input.threadId,
-            turnId: input.currentLatestTurnId,
-          }),
-          projectionTurnRepository.getByTurnId({
-            threadId: input.threadId,
-            turnId: input.messageTurnId,
-          }),
-        ]);
+        const [currentTurn, messageTurn] = yield* Effect.all(
+          [
+            projectionTurnRepository.getByTurnId({
+              threadId: input.threadId,
+              turnId: input.currentLatestTurnId,
+            }),
+            projectionTurnRepository.getByTurnId({
+              threadId: input.threadId,
+              turnId: input.messageTurnId,
+            }),
+          ],
+          { concurrency: 2 },
+        );
         if (Option.isNone(currentTurn) || Option.isNone(messageTurn)) {
           return input.messageTurnId;
         }

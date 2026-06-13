@@ -334,6 +334,4 @@ export interface GitCoreShape {
 /**
  * GitCore - Service tag for low-level Git repository operations.
  */
-export class GitCore extends Context.Service<GitCore, GitCoreShape>()(
-  "honk/git/GitCore.service",
-) {}
+export class GitCore extends Context.Service<GitCore, GitCoreShape>()("honk/git/GitCore.service") {}

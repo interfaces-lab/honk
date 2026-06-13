@@ -13,6 +13,16 @@ import type {
   GitWorkingTreeFileStatus,
   ProjectEntry,
 } from "@honk/contracts";
+import {
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogPopup,
+  AlertDialogTitle,
+} from "@honk/honkkit/alert-dialog";
+import { Button } from "@honk/honkkit/button";
 import { normalizePathSeparators as normalizeTreePath } from "@honk/shared/paths";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import {
@@ -28,13 +38,21 @@ import {
 import { toast } from "sonner";
 
 import { resolveAndPersistPreferredEditor } from "~/editor-preferences";
+import { isElectronHost } from "~/env";
 import { useGitStatus } from "~/lib/git-status-state";
 import { ensureLocalApi } from "~/local-api";
 import { formatProjectErrorDescription } from "~/lib/project-error-description";
-import { projectListDirectoryQueryOptions } from "~/lib/project-react-query";
+import {
+  deleteProjectFile,
+  invalidateProjectEntries,
+  invalidateProjectFile,
+  projectListDirectoryQueryOptions,
+} from "~/lib/project-react-query";
+import { markProjectModelClosed } from "~/lib/monaco/project-models";
 import { cn } from "~/lib/utils";
 import { useEnvironmentApiReady } from "~/hooks/use-environment-api-ready";
 import { useTheme } from "~/hooks/use-theme";
+import { workspaceEditorActions } from "~/stores/workspace-editor-store";
 import { Tree, useTreeModel } from "../../tree";
 
 const DIRECTORY_PLACEHOLDER_FILE_NAME = "Loading...";
@@ -87,8 +105,13 @@ function entriesToTreePaths(
 }
 
 function joinProjectPath(cwd: string, relativePath: string): string {
-  const separator = cwd.includes("\\") && !cwd.includes("/") ? "\\" : "/";
-  return `${cwd.replace(/[\\/]+$/, "")}${separator}${relativePath.replace(/^[\\/]+/, "")}`;
+  const normalizedCwd = normalizeTreePath(cwd).replace(/\/+$/g, "");
+  const normalizedRelativePath = normalizeTreePath(relativePath).replace(/^\/+/g, "");
+  return `${normalizedCwd}/${normalizedRelativePath}`.replace(/([^:])\/{2,}/g, "$1/");
+}
+
+function projectFileName(relativePath: string): string {
+  return relativePath.split(/[\\/]/).filter(Boolean).at(-1) ?? relativePath;
 }
 
 function workingTreeFileStatusToTreesStatus(status: GitWorkingTreeFileStatus): GitStatus {
@@ -137,7 +160,7 @@ function getExpandedDirectoryPaths(
   });
 }
 
-function openProjectFilePath(input: {
+export function openProjectFilePath(input: {
   relativePath: string;
   cwd: string | null;
   availableEditors: readonly EditorId[];
@@ -160,6 +183,105 @@ function openProjectFilePath(input: {
   } catch (error) {
     toast.error(error instanceof Error ? error.message : String(error));
   }
+}
+
+function revealProjectFilePath(input: { relativePath: string; cwd: string | null }): void {
+  if (
+    !input.cwd ||
+    typeof window === "undefined" ||
+    typeof window.desktopBridge?.showItemInFolder !== "function"
+  ) {
+    return;
+  }
+
+  const targetPath = joinProjectPath(input.cwd, input.relativePath);
+  void window.desktopBridge
+    .showItemInFolder(targetPath)
+    .then((revealed) => {
+      if (!revealed) {
+        toast.error("Could not reveal this file. It may have been moved or deleted.");
+      }
+    })
+    .catch((error: unknown) => {
+      toast.error(error instanceof Error ? error.message : String(error));
+    });
+}
+
+const FILE_TREE_MENU_ITEM_CLASS =
+  "flex min-h-6 w-full items-center rounded-xs px-2 text-left text-muted-foreground outline-hidden hover:bg-honk-hover hover:text-foreground focus-visible:bg-honk-hover focus-visible:text-foreground";
+
+/**
+ * Context-menu surface for a file-tree row. Adds proper `menu`/`menuitem`
+ * semantics and moves focus to the first item on open — the Pierre React-slot
+ * menu path strips the native render hook, so it never auto-focuses itself.
+ */
+function FileTreeContextMenu(props: {
+  item: { kind: "directory" | "file"; name: string; path: string };
+  context: { close: () => void };
+  cwd: string | null;
+  availableEditors: readonly EditorId[];
+  canRevealInFinder: boolean;
+  onRequestDelete: (path: string) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    containerRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      role="menu"
+      aria-label={`Actions for ${props.item.name}`}
+      className="min-w-32 rounded-honk-control border border-honk-border/70 bg-honk-bubble-opaque p-1 font-honk text-body text-foreground shadow-honk-popup"
+      data-file-tree-context-menu-root="true"
+    >
+      <button
+        type="button"
+        role="menuitem"
+        className={FILE_TREE_MENU_ITEM_CLASS}
+        onClick={() => {
+          props.context.close();
+          openProjectFilePath({
+            relativePath: props.item.path,
+            cwd: props.cwd,
+            availableEditors: props.availableEditors,
+          });
+        }}
+      >
+        Open in Editor
+      </button>
+      {props.canRevealInFinder ? (
+        <button
+          type="button"
+          role="menuitem"
+          className={FILE_TREE_MENU_ITEM_CLASS}
+          onClick={() => {
+            props.context.close();
+            revealProjectFilePath({ relativePath: props.item.path, cwd: props.cwd });
+          }}
+        >
+          Open in Finder
+        </button>
+      ) : null}
+      {props.item.kind === "file" ? (
+        <>
+          <div role="separator" className="my-1 h-px bg-honk-border/70" />
+          <button
+            type="button"
+            role="menuitem"
+            className="flex min-h-6 w-full items-center rounded-xs px-2 text-left text-destructive outline-hidden hover:bg-destructive/10 hover:text-destructive focus-visible:bg-destructive/10 focus-visible:text-destructive"
+            onClick={() => {
+              props.context.close();
+              props.onRequestDelete(props.item.path);
+            }}
+          >
+            Delete
+          </button>
+        </>
+      ) : null}
+    </div>
+  );
 }
 
 async function loadProjectDirectory(input: {
@@ -229,12 +351,14 @@ async function loadProjectDirectory(input: {
 
 export type ProjectFileTreeHandle = {
   refresh: () => void;
+  revealPath: (relativePath: string) => void;
 };
 
 export const ProjectFileTree = forwardRef<
   ProjectFileTreeHandle,
   {
     cwd: string | null;
+    workspaceKey: string | null;
     environmentId: EnvironmentId | null;
     availableEditors: readonly EditorId[];
     onOpenFile?: (relativePath: string) => void;
@@ -263,11 +387,20 @@ export const ProjectFileTree = forwardRef<
   const queryClient = useQueryClient();
   const [treePaths, setTreePaths] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<unknown>(null);
+  const [pendingDeletePath, setPendingDeletePath] = useState<string | null>(null);
+  const [deletingPath, setDeletingPath] = useState<string | null>(null);
   const environmentApiReady = useEnvironmentApiReady(props.environmentId);
   const isActive = props.active !== false;
   const canLoad = Boolean(props.cwd && props.environmentId);
   const canQuery = canLoad && environmentApiReady && isActive;
   const canRenderTree = Boolean(canLoad && isActive);
+  const canRevealInFinder =
+    props.cwd !== null &&
+    isElectronHost() &&
+    typeof window !== "undefined" &&
+    typeof window.desktopBridge?.showItemInFolder === "function";
+  const pendingDeleteFileName = pendingDeletePath ? projectFileName(pendingDeletePath) : "file";
+  const deletingPendingFile = pendingDeletePath !== null && deletingPath === pendingDeletePath;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -282,9 +415,59 @@ export const ProjectFileTree = forwardRef<
     filePathSetRef.current?.clear();
     lastOpenedPathRef.current = null;
     suppressSelectionOpenRef.current = null;
+    setPendingDeletePath(null);
+    setDeletingPath(null);
     setTreePaths([]);
     setLoadError(null);
   }, [props.cwd, props.environmentId]);
+
+  const confirmDeletePendingFile = async () => {
+    const cwd = props.cwd;
+    const environmentId = props.environmentId;
+    const relativePath = pendingDeletePath;
+    if (!cwd || !environmentId || !relativePath) {
+      setPendingDeletePath(null);
+      return;
+    }
+
+    setDeletingPath(relativePath);
+    try {
+      const result = await deleteProjectFile({
+        environmentId,
+        file: {
+          cwd,
+          relativePath,
+        },
+      });
+      const deletedRelativePath = normalizeTreePath(result.relativePath);
+      // Always dispose the deleted file's Monaco model — even a dirty,
+      // currently-inactive one — so a later reopen can't resurrect stale
+      // contents.
+      markProjectModelClosed({ environmentId, cwd, relativePath: deletedRelativePath });
+      // Prune the path from back/forward history (closes the editor if it was
+      // active) so navigation and persisted state can't resurrect the gone file.
+      workspaceEditorActions.removeFileFromHistory(props.workspaceKey, deletedRelativePath);
+      await Promise.all([
+        invalidateProjectFile(queryClient, {
+          environmentId,
+          cwd,
+          relativePath: deletedRelativePath,
+        }),
+        invalidateProjectEntries(queryClient, {
+          environmentId,
+          cwd,
+        }),
+      ]);
+      setTreePaths((currentPaths) =>
+        currentPaths.filter((path) => normalizeTreePath(path) !== deletedRelativePath),
+      );
+      setPendingDeletePath(null);
+    } catch (error) {
+      toast.error(formatProjectErrorDescription(error, "Unable to delete file."));
+    } finally {
+      setDeletingPath(null);
+    }
+  };
 
   const { model } = useTreeModel({
     paths: [],
@@ -347,8 +530,30 @@ export const ProjectFileTree = forwardRef<
           setTreePaths,
         });
       },
+      revealPath: (relativePath) => {
+        const normalizedPath = normalizeTreePath(relativePath);
+        const parentPaths: string[] = [];
+        const segments = normalizedPath.split("/");
+        for (let index = 1; index < segments.length; index += 1) {
+          parentPaths.push(`${segments.slice(0, index).join("/")}/`);
+        }
+        for (const parentPath of parentPaths) {
+          const item = model.getItem(parentPath);
+          if (isDirectoryHandle(item)) {
+            item.expand();
+          }
+        }
+        const item = model.getItem(normalizedPath);
+        if (!item) return;
+        suppressSelectionOpenRef.current = normalizedPath;
+        for (const selectedPath of model.getSelectedPaths()) {
+          model.getItem(selectedPath)?.deselect();
+        }
+        item.select();
+        model.focusPath(normalizedPath);
+      },
     }),
-    [canQuery, props.cwd, props.environmentId, queryClient],
+    [canQuery, model, props.cwd, props.environmentId, queryClient],
   );
 
   return (
@@ -406,25 +611,14 @@ export const ProjectFileTree = forwardRef<
             model={model}
             resolvedTheme={resolvedTheme}
             renderContextMenu={(item, context) => (
-              <div
-                className="min-w-32 rounded-honk-control border border-honk-border/70 bg-honk-bubble-opaque p-1 font-honk text-body text-foreground shadow-honk-popup"
-                data-file-tree-context-menu-root="true"
-              >
-                <button
-                  type="button"
-                  className="flex min-h-6 w-full items-center rounded-xs px-2 text-left text-muted-foreground hover:bg-honk-hover hover:text-foreground"
-                  onClick={() => {
-                    context.close();
-                    openProjectFilePath({
-                      relativePath: item.path,
-                      cwd: props.cwd,
-                      availableEditors: props.availableEditors,
-                    });
-                  }}
-                >
-                  Open in Editor
-                </button>
-              </div>
+              <FileTreeContextMenu
+                item={item}
+                context={context}
+                cwd={props.cwd}
+                availableEditors={props.availableEditors}
+                canRevealInFinder={canRevealInFinder}
+                onRequestDelete={setPendingDeletePath}
+              />
             )}
           />
         ) : (
@@ -439,6 +633,38 @@ export const ProjectFileTree = forwardRef<
           </div>
         ) : null}
       </div>
+      <AlertDialog
+        open={pendingDeletePath !== null}
+        onOpenChange={(open) => {
+          if (!open && !deletingPendingFile) {
+            setPendingDeletePath(null);
+          }
+        }}
+      >
+        <AlertDialogPopup>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{pendingDeleteFileName}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes "{pendingDeletePath ?? pendingDeleteFileName}" from the project. This
+              action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogClose render={<Button variant="outline" disabled={deletingPendingFile} />}>
+              Cancel
+            </AlertDialogClose>
+            <Button
+              variant="destructive"
+              disabled={deletingPendingFile}
+              onClick={() => {
+                void confirmDeletePendingFile();
+              }}
+            >
+              Delete
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogPopup>
+      </AlertDialog>
     </section>
   );
 });

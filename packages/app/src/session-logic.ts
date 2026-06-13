@@ -2419,6 +2419,11 @@ function extractToolDiffArtifact(
     return fileChangeArtifact;
   }
 
+  const detailsPatchArtifact = extractRuntimeDetailsPatchDiffArtifact(payload, entry);
+  if (detailsPatchArtifact) {
+    return detailsPatchArtifact;
+  }
+
   const diffContents = extractAcpDiffContents(payload);
   if (diffContents.length === 0) {
     return null;
@@ -2455,6 +2460,78 @@ function extractToolDiffArtifact(
     unifiedDiff,
     ...(source === "preview" ? { isPreview: true } : {}),
   };
+}
+
+// pi-agent edit results persist a unified diff at result.details.patch (details.diff is a
+// pretty-printed numbered view there, but a unified diff in other runtimes — accept it only
+// when it parses as one).
+function extractRuntimeDetailsPatchDiffArtifact(
+  payload: Record<string, unknown> | null,
+  entry: WorkLogEntry,
+): ToolDiffArtifact | null {
+  const data = asRecord(payload?.data);
+  const result = asRecord(data?.result);
+  const details = asRecord(result?.details);
+  if (!details) {
+    return null;
+  }
+  const candidates = [details.patch, details.unifiedDiff, details.udiff, details.diff];
+  let unifiedDiff: string | null = null;
+  for (const candidate of candidates) {
+    const text = asTrimmedString(candidate);
+    if (text && isUnifiedDiffText(text)) {
+      unifiedDiff = text;
+      break;
+    }
+  }
+  if (!unifiedDiff) {
+    return null;
+  }
+
+  const args = asRecord(data?.args);
+  const path =
+    asTrimmedString(args?.path) ??
+    asTrimmedString(args?.file_path) ??
+    entry.changedFiles?.[0] ??
+    extractUnifiedDiffPath(unifiedDiff) ??
+    "file";
+  const lines = unifiedDiff.split("\n");
+  const files = [
+    {
+      path,
+      additions: lines.filter((line) => line.startsWith("+") && !line.startsWith("+++")).length,
+      deletions: lines.filter((line) => line.startsWith("-") && !line.startsWith("---")).length,
+    },
+  ];
+  const source = entry.status === "completed" ? "result" : "preview";
+  return {
+    type: "diff",
+    format: "unified",
+    source,
+    title: entry.toolTitle ?? entry.label,
+    summary: summarizeDiffArtifactFiles(files),
+    files,
+    unifiedDiff,
+    ...(source === "preview" ? { isPreview: true } : {}),
+  };
+}
+
+function isUnifiedDiffText(text: string): boolean {
+  const lines = text.split("\n");
+  return (
+    lines.some((line) => line.startsWith("--- ")) &&
+    lines.some((line) => line.startsWith("+++ ")) &&
+    lines.some((line) => line.startsWith("@@"))
+  );
+}
+
+function extractUnifiedDiffPath(unifiedDiff: string): string | null {
+  const line = unifiedDiff.split("\n").find((candidate) => candidate.startsWith("+++ "));
+  if (!line) {
+    return null;
+  }
+  const path = line.slice(4).trim().replace(/^b\//, "");
+  return path.length > 0 && path !== "/dev/null" ? path : null;
 }
 
 function extractCodexFileChangeDiffArtifact(

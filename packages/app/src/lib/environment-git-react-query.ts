@@ -22,12 +22,7 @@ export const gitQueryKeys = {
     state
       ? (["git", "patch", environmentId ?? null, cwd, path, state, prevPath ?? null] as const)
       : (["git", "patch", environmentId ?? null, cwd, path] as const),
-  image: (
-    environmentId: EnvironmentId | null,
-    cwd: string,
-    path: string,
-    state?: GitFileState,
-  ) =>
+  image: (environmentId: EnvironmentId | null, cwd: string, path: string, state?: GitFileState) =>
     state
       ? (["git", "image", environmentId ?? null, cwd, path, state] as const)
       : (["git", "image", environmentId ?? null, cwd, path] as const),

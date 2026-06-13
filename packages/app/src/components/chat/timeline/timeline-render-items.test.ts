@@ -440,6 +440,124 @@ describe("deriveTimelineRenderItems", () => {
     ]);
   });
 
+  it("suppresses waiting entries while a tool is still running in the tail group", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeThinkingEntry({
+          id: "thinking:done",
+          createdAt: "2026-06-05T16:00:00.000Z",
+          thinking: "Checking git diff options.",
+        }),
+        runtimeReadTool({
+          id: "tool:read",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "running",
+        }),
+        {
+          kind: "waiting",
+          id: "working-indicator-row",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          phase: "thinking",
+          elapsedStartedAt: "2026-06-05T16:00:02.000Z",
+        },
+      ],
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          isRunning: true,
+          isThinkingGroup: false,
+        }),
+      }),
+    ]);
+  });
+
+  it("suppresses waiting entries while the tail group stays the loading surface between steps", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeThinkingEntry({
+          id: "thinking:done",
+          createdAt: "2026-06-05T16:00:00.000Z",
+          thinking: "Checking git diff options.",
+        }),
+        runtimeReadTool({
+          id: "tool:read",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "completed",
+        }),
+        {
+          kind: "waiting",
+          id: "working-indicator-row",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          phase: "thinking",
+          elapsedStartedAt: "2026-06-05T16:00:02.000Z",
+        },
+      ],
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({
+          isRunning: true,
+          isTailGroup: true,
+        }),
+      }),
+    ]);
+  });
+
+  it("keeps waiting entries when completed work is followed by a static assistant message", () => {
+    const rows = deriveTimelineRenderItems({
+      timelineEntries: [
+        runtimeThinkingEntry({
+          id: "thinking:done",
+          createdAt: "2026-06-05T16:00:00.000Z",
+          thinking: "Checking git diff options.",
+        }),
+        runtimeReadTool({
+          id: "tool:read",
+          createdAt: "2026-06-05T16:00:01.000Z",
+          status: "completed",
+        }),
+        assistantTextEntry({
+          id: "message:assistant",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          text: "The diff is empty because git diff skips untracked files; the test file needs to be staged first before the comparison can show anything useful.",
+        }),
+        {
+          kind: "waiting",
+          id: "working-indicator-row",
+          createdAt: "2026-06-05T16:00:03.000Z",
+          phase: "thinking",
+          elapsedStartedAt: "2026-06-05T16:00:03.000Z",
+        },
+      ],
+      isTurnActive: true,
+      editableUserMessageIds: new Set(),
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        kind: "group",
+        group: expect.objectContaining({ isRunning: false }),
+      }),
+      expect.objectContaining({
+        kind: "single",
+        id: "message:assistant",
+      }),
+      expect.objectContaining({
+        kind: "waitingGroup",
+        id: "working-indicator-row",
+      }),
+    ]);
+  });
+
   it("groups adjacent runtime thinking and runtime tool rows without committed work entries", () => {
     const rows = deriveTimelineRenderItems({
       timelineEntries: [

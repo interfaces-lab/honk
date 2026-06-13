@@ -30,12 +30,7 @@ const twMerge = extendTailwindMerge({
       ],
       "text-color": [
         {
-          text: [
-            "honk-fg-primary",
-            "honk-fg-secondary",
-            "honk-fg-tertiary",
-            "honk-fg-quaternary",
-          ],
+          text: ["honk-fg-primary", "honk-fg-secondary", "honk-fg-tertiary", "honk-fg-quaternary"],
         },
       ],
     },

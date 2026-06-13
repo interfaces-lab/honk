@@ -418,7 +418,9 @@ export function useEnvironmentGitPanel(
     }
   }
 
-  const activeImageRows = activeDiffRows.filter((row) => isGitImagePatch(patchesByPath.get(row.path)));
+  const activeImageRows = activeDiffRows.filter((row) =>
+    isGitImagePatch(patchesByPath.get(row.path)),
+  );
   const imageQueries = useQueries({
     queries: activeImageRows.map((row) =>
       gitImageQueryOptions({

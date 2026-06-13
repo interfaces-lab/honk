@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { SubagentActivityDetails, SubagentToolDetails } from "@honk/contracts";
 
-import {
-  capLiveSubagentActivities,
-  MAX_LIVE_SUBAGENT_ACTIVITIES,
-} from "../src/subagent-extension";
+import { capLiveSubagentActivities, MAX_LIVE_SUBAGENT_ACTIVITIES } from "../src/subagent-extension";
 
 function makeActivity(sequence: number): SubagentActivityDetails {
   return {

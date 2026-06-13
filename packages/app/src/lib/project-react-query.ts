@@ -1,9 +1,11 @@
 import type {
   EnvironmentId,
+  ProjectDeleteFileInput,
   ProjectListDirectoryResult,
   ProjectSearchEntriesResult,
+  ProjectWriteFileInput,
 } from "@honk/contracts";
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { ensureEnvironmentApi } from "~/environment-api";
 
 export const projectQueryKeys = {
@@ -39,10 +41,14 @@ export function projectSearchEntriesQueryOptions(input: {
   cwd: string | null;
   query: string;
   enabled?: boolean;
+  allowEmptyQuery?: boolean;
   limit?: number;
   staleTime?: number;
 }) {
   const limit = input.limit ?? DEFAULT_SEARCH_ENTRIES_LIMIT;
+  // Opt-in: the composer `@` menu wants the top-ranked default entries on an
+  // empty query; other callers (e.g. the Files panel) keep search-only loading.
+  const hasUsableQuery = (input.allowEmptyQuery ?? false) || input.query.length > 0;
   return queryOptions({
     queryKey: projectQueryKeys.searchEntries(input.environmentId, input.cwd, input.query, limit),
     queryFn: async () => {
@@ -60,12 +66,10 @@ export function projectSearchEntriesQueryOptions(input: {
       (input.enabled ?? true) &&
       input.environmentId !== null &&
       input.cwd !== null &&
-      input.query.length > 0,
+      hasUsableQuery,
     staleTime: input.staleTime ?? DEFAULT_SEARCH_ENTRIES_STALE_TIME,
     placeholderData: (previous) =>
-      input.query.length > 0
-        ? (previous ?? EMPTY_SEARCH_ENTRIES_RESULT)
-        : EMPTY_SEARCH_ENTRIES_RESULT,
+      hasUsableQuery ? (previous ?? EMPTY_SEARCH_ENTRIES_RESULT) : EMPTY_SEARCH_ENTRIES_RESULT,
   });
 }
 
@@ -119,4 +123,50 @@ export function projectReadFileQueryOptions(input: {
       input.relativePath !== null,
     staleTime: 2_000,
   });
+}
+
+export function invalidateProjectFile(
+  queryClient: QueryClient,
+  input: {
+    environmentId: EnvironmentId;
+    cwd: string;
+    relativePath: string;
+  },
+) {
+  return queryClient.invalidateQueries({
+    queryKey: projectQueryKeys.readFile(input.environmentId, input.cwd, input.relativePath),
+  });
+}
+
+export async function invalidateProjectEntries(
+  queryClient: QueryClient,
+  input: {
+    environmentId: EnvironmentId;
+    cwd: string;
+  },
+): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: ["projects", "list-directory", input.environmentId, input.cwd] as const,
+    }),
+    queryClient.invalidateQueries({
+      queryKey: ["projects", "search-entries", input.environmentId, input.cwd] as const,
+    }),
+  ]);
+}
+
+export async function writeProjectFile(input: {
+  environmentId: EnvironmentId;
+  file: ProjectWriteFileInput;
+}) {
+  const api = ensureEnvironmentApi(input.environmentId);
+  return api.projects.writeFile(input.file);
+}
+
+export async function deleteProjectFile(input: {
+  environmentId: EnvironmentId;
+  file: ProjectDeleteFileInput;
+}) {
+  const api = ensureEnvironmentApi(input.environmentId);
+  return api.projects.deleteFile(input.file);
 }

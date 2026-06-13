@@ -91,13 +91,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@honk/honkkit/menu";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@honk/honkkit/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@honk/honkkit/empty";
 import {
   Popover,
   PopoverContent,
@@ -107,13 +101,7 @@ import {
 } from "@honk/honkkit/popover";
 import { Radio, RadioGroup } from "@honk/honkkit/radio-group";
 import { ScrollArea } from "@honk/honkkit/scroll-area";
-import {
-  Select,
-  SelectItem,
-  SelectPopup,
-  SelectTrigger,
-  SelectValue,
-} from "@honk/honkkit/select";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@honk/honkkit/select";
 import { Separator } from "@honk/honkkit/separator";
 import {
   SidebarItem,
@@ -137,14 +125,7 @@ import { Stat, StatLabel, StatValue } from "@honk/honkkit/stat";
 import { StatusDot } from "@honk/honkkit/status-dot";
 import { Switch } from "@honk/honkkit/switch";
 import { Tabs } from "@honk/honkkit/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@honk/honkkit/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@honk/honkkit/table";
 import { Text } from "@honk/honkkit/text";
 import { Textarea } from "@honk/honkkit/textarea";
 import { Toggle as ToggleButton } from "@honk/honkkit/toggle";
@@ -825,10 +806,7 @@ function RadioGroupPreview() {
           ["workbench", "Workbench"],
           ["shell", "Shell"],
         ].map(([itemValue, label]) => (
-          <label
-            className="flex items-center gap-2 text-body text-honk-fg-primary"
-            key={itemValue}
-          >
+          <label className="flex items-center gap-2 text-body text-honk-fg-primary" key={itemValue}>
             <Radio value={itemValue} />
             <span>{label}</span>
           </label>

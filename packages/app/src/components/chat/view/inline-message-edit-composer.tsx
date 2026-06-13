@@ -51,6 +51,12 @@ type InlineMessageEditComposerProps = Pick<
   onSubmitEditUserMessage: (messageId: MessageId, input: InlineEditSubmitInput) => Promise<boolean>;
 };
 
+export function isInlineEditSubmitDisabled(input: {
+  readonly hasSendableContent: boolean;
+}): boolean {
+  return !input.hasSendableContent;
+}
+
 export function InlineMessageEditComposer({
   composerDraftTarget,
   message,
@@ -69,9 +75,7 @@ export function InlineMessageEditComposer({
     prompt: editDraft.prompt,
     imageCount: editDraft.images.length,
   });
-  const submitDisabled =
-    (editDraft.prompt === message.text && editDraft.images.length === 0) ||
-    !submitState.hasSendableContent;
+  const submitDisabled = isInlineEditSubmitDisabled(submitState);
 
   const setInlineComposerRef = (composer: ComposerInputHandle | null) => {
     composerRef.current = composer;

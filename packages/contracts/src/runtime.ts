@@ -365,6 +365,12 @@ export const ThreadAgentRuntimeSendTurnInput = Schema.Struct({
   interactionMode: AgentInteractionMode,
   sourceProposedPlan: Schema.NullOr(SourceProposedPlanReference),
   clientMessageId: MessageId,
+  /**
+   * User message this send revises. The runtime branches the pi session so the
+   * new message becomes a sibling of the revised one; omitted/null appends at
+   * the current leaf.
+   */
+  replacesClientMessageId: Schema.optional(Schema.NullOr(MessageId)),
   images: Schema.Array(ThreadAgentRuntimeImageAttachment),
   policy: AgentModelPolicy,
 });
@@ -547,6 +553,8 @@ const RuntimeDisplayTimelineEditToolDisplay = Schema.Struct({
   output: Schema.optional(Schema.String),
   additions: Schema.optional(NonNegativeInt),
   deletions: Schema.optional(NonNegativeInt),
+  /** Unified diff of the applied change (runtime tool-result `details.patch`/`details.diff`). */
+  diff: Schema.optional(Schema.String),
 });
 
 const RuntimeDisplayTimelineMcpToolDisplay = Schema.Struct({
@@ -739,6 +747,34 @@ export const HonkRuntimeHostEvent = Schema.Union([
 export type HonkRuntimeHostEvent = typeof HonkRuntimeHostEvent.Type;
 export const decodeHonkRuntimeHostEvent = Schema.decodeUnknownSync(HonkRuntimeHostEvent);
 
+export const RuntimeSkillSummary = Schema.Struct({
+  name: Schema.String,
+  description: Schema.String,
+  filePath: Schema.String,
+  scope: Schema.Literals(["user", "project"]),
+});
+export type RuntimeSkillSummary = typeof RuntimeSkillSummary.Type;
+
+export const RuntimeListSkillsInput = Schema.Struct({
+  cwd: TrimmedNonEmptyString,
+});
+export type RuntimeListSkillsInput = typeof RuntimeListSkillsInput.Type;
+
+export const RuntimeListSkillsResult = Schema.Struct({
+  skills: Schema.Array(RuntimeSkillSummary),
+});
+export type RuntimeListSkillsResult = typeof RuntimeListSkillsResult.Type;
+
+export const RuntimeGetThreadSessionFileInput = Schema.Struct({
+  threadId: ThreadId,
+});
+export type RuntimeGetThreadSessionFileInput = typeof RuntimeGetThreadSessionFileInput.Type;
+
+export const RuntimeGetThreadSessionFileResult = Schema.Struct({
+  path: Schema.NullOr(Schema.String),
+});
+export type RuntimeGetThreadSessionFileResult = typeof RuntimeGetThreadSessionFileResult.Type;
+
 export interface HonkRuntimeApi {
   getHostSnapshot: () => Promise<HonkRuntimeHostSnapshot>;
   getPreferences: () => Promise<AgentPreferences>;
@@ -749,5 +785,9 @@ export interface HonkRuntimeApi {
   sendTurn: (input: ThreadAgentRuntimeSendTurnInput) => Promise<TurnId>;
   abort: (input: ThreadAgentRuntimeAbortInput) => Promise<void>;
   respondToExtensionUiRequest: (input: DesktopExtensionUiRespondInput) => Promise<void>;
+  listSkills: (input: RuntimeListSkillsInput) => Promise<RuntimeListSkillsResult>;
+  getThreadSessionFile: (
+    input: RuntimeGetThreadSessionFileInput,
+  ) => Promise<RuntimeGetThreadSessionFileResult>;
   onHostEvent: (listener: (event: HonkRuntimeHostEvent) => void) => () => void;
 }

@@ -544,6 +544,59 @@ describe("runtime display timeline projection", () => {
     ]);
   });
 
+  it("projects the unified diff from pi-agent edit result details", () => {
+    // pi-agent edit results carry details.patch (unified) and details.diff (pretty-printed
+    // with line numbers); only the unified patch must surface, with stats derived from it.
+    const patch = [
+      "--- packages/app/src/components/chat/view/chat-view.tsx",
+      "+++ packages/app/src/components/chat/view/chat-view.tsx",
+      "@@ -315,4 +315,4 @@",
+      '         { kind: "text", text: "Use " },',
+      '-        { kind: "token", text: "Plan New Idea" },',
+      '+        { kind: "token", text: "/plan" },',
+      '+        { kind: "text", text: " to plan first" },',
+      "",
+    ].join("\n");
+    const projection = projectRuntimeDisplayTimeline({
+      threadId,
+      runtimeSessionId,
+      runtimeEvents: [
+        runtimeEvent({
+          id: "runtime-event:edit-diff-completed",
+          type: "tool.completed",
+          summary: "Edit file",
+          data: {
+            toolCallId: "toolu-edit-diff",
+            toolName: "edit",
+            args: { path: "packages/app/src/components/chat/view/chat-view.tsx" },
+            result: {
+              content: [{ type: "text", text: "Successfully replaced 1 block(s)." }],
+              details: {
+                diff: "  315   tips.push({\n- 319 old\n+ 319 new",
+                patch,
+                firstChangedLine: 319,
+              },
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(projection.items).toEqual([
+      expect.objectContaining({
+        id: "tool:toolu-edit-diff",
+        display: {
+          kind: "edit",
+          path: "packages/app/src/components/chat/view/chat-view.tsx",
+          output: "Successfully replaced 1 block(s).",
+          additions: 2,
+          deletions: 1,
+          diff: patch.trim(),
+        },
+      }),
+    ]);
+  });
+
   it("projects typed subagent tool display data", () => {
     const projection = projectRuntimeDisplayTimeline({
       threadId,

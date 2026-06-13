@@ -1185,6 +1185,19 @@ function insertTextAtSelection(editor: LexicalEditor, text: string): void {
   });
 }
 
+function insertMentionAtSelection(editor: LexicalEditor, payload: ComposerMentionPayload): void {
+  editor.update(() => {
+    let selection = $getSelection();
+    if (!$isRangeSelection(selection)) {
+      $getRoot().selectEnd();
+      selection = $getSelection();
+    }
+    if ($isRangeSelection(selection)) {
+      selection.insertNodes([$createComposerMentionNode(payload), $createTextNode(" ")]);
+    }
+  });
+}
+
 function collectCommands(editor: LexicalEditor): ComposerCommandData[] {
   const commands: ComposerCommandData[] = [];
   editor.getEditorState().read(() => {
@@ -1386,10 +1399,26 @@ const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, Compose
       });
     };
 
+    const insertMention = (payload: ComposerMentionPayload) => {
+      editor.focus(() => {
+        insertMentionAtSelection(editor, payload);
+      });
+      const nextSnapshot = readSnapshot(editor);
+      snapshotRef.current = nextSnapshot;
+      onChangeRef.current(
+        nextSnapshot.value,
+        nextSnapshot.cursor,
+        nextSnapshot.expandedCursor,
+        false,
+      );
+    };
+
     const focusAtRef = useRef(focusAt);
     const insertTextRef = useRef(insertText);
+    const insertMentionRef = useRef(insertMention);
     focusAtRef.current = focusAt;
     insertTextRef.current = insertText;
+    insertMentionRef.current = insertMention;
 
     const handleCommandKeyDown = (
       key: "ArrowDown" | "ArrowUp" | "Enter" | "Escape" | "Tab",
@@ -1538,6 +1567,9 @@ const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, Compose
         },
         insertText: (text: string) => {
           insertTextRef.current(text);
+        },
+        insertMention: (payload: ComposerMentionPayload) => {
+          insertMentionRef.current(payload);
         },
         getText: () => readSnapshot(editor).value,
         getCommands: () => collectCommands(editor),

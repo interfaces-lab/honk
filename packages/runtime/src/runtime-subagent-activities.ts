@@ -8,6 +8,8 @@ import {
 } from "@honk/contracts";
 import { toJsonValue } from "@honk/shared/schema-json";
 
+import { asRecord } from "./runtime-record";
+
 type RuntimeSubagentActivityKind = Extract<
   OrchestrationThreadActivity["kind"],
   | "subagent.thread.started"
@@ -23,14 +25,6 @@ type RuntimeSubagentContentStreamKind = Extract<
   OrchestrationThreadActivity,
   { kind: "subagent.content.delta" }
 >["payload"]["streamKind"];
-
-function isIndexableRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return isIndexableRecord(value) ? value : null;
-}
 
 function asTrimmedString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;

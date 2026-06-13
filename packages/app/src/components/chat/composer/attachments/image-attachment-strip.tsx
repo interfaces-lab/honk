@@ -1,6 +1,5 @@
 import { Button } from "@honk/honkkit/button";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
-import { IconCrossMediumDefault, IconExclamationCircle } from "central-icons";
+import { IconCrossMediumDefault } from "central-icons";
 import type { ComposerImageAttachment } from "../../../../stores/chat-drafts";
 import {
   buildExpandedImagePreview,
@@ -9,7 +8,6 @@ import {
 
 export function ComposerImageAttachmentStrip(props: {
   images: readonly ComposerImageAttachment[];
-  nonPersistedImageIds: ReadonlySet<string>;
   onExpandImage: (preview: ExpandedImagePreview) => void;
   onRemoveImage: (imageId: string) => void;
 }) {
@@ -43,24 +41,6 @@ export function ComposerImageAttachmentStrip(props: {
               {image.name}
             </div>
           )}
-          {props.nonPersistedImageIds.has(image.id) ? (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <span
-                    role="img"
-                    aria-label="Draft attachment may not persist"
-                    className="absolute left-1 top-1 inline-flex items-center justify-center rounded bg-background/85 p-0.5 text-amber-600"
-                  >
-                    <IconExclamationCircle className="size-3" />
-                  </span>
-                }
-              />
-              <TooltipPopup side="top" className="max-w-64 whitespace-normal leading-tight">
-                Draft attachment could not be saved locally and may be lost on navigation.
-              </TooltipPopup>
-            </Tooltip>
-          ) : null}
           <Button
             variant="ghost"
             size="icon-xs"

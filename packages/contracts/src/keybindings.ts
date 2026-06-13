@@ -42,6 +42,9 @@ const STATIC_KEYBINDING_COMMANDS = [
   "route.back",
   "threadSelection.clear",
   "editor.openFavorite",
+  "editor.saveFile",
+  "editor.addSelectionToChat",
+  "editorPanel.toggleFullscreen",
   "browser.focusLocationBar",
   ...THREAD_KEYBINDING_COMMANDS,
 ] as const;

@@ -333,6 +333,33 @@ html:not([data-electron]) .agent-window {
   border-left-color: transparent;
 }
 
+/* Editor panel fullscreen: shell state is driven by the root data attribute. */
+.agent-window[data-shell-fullscreen-target="right-workbench"] .agent-window__workbench {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-index-shell-overlay-panel);
+  width: 100%;
+  min-width: 0;
+  max-width: 100cqw;
+  border-left-color: transparent;
+}
+
+.agent-window[data-shell-fullscreen-target="right-workbench"] .agent-window__sidebar {
+  width: 0;
+  min-width: 0;
+  border-right-color: transparent;
+}
+
+.agent-window[data-shell-fullscreen-target="right-workbench"] .agent-window__workbench-body {
+  width: 100%;
+}
+
+[data-electron]
+  .agent-window[data-shell-fullscreen-target="right-workbench"]
+  .honk-workbench-tool-island {
+  padding-left: var(--honk-electron-traffic-inset);
+}
+
 .honk-shell-titlebar-left-controls {
   left: var(--honk-electron-traffic-inset);
   top: var(--honk-shell-titlebar-control-y);

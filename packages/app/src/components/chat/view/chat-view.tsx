@@ -78,9 +78,7 @@ import {
 } from "../../../stores/thread-selectors";
 import { useUiStateStore } from "../../../stores/ui-state-store";
 import {
-  latestRuntimeEventTurnId,
-  runtimeEventsIndicateActiveAgentRun,
-  runtimeEventsIndicateTerminalAgentRun,
+  runtimeAgentRunEventState,
   selectIsRuntimeThread,
   selectPendingExtensionUiRequestsForThread,
   useAgentRuntimeStore,
@@ -318,8 +316,8 @@ function getNewAgentFooterTip(input: {
     tips.push({
       segments: [
         { kind: "text", text: "Use " },
-        { kind: "token", text: "Plan New Idea" },
-        { kind: "text", text: " to explore before building" },
+        { kind: "token", text: "/plan" },
+        { kind: "text", text: " to plan first without editing files" },
       ],
     });
   }
@@ -621,7 +619,6 @@ export default function ChatView(props: ChatViewProps) {
   const subagentTrayPresented = useSubagentTrayStore(
     (state) => state.presented && state.focus?.activeThreadId === activeThreadId,
   );
-  const closeSubagentTray = useSubagentTrayStore((state) => state.closeTray);
   const isNewThreadHero = isNewThreadHeroDraft({
     activeThread,
     isLocalDraftThread,
@@ -692,14 +689,8 @@ export default function ChatView(props: ChatViewProps) {
   const activeThreadIsRuntimeOwned = useAgentRuntimeStore((state) =>
     selectIsRuntimeThread(state, runtimeThreadId),
   );
-  const activeRuntimeAgentRunActive = useAgentRuntimeStore((state) =>
-    runtimeEventsIndicateActiveAgentRun(state.snapshot.runtimeEvents, runtimeThreadId),
-  );
-  const activeRuntimeEventTurnId = useAgentRuntimeStore((state) =>
-    latestRuntimeEventTurnId(state.snapshot.runtimeEvents, runtimeThreadId),
-  );
-  const activeRuntimeAgentRunTerminal = useAgentRuntimeStore((state) =>
-    runtimeEventsIndicateTerminalAgentRun(state.snapshot.runtimeEvents, runtimeThreadId),
+  const activeRuntimeAgentRunEventState = useAgentRuntimeStore(
+    useShallow((state) => runtimeAgentRunEventState(state.snapshot.runtimeEvents, runtimeThreadId)),
   );
   const activeThreadRef = activeThread
     ? scopeThreadRef(activeThread.environmentId, activeThread.id)
@@ -922,13 +913,10 @@ export default function ChatView(props: ChatViewProps) {
     () => runtimeDisplayTimelineHasActiveWork(activeRuntimeDisplayTimeline),
     [activeRuntimeDisplayTimeline],
   );
-  const activeRuntimeTimelineTurnId = useMemo(
-    () => runtimeDisplayTimelineActiveTurnId(activeRuntimeDisplayTimeline),
-    [activeRuntimeDisplayTimeline],
-  );
+  const activeRuntimeAgentRunActive = activeRuntimeAgentRunEventState.lifecycle === "active";
+  const activeRuntimeAgentRunTerminal = activeRuntimeAgentRunEventState.lifecycle === "terminal";
   const runtimeSurfaceImpliesTurnRunning =
-    activeRuntimeAgentRunActive ||
-    (runtimeTimelineHasActiveWork && !activeRuntimeAgentRunTerminal);
+    activeRuntimeAgentRunActive || (runtimeTimelineHasActiveWork && !activeRuntimeAgentRunTerminal);
   const waitingForRuntimeFirstResponse =
     activeThreadIsRuntimeOwned &&
     activeRuntimeDisplayTimeline !== null &&
@@ -985,8 +973,7 @@ export default function ChatView(props: ChatViewProps) {
   // briefly idle between tool bursts even though tools keep appending — keep the tail group
   // running so the collapsed preview does not flash to completed and back.
   const runtimeTimelineImpliesTurnActive =
-    runtimeSurfaceImpliesTurnRunning ||
-    (activeRuntimeDisplayTimeline !== null && !latestTurnSettled);
+    activeRuntimeDisplayTimeline !== null && !latestTurnSettled;
   const timelineTurnActive =
     isTurnRunning || visibleThreadSendIntents.length > 0 || runtimeTimelineImpliesTurnActive;
   const committedTimelineMessages = useMemo(
@@ -1705,9 +1692,7 @@ export default function ChatView(props: ChatViewProps) {
     );
     const originalEntry = findThreadMessageEntry(activeThread, messageId);
     const parentEntryId = originalEntry?.parentEntryId ?? null;
-    const unchanged =
-      originalMessage?.text === compiledTurn.trimmedPrompt && composerImages.length === 0;
-    if (!hasSendableContent || !originalMessage || unchanged) {
+    if (!hasSendableContent || !originalMessage) {
       return false;
     }
     if (!originalEntry) {
@@ -1800,6 +1785,7 @@ export default function ChatView(props: ChatViewProps) {
           getTurnAttachments,
         },
         parentEntryId,
+        replacesClientMessageId: messageId,
         modelSelection: activeThread.modelSelection,
         titleSeed: activeThread.title,
         interactionMode: input.interactionMode,
@@ -2427,8 +2413,19 @@ export default function ChatView(props: ChatViewProps) {
   const onInterrupt = async () => {
     const api = readEnvironmentApi(environmentId);
     if (!activeThread) return;
+    const runtimeSnapshot = useAgentRuntimeStore.getState().snapshot;
+    const runtimeDisplayTimeline = runtimeThreadId
+      ? (runtimeSnapshot.displayTimelines.find(
+          (timeline) => timeline.threadId === runtimeThreadId,
+        ) ?? null)
+      : null;
+    const runtimeEventState = runtimeAgentRunEventState(
+      runtimeSnapshot.runtimeEvents,
+      runtimeThreadId,
+    );
     const runtimeTurnId = runtimeSurfaceImpliesTurnRunning
-      ? (activeRuntimeTimelineTurnId ?? activeRuntimeEventTurnId)
+      ? (runtimeDisplayTimelineActiveTurnId(runtimeDisplayTimeline) ??
+        runtimeEventState.latestTurnId)
       : null;
     const latestUnsettledTurnId = !latestTurnSettled ? (activeLatestTurn?.turnId ?? null) : null;
     const turnId = activeRunningTurnId ?? runtimeTurnId ?? latestUnsettledTurnId ?? undefined;
@@ -3062,16 +3059,6 @@ export default function ChatView(props: ChatViewProps) {
                   className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-32 bg-[linear-gradient(to_top,var(--honk-shell-center-surface-background)_0,color-mix(in_srgb,var(--honk-shell-center-surface-background)_82%,transparent)_52%,transparent_100%)]"
                 />
               </div>
-              {subagentTrayPresented ? (
-                <Button
-                  type="button"
-                  data-subagent-tray-click-capture=""
-                  aria-label="Close subagent tray"
-                  variant="ghost"
-                  className="border-0 bg-transparent p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
-                  onClick={closeSubagentTray}
-                />
-              ) : null}
             </div>
           )}
 

@@ -162,6 +162,14 @@ export function createRuntimeClientFromApi(runtime: HonkRuntimeApi): HonkRuntime
     sendTurn: (input) => runtime.sendTurn(input),
     abort: (input) => runtime.abort(input),
     respondToExtensionUiRequest: (input) => runtime.respondToExtensionUiRequest(input),
+    // Older runtime bridges (e.g. a stale window.honkRuntime preload) predate these methods, so
+    // degrade to empty results here instead of letting callers crash on a missing function.
+    listSkills: async (input) =>
+      typeof runtime.listSkills === "function" ? runtime.listSkills(input) : { skills: [] },
+    getThreadSessionFile: async (input) =>
+      typeof runtime.getThreadSessionFile === "function"
+        ? runtime.getThreadSessionFile(input)
+        : { path: null },
     onHostEvent: (listener) =>
       runtime.onHostEvent((event) => {
         listener(decodeHonkRuntimeHostEvent(event));

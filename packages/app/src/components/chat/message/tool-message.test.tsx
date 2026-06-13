@@ -315,6 +315,52 @@ describe("RuntimeToolCallMessage command entries", () => {
     expect(html).not.toContain("Ran");
   });
 
+  it("maps a runtime edit display diff into a unified diff artifact", () => {
+    const patch = [
+      "--- packages/app/src/components/chat/view/chat-view.tsx",
+      "+++ packages/app/src/components/chat/view/chat-view.tsx",
+      "@@ -315,2 +315,2 @@",
+      "-old line",
+      "+new line",
+    ].join("\n");
+    const tool: RuntimeDisplayTimelineToolItem = {
+      id: "tool:edit-diff",
+      kind: "tool",
+      orderKey: `${createdAt}:tool:edit-diff`,
+      createdAt,
+      toolCallId: "toolu-edit-diff",
+      toolName: "edit",
+      status: "completed",
+      eventIds: [],
+      display: {
+        kind: "edit",
+        path: "packages/app/src/components/chat/view/chat-view.tsx",
+        additions: 1,
+        deletions: 1,
+        diff: patch,
+      },
+    };
+
+    const toolCall = runtimeToolDisplayToToolCall(tool, tool.display);
+
+    expect(toolCall.tool.case).toBe("editToolCall");
+    expect(toolCall.tool.value.artifacts).toEqual([
+      {
+        type: "diff",
+        format: "unified",
+        source: "result",
+        files: [
+          {
+            path: "packages/app/src/components/chat/view/chat-view.tsx",
+            additions: 1,
+            deletions: 1,
+          },
+        ],
+        unifiedDiff: patch,
+      },
+    ]);
+  });
+
   it("renders runtime MCP display with MCP action text", () => {
     const html = renderRuntimeTool({
       id: "tool:mcp",
@@ -335,24 +381,19 @@ describe("RuntimeToolCallMessage command entries", () => {
     expect(html).toContain("github");
   });
 
-  it("renders runtime subagent display through the subagent status surface", () => {
+  it("renders runtime subagent display as bare status rows without task chrome", () => {
     const tool = runtimeSubagentTool();
     const html = renderRuntimeToolWithContext(tool);
 
-    expect(html).toContain("data-task-tool-call");
-    expect(html).toContain("data-task-tool-call-header");
-    expect(html).toContain("data-tool-call-line");
-    expect(html).toContain("data-task-tool-call-body");
-    expect(html).toContain("data-task-tool-call-subtitle");
-    expect(html).toContain('aria-expanded="true"');
     expect(html).toContain("data-subagent-status-container");
-    expect(html).toContain("data-subagent-status-embedded");
     expect(html).toContain("data-subagent-row");
+    expect(html).toContain("data-subagent-name");
+    expect(html).toContain("data-subagent-task");
     expect(html).toContain("Research");
     expect(html).toContain("gpt-5.5");
     expect(html).toContain("Renderer reviewed");
-    expect(html).toContain("Task");
-    expect(html).toContain("Inspect the renderer");
+    expect(html).not.toContain("data-task-tool-call");
+    expect(html).not.toContain("Inspect the renderer");
     expect(html).not.toContain("Ran");
   });
 

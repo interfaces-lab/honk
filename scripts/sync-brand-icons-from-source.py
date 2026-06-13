@@ -3,8 +3,6 @@
 
 Requires: Python 3.11+, Pillow (`python3 -m pip install pillow`).
 Requires: ImageMagick (`magick`) for SVG sources.
-Requires (macOS only): `sips` and `iconutil` for `.icns` output.
-
 Default source: assets/brand/honk-app-icon-source.png (transparent square app icon).
 Default dev source: assets/brand/honk-app-icon-dev-source.png (rough development app icon).
 
@@ -38,7 +36,7 @@ MASTER_SIZE = 1024
 DOCK_ICON_SIZE = 256
 DOCK_ICON_CONTENT_SIZE = 210
 ICO_SIZES = (16, 32, 48, 64, 128, 256)
-ICNS_BASE_SIZES = (16, 32, 128, 256, 512)
+ICNS_SIZES = (16, 32, 128, 256, 512, 1024)
 
 # Opacity of the blueprint veil (0-1) for dev channel raster assets.
 DEV_BLUEPRINT_VEIL_STRENGTH = 0.28
@@ -107,6 +105,15 @@ def macos_dock_icon(source: Image.Image) -> Image.Image:
     return canvas
 
 
+def macos_icon_master(source: Image.Image) -> Image.Image:
+    canvas = Image.new("RGBA", (MASTER_SIZE, MASTER_SIZE), (0, 0, 0, 0))
+    content_size = round(MASTER_SIZE * DOCK_ICON_CONTENT_SIZE / DOCK_ICON_SIZE)
+    content = source.resize((content_size, content_size), Image.Resampling.LANCZOS)
+    offset = (MASTER_SIZE - content_size) // 2
+    canvas.alpha_composite(content, (offset, offset))
+    return canvas
+
+
 def write_ico(path: Path, master: Image.Image) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     images = [master.resize((s, s), Image.Resampling.LANCZOS) for s in ICO_SIZES]
@@ -119,49 +126,13 @@ def write_ico(path: Path, master: Image.Image) -> None:
 
 
 def write_icns_macos(source_png: Path, target_icns: Path) -> None:
-    if sys.platform != "darwin":
-        print("Skipping icon.icns: not macOS (sips/iconutil unavailable).", file=sys.stderr)
-        return
     target_icns.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="honk-icns-") as tmp:
-        iconset = Path(tmp) / "icon.iconset"
-        iconset.mkdir()
-        for size in ICNS_BASE_SIZES:
-            subprocess.run(
-                [
-                    "sips",
-                    "-z",
-                    str(size),
-                    str(size),
-                    str(source_png),
-                    "--out",
-                    str(iconset / f"icon_{size}x{size}.png"),
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            retina = size * 2
-            subprocess.run(
-                [
-                    "sips",
-                    "-z",
-                    str(retina),
-                    str(retina),
-                    str(source_png),
-                    "--out",
-                    str(iconset / f"icon_{size}x{size}@2x.png"),
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-        subprocess.run(
-            ["iconutil", "-c", "icns", str(iconset), "-o", str(target_icns)],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+    source = Image.open(source_png).convert("RGBA")
+    source.save(
+        target_icns,
+        format="ICNS",
+        sizes=[(size, size) for size in ICNS_SIZES],
+    )
 
 
 def main() -> int:
@@ -204,24 +175,30 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="honk-icon-src-") as tmp:
         tmp1024 = Path(tmp) / "master-1024.png"
+        tmp_macos_1024 = Path(tmp) / "master-macos-1024.png"
         tmp_dev_1024 = Path(tmp) / "master-dev-1024.png"
+        tmp_dev_macos_1024 = Path(tmp) / "master-dev-macos-1024.png"
+        master_macos = macos_icon_master(master)
+        master_dev_macos = macos_icon_master(master_dev)
         write_png(tmp1024, master)
+        write_png(tmp_macos_1024, master_macos)
         write_png(tmp_dev_1024, master_dev)
+        write_png(tmp_dev_macos_1024, master_dev_macos)
 
         write_png(desktop_res / "icon.png", master)
         write_png(desktop_res / "dock-icon.png", macos_dock_icon(master))
         write_png(desktop_res / "dev-dock-icon.png", macos_dock_icon(master_dev))
-        write_icns_macos(tmp1024, desktop_res / "icon.icns")
+        write_icns_macos(tmp_macos_1024, desktop_res / "icon.icns")
         write_ico(desktop_res / "icon.ico", master)
 
         brand = repo / "assets" / "brand" / "generated"
         prod = brand / "prod"
-        write_icns_macos(tmp1024, prod / "honk-production-macos-icon.icns")
+        write_icns_macos(tmp_macos_1024, prod / "honk-production-macos-icon.icns")
         write_png(prod / "honk-production-desktop-icon-1024.png", master)
         write_png(prod / "honk-production-dock-icon-256.png", macos_dock_icon(master))
         write_png(prod / "honk-production-linux-icon-1024.png", master)
         write_png(prod / "honk-production-splash-icon-180.png", _resize(master, 180))
-        write_png(prod / "black-macos-1024.png", master)
+        write_png(prod / "black-macos-1024.png", master_macos)
         write_png(prod / "black-universal-1024.png", master)
         write_png(prod / "black-ios-1024.png", master)
         write_png(prod / "honk-black-web-apple-touch-180.png", _resize(master, 180))
@@ -230,11 +207,11 @@ def main() -> int:
         write_ico(prod / "honk-black-web-favicon.ico", master)
 
         dev = brand / "dev"
-        write_icns_macos(tmp_dev_1024, dev / "honk-development-macos-icon.icns")
+        write_icns_macos(tmp_dev_macos_1024, dev / "honk-development-macos-icon.icns")
         write_png(dev / "honk-development-desktop-icon-1024.png", master_dev)
         write_png(dev / "honk-development-dock-icon-256.png", macos_dock_icon(master_dev))
         write_png(dev / "honk-development-splash-icon-180.png", _resize(master_dev, 180))
-        write_png(dev / "blueprint-macos-1024.png", master_dev)
+        write_png(dev / "blueprint-macos-1024.png", master_dev_macos)
         write_png(dev / "blueprint-universal-1024.png", master_dev)
         write_png(dev / "blueprint-ios-1024.png", master_dev)
         write_png(dev / "blueprint-web-apple-touch-180.png", _resize(master_dev, 180))

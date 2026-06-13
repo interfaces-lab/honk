@@ -144,7 +144,12 @@ export default defineConfig({
       tailwindcss(),
     ],
     optimizeDeps: {
-      include: ["@pierre/diffs", "@pierre/diffs/react", "@pierre/diffs/worker/worker.js"],
+      include: [
+        "@pierre/diffs",
+        "@pierre/diffs/react",
+        "@pierre/diffs/worker/worker.js",
+        "monaco-editor",
+      ],
     },
     define: {
       "import.meta.env.VITE_HTTP_URL": JSON.stringify(resolvedHttpUrl ?? ""),
@@ -153,6 +158,9 @@ export default defineConfig({
     },
     resolve: {
       alias: {
+        "@xterm/addon-fit": resolve(appDir, "node_modules/@xterm/addon-fit"),
+        "@xterm/xterm/css/xterm.css": resolve(appDir, "node_modules/@xterm/xterm/css/xterm.css"),
+        "@xterm/xterm": resolve(appDir, "node_modules/@xterm/xterm"),
         "~": appSrcDir,
       },
     },

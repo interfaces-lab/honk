@@ -1,0 +1,1333 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cursor Agent-Window Shell — Reverse-Engineering &amp; Honk Implementation Notes</title>
+    <style>
+      :root {
+        --bg: #0d1014;
+        --panel: #151a21;
+        --panel2: #1b2129;
+        --stroke: rgba(255, 255, 255, 0.09);
+        --stroke2: rgba(255, 255, 255, 0.14);
+        --fg: #e6e9ee;
+        --fg2: #aab2bd;
+        --fg3: #7c8593;
+        --accent: #7aa2ff;
+        --green: #6ee7a8;
+        --amber: #ffcf6b;
+        --red: #ff8b8b;
+        --violet: #c4a7ff;
+        --radius: 12px;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: var(--sans);
+        font-size: 15px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 48px 28px 120px;
+      }
+      header.hero {
+        border: 1px solid var(--stroke);
+        border-radius: var(--radius);
+        padding: 32px 34px;
+        background: linear-gradient(160deg, #161c26, #10141a);
+        margin-bottom: 28px;
+      }
+      header.hero h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+        letter-spacing: -0.02em;
+      }
+      header.hero .sub {
+        color: var(--fg2);
+        font-size: 15px;
+        max-width: 760px;
+      }
+      .meta {
+        margin-top: 16px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .pill {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--fg2);
+        border: 1px solid var(--stroke2);
+        border-radius: 999px;
+        padding: 4px 11px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+      nav.toc {
+        border: 1px solid var(--stroke);
+        border-radius: var(--radius);
+        padding: 18px 22px;
+        background: var(--panel);
+        margin-bottom: 34px;
+      }
+      nav.toc strong {
+        display: block;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--fg3);
+        margin-bottom: 10px;
+      }
+      nav.toc ol {
+        margin: 0;
+        padding-left: 20px;
+        columns: 2;
+        column-gap: 32px;
+      }
+      nav.toc a {
+        color: var(--fg);
+        text-decoration: none;
+        line-height: 2;
+      }
+      nav.toc a:hover {
+        color: var(--accent);
+      }
+      section {
+        margin: 0 0 40px;
+        scroll-margin-top: 20px;
+      }
+      h2 {
+        font-size: 21px;
+        letter-spacing: -0.01em;
+        border-bottom: 1px solid var(--stroke);
+        padding-bottom: 10px;
+        margin: 46px 0 18px;
+      }
+      h2 .n {
+        color: var(--accent);
+        font-family: var(--mono);
+        font-size: 15px;
+        margin-right: 10px;
+      }
+      h3 {
+        font-size: 16.5px;
+        margin: 26px 0 10px;
+        color: #fff;
+      }
+      h4 {
+        font-size: 14px;
+        margin: 18px 0 8px;
+        color: var(--fg2);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      p {
+        margin: 10px 0;
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        background: rgba(255, 255, 255, 0.06);
+        padding: 1.5px 6px;
+        border-radius: 5px;
+        color: #dfe6f0;
+        border: 1px solid var(--stroke);
+      }
+      pre {
+        background: #0a0d11;
+        border: 1px solid var(--stroke);
+        border-radius: 10px;
+        padding: 16px 18px;
+        overflow: auto;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.55;
+        color: #cdd6e2;
+      }
+      pre code {
+        background: none;
+        border: none;
+        padding: 0;
+        color: inherit;
+      }
+      .callout {
+        border: 1px solid var(--stroke2);
+        border-left: 3px solid var(--accent);
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 16px 0;
+        background: var(--panel);
+      }
+      .callout.good {
+        border-left-color: var(--green);
+      }
+      .callout.warn {
+        border-left-color: var(--amber);
+      }
+      .callout.bad {
+        border-left-color: var(--red);
+      }
+      .callout.key {
+        border-left-color: var(--violet);
+      }
+      .callout b {
+        color: #fff;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 16px 0;
+        font-size: 13px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--stroke);
+        vertical-align: top;
+      }
+      th {
+        color: var(--fg3);
+        font-weight: 600;
+        font-size: 11.5px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        background: rgba(255, 255, 255, 0.02);
+      }
+      td code {
+        font-size: 11.5px;
+      }
+      tr:hover td {
+        background: rgba(255, 255, 255, 0.018);
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .card {
+        border: 1px solid var(--stroke);
+        border-radius: 10px;
+        padding: 16px 18px;
+        background: var(--panel);
+      }
+      .card h4 {
+        margin-top: 0;
+      }
+      ul,
+      ol {
+        margin: 10px 0;
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      .tag {
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 2px 7px;
+        border-radius: 5px;
+        border: 1px solid var(--stroke2);
+        color: var(--fg2);
+      }
+      .tag.keep {
+        color: var(--green);
+        border-color: rgba(110, 231, 168, 0.4);
+      }
+      .tag.skip {
+        color: var(--fg3);
+      }
+      .tag.add {
+        color: var(--amber);
+        border-color: rgba(255, 207, 107, 0.4);
+      }
+      .tag.done {
+        color: var(--accent);
+        border-color: rgba(122, 162, 255, 0.4);
+      }
+      .ascii {
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre;
+        color: #bcd0ee;
+        background: #0a0d11;
+        border: 1px solid var(--stroke);
+        border-radius: 10px;
+        padding: 18px;
+        overflow: auto;
+      }
+      .legend {
+        color: var(--fg3);
+        font-size: 12.5px;
+        margin-top: 6px;
+      }
+      hr.soft {
+        border: none;
+        border-top: 1px dashed var(--stroke);
+        margin: 28px 0;
+      }
+      .verdict {
+        font-size: 17px;
+        font-weight: 600;
+        color: #fff;
+      }
+      a.src {
+        color: var(--accent);
+        text-decoration: none;
+        font-family: var(--mono);
+        font-size: 11.5px;
+      }
+      footer {
+        color: var(--fg3);
+        font-size: 12.5px;
+        border-top: 1px solid var(--stroke);
+        padding-top: 18px;
+        margin-top: 50px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <h1>Cursor Agent-Window Shell — Reverse-Engineering &amp; Honk Implementation Notes</h1>
+        <div class="sub">
+          Canonical dissection of Cursor's bundled workbench (the React "glass"/agent window),
+          produced by 5 parallel Opus subagents reading
+          <code>workbench.desktop.main.js</code> (61&nbsp;MB) and
+          <code>workbench.desktop.main.css</code> (2&nbsp;MB). Focus: how the top bar re-positions
+          without re-rendering on maximize, why fullscreen does <em>not</em> push the left sidebar
+          away, the full component hierarchy, the state model, exact design tokens, and a concrete
+          plan to make Honk's shell canonical on top of this.
+        </div>
+        <div class="meta">
+          <span class="pill">build: Cursor.app / out/vs/workbench</span>
+          <span class="pill">bundle: 61,206,523 bytes, single line</span>
+          <span class="pill">research: 5× opus subagents</span>
+          <span class="pill">target: packages/app/src/components/shell/shell</span>
+          <span class="pill">date: 2026-06-13</span>
+        </div>
+      </header>
+
+      <nav class="toc">
+        <strong>Contents</strong>
+        <ol>
+          <li><a href="#tldr">TL;DR &amp; the StyleX question</a></li>
+          <li><a href="#maximize">Maximize / fullscreen mechanism</a></li>
+          <li><a href="#hierarchy">Component hierarchy (3-shell split)</a></li>
+          <li><a href="#state">State model &amp; subscribe-at-consumer</a></li>
+          <li><a href="#tokens">Design tokens &amp; styling mechanism</a></li>
+          <li><a href="#chrome">Top nav &amp; right secondary nav</a></li>
+          <li><a href="#honk">Honk action plan</a></li>
+          <li><a href="#appendix">Appendix: symbol/offset map</a></li>
+        </ol>
+      </nav>
+
+      <!-- ============================================================ -->
+      <section id="tldr">
+        <h2><span class="n">00</span>TL;DR &amp; the StyleX question</h2>
+
+        <div class="callout key">
+          <p class="verdict">Cursor is <u>not</u> on StyleX.</p>
+          <p>
+            The premise "they recently migrated to StyleX" is <b>refuted with hard evidence</b>:
+            zero <code>stylex</code> / <code>@stylexjs</code> / <code>stylex.props</code> literals
+            in the 61&nbsp;MB bundle, and zero StyleX atomic classes (<code>.x1abc2d</code>) in the
+            CSS — the <code>x800000000</code> hits seen on first probe were hex-color false
+            positives. Cursor's workbench is a <b>three-layer plain-CSS system</b>: VS Code base
+            (<code>--vscode-*</code> custom props) → a bespoke semantic
+            <code>--cursor-*</code> token layer (radius/spacing injected at runtime via 6,621
+            <code>setProperty</code> calls) → a Tailwind v4 utility layer (<code
+              >@layer theme/base/components/utilities</code
+            >, <code>--tw-*</code> vars). Class names are human-readable and stable
+            (<code>.ui-tab-system-tab</code>, <code>.editor-panel-tab-header-row</code>) — no
+            CSS-Modules hashing.
+          </p>
+        </div>
+
+        <h3>So: how hard would Tailwind → StyleX be for Honk, and should we?</h3>
+        <p>
+          <b>Recommendation: don't.</b> It is a large, multi-week mechanical migration with high
+          regression risk and little payoff — and crucially, the product we're chasing (Cursor)
+          isn't even on StyleX.
+        </p>
+        <table>
+          <tr>
+            <th>Factor</th>
+            <th>Reality for Honk</th>
+          </tr>
+          <tr>
+            <td>Surface area</td>
+            <td>
+              ~109 files in <code>packages/app/src</code> use <code>className=</code>, almost all
+              Tailwind utility strings. Every one becomes <code>stylex.create</code> +
+              <code>stylex.props</code>.
+            </td>
+          </tr>
+          <tr>
+            <td>Toolchain</td>
+            <td>
+              Honk is <b>Vite 8, no Babel</b>. StyleX's first-class compiler is a Babel plugin; on
+              Vite you rely on community <code>unplugin-stylex</code>/rollup shims of varying
+              maturity — risky on a bleeding-edge Vite 8.
+            </td>
+          </tr>
+          <tr>
+            <td>Overlap of benefits</td>
+            <td>
+              Tailwind v4 already gives atomic CSS, build-time dedup, and typed design tokens via
+              <code>@theme</code> + CSS custom properties — the same wins StyleX sells. Marginal
+              gain.
+            </td>
+          </tr>
+          <tr>
+            <td>Dynamic styles</td>
+            <td>
+              Honk leans on <code>data-*</code> attribute variants + class concat (Cursor does the
+              same). StyleX would force a different conditional-style idiom across the whole
+              codebase.
+            </td>
+          </tr>
+          <tr>
+            <td>What Cursor actually does</td>
+            <td>
+              Plain CSS classes + <code>--cursor-*</code> semantic tokens (resolving to theme vars)
+              + runtime-injected scale. <b>This is what Honk already has the shape of</b> with
+              Tailwind v4 + CSS vars.
+            </td>
+          </tr>
+        </table>
+        <div class="callout good">
+          <b>Better move than a migration:</b> formalize Honk's token layering to mirror Cursor — a
+          base palette → a <code>--honk-*</code> semantic layer (every component references these,
+          never raw colors) → a <code>--glass-*</code> surface layer with vibrancy on/off variants,
+          all exposed to Tailwind via <code>@theme</code>. See <a href="#tokens">§04</a> for the
+          exact values. If you want StyleX's co-located typed styles, adopt it
+          <em>incrementally for new complex components only</em> — never a big-bang rewrite.
+        </div>
+
+        <h3>Three load-bearing findings about the shell</h3>
+        <ol>
+          <li>
+            <b>The top bar never re-renders on maximize</b> because it's a
+            <code>position:fixed</code> overlay; the only reaction to the maximize flag is a
+            <code>requestAnimationFrame</code> that <em>re-parents</em> a stable DOM node (it never
+            tears down the title). See <a href="#maximize">§01</a>.
+          </li>
+          <li>
+            <b>Fullscreen doesn't push the left sidebar</b> because maximize hides
+            <em>only the editor leaf</em> of the grid and grows the aux-bar by exactly
+            <code>width − sidebar − activitybar − unifiedSidebar</code>. The sidebar's grid cell is
+            never hidden or resized — you must toggle it off separately. See
+            <a href="#maximize">§01</a>.
+          </li>
+          <li>
+            <b>Honk's 3-shell split is already a faithful port.</b> <code>RightAside</code> =
+            GlassRoot, <code>RightAsideFrame</code> = EditorPanelResizeShell,
+            <code>RightWorkbenchContent</code> = EditorPanelMainShell. The remaining gaps are a
+            generic tab-renderer registry and consolidating over-subscription. See
+            <a href="#honk">§06</a>.
+          </li>
+        </ol>
+      </section>
+
+      <!-- ============================================================ -->
+      <section id="maximize">
+        <h2><span class="n">01</span>Maximize / fullscreen mechanism — the core question</h2>
+
+        <h3>Why the top bar only re-positions (CSS), never re-renders</h3>
+        <p>Two layers combine:</p>
+
+        <h4>(a) The titlebar is a fixed overlay — nothing to relayout</h4>
+        <p>
+          In Cursor's unified ("no-titlebar") layout the titlebar part is pulled out of flow and
+          pinned over the grid. Maximizing the chat changes its box <em>not at all</em>:
+        </p>
+        <pre><code>body.no-titlebar-layout .monaco-workbench .part.titlebar{
+  position:fixed !important; top:0 !important; left:0 !important; right:0 !important;
+  height:34px !important; z-index:10000 !important;
+  background:transparent !important; pointer-events:none !important;
+}
+/* grid runs full-height beneath the fixed bar; parts clear it with padding-top:35px */
+body.no-titlebar-layout .monaco-workbench &gt; .monaco-grid-view{ height:100% !important; top:0 !important; }
+body.no-titlebar-layout .part.auxiliarybar &gt; .content .split-view-view{ padding-top:35px; }</code></pre>
+        <p>
+          The bar's three regions are <code>pointer-events:auto</code> islands floating over a
+          full-width <code>-webkit-app-region:drag</code> strip. The only agent-mode rule is a no-op
+          transform reset on mac.
+        </p>
+
+        <h4>(b) The maximize flag triggers a re-parent in a RAF, not a re-render</h4>
+        <p>
+          The titlebar registers exactly one subscription keyed on the
+          <code>agentChatMaximized</code> / <code>glassEditorPanelFullscreen</code> context key. It
+          schedules a single coalesced RAF that calls <code>doUpdateActionsPositioning()</code>,
+          which <b>moves an existing toolbar node</b> between containers and toggles marker classes
+          — it never creates or destroys widgets:
+        </p>
+        <pre><code>// titlebar ctor — the ONLY reaction to the maximize key  <span class="legend">@60057154</span>
+const o = new Set([j4e.key]);
+this._register(this.contextKeyService.onDidChangeContext(a =&gt; {
+  a.affectsSome(o) &amp;&amp; requestAnimationFrame(() =&gt; this.updateActionsPositioning());
+}));
+
+// doUpdateActionsPositioning — re-parent + class toggle, no widget churn  <span class="legend">@60079192</span>
+const mode = this.getLayoutActionsPositioningMode();        // "titlebar" | "editor-tabs"
+target.insertBefore(this.actionToolBarElement, this.windowControlsContainer); // RE-PARENT a live node
+this.actionToolBarElement.classList.toggle("in-titlebar",  mode==="titlebar");
+this.actionToolBarElement.classList.toggle("in-editor-tabs", mode==="editor-tabs");</code></pre>
+        <div class="callout">
+          <b>Why re-parent, not re-render?</b> The toolbar is a live
+          <code>monaco-toolbar</code> widget bound to menu state. Re-rendering would drop
+          hover/focus, re-resolve menus, and flicker. Re-parenting a stable node preserves widget
+          identity and lets CSS handle the visual move. The maximize/minimize icon swap is purely
+          declarative (<code
+            >toggled: equals(agentChatMaximized,true) → icon: maximize/minimize</code
+          >) — no remount. <b>The chat body never receives the boolean as a prop.</b>
+        </div>
+
+        <h3>Why fullscreen does NOT push the left sidebar away</h3>
+        <div class="callout key">
+          <b>Mechanism:</b> maximize hides <u>only the editor leaf</u> of the grid's middle
+          horizontal branch, then grows the aux-bar to consume exactly the editor's freed width —
+          computed by <u>subtracting</u> the still-present sidebar/activitybar/unified-sidebar
+          widths. The left sidebar's grid cell is never hidden and never resized, so it stays put
+          until the user toggles it off separately.
+        </div>
+
+        <div class="ascii">
+          grid root (VERTICAL) ├─ titlebar (leaf, fixed overlay) ├─ banner (leaf) ├─ branch
+          (HORIZONTAL) ← the middle row │ ├─ activitybar (leaf) ┐ │ ├─ sidebar (leaf) │ widths
+          PRESERVED — subtracted out of the │ ├─ editor (leaf) │ aux-bar growth, never
+          setViewVisible(false) │ ├─ auxiliarybar (leaf) ← grows to fill ONLY the editor's freed
+          width │ └─ unifiedsidebar (leaf) ┘ └─ statusbar (leaf)
+        </div>
+
+        <pre><code>// setEditorHidden — hides ONLY the editor leaf, regrows aux bar  <span class="legend">@43318228</span>
+this.workbenchGrid.setViewVisible(this.editorPartView, !e);   // collapse editor leaf to 0 (node kept)
+e ? mainContainer.classList.add("nomaineditorarea") : mainContainer.classList.remove("nomaineditorarea");
+isUnifiedMode() &amp;&amp; (e ? mainContainer.classList.add("agentmode") : mainContainer.classList.remove("agentmode"));
+
+const sidebar  = isVisible("workbench.parts.sidebar")        ? getSize(...).width : 0;
+const uside    = isVisible("workbench.parts.unifiedsidebar") ? getSize(...).width : 0;
+const actbar   = isVisible("workbench.parts.activitybar")    ? getSize(...).width : 0;
+const auxWidth = Math.max(auxiliaryBarPartView.minimumWidth,
+                          mainContainerDimension.width - sidebar - uside - actbar);  // ← the decisive line
+setSize("workbench.parts.auxiliarybar", { width: auxWidth, height });</code></pre>
+
+        <p>
+          <code>setViewVisible(view,false)</code> in the SplitView grid sets the view's size to 0
+          but <b>keeps the view item</b> (it caches a restore size); the grid topology is untouched,
+          so the sidebar leaf keeps its slot and width. On maximize, Cursor snapshots pre-maximize
+          sizes as plain fields and only hides the sidebar when <code>skipHideSidebar</code> is
+          false:
+        </p>
+        <pre><code>// setUnifiedMaximizeState(true) — snapshot, then hide editor+panel (sidebar only if not skipped)  <span class="legend">@43276669</span>
+this.sidebarWidthPercentageBeforeMaximize      = sidebarSize.width / mainW;   // restore later
+this.auxiliaryBarWidthPercentageBeforeMaximize = auxSize.width / mainW;
+this.unifiedSidebarWidthPercentageBeforeMaximize = uSize.width / mainW;
+t?.skipHideSidebar || this.setSideBarHidden(true, true);   // ← sidebar stays put when skipHideSidebar
+this.setPanelHidden(true, true);
+this.setEditorHidden(true, true);
+// tail: wasMaximized = e; agentChatMaximizedContext.set(e); stateModel.save();</code></pre>
+        <div class="callout">
+          <b><code>agentmode</code> vs <code>nomaineditorarea</code>:</b> both are
+          <em>chrome hooks, not layout drivers</em> (sizing is the grid math above).
+          <code>nomaineditorarea</code> (editor hidden, any mode) removes inner borders that framed
+          the now-absent editor. <code>agentmode</code> (unified mode + editor hidden, i.e. true
+          chat-maximize) re-skins the aux-bar title into a draggable agent titlebar and resets the
+          mac action-cluster transform. Neither sets width/position on the sidebar.
+        </div>
+
+        <h3>Full state flow on toggle</h3>
+        <ol>
+          <li>
+            <b>Invoke</b> <code>workbench.action.maximizeChatSize</code> → reads current key, fires
+            telemetry, calls <code>layoutService.toggleUnifiedMaximizeState()</code>.
+          </li>
+          <li>
+            <b>Decide</b> target = <code>!(maximized ?? wasMaximized ?? !editorVisible)</code>;
+            await <code>setUnifiedMaximizeState(target)</code>.
+          </li>
+          <li>
+            <b>Mutate</b> grid: snapshot <code>*BeforeMaximize</code> fields → hide editor (+panel,
+            +maybe sidebar) via per-leaf <code>setViewVisible</code> → regrow aux bar.
+          </li>
+          <li>
+            <b>Write</b> the context key once (<code>_recomputeAndEmit</code> syncs 4 keys + fires
+            <code>onDidChange</code>).
+          </li>
+          <li>
+            <b>Readers</b> (all imperative): titlebar RAF re-parents actions; aux-bar title part
+            restyles; the toggle icon swaps declaratively; the body just gets wider because its grid
+            cell grew.
+          </li>
+        </ol>
+      </section>
+
+      <!-- ============================================================ -->
+      <section id="hierarchy">
+        <h2><span class="n">02</span>Component hierarchy — the 3-shell split</h2>
+        <p>
+          Every shell component is React-Compiler auto-memoized (<code>const t=Tt(N)</code> cache
+          arrays + <code>t[i]!==dep</code> guards); some are <em>also</em>
+          <code>React.memo</code>-wrapped (noted below). The single subscription primitive is
+          <code>uxe(service, selector)</code> = <code>useSyncExternalStore</code> with a
+          structural-equality (<code>V9t</code>) bail-out — one layout service, many consumers each
+          subscribing to a disjoint slice.
+        </p>
+
+        <div class="ascii">
+          OPI "GlassRoot"
+          <span class="legend"
+            >[Tt-memo] reads {editorPanelVisible, fullscreen, fullscreenAllowed}</span
+          >
+          │ builds ONE stable props object `mt` (useMemo); pushes ~10 context keys │ └─ providers →
+          div.flex.flex-col.flex-1 └─ div.flex.flex-1.min-h-0 ← THE 3-COLUMN ROW ├─ X1I
+          "GlassSidebar / left switcher"
+          <span class="legend">[Tt-memo] own slice {leftSidebarWidth, maxLeftSidebarWidth}</span> │
+          ├─ {!fullscreen &amp;&amp; X5k} "AgentPanelBoundary"
+          <span class="legend">props = {...mt}; gated off when fullscreen</span> │ └─ errorBoundary
+          → wwI (agent body: composer + transcript) │ (fwI "AgentPanelFrame" wraps layout:
+          {centerPanelFixedWidth, editorPanelVisible}) │ └─ {editorPanelVisible &amp;&amp; DSI}
+          "EditorPanelResizeShell" <span class="legend">[Tt-memo]</span> reads [editorPanelWidth,
+          pendingResize, maxWidth, fullscreen] + local drag state (mzn) renders props.children so
+          drag never touches content └─ PSI (resize wrapper: width, data-resizing, sash handleProps)
+          └─ wUk [React.memo] → BSI "EditorPanelMainShell" [React.memo + Tt(294)] reads [fullscreen,
+          fullscreenAllowed, promptHidden, sidebarVisible, overlayMode] └─ PMv.Provider (per-panel
+          ctx) → div.editor-panel-inner └─ O7e.Root → O7e.Group ├─ O7e.Bar rightInsetPx=0 │ ├─
+          .editor-panel-tab-bar-tab-cluster (leading) │ │ ├─ Gk sidebar controls (W4v picker+Search,
+          p5k New Agent) │ │ ├─ zS agent title-tab (ISI) + SectionDivider │ │ ├─ $p StableTabs (Env
+          / Diff / Vnc) [when sidebar folded] │ │ └─ O7e.Tabs sections=[workspace, agent] ← dynamic
+          strip │ └─ O7e.TrailingSection (right secondary nav — see §05) └─ O7e.Content ←
+          kind→renderer(props) dispatch, hide-not-unmount
+        </div>
+
+        <h3>Memo boundaries — what re-renders, when</h3>
+        <table>
+          <tr>
+            <th>Interaction</th>
+            <th>Re-renders</th>
+            <th>Stays stable</th>
+          </tr>
+          <tr>
+            <td>Active tab change</td>
+            <td>
+              <code>O7e.Tabs</code>, <code>O7e.Content</code>, affected <code>StableTab</code>s
+            </td>
+            <td>GlassRoot, DSI, BSI body, X5k</td>
+          </tr>
+          <tr>
+            <td>Body content change</td>
+            <td>that renderer subtree only (tabpanels are <code>hidden</code>, not unmounted)</td>
+            <td>toolbar, tab bar, shells</td>
+          </tr>
+          <tr>
+            <td>Resize drag</td>
+            <td>
+              <code>DSI</code> + its <code>mzn</code> drag state only (<code>data-resizing</code>)
+            </td>
+            <td><code>agentPanelProps</code> identity stable → BSI children don't thrash</td>
+          </tr>
+          <tr>
+            <td>Maximize toggle</td>
+            <td>GlassRoot gate (mount/unmount X5k/DSI); fullscreen button icon</td>
+            <td>everything else — CSS does the visual work</td>
+          </tr>
+        </table>
+
+        <h3>The tab-system primitive (<code>Imf</code> factory → <code>O7e</code> instance)</h3>
+        <p>
+          A factory takes a per-kind <b>renderer registry</b> and returns
+          <code
+            >{Root, Group, Bar, LeadingSection, SectionDivider, Tabs, TrailingSection, Content,
+            EmptyState, StableTab, useManager}</code
+          >. The shell carries <b>zero hard-coded per-panel header or body markup</b> — body is a
+          pure <code>kind → renderer(props)</code> table lookup:
+        </p>
+        <pre><code>O7e = Imf({
+  [Ri.Terminal]: { icon:"terminal",   defaultLabel:"Terminal", renderer:OnI },
+  [Ri.Browser]:  { icon:"globe",      renderer:AJA, alwaysMounted:true },
+  [Ri.File]:     { icon:"file",       renderer:sWA, alwaysMounted:true },
+  [Ri.Diff]:     { icon:"git-branch", renderer:KLk, alwaysMounted:true },
+  [Ri.Pr]:       { icon:"github",     renderer:v6A, keepMountedAfterFirstActivation:true },
+  [Ri.Canvas]:   { icon:"layers",     renderer:$JA, alwaysMounted:true },
+  // …14 kinds total: terminal, browser, file, gallery, plan, environmentSetup,
+  //   agentConversation, vnc, agentVnc, diff, agentChanges, output, pr, canvas
+});
+// Content dispatch: mountList = stableTabs ∪ {active} ∪ {alwaysMounted} ∪ {keepMounted&visited}
+//   per tab: <div role=tabpanel hidden={!active}> renderer(tab.props) </div></code></pre>
+        <p class="legend">
+          Adding a panel kind = one registry entry + a renderer. Per-kind flags
+          (<code>alwaysMounted</code>, <code>keepMountedAfterFirstActivation</code>) control mount
+          lifecycle.
+        </p>
+      </section>
+
+      <!-- ============================================================ -->
+      <section id="state">
+        <h2><span class="n">03</span>State model &amp; subscribe-at-consumer</h2>
+        <p>
+          Three DI services own all shell state; each is a hand-rolled emitter store (not
+          observables):
+        </p>
+        <table>
+          <tr>
+            <th>Service</th>
+            <th>Owns</th>
+            <th>Subscription surface</th>
+          </tr>
+          <tr>
+            <td><b>Tab manager</b> (<code>VNf</code>)</td>
+            <td>per-group tabs / stableTabs / activeTabId</td>
+            <td><code>subscribe(type, cb)</code> (type-filtered), <code>subscribeAll(cb)</code></td>
+          </tr>
+          <tr>
+            <td><b>Tab persistence</b> (<code>glassTabPersistenceService</code>)</td>
+            <td>high-level ops: createTerminal/Browser/Canvas/File, activateDiffTab…</td>
+            <td>consumers subscribe to <code>.manager.subscribeAll</code></td>
+          </tr>
+          <tr>
+            <td><b>Layout service</b> (<code>glassLayoutService</code>)</td>
+            <td>one immutable snapshot + pre-maximize fields</td>
+            <td><code>onDidChange(snapshot ⇒ …)</code></td>
+          </tr>
+          <tr>
+            <td><b>Command bridge</b> (<code>glassCommandBridgeService</code>)</td>
+            <td>typed pub/sub bus (88 event types) + late-listener replay buffer</td>
+            <td><code>onEmitted(type, cb)</code> via the <code>Ap()</code> hook</td>
+          </tr>
+        </table>
+
+        <h3>The anti-cascade mechanism (two layers)</h3>
+        <h4>(a) Selector hook with structural dedupe</h4>
+        <pre><code>function uxe(service, selector){               // = useSyncExternalStore
+  const subscribe   = cb =&gt; service.onDidChange(cb);
+  const getSnapshot = () =&gt; {
+    const next = selector(service.getSnapshot());
+    return V9t(prev, next) ? prev : (prev = next, next);  // structural-equality bail-out
+  };
+  return ac(subscribe, getSnapshot);
+}</code></pre>
+        <p>
+          A component selecting <code>{editorPanelVisible, editorPanelFullscreen}</code> re-renders
+          <em>only</em> when those change. Sash drags fire <code>onDidChange</code> but the selector
+          returns a <code>V9t</code>-equal object → React bails out.
+          <b>Width never reaches React</b> — it's applied via CSS variables / direct style writes.
+        </p>
+
+        <h4>(b) Inline event-type + id filtering inside the subscribe callback</h4>
+        <pre><code>// TabSystemTabs subscribes to everything but filters before notifying React  <span class="legend">@4357518</span>
+subscribe = notify =&gt; manager.subscribeAll(ev =&gt; {
+  TAB_LIST_EVENTS.has(ev.type) &amp;&amp; "groupId" in ev.payload &amp;&amp; ev.payload.groupId === myGroup &amp;&amp; notify();
+});
+// per-tab consumers additionally filter ev.payload.tabId === myTab
+// active tab is its OWN slice: manager.subscribe("activeTabIdChanged", notify)</code></pre>
+        <div class="callout good">
+          <b>Net effect:</b> a <code>tabDirtyChanged</code> on tab X in group A re-renders neither
+          group B's bar nor tab Y's item. The toolbar subscribes only to
+          <code>activeTabIdChanged</code> (or a <code>V9t</code>-deduped layout slice).
+          <b>The composition root subscribes to nothing volatile.</b> This is the single biggest
+          reason Cursor's toolbar/topbar don't churn.
+        </div>
+
+        <h3>Context keys + event bridge (instead of prop-threading)</h3>
+        <p>
+          One state mutation (<code>_recomputeAndEmit</code>) atomically (1) rebuilds the immutable
+          snapshot, (2) syncs context keys (<code>glassEditorPanelVisible</code>,
+          <code>glassEditorPanelFullscreen</code>, …) for keybinding <code>when</code>/<code
+            >toggled</code
+          >
+          clauses, (3) fires <code>onDidChange</code> for React consumers. Cross-tree UI intent
+          (e.g. opening the <code>+</code> menu) flows through the command bridge: the
+          <code>+</code> button <code>emit</code>s <code>editorPanelNewTabMenuRequested</code>; the
+          header <code>Ap()</code>s it into local <code>useState</code> — emitter and listener never
+          share a render path.
+        </p>
+      </section>
+
+      <!-- ============================================================ -->
+      <section id="tokens">
+        <h2><span class="n">04</span>Design tokens &amp; styling mechanism</h2>
+        <p>
+          See <a href="#tldr">§00</a> for the StyleX verdict. Below are the exact values to match
+          Cursor's chrome.
+        </p>
+
+        <div class="grid2">
+          <div class="card">
+            <h4>Radius</h4>
+            <table>
+              <tr>
+                <td><code>xs</code></td>
+                <td>2px (favicons)</td>
+              </tr>
+              <tr>
+                <td><code>md</code></td>
+                <td><b>6px — tabs/buttons/toggles (shell default)</b></td>
+              </tr>
+              <tr>
+                <td><code>lg</code></td>
+                <td>8px (cards, callouts)</td>
+              </tr>
+              <tr>
+                <td><code>xl</code></td>
+                <td>12px (conversation surfaces)</td>
+              </tr>
+              <tr>
+                <td>glass toolbar</td>
+                <td>16px</td>
+              </tr>
+              <tr>
+                <td>status dots</td>
+                <td>50%</td>
+              </tr>
+            </table>
+          </div>
+          <div class="card">
+            <h4>Spacing (scale = N × 0.25rem)</h4>
+            <table>
+              <tr>
+                <td>tab-bar / header row height</td>
+                <td><b>36px</b></td>
+              </tr>
+              <tr>
+                <td>header row padding</td>
+                <td>0 8px 0 6px</td>
+              </tr>
+              <tr>
+                <td>control gap</td>
+                <td>4px</td>
+              </tr>
+              <tr>
+                <td>tab padding</td>
+                <td>0 8px (pinned 0 6px)</td>
+              </tr>
+              <tr>
+                <td>tab max-width / gap</td>
+                <td>200px / 1px</td>
+              </tr>
+              <tr>
+                <td>conversation surface radius</td>
+                <td>12px</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        <h4>Borders &amp; glass</h4>
+        <table>
+          <tr>
+            <th>Element</th>
+            <th>Value</th>
+          </tr>
+          <tr>
+            <td>Header row dividers</td>
+            <td>
+              top &amp; bottom <code>1px solid var(--cursor-stroke-tertiary)</code> =
+              <code>color-mix(in srgb, var(--vscode-foreground) 8%, transparent)</code>
+            </td>
+          </tr>
+          <tr>
+            <td>Window frame (Win/Linux)</td>
+            <td>
+              <code>::after { box-shadow: inset 0 0 0 1px var(--glass-window-border) }</code>; macOS
+              uses OS rounding
+            </td>
+          </tr>
+          <tr>
+            <td>Glass surface (<code>.cursor-bg-glass</code>)</td>
+            <td>
+              <code
+                >backdrop-filter: blur(8px); background: color-mix(in srgb,
+                var(--cursor-bg-elevated) 92%, transparent)</code
+              >
+            </td>
+          </tr>
+          <tr>
+            <td>Floating toolbar glass</td>
+            <td>
+              <code>backdrop-filter: blur(16px)</code>, radius 16px,
+              <code>--cursor-box-shadow-xl</code>
+            </td>
+          </tr>
+          <tr>
+            <td>Elevation ladder</td>
+            <td>
+              every shadow <b>leads with a <code>0 0 0 1px</code> hairline ring</b> then stacks
+              ambient + directional shadows
+            </td>
+          </tr>
+        </table>
+
+        <h4>Tabs (state model) — filled pill, no underline</h4>
+        <table>
+          <tr>
+            <th>State</th>
+            <th>Styling</th>
+          </tr>
+          <tr>
+            <td>Base</td>
+            <td>
+              radius 6px; <code>border:1px solid transparent</code>; bg transparent;
+              <code>color:var(--cursor-text-tertiary)</code>
+            </td>
+          </tr>
+          <tr>
+            <td>Hover <span class="legend">(@media hover:hover and pointer:fine)</span></td>
+            <td>
+              bg <code>--cursor-bg-card</code>; text primary; long labels get a right-edge mask fade
+            </td>
+          </tr>
+          <tr>
+            <td>Active</td>
+            <td>
+              <b>filled pill</b> bg <code>--cursor-bg-quaternary</code> + primary text (no
+              bottom-border indicator)
+            </td>
+          </tr>
+          <tr>
+            <td>Focus-visible</td>
+            <td>
+              <code>box-shadow: inset 0 0 0 2px var(--cursor-stroke-focused)</code>, no outline
+            </td>
+          </tr>
+          <tr>
+            <td>Close button</td>
+            <td>
+              hidden (<code>opacity:0</code>) until tab hovered;
+              <code>-webkit-app-region:no-drag</code>
+            </td>
+          </tr>
+        </table>
+
+        <h4>Animation</h4>
+        <div class="callout">
+          <b>Signature maximize/resize easing:</b>
+          <code>300ms cubic-bezier(0.215, 0.61, 0.355, 1)</code> (easeOutCubic). Secondary dims at
+          <code>160ms ease-out</code>. Everything gated behind
+          <code>@media (prefers-reduced-motion: reduce) → 0.01ms</code> and a
+          <code>[data-suppress-motion]</code> escape hatch.
+        </div>
+
+        <h4>Drop-in Honk token layer (Tailwind v4 <code>@theme</code> + <code>:root</code>)</h4>
+        <pre><code>@theme {
+  --radius-xs:.125rem; --radius-md:.375rem; --radius-lg:.5rem; --radius-xl:.75rem;
+  --spacing:.25rem;
+  --ease-shell:cubic-bezier(.215,.61,.355,1);   /* Cursor's maximize curve */
+}
+:root{
+  --honk-text-primary:var(--honk-fg);
+  --honk-text-tertiary:  color-mix(in srgb, var(--honk-fg) 54%, transparent);
+  --honk-stroke-tertiary:color-mix(in srgb, var(--honk-fg)  8%, transparent);  /* dividers */
+  --honk-bg-quaternary:  color-mix(in srgb, var(--honk-fg)  6%, transparent);  /* active tab pill */
+  --honk-bg-card:        color-mix(in srgb, var(--honk-fg)  4%, transparent);  /* tab hover */
+  --honk-stroke-focused: var(--honk-focus,#4493f8);
+  --glass-window-border: color-mix(in srgb, var(--honk-fg) 14%, transparent);
+  --honk-shadow-xl: 0 0 0 1px var(--glass-window-border), 0 0 4px 0 var(--honk-shadow),
+                    0 12px 24px 0 var(--honk-shadow), 0 24px 36px 0 var(--honk-shadow);
+}
+.honk-glass{ backdrop-filter:blur(8px);
+  background-color:color-mix(in srgb, var(--honk-bg-elevated) 92%, transparent); }</code></pre>
+      </section>
+
+      <!-- ============================================================ -->
+      <section id="chrome">
+        <h2><span class="n">05</span>Top nav &amp; right secondary nav</h2>
+        <p>
+          The bar is one <code>O7e.Bar</code> with two children: a leading cluster + the
+          <code>TrailingSection</code> (right secondary nav).
+        </p>
+
+        <h3>Leading cluster (left)</h3>
+        <ul>
+          <li>
+            <b>macOS traffic-lights spacer</b> (<code>GBo</code>) — reserves window-button width.
+          </li>
+          <li>
+            <b>Sidebar controls</b> (<code>W4v</code>): agent picker + Search button (icon
+            <code>search</code>, label "Search").
+          </li>
+          <li><b>New Agent</b> (<code>p5k</code>): icon <code>plus</code>, label "New Agent".</li>
+          <li><b>Agent title-tab</b> (<code>ISI</code>) + SectionDivider, capped at 10.5rem.</li>
+          <li>
+            <b>StableTabs</b>: Environment / Changes(+ review pill) / Cloud Desktop — non-closable
+            singletons.
+          </li>
+          <li>
+            <b>O7e.Tabs</b>: dynamic, closable, draggable, renameable tabs split into
+            <code>workspace</code> + <code>agent</code> sections.
+          </li>
+        </ul>
+
+        <h3>Right secondary nav (<code>TrailingSection</code>) — DOM order left→right</h3>
+        <table>
+          <tr>
+            <th>#</th>
+            <th>Control</th>
+            <th>Icon</th>
+            <th>Label</th>
+            <th>Command</th>
+            <th>When</th>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>Connecting status</td>
+            <td>spinner</td>
+            <td>"Connecting to Workspace"</td>
+            <td>—</td>
+            <td>connecting</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Connection / Reconnect (<code>MSI</code>)</td>
+            <td>spinner</td>
+            <td>"Preparing…"/"Disconnected"/"Reconnect"</td>
+            <td><code>reconnectWorkspace</code></td>
+            <td>disconnected (cloud)</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>
+              <b>New Tab <code>+</code></b> (<code>_SI</code>)
+            </td>
+            <td><code>plus</code></td>
+            <td>"New Tab"</td>
+            <td>opens NewTabMenu</td>
+            <td>always</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>Port-Forwarding menu (<code>WwI</code>)</td>
+            <td><code>globe</code></td>
+            <td>"Forwarded ports"</td>
+            <td><code>forwardPort</code> etc.</td>
+            <td><b>remote only</b></td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td><b>Fullscreen toggle</b> (<code>$o</code>)</td>
+            <td>arrows-expand / contract</td>
+            <td>"Enter/Exit Full Screen"</td>
+            <td><code>setEditorPanelFullscreen</code></td>
+            <td>isFullscreen ∨ canFullscreen</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td><b>Hide Panel</b> (<code>YLp</code>)</td>
+            <td>layout-sidebar-right-off</td>
+            <td>"Hide Panel"</td>
+            <td><code>toggleEditorPanelByUserIntent</code></td>
+            <td>always</td>
+          </tr>
+        </table>
+        <p class="legend">
+          There is no separate "remote button" (prior guess corrected): the remote-conditional
+          control is the port-forwarding menu, and "maximize" / "fullscreen" are the same control
+          (<code>$o</code>).
+        </p>
+
+        <h3>The <code>+</code> NewTabMenu (<code>_SI</code>)</h3>
+        <p>
+          A global menu for spawning <em>dynamic tab kinds</em>: search input placeholder
+          <code>"Open any file, URL, ..."</code>; empty-query items = Changes / Terminal / Browser /
+          File / Canvas (each → a <code>glassTabPersistenceService</code> create method); with-query
+          = URL → browser tab, fuzzy Files → open file, web suggestions. Open state lives in the
+          shell, driven by the <code>editorPanelNewTabMenuRequested</code> event.
+        </p>
+
+        <h3>
+          Per-panel secondary header (<code>KDp</code> / <code>.editor-panel-tab-header-row</code>)
+        </h3>
+        <p>
+          Full-width inside each renderer, above the list+viewer split:
+          <code
+            >height:36px; display:flex; justify-content:space-between; gap:4px; padding:0 8px 0 6px;
+            border-top &amp; border-bottom 1px solid stroke-tertiary</code
+          >. Resizing the inner split uses a shared hook <code>mzn</code> (clamps width, sets
+          <code>cursor:col-resize</code>, disables webview pointer events, double-click resets) +
+          handle <code>Ojt</code> (<code>.glass-resize-handle</code>).
+        </p>
+      </section>
+
+      <!-- ============================================================ -->
+      <section id="honk">
+        <h2><span class="n">06</span>Honk action plan</h2>
+        <div class="callout good">
+          <b>Honk's 3-shell split already exists and is faithful.</b> The structural port is done;
+          what remains is a generic tab registry, subscription consolidation, and adopting Cursor's
+          exact maximize semantics + tokens.
+        </div>
+
+        <h3>Cursor → Honk component map</h3>
+        <table>
+          <tr>
+            <th>Cursor</th>
+            <th>Honk (<code>shell/shell/</code>)</th>
+            <th>Status</th>
+          </tr>
+          <tr>
+            <td><code>OPI</code> GlassRoot</td>
+            <td>
+              <code>RightAside</code> (memo, <code>content</code> useMemo'd ≈ stable
+              <code>mt</code>)
+            </td>
+            <td><span class="tag done">match</span></td>
+          </tr>
+          <tr>
+            <td><code>X1I</code> left switcher</td>
+            <td><code>LeftAside</code> (own width subscription + sash)</td>
+            <td><span class="tag done">match</span></td>
+          </tr>
+          <tr>
+            <td><code>DSI</code> EditorPanelResizeShell</td>
+            <td><code>RightAsideFrame</code> (drag state, mount gate, sash, renders children)</td>
+            <td><span class="tag done">match</span></td>
+          </tr>
+          <tr>
+            <td><code>BSI</code> EditorPanelMainShell</td>
+            <td><code>RightWorkbenchContent</code> → <code>TabsRoot</code> + header + panels</td>
+            <td><span class="tag done">match</span></td>
+          </tr>
+          <tr>
+            <td><code>PMv.Provider</code></td>
+            <td><code>RightWorkbenchPanelRuntimeContext</code></td>
+            <td><span class="tag done">match</span></td>
+          </tr>
+          <tr>
+            <td>fullscreen toggle (ctx-key, icon-swap)</td>
+            <td><code>RightWorkbenchFullscreenToggle</code> (memo leaf)</td>
+            <td><span class="tag done">already mirrored</span></td>
+          </tr>
+          <tr>
+            <td><code>data-cursor-glass-mode</code></td>
+            <td><code>data-honk-glass-mode</code> + <code>ShellFullscreenLayer</code></td>
+            <td><span class="tag done">match</span></td>
+          </tr>
+          <tr>
+            <td><code>O7e</code> tab primitive + per-kind registry</td>
+            <td><code>@honk/honkkit/tabs</code> + per-tab node map (no registry)</td>
+            <td><span class="tag add">gap</span></td>
+          </tr>
+          <tr>
+            <td><code>O7e.Content</code> dispatch flags</td>
+            <td><code>RightAsidePanels</code> (lazy + keepMounted, no per-kind flags)</td>
+            <td><span class="tag add">partial</span></td>
+          </tr>
+        </table>
+
+        <h3>Prioritized work items</h3>
+        <ol>
+          <li>
+            <b>Maximize semantics (highest value).</b> Model maximize as a flag that hides
+            <u>only the center column</u>, not the sidebars. Snapshot
+            <code>rightWidthBeforeMaximize</code>; grow the workbench to
+            <code>shellWidth − leftSidebarWidth − railWidths</code>;
+            <b>never touch <code>leftOpen</code> / left width</b>. Restore from the snapshot
+            (default fraction ≈ 0.4). Persist <code>chatMaximized</code> + the snapshot.
+            <span class="tag keep">do</span>
+          </li>
+          <li>
+            <b>Top bar re-positions, never re-renders.</b> Render the header pinned
+            (sticky/absolute) over the shell root; reserve space with padding (Cursor's
+            <code>padding-top:35px</code>). Drive any visual shift from
+            <code>data-chat-maximized</code> on a stable ancestor + Tailwind
+            <code>data-[chat-maximized=true]:</code> variants —
+            <b>never pass the boolean as a header prop.</b> If actions must relocate, render once
+            and move via CSS (order/grid-area), à la <code>doUpdateActionsPositioning</code>.
+            <span class="tag keep">do</span>
+          </li>
+          <li>
+            <b>Width/drag out of React.</b> Commit resize via CSS variables in a thin
+            <code>ShellWidthLayer</code> leaf; write the store only <code>onCommit</code>. Move
+            <code>useRightWidth</code>/<code>useLeftWidth</code> off <code>AppShell</code>.
+            <span class="tag keep">do</span>
+          </li>
+          <li>
+            <b>Consolidate subscriptions.</b> Collapse the 4–7 separate panel-store hooks into one
+            <code>useWorkspaceLayout(key, selector)</code> over a single snapshot, with
+            <b>explicit</b> structural-equality dedupe (no React Compiler → must be manual, like
+            <code>uxe</code>/<code>V9t</code>). Extend the "no volatile hook here" invariant from
+            <code>RightAside</code> to <code>AppShell</code>. <span class="tag keep">do</span>
+          </li>
+          <li>
+            <b>Tab-renderer registry.</b> Lift the panel map into a
+            <code
+              >{id, icon, label, renderer, alwaysMounted?, keepMountedAfterFirstActivation?}</code
+            >
+            table; have <code>RightAsidePanels</code> dispatch from it (it already does mount
+            bookkeeping). <span class="tag add">optional</span>
+          </li>
+          <li>
+            <b>Adopt the token layer</b> from <a href="#tokens">§04</a> (radius/spacing/glass/stroke
+            + easeOutCubic). <span class="tag keep">do</span>
+          </li>
+          <li>
+            <b>Tiny event bridge</b> (<code>emit</code>/<code>useShellEvent</code>) for new-terminal
+            / close-tab / new-tab-menu / focus-editor → stops prop-threading callbacks into the
+            memoized header. <span class="tag add">optional</span>
+          </li>
+        </ol>
+
+        <h3>Explicitly skip (Cursor-specific, not for a fixed-tab workbench)</h3>
+        <ul>
+          <li>
+            <span class="tag skip">skip</span> Global <code>+</code> NewTabMenu — its whole purpose
+            is creating arbitrary dynamic tab kinds. Honk's fixed tabs (Files/Git/Terminal/Dev) have
+            nothing to "add". Retire the legacy <code>WorkbenchTabBar</code> that ported it.
+          </li>
+          <li>
+            <span class="tag skip">skip</span> Workspace connection status + Port-Forwarding menu —
+            cloud/remote only.
+          </li>
+          <li>
+            <span class="tag skip">skip</span> Agent picker / New Agent / agent title-tab cluster +
+            macOS traffic-light spacer in the workbench bar — those are agent-window chrome.
+          </li>
+          <li>
+            <span class="tag skip">skip</span> Tab drag-to-reorder / tiling / preview / launcher
+            tabs — overkill for four fixed tabs.
+          </li>
+        </ul>
+        <div class="callout warn">
+          <b>Consider adding</b> <span class="tag add">add</span> a fullscreen/maximize toggle to
+          Honk's trailing region (mirror <code>$o</code>: enter/exit label + icon swap), and
+          standardize the per-panel <code>editor-panel-tab-header-row</code> + shared resize
+          hook/handle across renderers.
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <section id="appendix">
+        <h2><span class="n">07</span>Appendix — symbol / offset map</h2>
+        <p class="legend">
+          Byte offsets into <code>workbench.desktop.main.js</code> (61,206,523 bytes, single line).
+          Minified names drift between builds — re-anchor on stable string literals
+          (<code>editorPanelNewTabMenuRequested</code>, <code>"Open any file"</code>, class names,
+          context-key names). Do <b>not</b> <code>rg</code> the JS; use Node <code>indexOf</code> +
+          <code>slice</code> windowing. The 2&nbsp;MB CSS is grep-friendly.
+        </p>
+        <table>
+          <tr>
+            <th>Symbol</th>
+            <th>Role</th>
+            <th>Offset</th>
+          </tr>
+          <tr>
+            <td><code>OPI</code></td>
+            <td>GlassRoot</td>
+            <td>~59,151,400</td>
+          </tr>
+          <tr>
+            <td><code>X1I</code></td>
+            <td>left switcher / GlassSidebar</td>
+            <td>58,875,797</td>
+          </tr>
+          <tr>
+            <td><code>DSI</code></td>
+            <td>EditorPanelResizeShell</td>
+            <td>58,663,412</td>
+          </tr>
+          <tr>
+            <td><code>BSI</code></td>
+            <td>EditorPanelMainShell</td>
+            <td>58,667,485</td>
+          </tr>
+          <tr>
+            <td><code>fwI</code></td>
+            <td>AgentPanelFrame</td>
+            <td>58,529,216</td>
+          </tr>
+          <tr>
+            <td><code>wwI</code></td>
+            <td>agent panel body</td>
+            <td>58,532,266</td>
+          </tr>
+          <tr>
+            <td><code>Imf</code> / <code>O7e</code></td>
+            <td>tab-system factory / instance</td>
+            <td>4,372,438 / 57,745,878</td>
+          </tr>
+          <tr>
+            <td><code>_SI</code> / <code>yUk</code></td>
+            <td>NewTabMenu / results</td>
+            <td>58,651,xxx / 58,650,260</td>
+          </tr>
+          <tr>
+            <td><code>YLp</code></td>
+            <td>Hide-Panel + fullscreen split-menu</td>
+            <td>58,283,326</td>
+          </tr>
+          <tr>
+            <td><code>KDp</code></td>
+            <td>per-panel secondary header</td>
+            <td>56,490,984</td>
+          </tr>
+          <tr>
+            <td><code>mzn</code> / <code>Ojt</code></td>
+            <td>resize hook / handle</td>
+            <td>55,794,940 / 55,824,957</td>
+          </tr>
+          <tr>
+            <td><code>uxe</code> / <code>V9t</code></td>
+            <td>selector hook / structural-equality</td>
+            <td>55,714,553 / 472,579</td>
+          </tr>
+          <tr>
+            <td><code>setEditorHidden</code></td>
+            <td>hides editor leaf, regrows aux bar</td>
+            <td>43,318,228</td>
+          </tr>
+          <tr>
+            <td><code>setUnifiedMaximizeState</code></td>
+            <td>snapshot + hide parts</td>
+            <td>43,276,669</td>
+          </tr>
+          <tr>
+            <td><code>updateActionsPositioning</code></td>
+            <td>RAF re-parent of toolbar</td>
+            <td>60,079,192</td>
+          </tr>
+          <tr>
+            <td><code>j4e</code></td>
+            <td><code>agentChatMaximized</code> context key</td>
+            <td>27,137,142</td>
+          </tr>
+          <tr>
+            <td>titlebar maximize subscription</td>
+            <td>RAF on key change</td>
+            <td>60,057,154</td>
+          </tr>
+        </table>
+        <p class="legend">
+          Honk shell files:
+          <code
+            >packages/app/src/components/shell/shell/{app.tsx, right-workbench-layout.tsx,
+            right-workbench-header.tsx, right-workbench-tool-island.tsx, workbench-tabs.tsx,
+            workbench-panel.tsx, use-shell-layout.ts, shell-layout.ts, use-column-resize.ts}</code
+          >, <code>packages/honkkit/src/{workbench-chrome-row.tsx, tabs.tsx}</code>.
+        </p>
+      </section>
+
+      <footer>
+        Generated 2026-06-13 from a 5-agent Opus dissection of Cursor.app's workbench bundle.
+        Findings cross-validated across agents; offsets are build-specific. This document is
+        reference material for Honk's shell re-componentization — see the memory notes
+        <code>cursor-agent-window-architecture</code> and
+        <code>honk-shell-recomponentization</code>.
+      </footer>
+    </div>
+  </body>
+</html>

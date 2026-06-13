@@ -1,7 +1,4 @@
-import {
-  isWindowsDrivePath,
-  stripWindowsDriveLeadingSlash,
-} from "@honk/shared/paths";
+import { isWindowsDrivePath, stripWindowsDriveLeadingSlash } from "@honk/shared/paths";
 
 import { formatProjectRelativePath } from "../shared/file-path-display";
 import { resolvePathLinkTarget, splitPathAndPosition } from "../../../lib/terminal-links";
@@ -108,9 +105,7 @@ function isLikelyPathCandidate(path: string): boolean {
 function isRelativePath(path: string): boolean {
   return (
     RELATIVE_PATH_PREFIX_PATTERN.test(path) ||
-    (!path.startsWith("/") &&
-      !isWindowsDrivePath(path) &&
-      !WINDOWS_UNC_PATH_PATTERN.test(path))
+    (!path.startsWith("/") && !isWindowsDrivePath(path) && !WINDOWS_UNC_PATH_PATTERN.test(path))
   );
 }
 

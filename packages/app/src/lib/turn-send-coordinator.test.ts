@@ -1,9 +1,11 @@
 import {
+  EventId,
   EnvironmentId,
   MessageId,
   ProjectId,
   ThreadId,
   TurnId,
+  threadEntryIdForMessageId,
   type EnvironmentApi,
   type LocalApi,
   type HonkRuntimeApi,
@@ -34,6 +36,10 @@ import {
   reconcileTurnSendFailure,
   type CoordinateTurnSendInput,
 } from "./turn-send-coordinator";
+import {
+  deriveThreadBranchView,
+  filterMessagesToBranch,
+} from "~/components/chat/view/thread-branch-view";
 
 const environmentId = EnvironmentId.make("environment:turn-coordinator");
 const threadId = ThreadId.make("thread:turn-coordinator");
@@ -67,6 +73,8 @@ function createRuntimeApi(input: {
     },
     abort: async () => undefined,
     respondToExtensionUiRequest: async () => undefined,
+    listSkills: async () => ({ skills: [] }),
+    getThreadSessionFile: async () => ({ path: null }),
     onHostEvent: () => () => undefined,
   };
 }
@@ -81,6 +89,7 @@ function createLocalApi(runtime: HonkRuntimeApi): LocalApi {
     shell: {
       openInEditor: async () => notCalled(),
       openExternal: async () => undefined,
+      showItemInFolder: async () => undefined,
     },
     contextMenu: {
       show: async () => null,
@@ -116,6 +125,7 @@ function createOrchestrationApi(input: {
       readFile: async () => notCalled(),
       searchEntries: async () => notCalled(),
       writeFile: async () => notCalled(),
+      deleteFile: async () => notCalled(),
     },
     filesystem: {
       browse: async () => notCalled(),
@@ -152,6 +162,7 @@ function baseCoordinateInput(input: {
   startRuntimeBeforePersistence?: boolean;
   persistBeforeDispatch?: () => Promise<void>;
   bootstrap?: Parameters<typeof buildThreadTurnStartCommand>[0]["bootstrap"];
+  replacesClientMessageId?: MessageId | null;
 }) {
   return {
     environmentId,
@@ -171,6 +182,9 @@ function baseCoordinateInput(input: {
     cwd,
     preparedPolicy: input.preparedPolicy,
     api: input.api,
+    ...(input.replacesClientMessageId !== undefined
+      ? { replacesClientMessageId: input.replacesClientMessageId }
+      : {}),
     ...(input.appendSendIntent !== undefined ? { appendSendIntent: input.appendSendIntent } : {}),
     ...(input.applyLocalTurnStart !== undefined
       ? { applyLocalTurnStart: input.applyLocalTurnStart }
@@ -295,6 +309,7 @@ describe("turn-send-coordinator", () => {
         cwd,
         input: "fix the chat",
         clientMessageId: messageId,
+        replacesClientMessageId: null,
       }),
     ]);
     expect(useThreadSendIntentStore.getState().sendIntentsByThreadKey[threadKey]).toEqual([
@@ -354,6 +369,44 @@ describe("turn-send-coordinator", () => {
     });
 
     expect(command).toHaveProperty("parentEntryId", null);
+  });
+
+  it("passes replacesClientMessageId to runtime sends for branching edits", async () => {
+    const originalMessageId = MessageId.make("message:original-edit");
+    const sentTurns: ThreadAgentRuntimeSendTurnInput[] = [];
+    const snapshot = {
+      ...createEmptyRuntimeHostSnapshot(),
+      diagnostics: [],
+    };
+    vi.stubGlobal("window", {
+      nativeApi: createLocalApi(
+        createRuntimeApi({
+          snapshot,
+          onSendTurn: (turn) => {
+            sentTurns.push(turn);
+          },
+        }),
+      ),
+    });
+    const api = createOrchestrationApi({});
+    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent", modelSelection });
+
+    await coordinateTurnSend(
+      baseCoordinateInput({
+        api,
+        preparedPolicy,
+        appendSendIntent: false,
+        applyLocalTurnStart: false,
+        replacesClientMessageId: originalMessageId,
+      }),
+    );
+
+    expect(sentTurns[0]).toEqual(
+      expect.objectContaining({
+        clientMessageId: messageId,
+        replacesClientMessageId: originalMessageId,
+      }),
+    );
   });
 
   it("skips send intent when callers already announced optimistic state", async () => {
@@ -568,5 +621,90 @@ describe("turn-send-coordinator", () => {
       threadId,
     );
     expect(afterThread?.messages.some((message) => message.id === messageId)).toBe(false);
+  });
+
+  it("moves the optimistic branch leaf so stale descendants are hidden immediately", () => {
+    const originalMessageId = MessageId.make("message:original-branch");
+    const originalAssistantMessageId = MessageId.make("message:original-assistant");
+    const replacementMessageId = MessageId.make("message:replacement-branch");
+    applyLocalThreadCreated({
+      environmentId,
+      threadId,
+      projectId: ProjectId.make("project:turn-coordinator"),
+      title: "Local thread",
+      modelSelection,
+      interactionMode: "agent",
+      branch: "main",
+      worktreePath: null,
+      createdAt,
+    });
+    applyLocalThreadTurnStartRequested({
+      environmentId,
+      threadId,
+      message: {
+        messageId: originalMessageId,
+        text: "original",
+        attachments: [],
+      },
+      modelSelection,
+      titleSeed: "Local thread",
+      runtimeMode: DEFAULT_RUNTIME_MODE,
+      interactionMode: "agent",
+      parentEntryId: null,
+      createdAt,
+    });
+    useStore.getState().applyOrchestrationEvent(
+      {
+        sequence: 1,
+        eventId: EventId.make("event:assistant-branch"),
+        aggregateKind: "thread",
+        aggregateId: threadId,
+        occurredAt: "2026-06-08T12:00:01.000Z",
+        commandId: null,
+        causationEventId: null,
+        correlationId: null,
+        metadata: {},
+        type: "thread.message-sent",
+        payload: {
+          threadId,
+          messageId: originalAssistantMessageId,
+          entryId: threadEntryIdForMessageId(originalAssistantMessageId),
+          parentEntryId: threadEntryIdForMessageId(originalMessageId),
+          role: "assistant",
+          text: "old answer",
+          attachments: [],
+          turnId: null,
+          streaming: false,
+          createdAt: "2026-06-08T12:00:01.000Z",
+          updatedAt: "2026-06-08T12:00:01.000Z",
+        },
+      },
+      environmentId,
+    );
+    applyLocalThreadTurnStartRequested({
+      environmentId,
+      threadId,
+      message: {
+        messageId: replacementMessageId,
+        text: "original",
+        attachments: [],
+      },
+      modelSelection,
+      titleSeed: "Local thread",
+      runtimeMode: DEFAULT_RUNTIME_MODE,
+      interactionMode: "agent",
+      parentEntryId: null,
+      createdAt: "2026-06-08T12:00:02.000Z",
+    });
+
+    const thread = getThreadFromEnvironmentState(
+      selectEnvironmentState(useStore.getState(), environmentId),
+      threadId,
+    );
+    expect(thread?.leafId).toBe(threadEntryIdForMessageId(replacementMessageId));
+
+    const branchView = deriveThreadBranchView(thread ?? null, thread?.leafId ?? null);
+    const visibleMessages = filterMessagesToBranch(thread?.messages ?? [], branchView);
+    expect(visibleMessages.map((message) => message.id)).toEqual([replacementMessageId]);
   });
 });

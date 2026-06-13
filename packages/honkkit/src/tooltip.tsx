@@ -40,9 +40,7 @@ function TooltipPopup({
         anchor={anchor}
         className={cn(
           "h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-[top,left,right,bottom,transform] data-instant:transition-none",
-          workbench
-            ? "z-(--z-index-workbench-tooltip)"
-            : "z-(--z-index-tooltip)",
+          workbench ? "z-(--z-index-workbench-tooltip)" : "z-(--z-index-tooltip)",
         )}
         data-slot="tooltip-positioner"
         side={side}

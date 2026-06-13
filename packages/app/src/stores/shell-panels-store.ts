@@ -819,8 +819,6 @@ export const shellPanelsActions = {
     useShellPanelsStore.getState().addTerminalSession(workspaceKey, session),
   removeTerminalSession: (workspaceKey: string | null, terminalId: string) =>
     useShellPanelsStore.getState().removeTerminalSession(workspaceKey, terminalId),
-  setBrowserWorkbenchState: (
-    workspaceKey: string | null,
-    patch: Partial<BrowserWorkbenchState>,
-  ) => useShellPanelsStore.getState().setBrowserWorkbenchState(workspaceKey, patch),
+  setBrowserWorkbenchState: (workspaceKey: string | null, patch: Partial<BrowserWorkbenchState>) =>
+    useShellPanelsStore.getState().setBrowserWorkbenchState(workspaceKey, patch),
 };

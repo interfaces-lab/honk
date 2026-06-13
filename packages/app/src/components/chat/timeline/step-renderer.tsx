@@ -92,11 +92,7 @@ export function StepRenderer({
 
     case "runtime-tool":
       return (
-        <RuntimeToolStepRenderer
-          step={step}
-          ctx={ctx}
-          defaultEditExpanded={defaultEditExpanded}
-        />
+        <RuntimeToolStepRenderer step={step} ctx={ctx} defaultEditExpanded={defaultEditExpanded} />
       );
 
     case "runtime-task":
@@ -109,9 +105,7 @@ export function StepRenderer({
       return <RuntimeExtensionUiRequestStepRenderer step={step} />;
 
     case "work":
-      return (
-        <WorkStepRenderer step={step} ctx={ctx} defaultEditExpanded={defaultEditExpanded} />
-      );
+      return <WorkStepRenderer step={step} ctx={ctx} defaultEditExpanded={defaultEditExpanded} />;
 
     case "waiting":
       return <WaitingStepRenderer step={step} />;
@@ -386,8 +380,9 @@ function RuntimeTaskStepRenderer({
   step: TimelineRuntimeTaskStep;
   ctx: StepRendererContext;
 }) {
-  // Subagent display items route through ToolCallRenderer's taskToolCall chrome (Cursor O4b
-  // parity): collapsible task header with the subagent tray rows as its body.
+  // Subagent display items render as bare status rows (Cursor parity): name + model with
+  // the latest update beneath, no Task header. The taskToolCall chrome only appears as the
+  // fallback while a run has no reportable subagents yet.
   return (
     <RuntimeToolCallMessage
       tool={step.tool}

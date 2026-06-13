@@ -74,13 +74,31 @@ interface SidebarThreadVisitInput {
 type VisibleSidebarDraftShellTuple = readonly [draftId: string, draftThread: DraftThreadState];
 type VisibleSidebarDraftShellEntry = string | DraftThreadState;
 
-function composerDraftHasVisibleContent(draft: ComposerThreadDraftState | undefined): boolean {
-  return Boolean(
-    draft &&
-    (draft.prompt.trim().length > 0 ||
-      draft.images.length > 0 ||
-      draft.persistedAttachments.length > 0),
+function deriveVisibleSidebarDraftKeys(draftThread: DraftThreadState): {
+  promotedThreadKey: string | null;
+  draftThreadKey: string;
+} {
+  const promotedThreadKey = draftThread.promotedTo ? scopedThreadKey(draftThread.promotedTo) : null;
+  const draftThreadKey = scopedThreadKey(
+    scopeThreadRef(draftThread.environmentId, draftThread.threadId),
   );
+  return { promotedThreadKey, draftThreadKey };
+}
+
+function draftThreadHasLocalSendArtifact(
+  keys: ReturnType<typeof deriveVisibleSidebarDraftKeys>,
+  localSendTitleByThreadKey: ReadonlyMap<string, string | null>,
+): boolean {
+  return (
+    localSendTitleByThreadKey.has(keys.draftThreadKey) ||
+    (keys.promotedThreadKey !== null && localSendTitleByThreadKey.has(keys.promotedThreadKey))
+  );
+}
+
+export function composerDraftHasVisibleContent(
+  draft: ComposerThreadDraftState | undefined,
+): boolean {
+  return Boolean(draft && (draft.prompt.trim().length > 0 || draft.images.length > 0));
 }
 
 export function needsSidebarAttention(
@@ -196,52 +214,43 @@ export function useAgentSidebarModel(input: {
       ),
     [input.sidebarThreads],
   );
-  const localSendArtifactEntries = useThreadSendIntentStore(
+  const localSendTitleRecord = useThreadSendIntentStore(
     useShallow((store) => {
-      const entries: string[] = [];
+      const titles: Record<string, string | null> = {};
       const seenThreadKeys = new Set<string>();
       for (const [threadKey, intents] of Object.entries(store.sendIntentsByThreadKey)) {
         const title = intents?.at(-1)?.text.trim() ?? "";
-        entries.push(threadKey, title);
+        titles[threadKey] = title || null;
         seenThreadKeys.add(threadKey);
       }
       for (const [threadKey, dispatch] of Object.entries(store.localDispatchByThreadKey)) {
         if (!dispatch || seenThreadKeys.has(threadKey)) {
           continue;
         }
-        entries.push(threadKey, "");
+        titles[threadKey] = null;
       }
-      return entries;
+      return titles;
     }),
   );
   const localSendTitleByThreadKey = useMemo(() => {
     const titles = new Map<string, string | null>();
-    for (let index = 0; index < localSendArtifactEntries.length; index += 2) {
-      const threadKey = localSendArtifactEntries[index];
-      const title = localSendArtifactEntries[index + 1];
-      if (!threadKey) {
-        continue;
-      }
-      titles.set(threadKey, title?.trim() || null);
+    for (const [threadKey, title] of Object.entries(localSendTitleRecord)) {
+      titles.set(threadKey, title);
     }
     return titles;
-  }, [localSendArtifactEntries]);
+  }, [localSendTitleRecord]);
   const visibleDraftShellEntries = useComposerDraftStore(
     useShallow((store) => {
       const entries: VisibleSidebarDraftShellEntry[] = [];
       for (const [draftId, draftThread] of Object.entries(store.draftThreadsByThreadKey)) {
-        const promotedThreadKey = draftThread.promotedTo
-          ? scopedThreadKey(draftThread.promotedTo)
-          : null;
-        const draftThreadKey = scopedThreadKey(
-          scopeThreadRef(draftThread.environmentId, draftThread.threadId),
+        const draftKeys = deriveVisibleSidebarDraftKeys(draftThread);
+        const hasSidebarThread = draftKeys.promotedThreadKey
+          ? sidebarThreadKeySet.has(draftKeys.promotedThreadKey)
+          : sidebarThreadKeySet.has(draftKeys.draftThreadKey);
+        const hasLocalSendArtifact = draftThreadHasLocalSendArtifact(
+          draftKeys,
+          localSendTitleByThreadKey,
         );
-        const hasSidebarThread = promotedThreadKey
-          ? sidebarThreadKeySet.has(promotedThreadKey)
-          : sidebarThreadKeySet.has(draftThreadKey);
-        const hasLocalSendArtifact =
-          localSendTitleByThreadKey.has(draftThreadKey) ||
-          (promotedThreadKey !== null && localSendTitleByThreadKey.has(promotedThreadKey));
         if (hasSidebarThread) {
           continue;
         }
@@ -265,19 +274,17 @@ export function useAgentSidebarModel(input: {
       if (typeof draftId !== "string" || typeof draftThread === "string" || !draftThread) {
         continue;
       }
-      const promotedThreadKey = draftThread.promotedTo
-        ? scopedThreadKey(draftThread.promotedTo)
-        : null;
-      const draftThreadKey = scopedThreadKey(
-        scopeThreadRef(draftThread.environmentId, draftThread.threadId),
-      );
+      const draftKeys = deriveVisibleSidebarDraftKeys(draftThread);
       const localSendTitle =
-        (promotedThreadKey ? localSendTitleByThreadKey.get(promotedThreadKey) : undefined) ??
-        localSendTitleByThreadKey.get(draftThreadKey) ??
+        (draftKeys.promotedThreadKey
+          ? localSendTitleByThreadKey.get(draftKeys.promotedThreadKey)
+          : undefined) ??
+        localSendTitleByThreadKey.get(draftKeys.draftThreadKey) ??
         null;
-      const hasLocalSendArtifact =
-        localSendTitleByThreadKey.has(draftThreadKey) ||
-        (promotedThreadKey !== null && localSendTitleByThreadKey.has(promotedThreadKey));
+      const hasLocalSendArtifact = draftThreadHasLocalSendArtifact(
+        draftKeys,
+        localSendTitleByThreadKey,
+      );
       shells.push({
         id: draftId,
         environmentId: draftThread.environmentId,

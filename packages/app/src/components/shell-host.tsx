@@ -99,6 +99,7 @@ import type { Thread } from "~/types";
 import { sidebarSelectionIdForChatRoute, useChatRouteTarget } from "~/app/chat-route-state";
 import { GitPanel } from "./shell/git/panel";
 import { ProjectFilesPanel } from "./shell/files/panel";
+import { ProjectCenterEditorSurface } from "./shell/files/project-center-editor-surface";
 import {
   AppShell,
   type RightWorkbenchDefinition,
@@ -118,6 +119,25 @@ import { BrowserWorkbenchPanel } from "./shell/browser/browser-workbench-panel";
 import { DevWorkbenchPanel } from "./shell/dev/dev-workbench-panel";
 import { TerminalPanel } from "./shell/terminal/panel";
 import { TerminalRail } from "./shell/terminal/terminal-rail";
+import {
+  readWorkbenchTerminalApi,
+  workbenchTerminalThreadId,
+} from "./shell/terminal/workbench-terminal";
+import {
+  forgetWorkbenchTerminalRunning,
+  useWorkbenchTerminalRunning,
+} from "./shell/terminal/use-workbench-terminal-running";
+import { useWorkspaceEditorFileState } from "~/stores/workspace-editor-store";
+import {
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogPopup,
+  AlertDialogTitle,
+} from "@honk/honkkit/alert-dialog";
+import { Button } from "@honk/honkkit/button";
 import { TerminalWorkbenchSubChrome } from "./shell/terminal/workbench-subchrome";
 
 function inferLoginShellCaption(): string {
@@ -988,6 +1008,35 @@ function TerminalWorkbenchPanel(props: {
 }) {
   const terminalState = useTerminalSessions(props.workspaceKey);
   const { open: terminalRailOpen } = useSecondaryRail(props.workspaceKey, "terminal");
+  const threadKey = props.workspaceKey ?? props.cwd;
+  const threadId = threadKey ? workbenchTerminalThreadId(threadKey) : null;
+  const runningTerminalIds = useWorkbenchTerminalRunning(threadId, props.environmentId);
+  const [pendingCloseTerminalId, setPendingCloseTerminalId] = useState<string | null>(null);
+
+  const closeTerminalSession = (terminalId: string) => {
+    // Shut the PTY down server-side before dropping the tab from the store,
+    // otherwise the shell (and anything it spawned) keeps running forever.
+    const api = readWorkbenchTerminalApi(props.environmentId);
+    if (api && threadId) {
+      void api.close({ threadId, terminalId, deleteHistory: true }).catch(() => undefined);
+      forgetWorkbenchTerminalRunning(threadId, props.environmentId, terminalId);
+    }
+    shellPanelsActions.removeTerminalSession(props.workspaceKey, terminalId);
+  };
+
+  const requestCloseTerminalSession = (terminalId: string) => {
+    if (runningTerminalIds.has(terminalId)) {
+      setPendingCloseTerminalId(terminalId);
+      return;
+    }
+    closeTerminalSession(terminalId);
+  };
+
+  const pendingCloseLabel = pendingCloseTerminalId
+    ? (terminalState.sessions.find((session) => session.id === pendingCloseTerminalId)?.label ??
+      "Terminal")
+    : "Terminal";
+
   return (
     <WorkbenchPanel className="overflow-hidden">
       <TerminalWorkbenchSubChrome
@@ -1005,7 +1054,7 @@ function TerminalWorkbenchPanel(props: {
               sessions={terminalState.sessions}
               activeId={terminalState.activeId}
               onActivate={(id) => shellPanelsActions.setActiveTerminal(props.workspaceKey, id)}
-              onClose={(id) => shellPanelsActions.removeTerminalSession(props.workspaceKey, id)}
+              onClose={requestCloseTerminalSession}
             />
           }
         >
@@ -1017,6 +1066,34 @@ function TerminalWorkbenchPanel(props: {
           />
         </RightWorkbenchLayout>
       </div>
+      <AlertDialog
+        open={pendingCloseTerminalId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingCloseTerminalId(null);
+        }}
+      >
+        <AlertDialogPopup>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Close "{pendingCloseLabel}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A process is still running in this terminal. Closing the tab will terminate it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const terminalId = pendingCloseTerminalId;
+                setPendingCloseTerminalId(null);
+                if (terminalId) closeTerminalSession(terminalId);
+              }}
+            >
+              Close terminal
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogPopup>
+      </AlertDialog>
     </WorkbenchPanel>
   );
 }
@@ -1059,10 +1136,7 @@ function GitWorkbenchPanel(props: {
   );
 }
 
-function GitStatusSync(props: {
-  cwd: string | null;
-  environmentId: EnvironmentId | null;
-}) {
+function GitStatusSync(props: { cwd: string | null; environmentId: EnvironmentId | null }) {
   const status = useGitStatus({
     environmentId: props.environmentId,
     cwd: props.cwd,
@@ -1077,11 +1151,9 @@ function GitStatusSync(props: {
     if (!gitApi) {
       return;
     }
-    void refreshGitStatus(
-      { environmentId: props.environmentId, cwd: props.cwd },
-      gitApi,
-      { force: !hasStatusData },
-    ).catch(() => undefined);
+    void refreshGitStatus({ environmentId: props.environmentId, cwd: props.cwd }, gitApi, {
+      force: !hasStatusData,
+    }).catch(() => undefined);
   }, [props.cwd, props.environmentId, hasStatusData]);
 
   return null;
@@ -1106,6 +1178,8 @@ function ChatWorkbenchShellHost(props: {
 }) {
   const planTabAvailable = props.plan.available && props.plan.environmentId !== null;
   const activeWorkbenchTab = useActiveTab(props.workspaceKey);
+  const editorState = useWorkspaceEditorFileState(props.workspaceKey);
+  const centerEditorActive = editorState.placement === "center" && editorState.activePath !== null;
   const devTabAvailable = activeWorkbenchTab === "dev";
   const workbenchTabs: WorkbenchTabMeta[] = useMemo(() => {
     const tabs: WorkbenchTabMeta[] = planTabAvailable
@@ -1239,8 +1313,37 @@ function ChatWorkbenchShellHost(props: {
         routeThreadId={props.routeThreadId}
         gitFocusId={null}
         left={props.left}
-        center={props.center}
+        center={
+          <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+            <div
+              className={cn(
+                "absolute inset-0 flex min-h-0 min-w-0 flex-col overflow-hidden",
+                centerEditorActive && "pointer-events-none invisible opacity-0",
+              )}
+              aria-hidden={centerEditorActive ? true : undefined}
+              inert={centerEditorActive}
+            >
+              {props.center}
+            </div>
+            <div
+              className={cn(
+                "absolute inset-0 flex min-h-0 min-w-0 flex-col overflow-hidden",
+                !centerEditorActive && "pointer-events-none invisible opacity-0",
+              )}
+              aria-hidden={!centerEditorActive ? true : undefined}
+              inert={!centerEditorActive}
+            >
+              <ProjectCenterEditorSurface
+                cwd={props.cwd}
+                workspaceKey={props.workspaceKey}
+                environmentId={props.environmentId}
+                availableEditors={props.availableEditors}
+              />
+            </div>
+          </div>
+        }
         right={right}
+        centerSurface={centerEditorActive ? "editor" : "chat"}
       />
     </div>
   );

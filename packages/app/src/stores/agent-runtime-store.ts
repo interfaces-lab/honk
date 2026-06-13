@@ -36,6 +36,14 @@ let lastPendingExtensionUiRequestsSource: ReadonlyArray<DesktopExtensionUiReques
 let lastPendingExtensionUiRequestsThreadId: ThreadId | null | undefined;
 let lastPendingExtensionUiRequestsResult: readonly DesktopExtensionUiRequest[] =
   EMPTY_PENDING_EXTENSION_UI_REQUESTS;
+
+export type RuntimeAgentRunLifecycle = "active" | "terminal" | null;
+
+export interface RuntimeAgentRunEventState {
+  readonly lifecycle: RuntimeAgentRunLifecycle;
+  readonly latestTurnId: TurnId | null;
+}
+
 function resolveRuntimeThreadEnvironmentId(threadId: ThreadId): EnvironmentId {
   const store = useStore.getState();
   for (const [environmentId, environmentState] of Object.entries(store.environmentStateById)) {
@@ -121,74 +129,63 @@ function runtimeThreadIds(snapshot: HonkRuntimeHostSnapshot): Set<ThreadId> {
   return threadIds;
 }
 
-export function runtimeEventsIndicateActiveAgentRun(
+export function runtimeAgentRunEventState(
   events: ReadonlyArray<AgentRuntimeEvent>,
   threadId: ThreadId | null | undefined,
-): boolean {
+): RuntimeAgentRunEventState {
   if (!threadId) {
-    return false;
+    return { lifecycle: null, latestTurnId: null };
   }
 
-  let active = false;
-  for (const event of events) {
-    if (event.threadId !== threadId) {
+  let lifecycle: RuntimeAgentRunLifecycle = null;
+  let latestTurnId: TurnId | null = null;
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (!event || event.threadId !== threadId) {
+      continue;
+    }
+    if (latestTurnId === null && event.turnId) {
+      latestTurnId = event.turnId;
+    }
+    if (lifecycle !== null) {
+      if (latestTurnId !== null) {
+        break;
+      }
       continue;
     }
     switch (event.type) {
       case "agent.started":
-        active = true;
+        lifecycle = "active";
         break;
       case "agent.completed":
       case "turn.interrupted":
       case "runtime.error":
-        active = false;
+        lifecycle = "terminal";
         break;
     }
   }
-  return active;
+  return { lifecycle, latestTurnId };
+}
+
+export function runtimeEventsIndicateActiveAgentRun(
+  events: ReadonlyArray<AgentRuntimeEvent>,
+  threadId: ThreadId | null | undefined,
+): boolean {
+  return runtimeAgentRunEventState(events, threadId).lifecycle === "active";
 }
 
 export function runtimeEventsIndicateTerminalAgentRun(
   events: ReadonlyArray<AgentRuntimeEvent>,
   threadId: ThreadId | null | undefined,
 ): boolean {
-  if (!threadId) {
-    return false;
-  }
-
-  let terminal = false;
-  for (const event of events) {
-    if (event.threadId !== threadId) {
-      continue;
-    }
-    switch (event.type) {
-      case "agent.started":
-        terminal = false;
-        break;
-      case "agent.completed":
-      case "turn.interrupted":
-      case "runtime.error":
-        terminal = true;
-        break;
-    }
-  }
-  return terminal;
+  return runtimeAgentRunEventState(events, threadId).lifecycle === "terminal";
 }
 
 export function latestRuntimeEventTurnId(
   events: ReadonlyArray<AgentRuntimeEvent>,
   threadId: ThreadId | null | undefined,
 ): TurnId | null {
-  if (!threadId) {
-    return null;
-  }
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
-    if (event?.threadId === threadId && event.turnId) {
-      return event.turnId;
-    }
-  }
-  return null;
+  return runtimeAgentRunEventState(events, threadId).latestTurnId;
 }
 
 function hostOwnedRuntimeThreadIds(snapshot: HonkRuntimeHostSnapshot): Set<ThreadId> {
