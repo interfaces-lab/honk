@@ -4,12 +4,12 @@ import { cva, type VariantProps } from "class-variance-authority";
 import type { AriaAttributes, MouseEventHandler, ReactNode } from "react";
 
 import { Button } from "./button";
-import { cn, controlTransitionClassName } from "./utils";
+import { cn, controlTransitionVariants } from "./utils";
 
 const workbenchIconButtonVariants = cva(
   cn(
-    "no-drag ui-icon-button box-border flex shrink-0 select-none items-center justify-center rounded-honk-control border-0 px-(--honk-workbench-chrome-icon-padding-x) text-honk-icon-secondary shadow-none outline-hidden before:hidden transition-[background-color,color,transform] active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset motion-reduce:transform-none disabled:text-honk-fg-quaternary/45 disabled:hover:bg-transparent disabled:hover:text-honk-fg-quaternary/45 disabled:active:scale-100 [&_svg]:block",
-    controlTransitionClassName,
+    "no-drag ui-icon-button box-border flex shrink-0 select-none items-center justify-center rounded-honk-control border border-transparent border-solid px-(--honk-workbench-chrome-icon-padding-x) text-honk-icon-secondary shadow-none outline-hidden before:hidden transition-[background-color,color] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset disabled:text-honk-fg-quaternary/45 disabled:hover:bg-transparent disabled:hover:text-honk-fg-quaternary/45 [&_svg]:block",
+    controlTransitionVariants(),
   ),
   {
     variants: {
@@ -24,7 +24,7 @@ const workbenchIconButtonVariants = cva(
         sub: "h-(--honk-workbench-action-size) min-h-(--honk-workbench-action-size) max-h-(--honk-workbench-action-size) min-w-(--honk-workbench-action-size)",
       },
       tabSystem: {
-        true: "ui-tab-system-tab",
+        true: "ui-tab-system-tab h-(--honk-workbench-tab-height) max-w-(--honk-workbench-tab-label-max-width) text-honk-tab text-honk-fg-tertiary hover:bg-honk-bg-card hover:text-honk-fg-primary focus-visible:shadow-[inset_0_0_0_2px_var(--honk-stroke-focused)] focus-visible:ring-0 data-[active=true]:bg-honk-bg-tertiary data-[active=true]:text-honk-fg-primary me-px px-(--honk-spacing-2)",
         false: "",
       },
     },
@@ -42,8 +42,8 @@ type WorkbenchIconButtonChrome = NonNullable<
 
 const workbenchTextButtonVariants = cva(
   cn(
-    "no-drag box-border inline-flex h-(--honk-workbench-action-size) min-w-0 shrink-0 select-none items-center justify-center gap-(--honk-workbench-text-control-gap) truncate rounded-honk-control border-0 px-(--honk-workbench-text-control-padding-inline) text-body font-medium outline-hidden before:hidden transition-[background-color,color,transform] active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset motion-reduce:transform-none disabled:pointer-events-none disabled:text-honk-fg-quaternary/45 disabled:active:scale-100 [&_svg]:block",
-    controlTransitionClassName,
+    "no-drag box-border inline-flex h-(--honk-workbench-action-size) min-w-0 shrink-0 select-none items-center justify-center gap-(--honk-workbench-text-control-gap) truncate rounded-honk-control border-0 px-(--honk-workbench-text-control-padding-inline) text-honk-tab font-medium outline-hidden before:hidden transition-[background-color,color] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset disabled:pointer-events-none disabled:text-honk-fg-quaternary/45 [&_svg]:block",
+    controlTransitionVariants(),
   ),
   {
     variants: {

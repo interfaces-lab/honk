@@ -9,37 +9,17 @@ export type AppearanceBaseTokenName =
 
 export type AppearanceBaseColors = Record<AppearanceBaseTokenName, string>;
 
-type CursorCoreToken = "sidebar" | "chrome" | "editor" | "accent" | "focus";
+type AppearanceCoreToken = "sidebar" | "chrome" | "editor" | "accent" | "focus";
 
-type CursorCoreColors = Record<CursorCoreToken, string>;
-
-type CursorCoreTokenName =
-  | "--cursor-sidebar"
-  | "--cursor-chrome"
-  | "--cursor-editor"
-  | "--cursor-accent"
-  | "--cursor-focus";
-
-type HonkCursorTokenName =
-  | "--honk-cursor-sidebar"
-  | "--honk-cursor-chrome"
-  | "--honk-cursor-editor"
-  | "--honk-cursor-accent"
-  | "--honk-cursor-focus";
-
-type HslColor = {
-  readonly h: number;
-  readonly s: number;
-  readonly l: number;
-};
+type AppearanceCoreColors = Record<AppearanceCoreToken, string>;
 
 type TintTokenConfig = {
-  readonly token: CursorCoreToken;
+  readonly token: AppearanceCoreToken;
   readonly chromaScale?: number;
   readonly hueShift?: boolean;
 };
 
-const CURSOR_CORE_COLORS: Record<AppearanceThemeMode, CursorCoreColors> = {
+const APPEARANCE_CORE_COLORS: Record<AppearanceThemeMode, AppearanceCoreColors> = {
   light: {
     sidebar: "#F3F3F3",
     chrome: "#F8F8F8",
@@ -72,22 +52,6 @@ const APPEARANCE_BASE_TOKEN_NAMES: readonly AppearanceBaseTokenName[] = [
   "--honk-base-focus",
 ];
 
-const HONK_CURSOR_TOKEN_NAMES: readonly HonkCursorTokenName[] = [
-  "--honk-cursor-sidebar",
-  "--honk-cursor-chrome",
-  "--honk-cursor-editor",
-  "--honk-cursor-accent",
-  "--honk-cursor-focus",
-];
-
-const CURSOR_CORE_TOKEN_NAMES: readonly CursorCoreTokenName[] = [
-  "--cursor-sidebar",
-  "--cursor-chrome",
-  "--cursor-editor",
-  "--cursor-accent",
-  "--cursor-focus",
-];
-
 const APPEARANCE_TINT_STYLE_ID = "honk-custom-tint-tokens";
 
 export const DEFAULT_APPEARANCE_TINT_HUE = 261;
@@ -107,7 +71,7 @@ function normalizeIntensity(intensity: number) {
   return clamp(Math.round(intensity), 0, 100);
 }
 
-function hexToHsl(hex: string): HslColor {
+function hexToHsl(hex: string): { readonly h: number; readonly s: number; readonly l: number } {
   const normalized = hex.replace("#", "").trim();
   const r = Number.parseInt(normalized.slice(0, 2), 16) / 255;
   const g = Number.parseInt(normalized.slice(2, 4), 16) / 255;
@@ -145,7 +109,7 @@ function hueToRgb(p: number, q: number, t: number) {
   return p;
 }
 
-function hslToHex(color: HslColor) {
+function hslToHex(color: { readonly h: number; readonly s: number; readonly l: number }) {
   if (color.s === 0) {
     const channel = Math.round(color.l * 255)
       .toString(16)
@@ -196,8 +160,6 @@ function removeAppearanceTintStyleElement(root: HTMLElement) {
 
 function removeStaleInlineTintTokens(root: HTMLElement) {
   for (const token of APPEARANCE_BASE_TOKEN_NAMES) root.style.removeProperty(token);
-  for (const token of HONK_CURSOR_TOKEN_NAMES) root.style.removeProperty(token);
-  for (const token of CURSOR_CORE_TOKEN_NAMES) root.style.removeProperty(token);
 }
 
 export function buildAppearanceBaseColors(
@@ -207,7 +169,7 @@ export function buildAppearanceBaseColors(
 ): AppearanceBaseColors {
   const normalizedHue = normalizeHue(hue);
   const normalizedIntensity = normalizeIntensity(intensity);
-  const core = CURSOR_CORE_COLORS[mode];
+  const core = APPEARANCE_CORE_COLORS[mode];
   const colors = { ...core };
 
   if (normalizedIntensity > 0) {
@@ -245,8 +207,6 @@ export function applyAppearanceBaseColors(
 
   for (const [token, value] of Object.entries(colors) as Array<[AppearanceBaseTokenName, string]>) {
     lines.push(`  ${token}: ${value};`);
-    lines.push(`  ${token.replace("--honk-base-", "--honk-cursor-")}: ${value};`);
-    lines.push(`  ${token.replace("--honk-base-", "--cursor-")}: ${value};`);
   }
 
   removeStaleInlineTintTokens(root);

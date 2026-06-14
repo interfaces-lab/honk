@@ -4,7 +4,7 @@ import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { IconCheckmark1, IconChevronRightMedium, IconCrossMediumDefault } from "central-icons";
 import * as React from "react";
 
-import { cn, interactiveControlCursorClassName } from "./utils";
+import { cn, interactiveControlCursorVariants } from "./utils";
 import { Input, InputControlSizeContext, NativeInputRender, type InputControlSize } from "./input";
 import { ScrollArea } from "./scroll-area";
 
@@ -110,7 +110,7 @@ function ComboboxInput({
             <ComboboxTrigger
               className={cn(
                 "-translate-y-1/2 absolute top-1/2 inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-transparent opacity-80 outline-none transition-opacity pointer-coarse:after:absolute pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 hover:opacity-100 has-[+[data-slot=combobox-clear]]:hidden sm:size-7 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-                interactiveControlCursorClassName,
+                interactiveControlCursorVariants(),
                 sizeValue === "sm" ? "inset-e-0" : "inset-e-0.5",
               )}
             >
@@ -123,7 +123,7 @@ function ComboboxInput({
             <ComboboxClear
               className={cn(
                 "-translate-y-1/2 absolute top-1/2 inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-transparent opacity-80 outline-none transition-opacity pointer-coarse:after:absolute pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 hover:opacity-100 has-[+[data-slot=combobox-clear]]:hidden sm:size-7 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-                interactiveControlCursorClassName,
+                interactiveControlCursorVariants(),
                 sizeValue === "sm" ? "inset-e-0" : "inset-e-0.5",
               )}
             >
@@ -176,7 +176,7 @@ function ComboboxPopup({
       >
         <span
           className={cn(
-            "relative flex max-h-full min-w-(--anchor-width) max-w-(--available-width) origin-(--transform-origin) rounded-lg border bg-popover not-dark:bg-clip-padding shadow-lg/5 transition-[scale,opacity] before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
+            "relative flex max-h-full min-w-(--anchor-width) max-w-(--available-width) origin-(--transform-origin) overflow-hidden rounded-honk-lg border border-honk-stroke-tertiary bg-honk-bg-elevated font-honk text-honk-chrome text-honk-fg-primary shadow-honk-sm outline-none backdrop-blur-[length:var(--honk-glass-blur-surface)] transition-[scale,opacity] duration-(--motion-duration-ui) ease-(--ease-shell) data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none",
             className,
           )}
         >
@@ -379,7 +379,7 @@ function ComboboxChipRemove(props: ComboboxPrimitive.ChipRemove.Props) {
       aria-label="Remove"
       className={cn(
         "h-full shrink-0 px-1.5 opacity-80 hover:opacity-100 [&_svg:not([class*='size-'])]:size-4 sm:[&_svg:not([class*='size-'])]:size-3.5",
-        interactiveControlCursorClassName,
+        interactiveControlCursorVariants(),
       )}
       data-slot="combobox-chip-remove"
       {...props}

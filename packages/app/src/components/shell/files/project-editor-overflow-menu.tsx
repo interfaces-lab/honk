@@ -29,6 +29,7 @@ export function ProjectEditorOverflowMenu(props: {
   onOpenExternalEditor: () => void;
 }) {
   const hasFile = props.relativePath !== null;
+  const hasCodeEditor = props.availableEditors.some((editorId) => editorId !== "file-manager");
   const wordWrap = useEditorWordWrap();
   // Same primitive and configuration as the Changes panel's editor menu
   // (packages/app/src/components/shell/git/panel.tsx): the `workbench` variant
@@ -88,7 +89,7 @@ export function ProjectEditorOverflowMenu(props: {
           Reveal in File Tree
         </MenuItem>
         <MenuItem
-          disabled={!hasFile || !props.cwd || props.availableEditors.length === 0}
+          disabled={!hasFile || !props.cwd || !hasCodeEditor}
           onClick={props.onOpenExternalEditor}
           variant="workbench"
         >

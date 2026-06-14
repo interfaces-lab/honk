@@ -1,6 +1,7 @@
 import { DEFAULT_TERMINAL_ID } from "@honk/contracts";
 import { Option, Schema } from "effect";
 import { create } from "zustand";
+import { inferLoginShellCaption } from "~/lib/shell-caption";
 import { WORKBENCH_TABS, type WorkbenchTab } from "~/lib/workbench-tabs";
 
 const STORAGE_KEY = "honk.shell.panels.v3";
@@ -9,6 +10,7 @@ const SECONDARY_RAIL_STORAGE_KEY = "honk.shell.secondaryRail.v1";
 const TERMINAL_SESSIONS_STORAGE_KEY = "honk.shell.terminalSessions.v1";
 const BROWSER_WORKBENCH_STORAGE_KEY = "honk.shell.browserWorkbench.v1";
 const DEFAULT_CWD_KEY = "default";
+const DEFAULT_BROWSER_WORKBENCH_ID = "default";
 
 /** Persisted width limits for the chat/settings thread rail (`LeftAside`). */
 export const SHELL_LEFT_PANEL_WIDTH_LIMITS = { min: 180, max: 560 } as const;
@@ -60,6 +62,15 @@ export interface BrowserWorkbenchState {
   loadError: string | null;
 }
 
+export interface ShellPanelLayoutInputs {
+  leftOpen: boolean;
+  leftWidth: number;
+  muted: boolean;
+  rightWidth: number;
+  rightWidthLimits: typeof RIGHT_WORKBENCH_WIDTH_LIMITS;
+  storedRightOpen: boolean;
+}
+
 interface ShellPanelsStoreState {
   leftOpen: boolean;
   leftW: number;
@@ -85,6 +96,11 @@ interface ShellPanelsStoreState {
   setBrowserWorkbenchState: (
     workspaceKey: string | null,
     patch: Partial<BrowserWorkbenchState>,
+    browserId?: string | undefined,
+  ) => void;
+  removeBrowserWorkbenchState: (
+    workspaceKey: string | null,
+    browserId?: string | undefined,
   ) => void;
 }
 
@@ -165,7 +181,7 @@ const DEFAULT_TERMINAL_SESSION_ID = DEFAULT_TERMINAL_ID;
 
 const DEFAULT_TERMINAL_SESSIONS: TerminalSessionsState = Object.freeze({
   activeId: DEFAULT_TERMINAL_SESSION_ID,
-  sessions: [{ id: DEFAULT_TERMINAL_SESSION_ID, label: "Terminal" }],
+  sessions: [{ id: DEFAULT_TERMINAL_SESSION_ID, label: inferLoginShellCaption() }],
 });
 
 const DEFAULT_BROWSER_WORKBENCH_STATE: BrowserWorkbenchState = Object.freeze({
@@ -271,11 +287,29 @@ function railKey(workspaceKey: string | null, tab: WorkbenchTab): string {
   return `${resolveWorkspacePanelKey(workspaceKey)}::${tab}`;
 }
 
+function browserWorkbenchKey(workspaceKey: string | null, browserId?: string | undefined): string {
+  const normalizedBrowserId = browserId?.trim() || DEFAULT_BROWSER_WORKBENCH_ID;
+  return `${resolveWorkspacePanelKey(workspaceKey)}::browser::${normalizedBrowserId}`;
+}
+
 function readWorkbenchState(
   states: Record<string, WorkbenchPanelState>,
   workspaceKey: string | null,
 ): WorkbenchPanelState {
   return states[resolveWorkspacePanelKey(workspaceKey)] ?? DEFAULT_WORKBENCH_PANEL_STATE;
+}
+
+function readBrowserWorkbenchState(
+  states: Record<string, BrowserWorkbenchState>,
+  workspaceKey: string | null,
+  browserId?: string | undefined,
+): BrowserWorkbenchState {
+  const scoped = states[browserWorkbenchKey(workspaceKey, browserId)];
+  if (scoped) return scoped;
+  if (!browserId || browserId === DEFAULT_BROWSER_WORKBENCH_ID) {
+    return states[resolveWorkspacePanelKey(workspaceKey)] ?? DEFAULT_BROWSER_WORKBENCH_STATE;
+  }
+  return DEFAULT_BROWSER_WORKBENCH_STATE;
 }
 
 function readPersistedRightWorkbenches(
@@ -413,9 +447,17 @@ function readPersistedBrowserWorkbenches(): Record<string, BrowserWorkbenchState
 
 function persistBrowserWorkbenches(data: Record<string, BrowserWorkbenchState>): void {
   if (typeof window === "undefined") return;
-  const persisted: Record<string, { inputValue: string; committedUrl: string }> = {};
+  const persisted: Record<
+    string,
+    {
+      committedUrl: string;
+      inputValue: string;
+    }
+  > = {};
   for (const [key, state] of Object.entries(data)) {
-    if (!state.inputValue && !state.committedUrl) continue;
+    if (!state.inputValue && !state.committedUrl) {
+      continue;
+    }
     persisted[key] = {
       inputValue: state.inputValue,
       committedUrl: state.committedUrl,
@@ -651,10 +693,14 @@ export const useShellPanelsStore = create<ShellPanelsStoreState>()((set) => ({
       return { terminalByWorkspaceKey };
     });
   },
-  setBrowserWorkbenchState: (workspaceKey, patch) => {
+  setBrowserWorkbenchState: (workspaceKey, patch, browserId) => {
     set((state) => {
-      const key = resolveWorkspacePanelKey(workspaceKey);
-      const current = state.browserByWorkspaceKey[key] ?? DEFAULT_BROWSER_WORKBENCH_STATE;
+      const key = browserWorkbenchKey(workspaceKey, browserId);
+      const current = readBrowserWorkbenchState(
+        state.browserByWorkspaceKey,
+        workspaceKey,
+        browserId,
+      );
       const next: BrowserWorkbenchState = { ...current, ...patch };
       if (
         current.inputValue === next.inputValue &&
@@ -667,7 +713,39 @@ export const useShellPanelsStore = create<ShellPanelsStoreState>()((set) => ({
       ) {
         return state;
       }
-      const browserByWorkspaceKey = { ...state.browserByWorkspaceKey, [key]: next };
+      const legacyDefaultKey = resolveWorkspacePanelKey(workspaceKey);
+      const isDefaultBrowser = !browserId || browserId === DEFAULT_BROWSER_WORKBENCH_ID;
+      let browserByWorkspaceKey: Record<string, BrowserWorkbenchState> = {
+        ...state.browserByWorkspaceKey,
+        [key]: next,
+      };
+      if (isDefaultBrowser) {
+        const { [legacyDefaultKey]: _removedLegacy, ...withoutLegacyDefault } =
+          browserByWorkspaceKey;
+        browserByWorkspaceKey = withoutLegacyDefault;
+      }
+      persistBrowserWorkbenches(browserByWorkspaceKey);
+      return { browserByWorkspaceKey };
+    });
+  },
+  removeBrowserWorkbenchState: (workspaceKey, browserId) => {
+    set((state) => {
+      const key = browserWorkbenchKey(workspaceKey, browserId);
+      const legacyDefaultKey = resolveWorkspacePanelKey(workspaceKey);
+      const isDefaultBrowser = !browserId || browserId === DEFAULT_BROWSER_WORKBENCH_ID;
+      if (
+        !(key in state.browserByWorkspaceKey) &&
+        (!isDefaultBrowser || !(legacyDefaultKey in state.browserByWorkspaceKey))
+      ) {
+        return state;
+      }
+      const { [key]: _removed, ...withoutScoped } = state.browserByWorkspaceKey;
+      const browserByWorkspaceKey = isDefaultBrowser
+        ? (() => {
+            const { [legacyDefaultKey]: _removedLegacy, ...withoutLegacyDefault } = withoutScoped;
+            return withoutLegacyDefault;
+          })()
+        : withoutScoped;
       persistBrowserWorkbenches(browserByWorkspaceKey);
       return { browserByWorkspaceKey };
     });
@@ -737,11 +815,12 @@ export function useTerminalSessions(workspaceKey: string | null): TerminalSessio
   );
 }
 
-export function useBrowserWorkbenchState(workspaceKey: string | null): BrowserWorkbenchState {
+export function useBrowserWorkbenchState(
+  workspaceKey: string | null,
+  browserId?: string | undefined,
+): BrowserWorkbenchState {
   return useShellPanelsStore(
-    (state) =>
-      state.browserByWorkspaceKey[resolveWorkspacePanelKey(workspaceKey)] ??
-      DEFAULT_BROWSER_WORKBENCH_STATE,
+    (state) => readBrowserWorkbenchState(state.browserByWorkspaceKey, workspaceKey, browserId),
   );
 }
 
@@ -750,6 +829,34 @@ export function readTerminalSessions(workspaceKey: string | null): TerminalSessi
     useShellPanelsStore.getState().terminalByWorkspaceKey[resolveWorkspacePanelKey(workspaceKey)] ??
     DEFAULT_TERMINAL_SESSIONS
   );
+}
+
+export function readBrowserWorkbenchSnapshot(
+  workspaceKey: string | null,
+  browserId?: string | undefined,
+): BrowserWorkbenchState {
+  return readBrowserWorkbenchState(
+    useShellPanelsStore.getState().browserByWorkspaceKey,
+    workspaceKey,
+    browserId,
+  );
+}
+
+export function readShellPanelLayoutInputs(workspaceKey: string | null): ShellPanelLayoutInputs {
+  const state = useShellPanelsStore.getState();
+  const rightWorkbench = readWorkbenchState(state.rightWorkbenchByWorkspaceKey, workspaceKey);
+  return {
+    leftOpen: state.leftOpen,
+    leftWidth: state.leftW,
+    muted: rightWorkbench.muted,
+    rightWidth: rightWorkbench.rightW,
+    rightWidthLimits: RIGHT_WORKBENCH_WIDTH_LIMITS,
+    storedRightOpen: rightWorkbench.rightOpen,
+  };
+}
+
+export function subscribeShellPanelLayoutInputs(listener: () => void): () => void {
+  return useShellPanelsStore.subscribe(listener);
 }
 
 export const shellPanelsActions = {
@@ -819,6 +926,13 @@ export const shellPanelsActions = {
     useShellPanelsStore.getState().addTerminalSession(workspaceKey, session),
   removeTerminalSession: (workspaceKey: string | null, terminalId: string) =>
     useShellPanelsStore.getState().removeTerminalSession(workspaceKey, terminalId),
-  setBrowserWorkbenchState: (workspaceKey: string | null, patch: Partial<BrowserWorkbenchState>) =>
-    useShellPanelsStore.getState().setBrowserWorkbenchState(workspaceKey, patch),
+  setBrowserWorkbenchState: (
+    workspaceKey: string | null,
+    patch: Partial<BrowserWorkbenchState>,
+    browserId?: string | undefined,
+  ) => useShellPanelsStore.getState().setBrowserWorkbenchState(workspaceKey, patch, browserId),
+  removeBrowserWorkbenchState: (
+    workspaceKey: string | null,
+    browserId?: string | undefined,
+  ) => useShellPanelsStore.getState().removeBrowserWorkbenchState(workspaceKey, browserId),
 };

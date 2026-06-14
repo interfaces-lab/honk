@@ -10,7 +10,7 @@ import { cn } from "./utils";
 const Toast = ToastPrimitive;
 
 const toastRootVariants = cva(
-  "border border-honk-stroke-tertiary bg-honk-bg-elevated font-honk text-honk-fg-primary shadow-honk-popup backdrop-blur-xl",
+  "border border-honk-stroke-tertiary bg-honk-bg-elevated font-honk text-honk-fg-primary shadow-honk-base backdrop-blur-[length:var(--honk-glass-blur-surface)]",
   {
     defaultVariants: {
       chrome: "default",

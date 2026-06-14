@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema";
 import * as Record from "effect/Record";
-import { useRef, useSyncExternalStore } from "react";
+import { useMemo, useRef, useSyncExternalStore } from "react";
 
 const isomorphicLocalStorage: Storage =
   typeof window !== "undefined"
@@ -169,12 +169,16 @@ export function useLocalStorage<T, E>(
   const originRef = useRef(nextLocalStorageOriginId());
   const initialValueRef = useRef(initialValue);
   initialValueRef.current = initialValue;
-  const store = createLocalStorageStore({
-    key,
-    schema,
-    origin: originRef.current,
-    getInitialValue: () => initialValueRef.current,
-  });
+  const store = useMemo(
+    () =>
+      createLocalStorageStore({
+        key,
+        schema,
+        origin: originRef.current,
+        getInitialValue: () => initialValueRef.current,
+      }),
+    [key, schema],
+  );
   const storedValue = useSyncExternalStore(
     store.subscribe,
     store.getSnapshot,

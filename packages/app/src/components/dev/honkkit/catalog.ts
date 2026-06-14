@@ -9,7 +9,8 @@ export type HonkKitCategory =
   | "layout"
   | "navigation"
   | "overlays"
-  | "feedback";
+  | "feedback"
+  | "workbench-parity";
 
 export type HonkKitComponent = {
   id: string;
@@ -367,6 +368,32 @@ export const HONKKIT_CATALOG: HonkKitCategoryGroup[] = [
         name: "Tool Call",
         importPath: "@honk/honkkit/tool-call",
         description: "Chat tool-call line chrome",
+      },
+    ],
+  },
+  {
+    id: "workbench-parity",
+    label: "Workbench parity",
+    description: "Density, shadows, motion, and typography alignment specs",
+    components: [
+      {
+        id: "workbench-parity",
+        name: "Workbench Parity",
+        importPath: "@honk/honkkit/workbench-chrome-row",
+        description:
+          "DialKit spec for 35px chrome, shadow ladder, workbench typography, and motion tiers",
+      },
+      {
+        id: "workbench-chrome-row",
+        name: "Workbench Chrome Row",
+        importPath: "@honk/honkkit/workbench-chrome-row",
+        description: "Workbench tool and panel row chrome",
+      },
+      {
+        id: "workbench-button",
+        name: "Workbench Button",
+        importPath: "@honk/honkkit/workbench-button",
+        description: "Workbench icon and text toolbar controls",
       },
     ],
   },

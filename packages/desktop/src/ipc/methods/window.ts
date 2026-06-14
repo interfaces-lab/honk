@@ -50,6 +50,23 @@ const ContextMenuInput = Schema.Struct({
 const LocalhostPort = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 }));
 const LocalhostPortsInput = Schema.Array(LocalhostPort).check(Schema.isMaxLength(64));
 
+const BrowserPartitionStorage = Schema.Literals([
+  "cachestorage",
+  "cookies",
+  "filesystem",
+  "indexdb",
+  "localstorage",
+  "serviceworkers",
+  "shadercache",
+  "websql",
+]);
+
+const ClearBrowserPartitionStorageInput = Schema.Struct({
+  storages: Schema.Array(BrowserPartitionStorage),
+});
+
+const HONK_BROWSER_PARTITION = "persist:honk-browser";
+
 function uniqueLocalhostPorts(ports: readonly number[]): number[] {
   return [...new Set(ports.filter((port) => Number.isInteger(port) && port > 0 && port <= 65535))];
 }
@@ -137,6 +154,21 @@ export const detectLocalhostPorts = makeIpcMethod({
         })),
       );
       return checks.filter((check) => check.open).map((check) => check.port);
+    });
+  }),
+});
+
+export const clearBrowserPartitionStorage = makeIpcMethod({
+  channel: IpcChannels.CLEAR_BROWSER_PARTITION_STORAGE_CHANNEL,
+  payload: ClearBrowserPartitionStorageInput,
+  result: Schema.Void,
+  handler: Effect.fn("desktop.ipc.window.clearBrowserPartitionStorage")(function* (input) {
+    return yield* Effect.promise(async () => {
+      const session = Electron.session.fromPartition(HONK_BROWSER_PARTITION);
+      const options: Electron.ClearStorageDataOptions = {
+        storages: [...input.storages],
+      };
+      await session.clearStorageData(options);
     });
   }),
 });

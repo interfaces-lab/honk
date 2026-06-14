@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import { parsePatchFiles } from "@pierre/diffs";
 import { describe, expect, it } from "vitest";
 
 import { ToolCallRenderer } from "../chat/message/tool-renderer";
@@ -9,6 +10,16 @@ import {
 } from "./tool-call-density-control";
 
 describe("ToolCallDensityPreview", () => {
+  it("uses a parser-compatible diff fixture", () => {
+    const artifact = PREVIEW_EDIT_TOOL_CALL.tool.value.artifacts?.[0];
+
+    expect(artifact?.type).toBe("diff");
+    if (artifact?.type !== "diff") return;
+
+    const parsed = parsePatchFiles(artifact.unifiedDiff, "tool-call-density-preview", true);
+    expect(parsed.flatMap((patch) => patch.files)).toHaveLength(1);
+  });
+
   it("renders all three density preview modes", () => {
     const compact = renderToStaticMarkup(<ToolCallDensityPreview density="compact-all-grouped" />);
     const balanced = renderToStaticMarkup(<ToolCallDensityPreview density="compact-ungrouped" />);
@@ -21,6 +32,7 @@ describe("ToolCallDensityPreview", () => {
 
     expect(balanced).toContain('data-density-preview="rows"');
     expect(detailed).toContain('data-density-preview="cards"');
+    expect(detailed).not.toContain("Showing raw patch");
   });
 
   it("matches ToolCallRenderer markers for ungrouped fixture rows", () => {

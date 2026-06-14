@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isLikelyBrowserUrl, normalizeBrowserNavigationInput } from "./browser-url";
+import { isLikelyBrowserUrl, normalizeBrowserNavigationInput, formatBrowserLocationSegments } from "./browser-url";
 
 describe("browser URL normalization", () => {
   it("keeps allowed schemes", () => {
@@ -45,5 +45,13 @@ describe("browser URL normalization", () => {
     expect(isLikelyBrowserUrl("localhost:5173")).toBe(true);
     expect(isLikelyBrowserUrl("hello world")).toBe(false);
     expect(isLikelyBrowserUrl("user@example.com")).toBe(false);
+  });
+
+  it("emphasizes the host in location segments", () => {
+    expect(formatBrowserLocationSegments("https://www.google.com/search?q=honk")).toEqual([
+      { emphasis: "muted", text: "https://" },
+      { emphasis: "primary", text: "www.google.com" },
+      { emphasis: "muted", text: "/search?q=honk" },
+    ]);
   });
 });

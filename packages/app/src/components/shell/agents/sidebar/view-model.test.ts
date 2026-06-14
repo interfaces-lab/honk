@@ -69,6 +69,19 @@ function threadSummary(input: Partial<SidebarThreadSummary> = {}): SidebarThread
 }
 
 describe("buildProjectChatSections", () => {
+  it("labels workspace sections with the folder name only", () => {
+    const sections = buildProjectChatSections(
+      [threadSummary({ cwd: "/Users/workgyver/Developer/honk", projectCwd: "/Users/workgyver/Developer/honk" })],
+      [],
+      "/Users/workgyver/Developer/honk",
+      null,
+      undefined,
+      ["/Users/workgyver/Developer/honk"],
+    );
+
+    expect(sections[0]?.label).toBe("honk");
+  });
+
   it("keeps Pi thread route identity while exposing the owning project identity", () => {
     const sections = buildProjectChatSections(
       [threadSummary()],

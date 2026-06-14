@@ -1,7 +1,7 @@
 "use client";
 
 import { scopeProjectRef, scopeThreadRef } from "~/lib/environment-scope";
-import { type ResolvedKeybindingsConfig } from "@honk/contracts";
+import { DEFAULT_PROJECTLESS_CWD, type ResolvedKeybindingsConfig } from "@honk/contracts";
 import { normalizePathSeparators } from "@honk/shared/paths";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
@@ -50,7 +50,7 @@ import {
 import { selectThreadWorkspaceSurfaceByRef } from "../stores/thread-selectors";
 import { useComposerDraftStore } from "../stores/chat-drafts";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminal-state-store";
-import { shellPanelsActions } from "../stores/shell-panels-store";
+import { workbenchTabPersistenceActions } from "../stores/workbench-tab-store";
 import { openThread } from "~/app/chat-navigation";
 import { useChatRouteTarget } from "~/app/chat-route-state";
 import {
@@ -596,7 +596,9 @@ function OpenCommandPaletteDialog() {
     setOpen(false);
     const baseDirectory = settings.addProjectBaseDirectory.trim();
     void api.dialogs
-      .pickFolder({ initialPath: baseDirectory.length > 0 ? baseDirectory : "~/" })
+      .pickFolder({
+        initialPath: baseDirectory.length > 0 ? baseDirectory : DEFAULT_PROJECTLESS_CWD,
+      })
       .then((pickedPath) => {
         if (!pickedPath) {
           return;
@@ -842,7 +844,7 @@ function OpenCommandPaletteDialog() {
     description: "Inspect the active thread runtime, context, timeline, and tree",
     icon: <IconCode className="size-4 text-honk-icon-tertiary" />,
     run: async () => {
-      shellPanelsActions.activateDevTab(workspaceTarget.workspaceKey);
+      workbenchTabPersistenceActions.activateDev(workspaceTarget.workspaceKey);
     },
   });
 

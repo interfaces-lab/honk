@@ -315,7 +315,7 @@
         <div class="meta">
           <span class="pill">build: Cursor.app / out/vs/workbench</span>
           <span class="pill">bundle: 61,206,523 bytes, single line</span>
-          <span class="pill">research: 5× opus subagents</span>
+          <span class="pill">research: 5× opus + 10× composer (tokens)</span>
           <span class="pill">target: packages/app/src/components/shell/shell</span>
           <span class="pill">date: 2026-06-13</span>
         </div>
@@ -328,7 +328,22 @@
           <li><a href="#maximize">Maximize / fullscreen mechanism</a></li>
           <li><a href="#hierarchy">Component hierarchy (3-shell split)</a></li>
           <li><a href="#state">State model &amp; subscribe-at-consumer</a></li>
-          <li><a href="#tokens">Design tokens &amp; styling mechanism</a></li>
+          <li>
+            <a href="#tokens">Design tokens &amp; styling mechanism</a>
+            <ol style="margin: 0; padding-left: 18px; columns: 1">
+              <li><a href="#ds-anysphere">@anysphere / packages/ui</a></li>
+              <li><a href="#ds-architecture">3-layer architecture</a></li>
+              <li><a href="#ds-colors">Color tokens</a></li>
+              <li><a href="#ds-typography">Typography</a></li>
+              <li><a href="#ds-spacing">Spacing scale</a></li>
+              <li><a href="#ds-radius">Radius scale</a></li>
+              <li><a href="#ds-elevation">Elevation &amp; shadows</a></li>
+              <li><a href="#ds-glass">Glass &amp; vibrancy</a></li>
+              <li><a href="#ds-motion">Motion</a></li>
+              <li><a href="#ds-components">UI component library</a></li>
+              <li><a href="#ds-honk">Honk mapping</a></li>
+            </ol>
+          </li>
           <li><a href="#chrome">Top nav &amp; right secondary nav</a></li>
           <li><a href="#honk">Honk action plan</a></li>
           <li><a href="#appendix">Appendix: symbol/offset map</a></li>
@@ -762,117 +777,617 @@ subscribe = notify =&gt; manager.subscribeAll(ev =&gt; {
       <section id="tokens">
         <h2><span class="n">04</span>Design tokens &amp; styling mechanism</h2>
         <p>
-          See <a href="#tldr">§00</a> for the StyleX verdict. Below are the exact values to match
-          Cursor's chrome.
+          See <a href="#tldr">§00</a> for the StyleX verdict. This section is the full
+          <b>@anysphere design system</b> spec for the Cursor agent window (glass shell), produced
+          by <b>10 parallel Composer subagents</b> reading
+          <code>workbench.desktop.main.js</code> (embedded <code>packages/ui</code> CSS),
+          <code>workbench.desktop.main.css</code>, and
+          <code>extensions/cursor-agent-exec/dist/agent-sdk/cursor/canvas/*.d.ts</code>.
         </p>
 
+        <h3 id="ds-anysphere">@anysphere / <code>packages/ui</code></h3>
+        <div class="callout key">
+          <p class="verdict">The design system is <u>not</u> a shipped <code>@anysphere/ui</code> npm package.</p>
+          <p>
+            It is the internal monorepo package <code>packages/ui</code>, compiled into
+            <code>workbench.desktop.main.js</code> as React components + ~1,427 embedded
+            <code>.ui-*</code> CSS rules. The agent Canvas SDK mirrors a subset under
+            <code>cursor/canvas/ui-primitives.d.ts</code> (imports reference
+            <code>@anysphere/ui</code> in type comments only). Shipped <code>@anysphere/*</code>
+            packages in <code>Cursor.app</code> are native infra (<code>tree-chunk-napi</code>,
+            <code>file-service</code>, <code>policy-watcher</code>) — not UI.
+          </p>
+        </div>
+        <table>
+          <tr>
+            <th>Surface</th>
+            <th>Location</th>
+            <th>Role</th>
+          </tr>
+          <tr>
+            <td>Production UI kit</td>
+            <td><code>workbench.desktop.main.js</code> lines ~23k–34k (CSS strings)</td>
+            <td><code>.ui-button</code>, <code>.ui-tab-system</code>, <code>.ui-text</code>, …</td>
+          </tr>
+          <tr>
+            <td>Token generator</td>
+            <td><code>workbench.desktop.main.js</code> ~lines 732–751</td>
+            <td><code>n8r()</code> / <code>OYb()</code> → <code>:root { --cursor-* }</code></td>
+          </tr>
+          <tr>
+            <td>Canvas SDK mirror</td>
+            <td><code>extensions/cursor-agent-exec/dist/agent-sdk/cursor/canvas/</code></td>
+            <td><code>canvas-tokens.d.ts</code>, <code>ui-primitives.d.ts</code></td>
+          </tr>
+          <tr>
+            <td>VS Code theme bridge</td>
+            <td><code>extensions/theme-cursor/themes/*.json</code></td>
+            <td><code>--vscode-*</code> colors for Monaco/legacy chrome</td>
+          </tr>
+        </table>
+
+        <h3 id="ds-architecture">3-layer architecture</h3>
+        <div class="ascii">VS Code theme JSON (--vscode-*)
+        │
+        ▼
+GlassThemeService + semantic registry (c2f / Sei)
+        │  core palette: sidebar, chrome, editor, accent, focus
+        │  semantic: color-mix from foreground → text/bg/stroke tiers
+        ▼
+--cursor-* custom properties on body[data-cursor-glass-mode="true"]
+        │
+        ▼
+packages/ui components (.ui-*) + Tailwind v4 utilities (@layer theme/utilities)</div>
+        <p>
+          Components reference <code>var(--cursor-*)</code> exclusively — never raw hex in product
+          CSS. Legacy Monaco parts still read <code>--vscode-*</code> with
+          <code>--cursor-*</code> fallbacks. Human-readable class names
+          (<code>.ui-tab-system-tab</code>, <code>.editor-panel-tab-header-row</code>) — no CSS
+          Modules hashing.
+        </p>
+
+        <h3 id="ds-injection">Runtime injection (<code>GlassThemeService</code>)</h3>
+        <div class="callout warn">
+          <b>Correction:</b> tokens are <em>not</em> mass-injected via
+          <code>documentElement.style.setProperty</code> loops. Primary path is
+          <code>&lt;style id="otg"&gt;.textContent = css</code> stamped on theme change. ~4,082
+          <code>--cursor-*</code> references exist in the bundle (mostly static CSS consumption).
+        </div>
+        <table>
+          <tr>
+            <th>Style element</th>
+            <th>Contents</th>
+          </tr>
+          <tr>
+            <td><code>otg</code></td>
+            <td>Dynamic <code>--cursor-*</code> color tokens (user tint, custom themes)</td>
+          </tr>
+          <tr>
+            <td><code>stg</code></td>
+            <td>General glass CSS</td>
+          </tr>
+          <tr>
+            <td><code>ltg</code></td>
+            <td>VS Code color registry bridge (<code>--vscode-*</code>)</td>
+          </tr>
+          <tr>
+            <td><code>atg</code> / <code>ctg</code></td>
+            <td>Floating widget + theming rules</td>
+          </tr>
+        </table>
+        <p>
+          Scoping: <code>body[data-cursor-glass-mode="true"]</code> + appearance bucket classes
+          (<code>cursor-dark</code>, <code>cursor-light</code>, <code>cursor-high-contrast</code>)
+          + <code>[data-component="root"]</code> on the Glass React shell.
+        </p>
+
+        <h3 id="ds-colors">Color tokens</h3>
+        <p>
+          Hex values are theme-injected; the Canvas SDK documents dark/light palettes aligned with
+          <code>packages/ui/src/tokens/themes/cursor-core/{dark,light}.ts</code>.
+        </p>
+
+        <h4>Core surfaces (dark palette — from <code>canvas-tokens.d.ts</code>)</h4>
+        <table>
+          <tr>
+            <th>Token</th>
+            <th>Dark value</th>
+            <th>Role</th>
+          </tr>
+          <tr>
+            <td><code>foreground</code></td>
+            <td><code>#E4E4E4EB</code></td>
+            <td>Base text color (92% alpha)</td>
+          </tr>
+          <tr>
+            <td><code>editor</code></td>
+            <td><code>#181818</code></td>
+            <td>Code/editor surface → <code>--cursor-bg-editor</code></td>
+          </tr>
+          <tr>
+            <td><code>chrome</code> / <code>sidebar</code></td>
+            <td><code>#141414</code></td>
+            <td>Agent panel / left rail → <code>--cursor-bg-chrome</code>, <code>--cursor-bg-sidebar</code></td>
+          </tr>
+          <tr>
+            <td><code>elevated</code></td>
+            <td><code>#181818</code></td>
+            <td>Popovers, tooltips, floating cards</td>
+          </tr>
+          <tr>
+            <td><code>accent</code></td>
+            <td><code>#599CE7</code></td>
+            <td>Primary CTA → <code>--cursor-bg-accent</code></td>
+          </tr>
+          <tr>
+            <td><code>strokeFocused</code></td>
+            <td><code>#E4E4E4</code></td>
+            <td>Focus ring → <code>--cursor-stroke-focused</code></td>
+          </tr>
+        </table>
+
+        <h4>Semantic tiers (derived via <code>color-mix</code> from foreground)</h4>
+        <table>
+          <tr>
+            <th>Category</th>
+            <th>Token</th>
+            <th>Mix / formula</th>
+            <th>Usage</th>
+          </tr>
+          <tr>
+            <td rowspan="4">Text</td>
+            <td><code>--cursor-text-primary</code></td>
+            <td>theme-injected (= fg)</td>
+            <td>Active tabs, body, headings</td>
+          </tr>
+          <tr>
+            <td><code>--cursor-text-secondary</code></td>
+            <td>theme-injected</td>
+            <td>Descriptions, button labels</td>
+          </tr>
+          <tr>
+            <td><code>--cursor-text-tertiary</code></td>
+            <td><code>color-mix(fg 54%, transparent)</code></td>
+            <td>Inactive tabs, chrome labels, metadata</td>
+          </tr>
+          <tr>
+            <td><code>--cursor-text-quaternary</code></td>
+            <td><code>color-mix(fg 36%, transparent)</code></td>
+            <td>Placeholders, faintest copy</td>
+          </tr>
+          <tr>
+            <td rowspan="5">Background</td>
+            <td><code>--cursor-bg-primary</code></td>
+            <td><code>color-mix(fg 20%, transparent)</code></td>
+            <td>Base interactive surface</td>
+          </tr>
+          <tr>
+            <td><code>--cursor-bg-tertiary</code></td>
+            <td><code>color-mix(fg 8%, transparent)</code></td>
+            <td>Icon-button active, window-control active</td>
+          </tr>
+          <tr>
+            <td><code>--cursor-bg-quaternary</code></td>
+            <td><code>color-mix(fg 6%, transparent)</code></td>
+            <td><b>Active tab pill</b>, icon-button hover</td>
+          </tr>
+          <tr>
+            <td><code>--cursor-bg-card</code></td>
+            <td>= quaternary (6%)</td>
+            <td>Tab hover, list row hover</td>
+          </tr>
+          <tr>
+            <td><code>--cursor-bg-elevated</code></td>
+            <td>theme-injected</td>
+            <td>Menus, dialogs, glass elevated surfaces</td>
+          </tr>
+          <tr>
+            <td rowspan="4">Stroke</td>
+            <td><code>--cursor-stroke-primary</code></td>
+            <td><code>color-mix(fg 20%, transparent)</code></td>
+            <td>Focused inputs, strong borders</td>
+          </tr>
+          <tr>
+            <td><code>--cursor-stroke-secondary</code></td>
+            <td><code>color-mix(fg 12%, transparent)</code></td>
+            <td>Card borders, inputs</td>
+          </tr>
+          <tr>
+            <td><code>--cursor-stroke-tertiary</code></td>
+            <td><code>color-mix(fg 8%, transparent)</code></td>
+            <td><b>36px header hairlines</b>, sidebar edges</td>
+          </tr>
+          <tr>
+            <td><code>--cursor-stroke-quaternary</code></td>
+            <td><code>color-mix(fg 4%, transparent)</code></td>
+            <td>Subtle rings, inner dividers</td>
+          </tr>
+        </table>
+
+        <h4>Status colors (parallel primary/secondary families)</h4>
+        <p>
+          <code>--cursor-bg-{green,red,yellow,blue}-primary</code> (solid badges),
+          <code>--cursor-bg-{green,red,yellow}-secondary</code> (soft fills),
+          <code>--cursor-text-{green,red,yellow,blue,cyan,magenta,orange}-primary</code> (syntax +
+          semantic labels),
+          <code>--cursor-icon-*</code> (parallel icon ladder),
+          <code>--cursor-syntax-*</code> (Shiki bridge). Diff:
+          <code>--cursor-text-added</code> / <code>--cursor-text-removed</code>.
+        </p>
+
+        <h4>Glass bridge tokens</h4>
+        <table>
+          <tr>
+            <th>Token</th>
+            <th>Resolves to</th>
+          </tr>
+          <tr>
+            <td><code>--glass-surface-background</code></td>
+            <td><code>var(--cursor-bg-editor)</code></td>
+          </tr>
+          <tr>
+            <td><code>--glass-sidebar-surface-background</code></td>
+            <td><code>var(--cursor-bg-sidebar)</code></td>
+          </tr>
+          <tr>
+            <td><code>--glass-chat-surface-background</code></td>
+            <td><code>var(--cursor-bg-chrome)</code></td>
+          </tr>
+          <tr>
+            <td><code>--glass-window-border-color</code></td>
+            <td><code>color-mix(fg 14%, transparent)</code></td>
+          </tr>
+        </table>
+
+        <h3 id="ds-typography">Typography</h3>
+        <p>
+          Three layers: VS Code base (13px/1.4em), runtime <code>--cursor-font-*</code> tokens, and
+          the authoritative <code>.ui-text</code> size ramp (hardcoded px).
+        </p>
+        <table>
+          <tr>
+            <th><code>data-size</code></th>
+            <th>font-size</th>
+            <th>line-height</th>
+            <th>letter-spacing</th>
+            <th>Role</th>
+          </tr>
+          <tr>
+            <td><code>xs</code></td>
+            <td>11px</td>
+            <td>14px</td>
+            <td>0.07px</td>
+            <td>Captions, badge text, code line numbers</td>
+          </tr>
+          <tr>
+            <td><code>sm</code></td>
+            <td>12px</td>
+            <td>16px</td>
+            <td>0</td>
+            <td><b>Tab labels</b>, compact chrome</td>
+          </tr>
+          <tr>
+            <td><code>md</code></td>
+            <td>13px</td>
+            <td>18px</td>
+            <td>-0.08px</td>
+            <td>Tray titles, card headers, tool-call body</td>
+          </tr>
+          <tr>
+            <td><code>lg</code></td>
+            <td>14px</td>
+            <td>20px</td>
+            <td>-0.15px</td>
+            <td>Transcript body, user messages, tool-call headers</td>
+          </tr>
+          <tr>
+            <td><code>xl</code></td>
+            <td>17px</td>
+            <td>21px</td>
+            <td>-0.44px</td>
+            <td>Section titles</td>
+          </tr>
+          <tr>
+            <td><code>2xl</code></td>
+            <td>20px</td>
+            <td>22px</td>
+            <td>-0.46px</td>
+            <td>Large headings</td>
+          </tr>
+          <tr>
+            <td><code>3xl</code></td>
+            <td>22px</td>
+            <td>26px</td>
+            <td>-0.26px</td>
+            <td>Hero titles</td>
+          </tr>
+        </table>
+        <p>
+          Font families: <code>--cursor-font-family-sans</code> (→ <code>--vscode-font-family</code>),
+          <code>--cursor-font-family-mono</code> (from <code>editor.fontFamily</code> config).
+          Weights: regular=400, medium=500, <b>semibold=590</b> (Apple intermediate), bold=700.
+          Context override: <code>--conversation-font-size: 13px</code> (transcript) or
+          <code>14px</code> (<code>.markdown-root</code> default).
+        </p>
+
+        <h3 id="ds-spacing">Spacing scale</h3>
+        <p>
+          Formula: <code>--cursor-spacing-{N} = N × 4px</code> where hyphens encode decimals
+          (<code>1-5</code> = 1.5 = 6px). Tailwind v4 base: <code>--spacing: 0.25rem</code>.
+          Negative tokens <code>--cursor-spacing-ne-{N}</code> for icon optical correction.
+        </p>
+        <table>
+          <tr>
+            <th>Token</th>
+            <th>px</th>
+            <th>Shell usage</th>
+          </tr>
+          <tr>
+            <td><code>0-25 / 0-5 / 1</code></td>
+            <td>1 / 2 / 4</td>
+            <td>Segmented control padding; resize handle hit area (4px) + visible line (2px)</td>
+          </tr>
+          <tr>
+            <td><code>1-5 / 2</code></td>
+            <td>6 / 8</td>
+            <td><b>Leading cluster inset (6px)</b>; header padding-right (8px); icon-button lg = calc(2×6+12) = 24px</td>
+          </tr>
+          <tr>
+            <td><code>2-5 / 3</code></td>
+            <td>10 / 12</td>
+            <td>Diff header bottom pad; sidebar footer gaps</td>
+          </tr>
+          <tr>
+            <td><code>4 / 7</code></td>
+            <td>16 / 28</td>
+            <td>Agent panel insets; settings panel padding</td>
+          </tr>
+          <tr>
+            <td><code>ne-1-5</code></td>
+            <td>−6</td>
+            <td>Icon-button lg content-frame margin</td>
+          </tr>
+        </table>
+        <h4>Load-bearing chrome geometry</h4>
         <div class="grid2">
           <div class="card">
-            <h4>Radius</h4>
+            <h4>Top bar (35px)</h4>
             <table>
-              <tr>
-                <td><code>xs</code></td>
-                <td>2px (favicons)</td>
-              </tr>
-              <tr>
-                <td><code>md</code></td>
-                <td><b>6px — tabs/buttons/toggles (shell default)</b></td>
-              </tr>
-              <tr>
-                <td><code>lg</code></td>
-                <td>8px (cards, callouts)</td>
-              </tr>
-              <tr>
-                <td><code>xl</code></td>
-                <td>12px (conversation surfaces)</td>
-              </tr>
-              <tr>
-                <td>glass toolbar</td>
-                <td>16px</td>
-              </tr>
-              <tr>
-                <td>status dots</td>
-                <td>50%</td>
-              </tr>
+              <tr><td>Bar height</td><td><code>--tab-system-height: 35px</code></td></tr>
+              <tr><td>Section padding</td><td><code>4px 8px</code> (spacing-1 spacing-2)</td></tr>
+              <tr><td>Tab height</td><td>25px (bar − 2×5px container pad)</td></tr>
+              <tr><td>Tab padding</td><td>0 8px (stable/pinned: 0 6px)</td></tr>
+              <tr><td>Tab max-width / gap</td><td>200px / 1px</td></tr>
+              <tr><td>Action icon (lg)</td><td>24×24px, gap 1px between buttons</td></tr>
             </table>
           </div>
           <div class="card">
-            <h4>Spacing (scale = N × 0.25rem)</h4>
+            <h4>Second header (36px)</h4>
             <table>
-              <tr>
-                <td>tab-bar / header row height</td>
-                <td><b>36px</b></td>
-              </tr>
-              <tr>
-                <td>header row padding</td>
-                <td>0 8px 0 6px</td>
-              </tr>
-              <tr>
-                <td>control gap</td>
-                <td>4px</td>
-              </tr>
-              <tr>
-                <td>tab padding</td>
-                <td>0 8px (pinned 0 6px)</td>
-              </tr>
-              <tr>
-                <td>tab max-width / gap</td>
-                <td>200px / 1px</td>
-              </tr>
-              <tr>
-                <td>conversation surface radius</td>
-                <td>12px</td>
-              </tr>
+              <tr><td>Row height</td><td><b>36px</b></td></tr>
+              <tr><td>Padding</td><td>0 8px 0 6px</td></tr>
+              <tr><td>Gap</td><td>4–8px</td></tr>
+              <tr><td>Borders</td><td>top+bottom 1px <code>stroke-tertiary</code></td></tr>
+              <tr><td>Radius</td><td>none (flush hairline)</td></tr>
+              <tr><td>Window controls</td><td>24×30px, pad 0 4px 0 6px</td></tr>
             </table>
           </div>
         </div>
 
-        <h4>Borders &amp; glass</h4>
+        <h3 id="ds-radius">Radius scale</h3>
+        <p>
+          No <code>--cursor-radius-md</code> — shell default is <code>--cursor-radius-base</code>
+          (≈6px, Tailwind <code>md</code> equivalent).
+        </p>
         <table>
           <tr>
-            <th>Element</th>
-            <th>Value</th>
+            <th>Token</th>
+            <th>px</th>
+            <th>Components</th>
           </tr>
           <tr>
-            <td>Header row dividers</td>
-            <td>
-              top &amp; bottom <code>1px solid var(--cursor-stroke-tertiary)</code> =
-              <code>color-mix(in srgb, var(--vscode-foreground) 8%, transparent)</code>
-            </td>
+            <td><code>xs</code></td>
+            <td>3</td>
+            <td>Focus rings on small controls, favicons</td>
           </tr>
           <tr>
-            <td>Window frame (Win/Linux)</td>
-            <td>
-              <code>::after { box-shadow: inset 0 0 0 1px var(--glass-window-border) }</code>; macOS
-              uses OS rounding
-            </td>
+            <td><code>sm</code></td>
+            <td>4</td>
+            <td>Icon-buttons default, inputs, segmented control (sm)</td>
           </tr>
           <tr>
-            <td>Glass surface (<code>.cursor-bg-glass</code>)</td>
-            <td>
-              <code
-                >backdrop-filter: blur(8px); background: color-mix(in srgb,
-                var(--cursor-bg-elevated) 92%, transparent)</code
-              >
-            </td>
+            <td><code>base</code></td>
+            <td><b>6</b></td>
+            <td><b>Tabs, buttons md/lg/xl, window controls</b></td>
           </tr>
           <tr>
-            <td>Floating toolbar glass</td>
-            <td>
-              <code>backdrop-filter: blur(16px)</code>, radius 16px,
-              <code>--cursor-box-shadow-xl</code>
-            </td>
+            <td><code>lg</code></td>
+            <td>8</td>
+            <td>Cards, tooltips, user message bubbles</td>
           </tr>
           <tr>
-            <td>Elevation ladder</td>
-            <td>
-              every shadow <b>leads with a <code>0 0 0 1px</code> hairline ring</b> then stacks
-              ambient + directional shadows
-            </td>
+            <td><code>xl</code></td>
+            <td>12</td>
+            <td>Conversation surfaces (<code>--conversation-surface-border-radius</code>)</td>
+          </tr>
+          <tr>
+            <td><code>full</code></td>
+            <td>9999px</td>
+            <td>Toggles, pill buttons, compact prompt</td>
+          </tr>
+          <tr>
+            <td><code>2xl</code> / <code>3xl</code></td>
+            <td>~16 / ~20–24</td>
+            <td>Hover-card lg, dynamic-island prompt, palette shell</td>
+          </tr>
+          <tr>
+            <td>literal 16px</td>
+            <td>16</td>
+            <td><b>Floating glass toolbar</b> (<code>--prompt-input-border-radius-compact-expanded</code>)</td>
           </tr>
         </table>
 
-        <h4>Tabs (state model) — filled pill, no underline</h4>
+        <h3 id="ds-elevation">Elevation &amp; shadows</h3>
+        <p>
+          Shadow color tokens:
+          <code>--cursor-shadow-primary: var(--vscode-widget-shadow)</code>,
+          <code>--cursor-shadow-secondary: color-mix(widget-shadow 60%, transparent)</code>,
+          <code>--cursor-shadow-tertiary: color-mix(widget-shadow 30%, transparent)</code>.
+          <b>Every ladder level leads with <code>0 0 0 1px</code> hairline ring.</b>
+        </p>
+        <table>
+          <tr>
+            <th>Token</th>
+            <th>Stack (formatted)</th>
+            <th>Usage</th>
+          </tr>
+          <tr>
+            <td><code>soft</code></td>
+            <td><code>0 2px 8px rgba(0,0,0,.15)</code> (fallback only)</td>
+            <td>Trays, tooltips, hover-cards</td>
+          </tr>
+          <tr>
+            <td><code>sm</code></td>
+            <td>hairline + <code>0 2px 8px 0 shadow-secondary</code></td>
+            <td>Picker menus</td>
+          </tr>
+          <tr>
+            <td><code>base</code></td>
+            <td>hairline + <code>0 0 4px 0</code> + <code>0 8px 24px -2px</code></td>
+            <td>Toasts, modals, color-picker popover</td>
+          </tr>
+          <tr>
+            <td><code>lg</code></td>
+            <td>hairline + <code>0 0 4px 0</code> + <code>0 16px 24px 0</code></td>
+            <td>Breadcrumb dropdowns</td>
+          </tr>
+          <tr>
+            <td><code>xl</code></td>
+            <td>hairline + <code>0 0 4px 0</code> + <code>0 12px 24px 0</code> + <code>0 24px 36px 0</code></td>
+            <td><b>Floating glass toolbars</b></td>
+          </tr>
+        </table>
+        <p>
+          Glass tray/hover-card dual inset ring:
+          <code>inset 0 0 0 1px stroke-secondary, inset 0 0 0 1px bg-elevated</code>.
+        </p>
+
+        <h3 id="ds-glass">Glass &amp; vibrancy</h3>
+        <p>
+          Activation: <code>body[data-cursor-glass-mode="true"]</code> + body classes
+          (<code>cursor-glass-os-vibrancy-on/off</code>, <code>cursor-glass-windows-mica</code>,
+          <code>cursor-glass-reduce-transparency</code>). Root:
+          <code>[data-component="root"]</code> with <code>data-system</code> and
+          <code>data-fullscreen</code>.
+        </p>
+        <table>
+          <tr>
+            <th>Surface</th>
+            <th>Light vibrancy-on</th>
+            <th>Dark vibrancy-on</th>
+          </tr>
+          <tr>
+            <td>Root shell</td>
+            <td><code>hsla(0,0%,100%,.16)</code></td>
+            <td><code>rgba(0,0,0,.42)</code></td>
+          </tr>
+          <tr>
+            <td>Sidebar</td>
+            <td><code>color-mix(sidebar 42%, transparent)</code></td>
+            <td><code>color-mix(sidebar 36%, transparent)</code></td>
+          </tr>
+          <tr>
+            <td>Chat / editor</td>
+            <td><code>color-mix(chrome 84%, transparent)</code></td>
+            <td><code>color-mix(chrome 72%, transparent)</code></td>
+          </tr>
+        </table>
+        <h4>Glass surface recipes</h4>
+        <table>
+          <tr>
+            <th>Class / tier</th>
+            <th>blur</th>
+            <th>Background</th>
+          </tr>
+          <tr>
+            <td><code>.cursor-bg-glass</code></td>
+            <td>8px</td>
+            <td><code>color-mix(elevated 92%, transparent)</code></td>
+          </tr>
+          <tr>
+            <td>Floating toolbar (xl)</td>
+            <td>16px</td>
+            <td><code>color-mix(elevated 84%, transparent)</code> + <code>box-shadow-xl</code></td>
+          </tr>
+          <tr>
+            <td>Composer bubble</td>
+            <td>10px</td>
+            <td><code>var(--glass-chat-bubble-background)</code></td>
+          </tr>
+          <tr>
+            <td>Tray / hover-card</td>
+            <td>8px</td>
+            <td><code>bg-elevated</code> + soft shadow + dual inset ring</td>
+          </tr>
+        </table>
+        <p>
+          Win/Linux window frame:
+          <code>[data-component=root][data-system=linux|windows]:not([data-fullscreen=true])::after {
+          box-shadow: inset 0 0 0 1px var(--glass-window-border-color) }</code>. macOS uses OS-native
+          rounding (10px / 16px on Tahoe).
+        </p>
+
+        <h3 id="ds-motion">Motion</h3>
+        <div class="callout">
+          <b>Primary UI easing:</b>
+          <code>cubic-bezier(0.215, 0.61, 0.355, 1)</code> (easeOutCubic) at
+          <b>150ms</b> for tabs, prompt input, trays. <b>300ms</b> with
+          <code>cubic-bezier(0.165, 0.84, 0.44, 1)</code> for dialogs and text rolls.
+          <b>Maximize itself has no CSS transition</b> — it is imperative grid reflow
+          (<code>setViewVisible</code> + <code>layout()</code>); the 300ms curve applies to React UI
+          kit components, not the VS Code split grid.
+        </div>
+        <table>
+          <tr>
+            <th>Component</th>
+            <th>Duration</th>
+            <th>Easing</th>
+          </tr>
+          <tr>
+            <td><code>.ui-tab-system-tab[data-stable]</code></td>
+            <td>100ms</td>
+            <td><code>ease</code></td>
+          </tr>
+          <tr>
+            <td><code>.ui-tab</code>, <code>.ui-prompt-input</code></td>
+            <td>150ms</td>
+            <td><code>0.215, 0.61, 0.355, 1</code></td>
+          </tr>
+          <tr>
+            <td><code>.ui-dialog</code></td>
+            <td>300ms</td>
+            <td><code>0.165, 0.84, 0.44, 1</code></td>
+          </tr>
+          <tr>
+            <td><code>.ui-text-roll</code></td>
+            <td>300ms</td>
+            <td><code>0.215, 0.61, 0.355, 1</code></td>
+          </tr>
+        </table>
+        <p>
+          <code>@media (prefers-reduced-motion: reduce)</code> →
+          <code>transition-duration: 0.01ms</code> across UI kit.
+          <code>[data-suppress-motion]</code> documented as programmatic escape hatch (parallel to
+          reduced-motion).
+        </p>
+
+        <h3 id="ds-components">UI component library (<code>packages/ui</code>)</h3>
+        <p>
+          Attribute-driven API: variants via <code>data-size</code>, <code>data-variant</code>,
+          <code>data-color</code>, <code>data-active</code>, etc. on stable BEM roots.
+        </p>
+
+        <h4>Tabs — filled pill, no underline</h4>
         <table>
           <tr>
             <th>State</th>
@@ -881,66 +1396,137 @@ subscribe = notify =&gt; manager.subscribeAll(ev =&gt; {
           <tr>
             <td>Base</td>
             <td>
-              radius 6px; <code>border:1px solid transparent</code>; bg transparent;
+              radius <code>base</code> (6px); <code>border:1px solid transparent</code>; bg transparent;
               <code>color:var(--cursor-text-tertiary)</code>
             </td>
           </tr>
           <tr>
             <td>Hover <span class="legend">(@media hover:hover and pointer:fine)</span></td>
             <td>
-              bg <code>--cursor-bg-card</code>; text primary; long labels get a right-edge mask fade
+              bg <code>--cursor-bg-card</code>; text primary; long labels get right-edge mask fade
             </td>
           </tr>
           <tr>
-            <td>Active</td>
+            <td>Active (<code>data-active</code>)</td>
             <td>
-              <b>filled pill</b> bg <code>--cursor-bg-quaternary</code> + primary text (no
-              bottom-border indicator)
+              <b>filled pill</b> bg <code>--cursor-bg-quaternary</code> + primary text
             </td>
           </tr>
           <tr>
             <td>Focus-visible</td>
             <td>
-              <code>box-shadow: inset 0 0 0 2px var(--cursor-stroke-focused)</code>, no outline
+              <code>box-shadow: inset 0 0 0 2px var(--cursor-stroke-focused)</code>
             </td>
           </tr>
           <tr>
             <td>Close button</td>
             <td>
-              hidden (<code>opacity:0</code>) until tab hovered;
+              <code>opacity:0</code> until <code>data-hovered</code>;
               <code>-webkit-app-region:no-drag</code>
             </td>
           </tr>
         </table>
 
-        <h4>Animation</h4>
-        <div class="callout">
-          <b>Signature maximize/resize easing:</b>
-          <code>300ms cubic-bezier(0.215, 0.61, 0.355, 1)</code> (easeOutCubic). Secondary dims at
-          <code>160ms ease-out</code>. Everything gated behind
-          <code>@media (prefers-reduced-motion: reduce) → 0.01ms</code> and a
-          <code>[data-suppress-motion]</code> escape hatch.
-        </div>
+        <h4>Core primitives (size matrices)</h4>
+        <table>
+          <tr>
+            <th>Component</th>
+            <th>Sizes</th>
+            <th>Key dimensions</th>
+          </tr>
+          <tr>
+            <td><code>.ui-button</code></td>
+            <td>xs–xl</td>
+            <td>16–32px height; variants: primary/secondary/outline/tint/text/ghost</td>
+          </tr>
+          <tr>
+            <td><code>.ui-icon-button</code></td>
+            <td>xs/sm/md/lg</td>
+            <td>14/16/20/<b>24px</b> hit targets; variants: default/circle/toggle/tab</td>
+          </tr>
+          <tr>
+            <td><code>.ui-input-group</code></td>
+            <td>base/lg/xl</td>
+            <td>24/28px height; no standalone <code>.ui-input</code> class</td>
+          </tr>
+          <tr>
+            <td><code>.ui-menu</code></td>
+            <td>default/md</td>
+            <td>120–320px width; 13px/18px row text</td>
+          </tr>
+          <tr>
+            <td><code>.ui-toggle</code></td>
+            <td>xs/sm/md</td>
+            <td>16/20/24px track; knob slides on <code>data-checked</code></td>
+          </tr>
+          <tr>
+            <td><code>.ui-card</code></td>
+            <td>default/lg</td>
+            <td>30/32px header; radius <code>lg</code> (8px)</td>
+          </tr>
+          <tr>
+            <td><code>.ui-badge</code></td>
+            <td>xs/sm/md</td>
+            <td>7–10px badge text; dot/icon/shape variants</td>
+          </tr>
+        </table>
+        <p>
+          Full inventory (~1,427 rules): agent transcript (<code>ui-shell-tool-call</code>,
+          <code>ui-user-message-box</code>), navigation (<code>ui-breadcrumb</code>),
+          composer (<code>ui-prompt-input</code>), diff (<code>ui-default-diff</code>), settings
+          (<code>ui-field-group</code>), MCP (<code>ui-mcp-server-form</code>), automations, trays,
+          and more. Canvas SDK exports a standalone mirror:
+          <code>Stack</code>, <code>Row</code>, <code>Grid</code>, <code>Text</code>, <code>Button</code>,
+          <code>Card</code>, <code>Callout</code>, <code>DiffView</code>, charts, etc.
+        </p>
 
-        <h4>Drop-in Honk token layer (Tailwind v4 <code>@theme</code> + <code>:root</code>)</h4>
+        <h3 id="ds-honk">Honk mapping</h3>
         <pre><code>@theme {
   --radius-xs:.125rem; --radius-md:.375rem; --radius-lg:.5rem; --radius-xl:.75rem;
   --spacing:.25rem;
-  --ease-shell:cubic-bezier(.215,.61,.355,1);   /* Cursor's maximize curve */
+  --ease-shell:cubic-bezier(.215,.61,.355,1);
 }
-:root{
+:root {
   --honk-text-primary:var(--honk-fg);
   --honk-text-tertiary:  color-mix(in srgb, var(--honk-fg) 54%, transparent);
-  --honk-stroke-tertiary:color-mix(in srgb, var(--honk-fg)  8%, transparent);  /* dividers */
-  --honk-bg-quaternary:  color-mix(in srgb, var(--honk-fg)  6%, transparent);  /* active tab pill */
-  --honk-bg-card:        color-mix(in srgb, var(--honk-fg)  4%, transparent);  /* tab hover */
+  --honk-stroke-tertiary:color-mix(in srgb, var(--honk-fg)  8%, transparent);
+  --honk-bg-quaternary:  color-mix(in srgb, var(--honk-fg)  6%, transparent);
+  --honk-bg-card:        color-mix(in srgb, var(--honk-fg)  4%, transparent);
   --honk-stroke-focused: var(--honk-focus,#4493f8);
   --glass-window-border: color-mix(in srgb, var(--honk-fg) 14%, transparent);
   --honk-shadow-xl: 0 0 0 1px var(--glass-window-border), 0 0 4px 0 var(--honk-shadow),
                     0 12px 24px 0 var(--honk-shadow), 0 24px 36px 0 var(--honk-shadow);
 }
-.honk-glass{ backdrop-filter:blur(8px);
-  background-color:color-mix(in srgb, var(--honk-bg-elevated) 92%, transparent); }</code></pre>
+.honk-glass {
+  backdrop-filter:blur(8px);
+  background-color:color-mix(in srgb, var(--honk-bg-elevated) 92%, transparent);
+}</code></pre>
+        <table>
+          <tr>
+            <th>Cursor</th>
+            <th>Honk</th>
+          </tr>
+          <tr>
+            <td><code>data-cursor-glass-mode</code></td>
+            <td><code>data-honk-glass-mode</code></td>
+          </tr>
+          <tr>
+            <td><code>GlassThemeService</code> + <code>style#otg</code></td>
+            <td><code>applyAppearanceBaseColors()</code> + <code>#honk-custom-tint-tokens</code></td>
+          </tr>
+          <tr>
+            <td><code>packages/ui</code> <code>.ui-tab-system-tab</code></td>
+            <td><code>@honk/honkkit/tabs</code> + <code>WorkbenchChromeRow</code></td>
+          </tr>
+          <tr>
+            <td><code>--cursor-*</code> semantics</td>
+            <td><code>packages/app/src/styles/tokens.css</code> → <code>--honk-*</code></td>
+          </tr>
+          <tr>
+            <td>Tailwind <code>@theme inline</code></td>
+            <td><code>packages/app/src/index.css</code></td>
+          </tr>
+        </table>
       </section>
 
       <!-- ============================================================ -->

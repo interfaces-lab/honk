@@ -24,19 +24,24 @@
   --honk-workbench-toggle-left: var(--honk-workbench-toggle-left-user, 12px);
   --honk-workbench-toggle-right: var(--honk-workbench-toggle-right-user, 12px);
   --honk-workbench-changes-toggle-w: var(--honk-workbench-changes-toggle-w-user, 7rem);
-  --honk-workbench-chrome-row-height: 34px;
-  --honk-workbench-panel-title-row-height: 32px;
-  --honk-workbench-panel-title-padding-block: 4px;
+  --honk-workbench-chrome-row-height: 35px;
+  --honk-workbench-panel-title-row-height: 36px;
+  --honk-workbench-panel-title-padding-block: 0px;
   --honk-workbench-chrome-padding-inline: 8px;
   --honk-workbench-sub-chrome-padding-inline: 6px;
-  --honk-workbench-chrome-action-gap: 2px;
-  --honk-workbench-sub-chrome-action-gap: 2px;
+  --honk-workbench-tab-container-padding: 5px;
+  --honk-workbench-chrome-action-gap: 1px;
+  --honk-workbench-sub-chrome-action-gap: 4px;
   --honk-workbench-chrome-gap-loose: 4px;
   --honk-workbench-chrome-gap-relaxed: 8px;
   --honk-workbench-text-control-gap: 4px;
   --honk-workbench-text-control-padding-inline: 6px;
   --honk-workbench-chrome-icon-padding-x: 3px;
-  --honk-workbench-action-size: 22px;
+  --honk-workbench-action-size: 24px;
+  --honk-workbench-trailing-action-size: 24px;
+  --honk-workbench-tab-height: calc(
+    var(--honk-workbench-chrome-row-height) - 2 * var(--honk-workbench-tab-container-padding)
+  );
   --honk-workbench-tab-label-max-width: 200px;
   --honk-composer-menu-collision-padding-top: 8px;
 }
@@ -205,12 +210,8 @@ body.honk-reduce-transparency {
 .agent-window {
   --honk-agent-window-font-smoothing-webkit: var(--honk-font-smoothing-webkit);
   --honk-agent-window-font-smoothing-moz: var(--honk-font-smoothing-moz);
-  --honk-shell-left-effective-width: var(--honk-shell-left-width);
-  --honk-shell-right-effective-width: var(--honk-shell-right-workbench-width);
   --honk-shell-secondary-rail-effective-width: var(--honk-shell-secondary-rail-width, 0px);
-  --honk-shell-right-workbench-header-end-space: calc(
-    var(--honk-shell-titlebar-control-size) + var(--honk-shell-titlebar-gutter)
-  );
+  --honk-shell-right-workbench-header-end-space: var(--honk-shell-titlebar-control-size);
   /* Left titlebar group is two controls (sidebar toggle + search) with a 2px gap. */
   --honk-shell-left-controls-end-space: calc(
     2 * var(--honk-shell-titlebar-control-size) + 2px + var(--honk-shell-titlebar-gutter)
@@ -256,21 +257,17 @@ html:not([data-electron]) .agent-window {
   --honk-agent-window-font-smoothing-moz: auto;
 }
 
-.agent-window[data-shell-left-intent="collapsed"] {
-  --honk-shell-left-effective-width: var(--honk-shell-left-collapsed-width);
-}
-
-.agent-window[data-shell-right-intent="collapsed"],
-.agent-window[data-shell-right-panel="false"] {
-  --honk-shell-right-effective-width: var(--honk-shell-right-workbench-collapsed-width);
-}
-
 .agent-window__sidebar {
   --honk-interactive-surface: var(--honk-base-sidebar);
   box-shadow: none;
-  width: var(--honk-shell-left-effective-width);
-  min-width: min(var(--honk-shell-left-effective-width), var(--honk-shell-left-min-width));
+  width: var(--honk-shell-left-width);
+  min-width: min(var(--honk-shell-left-width), var(--honk-shell-left-min-width));
   max-width: var(--honk-shell-left-max-width);
+}
+
+.agent-window:not([data-shell-left-mode="overlay"]) .agent-window__sidebar[data-state="collapsed"] {
+  width: var(--honk-shell-left-collapsed-width);
+  min-width: 0;
 }
 
 .agent-window__sidebar .sidebar-body {
@@ -304,15 +301,20 @@ html:not([data-electron]) .agent-window {
     var(--honk-workbench-surface-background)
   );
   box-shadow: none;
-  width: var(--honk-shell-right-effective-width);
+  width: var(--honk-shell-right-workbench-width);
   min-width: min(
-    var(--honk-shell-right-effective-width),
+    var(--honk-shell-right-workbench-width),
     var(--honk-shell-right-workbench-min-width)
   );
   /* Force-expand priority: the workbench keeps its stored width inline and
    * the center (min-w-0) gives way; the cqw cap only stops it outgrowing the
    * shell itself. min-width still wins below it, keeping the panel usable. */
   max-width: min(var(--honk-shell-right-workbench-max-width), 100cqw);
+}
+
+.agent-window__workbench[data-state="collapsed"] {
+  width: var(--honk-shell-right-workbench-collapsed-width);
+  min-width: 0;
 }
 
 /*
@@ -333,53 +335,106 @@ html:not([data-electron]) .agent-window {
   border-left-color: transparent;
 }
 
-/* Center (chat) region: BEM peer of __sidebar / __workbench, so its layout +
- * fullscreen reflow live here in the central shell stylesheet (not as ad-hoc
- * utilities). Its collapse animates on the shared panel-reflow duration token
- * (matching the sidebar/workbench width transition); the token is zeroed under
- * prefers-reduced-motion, so no separate media query is needed. Only flex-grow
- * is animated — flex-basis stays 0 throughout, so it has nothing to tween. */
-.agent-window__center {
-  transition: flex-grow var(--motion-duration-panel) ease-out;
-}
-
-/* Editor-panel fullscreen: a genuine flex reflow (Cursor's editor maximize),
- * driven by the root data attribute. The workbench grows into the freed center
- * space. The LEFT agent list stays put: Cursor's editor/agent maximize keeps
- * the `unifiedsidebar` agent list mounted and visible, and only the center
- * conversation yields. No overlay; the only JS is the synchronous attribute
- * flip in ShellFullscreenLayer, so no chrome re-renders on toggle. */
-.agent-window[data-shell-fullscreen-target="right-workbench"] .agent-window__workbench {
+/* Cursor maximize: center is structurally unmounted by React; the editor panel
+ * container gets the fullscreen marker and flexes into the freed space. */
+.editor-panel-container[data-fullscreen-layout] {
   flex: 1 1 auto;
   min-width: 0;
   max-width: 100cqw;
   border-left-color: transparent;
 }
 
-/* Collapse the center (chat) region out of flow so the workbench reflows into
- * it. The left agent list is intentionally untouched. */
-.agent-window[data-shell-fullscreen-target="right-workbench"] .agent-window__center {
-  flex-grow: 0;
-  flex-basis: 0;
-  width: 0;
-  min-width: 0;
-  overflow: hidden;
+.agent-window[data-suppress-motion] .agent-window__workbench,
+.agent-window[data-suppress-motion] .agent-window__sidebar,
+.editor-panel-container[data-suppress-motion],
+.editor-panel-container[data-suppress-motion] * {
+  animation: none !important;
+  transition: none !important;
 }
 
-.agent-window[data-shell-fullscreen-target="right-workbench"] .agent-window__workbench-body {
+.editor-panel-container[data-fullscreen-layout] .agent-window__workbench-body {
   width: 100%;
 }
 
-/* The workbench fills the window in fullscreen, so its resize sash has nothing
- * to drag against; hide it (CSS only, the sash node stays mounted). */
-.agent-window[data-shell-fullscreen-target="right-workbench"] .honk-shell-workbench-sash {
+.editor-panel-container[data-fullscreen-layout] .honk-shell-workbench-sash {
+  display: none;
+}
+
+.agent-window[data-shell-fullscreen-target="right-workbench"] .agent-window-chat-header {
+  display: none;
+}
+
+[data-shell-fullscreen-leading],
+[data-shell-fullscreen-chat-title],
+[data-shell-fullscreen-chat-divider] {
   display: none;
 }
 
 [data-electron]
-  .agent-window[data-shell-fullscreen-target="right-workbench"]
-  .honk-workbench-tool-island {
-  padding-left: var(--honk-electron-traffic-inset);
+  .agent-window[data-shell-fullscreen-target="right-workbench"]:not(
+    [data-shell-left-presentation="inline-expanded"]
+  )
+  [data-shell-fullscreen-leading] {
+  display: block;
+  flex: 0 0 calc(var(--honk-electron-traffic-inset) + var(--honk-shell-left-controls-end-space));
+  width: calc(var(--honk-electron-traffic-inset) + var(--honk-shell-left-controls-end-space));
+}
+
+.agent-window[data-shell-fullscreen-target="right-workbench"] [data-shell-fullscreen-chat-title],
+.agent-window[data-shell-fullscreen-target="right-workbench"] [data-shell-fullscreen-chat-divider] {
+  display: flex;
+}
+
+.chat-title-tab-row {
+  max-width: 10.5rem;
+  margin-left: 7px;
+  margin-right: 1px;
+  flex: 0 1 auto;
+  height: 100%;
+  align-items: center;
+  overflow: hidden;
+}
+
+.chat-title-tab-trigger {
+  display: inline-flex;
+  min-width: 0;
+  height: var(--honk-workbench-tab-height);
+  align-items: center;
+  gap: 8px;
+  color: var(--honk-fg-primary);
+  font-weight: 500;
+}
+
+.chat-title-tab-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-shell-fullscreen-toggle] [data-fullscreen-toggle-icon="expand"] {
+  display: contents;
+}
+
+[data-shell-fullscreen-toggle] [data-fullscreen-toggle-icon="minimize"] {
+  display: none;
+}
+
+.agent-window[data-shell-fullscreen-target="right-workbench"]
+  [data-shell-fullscreen-toggle]
+  [data-fullscreen-toggle-icon="expand"] {
+  display: none;
+}
+
+.agent-window[data-shell-fullscreen-target="right-workbench"]
+  [data-shell-fullscreen-toggle]
+  [data-fullscreen-toggle-icon="minimize"] {
+  display: contents;
+}
+
+.agent-window[data-shell-fullscreen-target="right-workbench"] [data-shell-fullscreen-toggle] {
+  background-color: var(--honk-bg-tertiary);
+  color: var(--honk-icon-primary);
 }
 
 .honk-shell-titlebar-left-controls {
@@ -404,6 +459,16 @@ html:not([data-electron]) .agent-window {
   z-index: 50;
 }
 
+[data-shell-overlay-backdrop] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.agent-window[data-shell-left-presentation="overlay-expanded"] [data-shell-overlay-backdrop] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* Composite pane title band, full-width under the 35px tool island. */
 .agent-window .honk-workbench-panel-title-row {
   display: flex;
@@ -411,12 +476,13 @@ html:not([data-electron]) .agent-window {
   box-sizing: border-box;
   flex-shrink: 0;
   min-width: 0;
-  height: var(--honk-workbench-panel-title-row-height, 32px);
-  min-height: var(--honk-workbench-panel-title-row-height, 32px);
-  max-height: var(--honk-workbench-panel-title-row-height, 32px);
+  height: var(--honk-workbench-panel-title-row-height, 36px);
+  min-height: var(--honk-workbench-panel-title-row-height, 36px);
+  max-height: var(--honk-workbench-panel-title-row-height, 36px);
   flex-wrap: nowrap;
-  padding-block: var(--honk-workbench-panel-title-padding-block, 4px);
-  padding-inline: var(--honk-workbench-sub-chrome-padding-inline);
+  gap: var(--honk-workbench-sub-chrome-action-gap);
+  padding: 0 8px 0 var(--honk-workbench-sub-chrome-padding-inline);
+  border-top: 1px solid var(--honk-workbench-panel-border-faint);
   border-bottom: 1px solid var(--honk-workbench-panel-border-faint);
   background-color: var(--honk-workbench-panel-title-background);
 }
@@ -426,7 +492,121 @@ html:not([data-electron]) .agent-window {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   background-color: var(--honk-workbench-tool-island-background);
-  border-bottom-color: var(--honk-workbench-panel-border-soft);
+  border-bottom: none;
+}
+
+.agent-window
+  .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
+  .ui-tab-system-tabs__scrollable {
+  --honk-workbench-tab-scroll-mask-left: #000;
+  --honk-workbench-tab-scroll-mask-right: #000;
+
+  -webkit-mask-image: linear-gradient(
+    to right,
+    var(--honk-workbench-tab-scroll-mask-left) 0,
+    #000 12px,
+    #000 calc(100% - 12px),
+    var(--honk-workbench-tab-scroll-mask-right) 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    var(--honk-workbench-tab-scroll-mask-left) 0,
+    #000 12px,
+    #000 calc(100% - 12px),
+    var(--honk-workbench-tab-scroll-mask-right) 100%
+  );
+  overscroll-behavior-x: contain;
+}
+
+.agent-window
+  .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
+  .ui-tab-system-tabs__scrollable[data-scroll-overflow="true"][data-scroll-at-start="false"] {
+  --honk-workbench-tab-scroll-mask-left: transparent;
+}
+
+.agent-window
+  .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
+  .ui-tab-system-tabs__scrollable[data-scroll-overflow="true"][data-scroll-at-end="false"] {
+  --honk-workbench-tab-scroll-mask-right: transparent;
+}
+
+.agent-window
+  .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
+  .ui-tab-system-tabs__viewport {
+  width: max-content;
+}
+
+.agent-window
+  .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
+  .ui-tab-system-drop-indicator {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  z-index: 2;
+  width: 2px;
+  pointer-events: none;
+  border-radius: 999px;
+  background: var(--honk-fg-primary);
+  transform: translateX(-1px);
+}
+
+.agent-window
+  .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
+  .ui-tab-system-tab[data-workbench-dynamic-tab="true"] {
+  align-items: center;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  justify-content: flex-start;
+  width: auto;
+  min-width: var(--honk-workbench-tab-height, 25px);
+  height: var(--honk-workbench-tab-height, 25px);
+  padding-inline: 6px;
+}
+
+.agent-window
+  .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
+  .ui-tab-system-tab[data-workbench-dynamic-tab="true"][data-closable="true"] {
+  padding-right: 18px;
+}
+
+.agent-window
+  .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
+  .ui-tab-system-tab[data-workbench-dynamic-tab="true"]
+  .ui-tab-system-tab__content {
+  width: auto;
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+.agent-window
+  .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
+  .ui-tab-system-tab[data-workbench-dynamic-tab="true"]
+  .ui-tab-system-tab__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-window[data-shell-route-kind="draft"] .agent-window__workbench {
+  border-left-color: transparent;
+}
+
+.agent-window[data-shell-route-kind="draft"]
+  .honk-workbench-tool-island.editor-panel-tab-root {
+  background-color: transparent;
+}
+
+.agent-window[data-shell-route-kind="draft"]
+  .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
+  [data-slot="workbench-chrome-row-content"] {
+  padding-block: 0;
+}
+
+.agent-window[data-shell-route-kind="draft"]
+  .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
+  [data-slot="workbench-chrome-trailing-section"] {
+  padding-block: 0;
 }
 
 body.honk-reduce-transparency[data-honk-glass-mode="true"] .editor-panel-tab-root--simple-tabs {
@@ -440,22 +620,22 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] .editor-panel-tab-roo
   align-items: center;
   aspect-ratio: 1;
   justify-content: center;
-  width: var(--honk-workbench-action-size, 22px);
+  width: var(--honk-workbench-tab-height, 25px);
   min-width: unset;
-  height: var(--honk-workbench-action-size, 22px);
+  height: var(--honk-workbench-tab-height, 25px);
   padding: 0;
 }
 
 .agent-window
   .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
-  .ui-tab-system-tab[data-stable]:not([data-active])
+  .ui-tab-system-tab[data-stable][data-active="false"]
   .ui-tab-system-tab__icon {
   color: var(--honk-icon-tertiary);
 }
 
 .agent-window
   .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
-  .ui-tab-system-tab[data-stable]:hover:not([data-active])
+  .ui-tab-system-tab[data-stable][data-active="false"]:hover
   .ui-tab-system-tab__icon {
   color: var(--honk-icon-secondary);
 }
@@ -654,11 +834,6 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] .editor-panel-tab-roo
 .agent-window-chat-header [data-slot="toggle"][data-pressed] {
   background: var(--honk-bg-quaternary);
   color: var(--honk-fg-primary);
-}
-
-.agent-window-chat-header [data-slot="button"]:active,
-.agent-window-chat-header [data-slot="toggle"]:active {
-  transform: scale(0.96);
 }
 
 .agent-window-chat-header [data-slot="separator"] {

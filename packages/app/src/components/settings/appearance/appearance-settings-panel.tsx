@@ -262,20 +262,6 @@ export function AppearanceSettingsPanel() {
         <SettingsRow
           title="Font Smoothing"
           description="Mac text smoothing."
-          resetAction={
-            settings.agentWindowFontSmoothingAntialiased !==
-            DEFAULT_UNIFIED_SETTINGS.agentWindowFontSmoothingAntialiased ? (
-              <SettingResetButton
-                label="Agent Window font smoothing"
-                onClick={() =>
-                  updateSettings({
-                    agentWindowFontSmoothingAntialiased:
-                      DEFAULT_UNIFIED_SETTINGS.agentWindowFontSmoothingAntialiased,
-                  })
-                }
-              />
-            ) : null
-          }
           control={
             <Switch
               checked={settings.agentWindowFontSmoothingAntialiased}
@@ -317,18 +303,6 @@ export function AppearanceSettingsPanel() {
         <SettingsRow
           title="Tool Call Density"
           description="Adjust how much detail is shown for tool calls"
-          resetAction={
-            settings.conversationDensity !== DEFAULT_UNIFIED_SETTINGS.conversationDensity ? (
-              <SettingResetButton
-                label="tool call density"
-                onClick={() =>
-                  updateSettings({
-                    conversationDensity: DEFAULT_UNIFIED_SETTINGS.conversationDensity,
-                  })
-                }
-              />
-            ) : null
-          }
           control={
             <ToolCallDensitySlider
               value={settings.conversationDensity}
@@ -337,8 +311,9 @@ export function AppearanceSettingsPanel() {
               }}
             />
           }
-        />
-        <ToolCallDensityPreview density={settings.conversationDensity} />
+        >
+          <ToolCallDensityPreview density={settings.conversationDensity} />
+        </SettingsRow>
       </SettingsSection>
     </SettingsPageContainer>
   );

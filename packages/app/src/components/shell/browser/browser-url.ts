@@ -27,3 +27,30 @@ export function normalizeBrowserNavigationInput(value: string): string | null {
   if (isLikelyBrowserUrl(trimmed)) return `https://${trimmed}`;
   return `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`;
 }
+
+export type BrowserLocationSegmentEmphasis = "primary" | "muted";
+
+export interface BrowserLocationSegment {
+  emphasis: BrowserLocationSegmentEmphasis;
+  text: string;
+}
+
+export function formatBrowserLocationSegments(url: string): BrowserLocationSegment[] {
+  const trimmed = url.trim();
+  if (!trimmed) return [];
+
+  try {
+    const parsed = new URL(trimmed);
+    const segments: BrowserLocationSegment[] = [
+      { emphasis: "muted", text: `${parsed.protocol}//` },
+      { emphasis: "primary", text: parsed.host },
+    ];
+    const rest = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    if (rest && rest !== "/") {
+      segments.push({ emphasis: "muted", text: rest });
+    }
+    return segments;
+  } catch {
+    return [{ emphasis: "primary", text: trimmed }];
+  }
+}

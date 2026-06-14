@@ -11,7 +11,15 @@ import {
 import type { TimestampFormat } from "@honk/contracts/settings";
 import { useMutation } from "@tanstack/react-query";
 import { Outlet, useRouter } from "@tanstack/react-router";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ComponentType,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { flushSync } from "react-dom";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
@@ -39,6 +47,7 @@ import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { readEnvironmentApi } from "~/environment-api";
 import { readHonkRuntimeApi } from "~/lib/honk-runtime-api";
 import { prepareRuntimeTurnPolicy } from "~/lib/runtime-turn-dispatch";
+import { inferLoginShellCaption } from "~/lib/shell-caption";
 import { coordinateTurnSend, dispatchTurnStartFailure } from "~/lib/turn-send-coordinator";
 import { resolveProjectlessCwd } from "~/lib/project-state";
 import {
@@ -56,11 +65,18 @@ import {
 } from "~/lib/git-agent-actions";
 import type { GitAgentActionHandoff } from "~/lib/git-agent-action-handoff";
 import {
+  readTerminalSessions,
   shellPanelsActions,
-  useActiveTab,
   useSecondaryRail,
   useTerminalSessions,
 } from "~/stores/shell-panels-store";
+import {
+  useWorkbenchTabSnapshot,
+  workbenchTabPersistenceActions,
+  type WorkbenchManagedTab,
+  type WorkbenchTabIconKey,
+  type WorkbenchTabSnapshotRuntimeInput,
+} from "~/stores/workbench-tab-store";
 import {
   buildPlanImplementationPrompt,
   normalizePlanMarkdownForExport,
@@ -115,7 +131,7 @@ import { ShellSidebarFooter } from "./shell/sidebar/footer";
 import { ShellSidebarHeader } from "./shell/sidebar/header";
 import { AgentSidebar } from "./shell/agents/agent-sidebar";
 import { useAgentSidebarModel } from "./shell/agents/sidebar/use-agent-sidebar-model";
-import { BrowserWorkbenchPanel } from "./shell/browser/browser-workbench-panel";
+import { BrowserPanel } from "./shell/browser/panel";
 import { DevWorkbenchPanel } from "./shell/dev/dev-workbench-panel";
 import { TerminalPanel } from "./shell/terminal/panel";
 import { TerminalRail } from "./shell/terminal/terminal-rail";
@@ -140,30 +156,23 @@ import {
 import { Button } from "@honk/honkkit/button";
 import { TerminalWorkbenchSubChrome } from "./shell/terminal/workbench-subchrome";
 
-function inferLoginShellCaption(): string {
-  try {
-    const envShell =
-      typeof process !== "undefined" && process.env && typeof process.env.SHELL === "string"
-        ? process.env.SHELL
-        : undefined;
-    if (envShell) {
-      const raw = envShell.trim().replace(/^["']+|["']+$/g, "");
-      const last = Math.max(raw.lastIndexOf("/"), raw.lastIndexOf("\\"));
-      const base = last < 0 ? raw : raw.slice(last + 1);
-      const withoutExe = base.replace(/\.exe$/i, "");
-      if (withoutExe.length > 0) {
-        return withoutExe;
-      }
-    }
-  } catch {
-    /* non-Node or restricted env */
-  }
+const WORKBENCH_TAB_ICONS: Record<
+  WorkbenchTabIconKey,
+  ComponentType<{ className?: string | undefined }>
+> = {
+  plan: IconSquareChecklist,
+  dev: IconCode,
+  changes: IconBranch,
+  terminal: IconConsole,
+  file: IconFileText,
+  browser: IconBrowserTabs,
+};
 
-  if (typeof navigator !== "undefined" && /Win/i.test(navigator.userAgent)) {
-    return "powershell";
-  }
-
-  return "zsh";
+function toWorkbenchTabMeta(tab: WorkbenchManagedTab): WorkbenchTabMeta {
+  return {
+    ...tab,
+    icon: WORKBENCH_TAB_ICONS[tab.iconKey],
+  };
 }
 
 async function sendRuntimeShellTurn(input: {
@@ -340,6 +349,7 @@ function SettingsShellHost(props: { children?: ReactNode }) {
         left={settingsLeft}
         center={props.children ?? <Outlet />}
         centerSurface="editor"
+        centerRouteKind="settings"
         right={null}
       />
     </div>
@@ -545,7 +555,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
         createdAt,
         api,
       });
-      shellPanelsActions.activatePlanTab(workspaceTarget.workspaceKey);
+      workbenchTabPersistenceActions.activatePlan(workspaceTarget.workspaceKey);
     } catch (error) {
       toast.error("Could not implement plan.", {
         description: error instanceof Error ? error.message : "An error occurred.",
@@ -984,6 +994,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
     <ChatWorkbenchShellHost
       left={chatLeft}
       center={center}
+      routeKind={routeTarget?.kind ?? null}
       routeThreadId={routeThreadId}
       cwd={activeCwd}
       workspaceKey={workspaceTarget.workspaceKey}
@@ -1005,37 +1016,13 @@ function TerminalWorkbenchPanel(props: {
   cwd: string | null;
   workspaceKey: string | null;
   environmentId: EnvironmentId | null;
+  onActivateTerminal: (terminalId: string) => void;
+  onCloseTerminal: (terminalId: string) => void;
+  terminalId?: string | undefined;
 }) {
   const terminalState = useTerminalSessions(props.workspaceKey);
   const { open: terminalRailOpen } = useSecondaryRail(props.workspaceKey, "terminal");
-  const threadKey = props.workspaceKey ?? props.cwd;
-  const threadId = threadKey ? workbenchTerminalThreadId(threadKey) : null;
-  const runningTerminalIds = useWorkbenchTerminalRunning(threadId, props.environmentId);
-  const [pendingCloseTerminalId, setPendingCloseTerminalId] = useState<string | null>(null);
-
-  const closeTerminalSession = (terminalId: string) => {
-    // Shut the PTY down server-side before dropping the tab from the store,
-    // otherwise the shell (and anything it spawned) keeps running forever.
-    const api = readWorkbenchTerminalApi(props.environmentId);
-    if (api && threadId) {
-      void api.close({ threadId, terminalId, deleteHistory: true }).catch(() => undefined);
-      forgetWorkbenchTerminalRunning(threadId, props.environmentId, terminalId);
-    }
-    shellPanelsActions.removeTerminalSession(props.workspaceKey, terminalId);
-  };
-
-  const requestCloseTerminalSession = (terminalId: string) => {
-    if (runningTerminalIds.has(terminalId)) {
-      setPendingCloseTerminalId(terminalId);
-      return;
-    }
-    closeTerminalSession(terminalId);
-  };
-
-  const pendingCloseLabel = pendingCloseTerminalId
-    ? (terminalState.sessions.find((session) => session.id === pendingCloseTerminalId)?.label ??
-      "Terminal")
-    : "Terminal";
+  const activeTerminalId = props.terminalId ?? terminalState.activeId;
 
   return (
     <WorkbenchPanel className="overflow-hidden">
@@ -1052,9 +1039,9 @@ function TerminalWorkbenchPanel(props: {
           rail={
             <TerminalRail
               sessions={terminalState.sessions}
-              activeId={terminalState.activeId}
-              onActivate={(id) => shellPanelsActions.setActiveTerminal(props.workspaceKey, id)}
-              onClose={requestCloseTerminalSession}
+              activeId={activeTerminalId}
+              onActivate={props.onActivateTerminal}
+              onClose={props.onCloseTerminal}
             />
           }
         >
@@ -1062,38 +1049,10 @@ function TerminalWorkbenchPanel(props: {
             cwd={props.cwd}
             workspaceKey={props.workspaceKey}
             environmentId={props.environmentId}
-            terminalId={terminalState.activeId}
+            terminalId={activeTerminalId}
           />
         </RightWorkbenchLayout>
       </div>
-      <AlertDialog
-        open={pendingCloseTerminalId !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingCloseTerminalId(null);
-        }}
-      >
-        <AlertDialogPopup>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Close "{pendingCloseLabel}"?</AlertDialogTitle>
-            <AlertDialogDescription>
-              A process is still running in this terminal. Closing the tab will terminate it.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                const terminalId = pendingCloseTerminalId;
-                setPendingCloseTerminalId(null);
-                if (terminalId) closeTerminalSession(terminalId);
-              }}
-            >
-              Close terminal
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogPopup>
-      </AlertDialog>
     </WorkbenchPanel>
   );
 }
@@ -1162,6 +1121,7 @@ function GitStatusSync(props: { cwd: string | null; environmentId: EnvironmentId
 function ChatWorkbenchShellHost(props: {
   left: ReactNode;
   center: ReactNode;
+  routeKind: "draft" | "server" | null;
   routeThreadId: string | null;
   cwd: string | null;
   workspaceKey: string;
@@ -1177,108 +1137,177 @@ function ChatWorkbenchShellHost(props: {
   pendingGitAgentAction: GitAgentAction | null;
 }) {
   const planTabAvailable = props.plan.available && props.plan.environmentId !== null;
-  const activeWorkbenchTab = useActiveTab(props.workspaceKey);
+  const terminalState = useTerminalSessions(props.workspaceKey);
+  const terminalThreadKey = props.workspaceKey ?? props.cwd;
+  const terminalThreadId = terminalThreadKey ? workbenchTerminalThreadId(terminalThreadKey) : null;
+  const runningTerminalIds = useWorkbenchTerminalRunning(terminalThreadId, props.environmentId);
+  const [pendingCloseTerminalId, setPendingCloseTerminalId] = useState<string | null>(null);
+  const workbenchTabRuntime = useMemo<WorkbenchTabSnapshotRuntimeInput>(
+    () => ({
+      plan: { available: planTabAvailable, label: props.plan.label },
+      terminal: terminalState,
+    }),
+    [planTabAvailable, props.plan.label, terminalState],
+  );
+  const tabSnapshot = useWorkbenchTabSnapshot(props.workspaceKey, workbenchTabRuntime);
   const editorState = useWorkspaceEditorFileState(props.workspaceKey);
   const centerEditorActive = editorState.placement === "center" && editorState.activePath !== null;
-  const devTabAvailable = activeWorkbenchTab === "dev";
-  const workbenchTabs: WorkbenchTabMeta[] = useMemo(() => {
-    const tabs: WorkbenchTabMeta[] = planTabAvailable
-      ? [
-          {
-            id: "plan",
-            label: props.plan.label,
-            icon: IconSquareChecklist,
-          },
-        ]
-      : [];
-    if (devTabAvailable) {
-      tabs.push({
-        id: "dev",
-        label: "Dev",
-        icon: IconCode,
-        closable: true,
+  const workbenchTabs: WorkbenchTabMeta[] = useMemo(
+    () => tabSnapshot.tabs.map(toWorkbenchTabMeta),
+    [tabSnapshot.tabs],
+  );
+  const activateTerminalSession = useCallback(
+    (terminalId: string) => {
+      const session = terminalState.sessions.find((entry) => entry.id === terminalId);
+      workbenchTabPersistenceActions.createTerminal(props.workspaceKey, {
+        id: terminalId,
+        label: session?.label ?? inferLoginShellCaption(),
       });
-    }
-    tabs.push(
-      {
-        id: "git",
-        label: "Changes",
-        icon: IconBranch,
-      },
-      { id: "terminal", label: "Terminal", icon: IconConsole },
-      { id: "files", label: "Files", icon: IconFileText },
-      { id: "browser", label: "Browser", icon: IconBrowserTabs },
-    );
-    return tabs;
-  }, [devTabAvailable, planTabAvailable, props.plan.label]);
+    },
+    [props.workspaceKey, terminalState.sessions],
+  );
+  const closeTerminalSession = useCallback(
+    (terminalId: string) => {
+      const previousTerminalState = readTerminalSessions(props.workspaceKey);
+      const wasActive = previousTerminalState.activeId === terminalId;
+      const api = readWorkbenchTerminalApi(props.environmentId);
+      if (api && terminalThreadId) {
+        void api.close({ threadId: terminalThreadId, terminalId, deleteHistory: true }).catch(
+          () => undefined,
+        );
+        forgetWorkbenchTerminalRunning(terminalThreadId, props.environmentId, terminalId);
+      }
+      shellPanelsActions.removeTerminalSession(props.workspaceKey, terminalId);
+      if (!wasActive) return;
+      const nextTerminalState = readTerminalSessions(props.workspaceKey);
+      if (nextTerminalState.activeId !== terminalId) {
+        workbenchTabPersistenceActions.activateTerminal(
+          props.workspaceKey,
+          nextTerminalState.activeId,
+        );
+      }
+    },
+    [props.environmentId, props.workspaceKey, terminalThreadId],
+  );
+  const requestCloseTerminalSession = useCallback(
+    (terminalId: string) => {
+      if (runningTerminalIds.has(terminalId)) {
+        setPendingCloseTerminalId(terminalId);
+        return;
+      }
+      closeTerminalSession(terminalId);
+    },
+    [closeTerminalSession, runningTerminalIds],
+  );
+  const pendingCloseLabel = pendingCloseTerminalId
+    ? (terminalState.sessions.find((session) => session.id === pendingCloseTerminalId)?.label ??
+      inferLoginShellCaption())
+    : inferLoginShellCaption();
 
   const right: RightWorkbenchDefinition = useMemo(() => {
-    const panels: RightWorkbenchDefinition["panels"] = {
-      files: (
-        <WorkbenchPanel>
-          <ProjectFilesPanel
+    const renderers: RightWorkbenchDefinition["renderers"] = {
+      files: {
+        alwaysMounted: true,
+        render: () => (
+          <WorkbenchPanel>
+            <ProjectFilesPanel
+              cwd={props.cwd}
+              workspaceKey={props.workspaceKey}
+              environmentId={props.environmentId}
+              availableEditors={props.availableEditors}
+            />
+          </WorkbenchPanel>
+        ),
+      },
+      git: {
+        alwaysMounted: true,
+        render: () => (
+          <GitWorkbenchPanel
             cwd={props.cwd}
             workspaceKey={props.workspaceKey}
             environmentId={props.environmentId}
-            availableEditors={props.availableEditors}
+            onAgentAction={props.onGitAgentAction}
+            onStopAgentAction={props.onStopGitAgentAction}
+            stoppingAgentAction={props.stoppingGitAgentAction}
+            pendingAgentAction={props.pendingGitAgentAction}
           />
-        </WorkbenchPanel>
-      ),
-      git: (
-        <GitWorkbenchPanel
-          cwd={props.cwd}
-          workspaceKey={props.workspaceKey}
-          environmentId={props.environmentId}
-          onAgentAction={props.onGitAgentAction}
-          onStopAgentAction={props.onStopGitAgentAction}
-          stoppingAgentAction={props.stoppingGitAgentAction}
-          pendingAgentAction={props.pendingGitAgentAction}
-        />
-      ),
-      terminal: (
-        <TerminalWorkbenchPanel
-          cwd={props.cwd}
-          workspaceKey={props.workspaceKey}
-          environmentId={props.environmentId}
-        />
-      ),
-      browser: <BrowserWorkbenchPanel workspaceKey={props.workspaceKey} />,
+        ),
+      },
+      terminal: {
+        render: ({ tab }) => (
+          <TerminalWorkbenchPanel
+            cwd={props.cwd}
+            workspaceKey={props.workspaceKey}
+            environmentId={props.environmentId}
+            onActivateTerminal={activateTerminalSession}
+            onCloseTerminal={requestCloseTerminalSession}
+            terminalId={tab.terminalId}
+          />
+        ),
+      },
+      browser: {
+        keepMountedAfterFirstActivation: true,
+        render: ({ tab, active }) => (
+          <WorkbenchPanel>
+            <BrowserPanel
+              workspaceKey={props.workspaceKey}
+              tabId={tab.id}
+              browserId={tab.browserId}
+              active={active}
+            />
+          </WorkbenchPanel>
+        ),
+      },
+      dev: {
+        keepMountedAfterFirstActivation: true,
+        render: () => (
+          <WorkbenchPanel>
+            <DevWorkbenchPanel
+              thread={props.thread}
+              threadId={props.threadId}
+              threadTitle={props.threadTitle}
+            />
+          </WorkbenchPanel>
+        ),
+      },
     };
 
     if (planTabAvailable && props.plan.environmentId) {
-      panels.plan = (
-        <WorkbenchPanel>
-          <PlanWorkbenchPanel
-            activePlan={props.plan.activePlan}
-            activeProposedPlan={props.plan.activeProposedPlan}
-            environmentId={props.plan.environmentId}
-            label={props.plan.label}
-            markdownCwd={props.plan.markdownCwd}
-            timestampFormat={props.plan.timestampFormat}
-            canImplementPlan={props.plan.canImplementPlan}
-            isImplementingPlan={props.plan.isImplementingPlan}
-            onImplementPlan={props.plan.onImplementPlan}
-            onSaveProposedPlan={props.plan.onSaveProposedPlan}
-          />
-        </WorkbenchPanel>
-      );
+      renderers.plan = {
+        keepMountedAfterFirstActivation: true,
+        render: () => (
+          <WorkbenchPanel>
+            <PlanWorkbenchPanel
+              activePlan={props.plan.activePlan}
+              activeProposedPlan={props.plan.activeProposedPlan}
+              environmentId={props.plan.environmentId}
+              label={props.plan.label}
+              markdownCwd={props.plan.markdownCwd}
+              timestampFormat={props.plan.timestampFormat}
+              canImplementPlan={props.plan.canImplementPlan}
+              isImplementingPlan={props.plan.isImplementingPlan}
+              onImplementPlan={props.plan.onImplementPlan}
+              onSaveProposedPlan={props.plan.onSaveProposedPlan}
+            />
+          </WorkbenchPanel>
+        ),
+      };
     }
 
-    if (devTabAvailable) {
-      panels.dev = (
-        <WorkbenchPanel>
-          <DevWorkbenchPanel
-            thread={props.thread}
-            threadId={props.threadId}
-            threadTitle={props.threadTitle}
-          />
-        </WorkbenchPanel>
-      );
-    }
-
-    return { tabs: workbenchTabs, panels };
+    return {
+      tabs: workbenchTabs,
+      renderers,
+      snapshot: tabSnapshot,
+      onCloseTab: (tab) => {
+        if (tab.kind === "terminal" && tab.terminalId) {
+          requestCloseTerminalSession(tab.terminalId);
+          return;
+        }
+        workbenchTabPersistenceActions.closeTab(props.workspaceKey, tab.id);
+      },
+    };
   }, [
-    devTabAvailable,
+    activateTerminalSession,
     planTabAvailable,
     props.availableEditors,
     props.cwd,
@@ -1301,6 +1330,8 @@ function ChatWorkbenchShellHost(props: {
     props.threadId,
     props.threadTitle,
     props.workspaceKey,
+    requestCloseTerminalSession,
+    tabSnapshot,
     workbenchTabs,
   ]);
 
@@ -1312,6 +1343,7 @@ function ChatWorkbenchShellHost(props: {
         workspaceKey={props.workspaceKey}
         routeThreadId={props.routeThreadId}
         gitFocusId={null}
+        threadTitle={props.threadTitle}
         left={props.left}
         center={
           <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -1344,7 +1376,36 @@ function ChatWorkbenchShellHost(props: {
         }
         right={right}
         centerSurface={centerEditorActive ? "editor" : "chat"}
+        centerRouteKind={props.routeKind ?? undefined}
       />
+      <AlertDialog
+        open={pendingCloseTerminalId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingCloseTerminalId(null);
+        }}
+      >
+        <AlertDialogPopup>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Close "{pendingCloseLabel}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A process is still running in this terminal. Closing the tab will terminate it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const terminalId = pendingCloseTerminalId;
+                setPendingCloseTerminalId(null);
+                if (terminalId) closeTerminalSession(terminalId);
+              }}
+            >
+              Close terminal
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogPopup>
+      </AlertDialog>
     </div>
   );
 }

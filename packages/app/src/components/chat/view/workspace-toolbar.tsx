@@ -4,13 +4,7 @@ import { normalizeSearchQuery } from "@honk/shared/search-ranking";
 import { Button } from "@honk/honkkit/button";
 import { Input } from "@honk/honkkit/input";
 import { MiddleTruncate } from "@pierre/truncate/react";
-import {
-  Menu,
-  MenuItem,
-  MenuPopup,
-  MenuTrigger,
-  workbenchMenuLabelClassName,
-} from "@honk/honkkit/menu";
+import { Menu, MenuItem, MenuPopup, MenuTrigger, WorkbenchMenuLabel } from "@honk/honkkit/menu";
 import {
   WorkbenchChromeActionGroup,
   workbenchChromeTextControlVariants,
@@ -278,7 +272,7 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
           className="w-72 overflow-hidden p-0 [&>div]:flex [&>div]:max-h-[min(24rem,var(--available-height))] [&>div]:min-h-0 [&>div]:flex-col [&>div]:overflow-hidden [&>div]:p-0"
         >
           <div className="min-h-0 flex-1 overflow-y-auto p-1">
-            <div className={workbenchMenuLabelClassName}>{workspaceMenuLabel}</div>
+            <WorkbenchMenuLabel>{workspaceMenuLabel}</WorkbenchMenuLabel>
             {props.projects.map((project) => {
               const projectRef = scopeProjectRef(project.environmentId, project.id);
               const isActive =
@@ -487,7 +481,7 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
                 ) : null}
                 {branchMenuSections.map((section) => (
                   <div key={section.title}>
-                    <div className={workbenchMenuLabelClassName}>{section.title}</div>
+                    <WorkbenchMenuLabel>{section.title}</WorkbenchMenuLabel>
                     {section.branches.map((branch) => {
                       const branchHasLocalChanges = props.hasLocalChanges && branch.current;
                       return (

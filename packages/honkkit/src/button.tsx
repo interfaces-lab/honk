@@ -4,13 +4,13 @@ import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
-import { cn, controlTransitionClassName, interactiveControlCursorClassName } from "./utils";
+import { cn, controlTransitionVariants, interactiveControlCursorVariants } from "./utils";
 
 const buttonVariants = cva(
   cn(
     "relative inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-honk-control border font-honk outline-none transition-colors before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--honk-radius-control)-1px)] pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 [&_svg:not([class*='opacity-'])]:opacity-80 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-    interactiveControlCursorClassName,
-    controlTransitionClassName,
+    interactiveControlCursorVariants(),
+    controlTransitionVariants(),
   ),
   {
     defaultVariants: {
@@ -28,17 +28,17 @@ const buttonVariants = cva(
         title: "text-title font-medium",
       },
       size: {
-        default: "h-7 px-2.5",
-        icon: "size-7 [&_svg:not([class*='size-'])]:size-4",
-        "icon-lg": "size-8",
-        "icon-sm": "size-6",
-        "icon-xl": "size-9 [&_svg:not([class*='size-'])]:size-4.5",
+        default: "h-6 px-2.5",
+        icon: "size-5 [&_svg:not([class*='size-'])]:size-4",
+        "icon-lg": "size-6",
+        "icon-sm": "size-4",
+        "icon-xl": "size-7 [&_svg:not([class*='size-'])]:size-4",
         "icon-xs":
-          "size-5.5 rounded-sm before:rounded-[calc(var(--radius-sm)-1px)] not-in-data-[slot=input-group]:[&_svg:not([class*='size-'])]:size-4",
-        lg: "h-8 px-3",
-        sm: "h-6 gap-1 px-2.5",
-        xl: "h-9 px-3.5 text-title [&_svg:not([class*='size-'])]:size-4.5",
-        xs: "h-5.5 gap-1 rounded-sm px-1.5 text-detail before:rounded-[calc(var(--radius-sm)-1px)] [&_svg:not([class*='size-'])]:size-4",
+          "size-3.5 rounded-sm before:rounded-[calc(var(--radius-sm)-1px)] not-in-data-[slot=input-group]:[&_svg:not([class*='size-'])]:size-3.5",
+        lg: "h-7 px-3",
+        sm: "h-5 gap-1 px-2",
+        xl: "h-8 px-3.5 text-title [&_svg:not([class*='size-'])]:size-4",
+        xs: "h-4 gap-1 rounded-sm px-1.5 text-detail before:rounded-[calc(var(--radius-sm)-1px)] [&_svg:not([class*='size-'])]:size-3.5",
       },
       variant: {
         /** Filled accent (workbench primary control). */

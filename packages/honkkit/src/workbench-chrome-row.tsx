@@ -6,13 +6,13 @@ import type { ComponentProps, ReactNode } from "react";
 import { cn } from "./utils";
 
 const workbenchChromeRowVariants = cva(
-  "font-honk flex shrink-0 flex-nowrap select-none text-body font-medium text-honk-fg-secondary",
+  "font-honk flex shrink-0 flex-nowrap select-none text-honk-chrome font-medium text-honk-fg-secondary",
   {
     variants: {
       variant: {
         panel:
-          "no-drag honk-workbench-panel-title-row w-full min-w-0 flex-row items-center gap-(--honk-workbench-chrome-action-gap)",
-        tool: "pointer-events-none ui-tab-system honk-workbench-tool-island relative z-20 box-border flex h-(--honk-workbench-chrome-row-height) min-h-(--honk-workbench-chrome-row-height) max-h-(--honk-workbench-chrome-row-height) flex-none flex-row select-none items-center gap-(--honk-workbench-chrome-action-gap) overflow-hidden border-b px-(--honk-workbench-chrome-padding-inline) [--tab-system-bar-background:transparent] editor-panel-tab-root editor-panel-tab-root--simple-tabs",
+          "no-drag honk-workbench-panel-title-row w-full min-w-0 flex-row items-center justify-between gap-(--honk-workbench-chrome-action-gap)",
+        tool: "pointer-events-none ui-tab-system honk-workbench-tool-island relative z-20 box-border flex h-(--honk-workbench-chrome-row-height) min-h-(--honk-workbench-chrome-row-height) max-h-(--honk-workbench-chrome-row-height) w-full min-w-0 flex-none flex-row select-none items-center gap-0 overflow-hidden border-0 px-0 [--tab-system-bar-background:transparent] [--tab-system-height:var(--honk-workbench-chrome-row-height)] editor-panel-tab-root editor-panel-tab-root--simple-tabs",
       },
     },
   },
@@ -29,15 +29,12 @@ const workbenchChromeRowContentVariants = cva(
       },
       variant: {
         panel: "",
-        tool: "editor-panel-tab-bar-tab-cluster pointer-events-auto h-(--honk-workbench-action-size) self-center",
+        tool: "editor-panel-tab-bar-tab-cluster pointer-events-auto box-border h-full self-stretch py-(--honk-workbench-tab-container-padding)",
       },
     },
   },
 );
 
-const workbenchChromeRowSlotClassName = "flex shrink-0 items-center self-center";
-const workbenchChromeRowEndSlotClassName =
-  "pointer-events-none flex shrink-0 items-center self-center";
 const workbenchChromeActionGroupVariants = cva(
   "no-drag flex h-(--honk-workbench-action-size) shrink-0 select-none items-center self-center",
   {
@@ -60,7 +57,7 @@ const workbenchChromeActionGroupVariants = cva(
   },
 );
 const workbenchChromeTextControlVariants = cva(
-  "no-drag inline-flex h-(--honk-workbench-action-size) min-w-0 select-none items-center justify-start gap-(--honk-workbench-text-control-gap) overflow-hidden rounded-honk-control border-0 bg-transparent px-(--honk-workbench-text-control-padding-inline) text-body font-medium shadow-none outline-hidden before:hidden transition-colors focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset",
+  "no-drag inline-flex h-(--honk-workbench-tab-height) min-w-0 select-none items-center justify-start gap-(--honk-workbench-text-control-gap) overflow-hidden rounded-honk-control border-0 bg-transparent px-(--honk-workbench-text-control-padding-inline) text-honk-tab font-medium shadow-none outline-hidden before:hidden transition-colors focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset",
   {
     variants: {
       tone: {
@@ -109,26 +106,27 @@ function WorkbenchChromeRow(props: {
         {props.children}
       </div>
 
-      {props.trailing ? (
+      {props.trailing || (props.variant === "tool" && props.end) ? (
         <div
           className={
             props.variant === "tool"
-              ? `${workbenchChromeRowSlotClassName} pointer-events-auto`
-              : workbenchChromeRowSlotClassName
+              ? "editor-panel-tab-bar-trailing-section no-drag pointer-events-auto box-border flex h-full shrink-0 items-center gap-0 px-2 py-1"
+              : "flex shrink-0 items-center self-center"
           }
-          data-slot="workbench-chrome-row-trailing"
+          data-slot={
+            props.variant === "tool"
+              ? "workbench-chrome-trailing-section"
+              : "workbench-chrome-row-trailing"
+          }
         >
           {props.trailing}
+          {props.variant === "tool" ? props.end : null}
         </div>
       ) : null}
 
-      {props.end ? (
+      {props.end && props.variant !== "tool" ? (
         <div
-          className={
-            props.variant === "tool"
-              ? workbenchChromeRowEndSlotClassName
-              : workbenchChromeRowSlotClassName
-          }
+          className="flex shrink-0 items-center self-center"
           data-slot="workbench-chrome-row-end"
         >
           {props.end}
@@ -159,11 +157,11 @@ function WorkbenchChromeActionGroup({
   );
 }
 
-function WorkbenchChromeDivider({ className, ...props }: ComponentProps<"div">) {
+function WorkbenchChromeDivider({ className, ...props }: ComponentProps<"hr">) {
   return (
-    <div
+    <hr
       className={cn(
-        "h-(--honk-workbench-action-size) w-px shrink-0 self-center bg-honk-stroke-tertiary",
+        "ui-tab-system-tabs__section-divider h-(--honk-workbench-tab-height) w-px shrink-0 self-center border-0 bg-honk-stroke-tertiary",
         className,
       )}
       data-slot="workbench-chrome-divider"
@@ -177,7 +175,7 @@ function WorkbenchChromeLabel({ className, ...props }: ComponentProps<"span">) {
   return (
     <span
       className={cn(
-        "no-drag inline-flex h-(--honk-workbench-action-size) shrink-0 items-center text-honk-fg-secondary",
+        "no-drag inline-flex h-(--honk-workbench-tab-height) shrink-0 items-center text-honk-fg-secondary",
         className,
       )}
       data-slot="workbench-chrome-label"
@@ -190,7 +188,7 @@ function WorkbenchChromeSpacer({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "editor-panel-tab-bar-spacer drag-region pointer-events-auto min-h-(--honk-workbench-action-size) min-w-0 flex-1 self-center",
+        "editor-panel-tab-bar-spacer drag-region pointer-events-auto min-h-(--honk-workbench-tab-height) min-w-0 flex-1 self-stretch",
         className,
       )}
       data-slot="workbench-chrome-spacer"

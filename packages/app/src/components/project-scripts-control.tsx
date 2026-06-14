@@ -48,14 +48,7 @@ import {
 import { Input } from "@honk/honkkit/input";
 import { Kbd } from "@honk/honkkit/kbd";
 import { Label } from "@honk/honkkit/label";
-import {
-  Menu,
-  MenuItem,
-  MenuPopup,
-  MenuShortcut,
-  MenuTrigger,
-  workbenchMenuMetaTextClassName,
-} from "@honk/honkkit/menu";
+import { Menu, MenuItem, MenuPopup, MenuShortcut, MenuTrigger } from "@honk/honkkit/menu";
 import { Popover, PopoverPopup, PopoverTrigger } from "@honk/honkkit/popover";
 import { Switch } from "@honk/honkkit/switch";
 import { Textarea } from "@honk/honkkit/textarea";
@@ -346,7 +339,8 @@ export default function ProjectScriptsControl({
                     <span className="relative ms-auto flex h-4 min-w-4 items-center justify-end">
                       {shortcutLabel ? (
                         <MenuShortcut
-                          className={`${workbenchMenuMetaTextClassName} ms-0 transition-opacity group-hover:opacity-0 group-focus-visible:opacity-0`}
+                          className="ms-0 transition-opacity group-hover:opacity-0 group-focus-visible:opacity-0"
+                          variant="workbench"
                         >
                           {shortcutLabel}
                         </MenuShortcut>

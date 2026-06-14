@@ -15,6 +15,7 @@ import {
   type ResolvedKeybindingsConfig,
   type OrchestrationThreadActivity,
   type AgentInteractionMode,
+  DEFAULT_PROJECTLESS_CWD,
 } from "@honk/contracts";
 import {
   parseScopedThreadKey,
@@ -130,11 +131,11 @@ import { ComposerPendingExtensionUiRequestPanel } from "../composer/pending/exte
 import { selectThreadTerminalState, useTerminalStateStore } from "../../../terminal-state-store";
 import {
   readTerminalSessions,
-  shellPanelsActions,
   useActiveTab,
   useIsMuted,
   useRightOpen,
 } from "~/stores/shell-panels-store";
+import { workbenchTabPersistenceActions } from "~/stores/workbench-tab-store";
 import {
   readWorkbenchTerminalApi,
   workbenchTerminalThreadId,
@@ -1123,7 +1124,7 @@ export default function ChatView(props: ChatViewProps) {
     const initialPath =
       activeProjectCwd ??
       gitCwd ??
-      (configuredBaseDirectory.length > 0 ? configuredBaseDirectory : "~/");
+      (configuredBaseDirectory.length > 0 ? configuredBaseDirectory : DEFAULT_PROJECTLESS_CWD);
 
     void api.dialogs
       .pickFolder({ initialPath })
@@ -1295,7 +1296,13 @@ export default function ChatView(props: ChatViewProps) {
 
     try {
       await api.open(openTerminalInput);
-      shellPanelsActions.setActiveTab("terminal", terminalWorkspaceKey);
+      workbenchTabPersistenceActions.createTerminal(terminalWorkspaceKey, {
+        id: terminalId,
+        label:
+          readTerminalSessions(terminalWorkspaceKey).sessions.find(
+            (session) => session.id === terminalId,
+          )?.label ?? "Terminal",
+      });
       await api.write({
         threadId: terminalThreadId,
         terminalId,
@@ -1570,7 +1577,7 @@ export default function ChatView(props: ChatViewProps) {
   });
   const workspaceTopnavActions =
     showWorkspaceToolbar || workspaceProject ? (
-      <div className="flex min-w-0 items-center gap-(--honk-workbench-chrome-action-gap) overflow-hidden">
+      <div className="flex min-w-0 items-center gap-2 overflow-hidden [&_[data-slot=workbench-chrome-action-group]]:gap-2">
         {showWorkspaceToolbar ? (
           <WorkspaceToolbarWithGitStatus
             environmentId={gitEnvironmentId ?? environmentId}
@@ -2652,7 +2659,7 @@ export default function ChatView(props: ChatViewProps) {
       // Agent mode here means the agent is executing the plan, which produces
       // step-tracking activities that the workbench Plan/Tasks tab will display.
       if (nextInteractionMode === "agent") {
-        shellPanelsActions.activatePlanTab(workspaceTarget.workspaceKey);
+        workbenchTabPersistenceActions.activatePlan(workspaceTarget.workspaceKey);
       }
 
       const turnResult = await coordinateTurnSend({
@@ -2720,7 +2727,7 @@ export default function ChatView(props: ChatViewProps) {
   const handleComposerInterrupt = useStableEvent(onInterrupt);
   const handleBuildActiveProposedPlan = useStableEvent(onBuildActiveProposedPlan);
   const handleViewActivePlan = useStableEvent(() => {
-    shellPanelsActions.activatePlanTab(workspaceTarget.workspaceKey);
+    workbenchTabPersistenceActions.activatePlan(workspaceTarget.workspaceKey);
   });
   const handleRespondToApproval = useStableEvent(onRespondToApproval);
   const handleBeginEditQueuedComposerItem = useStableEvent(onBeginEditQueuedComposerItem);
@@ -3093,7 +3100,7 @@ export default function ChatView(props: ChatViewProps) {
             />
             {isHeroComposer && workspaceTopnavActions ? (
               <div
-                className="@container/header-actions pointer-events-auto flex items-center gap-(--honk-workbench-chrome-action-gap) overflow-hidden"
+                className="@container/header-actions pointer-events-auto flex items-center gap-2 overflow-hidden"
                 data-new-agent-env-row=""
               >
                 {workspaceTopnavActions}

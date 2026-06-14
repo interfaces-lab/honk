@@ -1,13 +1,14 @@
 "use client";
 
 import {
-  IconExpandSimple,
+  IconExpand45,
   IconMagnifyingGlass,
+  IconMinimize45,
   IconSidebar,
   IconSidebarHiddenLeftWide,
   IconSidebarHiddenRightWide,
 } from "central-icons";
-import { WorkbenchIconButton } from "@honk/honkkit/workbench-button";
+import { workbenchIconButtonVariants } from "@honk/honkkit/workbench-button";
 import { TabsPanel, TabsRoot } from "@honk/honkkit/tabs";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { cva } from "class-variance-authority";
@@ -16,7 +17,6 @@ import {
   type CSSProperties,
   memo,
   type ReactNode,
-  type RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -32,7 +32,6 @@ import {
   shortcutLabelForCommand,
 } from "~/keybindings";
 import { syncAppearanceVibrancy } from "~/lib/appearance-settings";
-import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { useSettings } from "~/hooks/use-settings";
 import { useServerKeybindings } from "~/rpc/server-state";
@@ -42,34 +41,38 @@ import {
   RIGHT_WORKBENCH_WIDTH_LIMITS,
   SHELL_LEFT_PANEL_WIDTH_LIMITS,
   shellPanelsActions,
-  useActiveTab,
-  useIsMuted,
   useLeftOpen,
   useLeftWidth,
-  useRightOpen,
-  useRightWidth,
-  useTerminalSessions,
 } from "~/stores/shell-panels-store";
 import {
   getWorkspaceFullscreenTarget,
-  useWorkspaceFullscreenTarget,
   workspaceEditorActions,
 } from "~/stores/workspace-editor-store";
-import { isWorkbenchTab, type WorkbenchTab } from "~/lib/workbench-tabs";
+import { type WorkbenchTab } from "~/lib/workbench-tabs";
 import { cn } from "~/lib/utils";
 import { RightWorkbenchHeader, type WorkbenchTabMeta } from "./right-workbench-header";
 import {
+  workbenchTabPersistenceActions,
+  type WorkbenchTabSnapshot,
+} from "~/stores/workbench-tab-store";
+import {
   panelPresentation,
-  resolveShellPanelModes,
   SHELL_CENTER_MIN_WIDTH,
   type ShellPanelMode,
 } from "./shell-layout";
+import {
+  ShellLayoutProvider,
+  ShellLayoutService,
+  useShellLayout,
+  useShellLayoutConfig,
+} from "./shell-layout-service";
 import { useColumnResize } from "./use-column-resize";
 import { useShellPanelModes } from "./use-shell-layout";
 
 const LEFT_LIMITS = SHELL_LEFT_PANEL_WIDTH_LIMITS;
 const RIGHT_LIMITS = RIGHT_WORKBENCH_WIDTH_LIMITS;
 const FALLBACK_WORKBENCH_TAB = "git" satisfies WorkbenchTab;
+type AppShellRouteKind = "draft" | "server" | "settings";
 
 const workbenchPanelSlotVariants = cva(
   "absolute inset-0 flex min-h-0 min-w-0 flex-col overflow-hidden",
@@ -95,16 +98,32 @@ export function addVisitedWorkbenchTab(
 
 export interface RightWorkbenchDefinition {
   tabs: readonly WorkbenchTabMeta[];
-  panels: Partial<Record<WorkbenchTab, ReactNode>>;
+  renderers: Partial<Record<WorkbenchTab, RightWorkbenchRenderer>>;
+  snapshot: WorkbenchTabSnapshot;
+  onCloseTab?: ((tab: WorkbenchTabMeta) => void) | undefined;
+}
+
+export interface RightWorkbenchRendererContext {
+  tab: WorkbenchTabMeta;
+  workspaceKey: string;
+  active: boolean;
+}
+
+export interface RightWorkbenchRenderer {
+  render: (context: RightWorkbenchRendererContext) => ReactNode;
+  alwaysMounted?: boolean | undefined;
+  keepMountedAfterFirstActivation?: boolean | undefined;
 }
 
 interface RightWorkbenchPanelRuntime {
   activeTab: WorkbenchTab;
+  activeTabId: string;
   open: boolean;
 }
 
 const RightWorkbenchPanelRuntimeContext = createContext<RightWorkbenchPanelRuntime>({
   activeTab: FALLBACK_WORKBENCH_TAB,
+  activeTabId: "changes",
   open: false,
 });
 
@@ -127,15 +146,6 @@ export interface AppShellPanels {
   setRightWidth: (n: number) => void;
   activeTab: WorkbenchTab;
   setActiveTab: (tab: WorkbenchTab) => void;
-}
-
-function resolveEffectiveRightOpen(input: {
-  storedRightOpen: boolean;
-  routeThreadId: string | null;
-  gitFocusId: string | null;
-  muted: boolean;
-}): boolean {
-  return input.storedRightOpen || Boolean(input.routeThreadId && input.gitFocusId && !input.muted);
 }
 
 function setRightPanelOpen(open: boolean, workspaceKey: string | null): void {
@@ -207,6 +217,7 @@ function LeftAside(props: { children: ReactNode; mode: ShellPanelMode }) {
       aria-hidden={hidden ? true : undefined}
       inert={hidden}
       ref={asideRef}
+      style={{ "--honk-shell-left-width": `${leftWidth}px` } as ShellRootStyle}
     >
       {/* Width pinned to the panel width (not w-full) so the open/close width
           animation clips like a curtain instead of rewrapping content every
@@ -235,84 +246,110 @@ function LeftAside(props: { children: ReactNode; mode: ShellPanelMode }) {
   );
 }
 
-// A single fixed icon that never swaps glyph or moves on toggle (intentionally
-// simpler than Cursor's CSS toggled-state swap). It owns no fullscreen
-// subscription, so toggling fullscreen never re-renders it — the layout state is
-// conveyed by the reflow itself, not by this button.
+// Both glyphs stay mounted; ShellLayoutService flips the root attribute and
+// a11y state imperatively so this button does not subscribe to fullscreen.
 const RightWorkbenchFullscreenToggle = memo(function RightWorkbenchFullscreenToggle(props: {
   workspaceKey: string | null;
-  keybindings: ReturnType<typeof useServerKeybindings>;
 }) {
-  const shortcut = shortcutLabelForCommand(props.keybindings, "editorPanel.toggleFullscreen");
-  const title = shortcut
-    ? `Toggle editor panel fullscreen (${shortcut})`
-    : "Toggle editor panel fullscreen";
+  const onClick = useCallback(() => {
+    workspaceEditorActions.toggleFullscreen(props.workspaceKey, "right-workbench");
+  }, [props.workspaceKey]);
+
   return (
-    <WorkbenchIconButton
+    <button
+      type="button"
       aria-label="Toggle editor panel fullscreen"
-      chrome="tool"
-      onClick={() => workspaceEditorActions.toggleFullscreen(props.workspaceKey, "right-workbench")}
-      title={title}
+      aria-pressed="false"
+      data-active="false"
+      data-chrome="tool"
+      data-shell-fullscreen-toggle=""
+      data-tab-system="false"
+      title="Toggle editor panel fullscreen"
+      onClick={onClick}
+      className={cn(workbenchIconButtonVariants({ active: false, chrome: "tool", tabSystem: false }))}
     >
-      <IconExpandSimple className="size-4 shrink-0" aria-hidden />
-    </WorkbenchIconButton>
+      <span data-fullscreen-toggle-icon="expand">
+        <IconExpand45 className="size-4 shrink-0" aria-hidden />
+      </span>
+      <span data-fullscreen-toggle-icon="minimize">
+        <IconMinimize45 className="size-4 shrink-0" aria-hidden />
+      </span>
+    </button>
   );
 });
 
-function RightAsideHeader(props: {
+const RightAsideHeader = memo(function RightAsideHeader(props: {
   workspaceKey: string | null;
-  activeTab: WorkbenchTab;
+  activeTabId: string;
+  onCloseTab?: ((tab: WorkbenchTabMeta) => void) | undefined;
   tabs: readonly WorkbenchTabMeta[];
-  keybindings: ReturnType<typeof useServerKeybindings>;
+  threadTitle: string | null;
 }) {
-  const { workspaceKey, keybindings } = props;
-  const terminalState = useTerminalSessions(workspaceKey);
-  const sessionCount = terminalState.sessions.length;
+  const { workspaceKey } = props;
 
-  // Stable handlers + trailing so a memoized RightWorkbenchHeader skips
-  // re-rendering on unrelated shell churn (width drags, fullscreen toggles).
-  const onTerminalTab = useCallback(
-    (id: string) => shellPanelsActions.setActiveTerminal(workspaceKey, id),
+  const onActivateTab = useCallback(
+    (tabId: string) => workbenchTabPersistenceActions.activateTab(workspaceKey, tabId),
     [workspaceKey],
   );
   const onCloseTab = useCallback(
-    (tab: WorkbenchTab) => {
-      if (tab === "dev") {
-        shellPanelsActions.closeDevTab(workspaceKey);
+    (tabId: string) => {
+      const tab = props.tabs.find((candidate) => candidate.id === tabId);
+      if (tab && props.onCloseTab) {
+        props.onCloseTab(tab);
+        return;
       }
+      workbenchTabPersistenceActions.closeTab(workspaceKey, tabId);
     },
+    [props.onCloseTab, props.tabs, workspaceKey],
+  );
+  const onMoveTab = useCallback(
+    (tabId: string, targetIndex: number) =>
+      workbenchTabPersistenceActions.moveTab(workspaceKey, tabId, targetIndex),
     [workspaceKey],
   );
   const onNewTerminal = useCallback(() => {
-    shellPanelsActions.addTerminalSession(workspaceKey, {
-      id: `term-${Date.now()}`,
-      label: `Terminal ${sessionCount + 1}`,
-    });
-  }, [workspaceKey, sessionCount]);
-  const onCloseTerminal = useCallback(
-    (id: string) => shellPanelsActions.removeTerminalSession(workspaceKey, id),
+    workbenchTabPersistenceActions.createTerminal(workspaceKey);
+  }, [workspaceKey]);
+  const onCreateBrowser = useCallback(
+    (url?: string | undefined) => workbenchTabPersistenceActions.createBrowser(workspaceKey, { url }),
+    [workspaceKey],
+  );
+  const onCreateFile = useCallback(
+    () => workbenchTabPersistenceActions.activateKind(workspaceKey, "files"),
+    [workspaceKey],
+  );
+  const onActivateChanges = useCallback(
+    () => workbenchTabPersistenceActions.activateChanges(workspaceKey),
+    [workspaceKey],
+  );
+  const onHidePanel = useCallback(
+    () => setRightPanelOpen(false, workspaceKey),
     [workspaceKey],
   );
 
-  const trailing = useMemo(
-    () => <RightWorkbenchFullscreenToggle workspaceKey={workspaceKey} keybindings={keybindings} />,
-    [workspaceKey, keybindings],
+  const fullscreenControl = useMemo(
+    () => <RightWorkbenchFullscreenToggle workspaceKey={workspaceKey} />,
+    [workspaceKey],
   );
 
   return (
     <RightWorkbenchHeader
+      workspaceKey={workspaceKey}
+      threadTitle={props.threadTitle}
       tabs={props.tabs}
-      activeTab={props.activeTab}
-      terminalSessions={terminalState.sessions}
-      activeTerminalId={terminalState.activeId}
-      onTerminalTab={onTerminalTab}
+      activeTabId={props.activeTabId}
+      fullscreenControl={fullscreenControl}
+      onActivateChanges={onActivateChanges}
+      onActivateTab={onActivateTab}
       onCloseTab={onCloseTab}
-      onNewTerminal={onNewTerminal}
-      onCloseTerminal={onCloseTerminal}
-      trailing={trailing}
+      onCreateBrowser={onCreateBrowser}
+      onCreateFile={onCreateFile}
+      onCreateTerminal={onNewTerminal}
+      onHidePanel={onHidePanel}
+      onMoveTab={onMoveTab}
     />
   );
-}
+});
 
 // The <aside> shell: owns visibility (rightOpen), fullscreen, the imperative
 // column resize + drag state, the sash, and the sticky mount gate. It renders
@@ -320,13 +357,14 @@ function RightAsideHeader(props: {
 // fullscreen toggle, drag start/end — never re-render the content.
 function RightAsideFrame(props: {
   workspaceKey: string | null;
-  routeThreadId: string | null;
-  gitFocusId: string | null;
   children: ReactNode;
 }) {
-  const storedRightOpen = useRightOpen(props.workspaceKey);
-  const muted = useIsMuted(props.workspaceKey);
-  const rightWidth = useRightWidth(props.workspaceKey);
+  const layout = useShellLayout((snapshot) => ({
+    editorPanelFullscreen: snapshot.editorPanelFullscreen,
+    editorPanelVisible: snapshot.editorPanelVisible,
+    rightWidth: snapshot.rightWidth,
+    suppressMotion: snapshot.suppressMotion,
+  }));
   // Near-constant in steady state (undefined unless a ?panel= deep-link is
   // pending); only used to mount Content on a cold deep-link so its effect can
   // run. Does not feed rightOpen / sash / data-state.
@@ -336,12 +374,7 @@ function RightAsideFrame(props: {
     select: (search) => search.panel,
   });
 
-  const rightOpen = resolveEffectiveRightOpen({
-    storedRightOpen,
-    routeThreadId: props.routeThreadId,
-    gitFocusId: props.gitFocusId,
-    muted,
-  });
+  const rightOpen = layout.editorPanelVisible;
 
   // Mount the workbench on first open (or on a cold ?panel= deep-link, so the
   // content effect can run and open it), then keep it: remount churn on toggle
@@ -354,7 +387,7 @@ function RightAsideFrame(props: {
 
   const asideRef = useRef<HTMLElement | null>(null);
   const resize = useColumnResize({
-    width: rightWidth,
+    width: layout.rightWidth,
     limits: RIGHT_LIMITS,
     elementRef: asideRef,
     direction: "left",
@@ -374,9 +407,12 @@ function RightAsideFrame(props: {
       data-side="right"
       data-state={rightOpen ? "expanded" : "collapsed"}
       data-resizing={resize.dragging ? "true" : "false"}
+      data-fullscreen-layout={layout.editorPanelFullscreen ? "true" : undefined}
+      data-suppress-motion={layout.suppressMotion ? "true" : undefined}
       ref={asideRef}
       aria-hidden={!rightOpen ? true : undefined}
       inert={!rightOpen}
+      style={{ "--honk-shell-right-workbench-width": `${layout.rightWidth}px` } as ShellRootStyle}
     >
       {hasOpened ? props.children : null}
       {rightOpen ? (
@@ -400,56 +436,48 @@ function RightWorkbenchContent(props: {
   workspaceKey: string | null;
   right: RightWorkbenchDefinition;
   keybindings: ReturnType<typeof useServerKeybindings>;
+  threadTitle: string | null;
 }) {
-  const storedActiveTab = useActiveTab(props.workspaceKey);
+  const tabSnapshot = props.right.snapshot;
   const searchActiveTab = useSearch({
     from: "/_chat",
     shouldThrow: false,
     select: (search) => search.panel,
   });
   const navigate = useNavigate();
-  const activeTab = storedActiveTab;
-  const visibleTabs = useMemo(
+  const visibleTabIds = useMemo(
     () => new Set(props.right.tabs.map((tab) => tab.id)),
     [props.right.tabs],
   );
-  const effectiveActiveTab = visibleTabs.has(activeTab) ? activeTab : FALLBACK_WORKBENCH_TAB;
+  const effectiveActiveTab =
+    props.right.tabs.find((tab) => tab.id === tabSnapshot.activeTabId) ??
+    props.right.tabs[0] ??
+    tabSnapshot.activeTab;
 
-  const handleWorkbenchTabChange = (value: unknown) => {
-    if (!isWorkbenchTab(value)) {
-      return;
-    }
-    if (!visibleTabs.has(value)) {
-      return;
-    }
-    // setActiveTab / setMuted de-dupe internally (no-op when unchanged), so no
-    // local muted early-out is needed.
-    shellPanelsActions.setActiveTab(value, props.workspaceKey);
-    shellPanelsActions.setMuted(false, props.workspaceKey);
+  const handleWorkbenchTabChange = (value: string) => {
+    if (!visibleTabIds.has(value)) return;
+    workbenchTabPersistenceActions.activateTab(props.workspaceKey, value);
   };
 
   useEffect(() => {
     if (!searchActiveTab) {
       return;
     }
-    if (visibleTabs.has(searchActiveTab)) {
-      shellPanelsActions.setActiveTab(searchActiveTab, props.workspaceKey);
-      shellPanelsActions.setMuted(false, props.workspaceKey);
-    }
+    workbenchTabPersistenceActions.activateKind(props.workspaceKey, searchActiveTab);
     void navigate({
       replace: true,
       to: ".",
       search: ({ panel: _panel, ...search }) => search,
     });
-  }, [navigate, props.workspaceKey, searchActiveTab, visibleTabs]);
+  }, [navigate, props.workspaceKey, searchActiveTab]);
 
   // `open` is sticky: this subtree only mounts once the Frame has opened and is
   // never unmounted on collapse, so `open` is constant `true` for its lifetime
   // (identical semantics to the former `open: hasOpened`). Collapsing must not
   // disable panel queries, or every expand refetches and replays its skeleton.
   const runtimeValue: RightWorkbenchPanelRuntime = useMemo(
-    () => ({ activeTab: effectiveActiveTab, open: true }),
-    [effectiveActiveTab],
+    () => ({ activeTab: effectiveActiveTab.kind, activeTabId: effectiveActiveTab.id, open: true }),
+    [effectiveActiveTab.id, effectiveActiveTab.kind],
   );
 
   return (
@@ -457,21 +485,23 @@ function RightWorkbenchContent(props: {
       {/* Width pinned like the sidebar body: the open/close width
           animation clips instead of reflowing the panel content. */}
       <TabsRoot
-        value={effectiveActiveTab}
+        value={effectiveActiveTab.id}
         onValueChange={handleWorkbenchTabChange}
         className="agent-window__workbench-body relative z-10 flex h-full min-h-0 w-[min(var(--honk-shell-right-workbench-width),100cqw)] flex-col bg-(--honk-workbench-editor-surface-background) opacity-100 in-data-[resizing=true]:w-full"
       >
         <RightAsideHeader
           workspaceKey={props.workspaceKey}
-          activeTab={effectiveActiveTab}
+          activeTabId={effectiveActiveTab.id}
+          onCloseTab={props.right.onCloseTab}
           tabs={props.right.tabs}
-          keybindings={props.keybindings}
+          threadTitle={props.threadTitle}
         />
         <RightAsidePanels
           key={props.workspaceKey ?? "none"}
-          activeTab={effectiveActiveTab}
+          activeTabId={effectiveActiveTab.id}
           right={props.right}
           workspaceKey={props.workspaceKey ?? "none"}
+          visitedTabIds={tabSnapshot.visitedTabIds}
         />
       </TabsRoot>
     </RightWorkbenchPanelRuntimeContext.Provider>
@@ -494,9 +524,8 @@ const RightAside = memo(function RightAside(props: {
   cwd: string | null;
   workspaceKey: string | null;
   right: RightWorkbenchDefinition;
-  routeThreadId: string | null;
-  gitFocusId: string | null;
   keybindings: ReturnType<typeof useServerKeybindings>;
+  threadTitle: string | null;
 }) {
   const content = useMemo(
     () => (
@@ -504,16 +533,15 @@ const RightAside = memo(function RightAside(props: {
         workspaceKey={props.workspaceKey}
         right={props.right}
         keybindings={props.keybindings}
+        threadTitle={props.threadTitle}
       />
     ),
-    [props.workspaceKey, props.right, props.keybindings],
+    [props.workspaceKey, props.right, props.keybindings, props.threadTitle],
   );
 
   return (
     <RightAsideFrame
       workspaceKey={props.workspaceKey}
-      routeThreadId={props.routeThreadId}
-      gitFocusId={props.gitFocusId}
     >
       {content}
     </RightAsideFrame>
@@ -521,30 +549,38 @@ const RightAside = memo(function RightAside(props: {
 });
 
 function RightAsidePanels(props: {
-  activeTab: WorkbenchTab;
+  activeTabId: string;
   right: RightWorkbenchDefinition;
   workspaceKey: string;
+  visitedTabIds: ReadonlySet<string>;
 }) {
-  const [mountedTabs, setMountedTabs] = useState<ReadonlySet<WorkbenchTab>>(
-    () => new Set([props.activeTab]),
-  );
-
-  useEffect(() => {
-    setMountedTabs((current) => addVisitedWorkbenchTab(current, props.activeTab));
-  }, [props.activeTab]);
-
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
       {props.right.tabs.map((tab) => {
-        const panel = mountedTabs.has(tab.id) ? (props.right.panels[tab.id] ?? null) : null;
+        const renderer = props.right.renderers[tab.kind];
+        const active = tab.id === props.activeTabId;
+        const visited = props.visitedTabIds.has(tab.id);
+        const shouldMount =
+          active ||
+          renderer?.alwaysMounted === true ||
+          (renderer?.keepMountedAfterFirstActivation === true && visited);
+        const panel =
+          shouldMount && renderer
+            ? renderer.render({
+                tab,
+                active,
+                workspaceKey: props.workspaceKey,
+              })
+            : null;
         return (
           <TabsPanel
-            key={`${tab.id}:${props.workspaceKey}`}
+            key={tab.id}
             value={tab.id}
             keepMounted
             className={(state) => workbenchPanelSlotVariants({ active: !state.hidden })}
             data-workbench-panel={tab.id}
-            data-workbench-panel-active={tab.id === props.activeTab ? "true" : "false"}
+            data-workbench-panel-kind={tab.kind}
+            data-workbench-panel-active={active ? "true" : "false"}
           >
             {panel}
           </TabsPanel>
@@ -554,27 +590,32 @@ function RightAsidePanels(props: {
   );
 }
 
-function ShellHeaderControls(props: {
+const ShellLeftToggleButton = memo(function ShellLeftToggleButton() {
+  const leftOpen = useLeftOpen();
+  return (
+    <button
+      type="button"
+      onClick={() => shellPanelsActions.toggleLeft()}
+      className="flex h-(--honk-titlebar-control-height) w-(--honk-titlebar-control-height) shrink-0 items-center justify-center rounded-honk-control bg-transparent p-0 text-honk-fg-secondary transition-[background-color,color] hover:bg-honk-bg-quaternary hover:text-honk-fg-primary [&_svg]:block"
+      aria-label={leftOpen ? "Collapse chats" : "Expand chats"}
+      aria-pressed={leftOpen}
+    >
+      {leftOpen ? (
+        <IconSidebarHiddenLeftWide className="size-4 shrink-0" aria-hidden />
+      ) : (
+        <IconSidebar className="size-4 shrink-0" aria-hidden />
+      )}
+    </button>
+  );
+});
+
+const ShellHeaderControls = memo(function ShellHeaderControls(props: {
   showRight: boolean;
   workspaceKey: string | null;
-  routeThreadId: string | null;
-  gitFocusId: string | null;
 }) {
-  const leftOpen = useLeftOpen();
-  const storedRightOpen = useRightOpen(props.workspaceKey);
-  const muted = useIsMuted(props.workspaceKey);
+  const rightOpen = useShellLayout((snapshot) => snapshot.editorPanelVisible);
   const setCommandPaletteOpen = useCommandPaletteStore((store) => store.setOpen);
   const keybindings = useServerKeybindings();
-  // No fullscreen subscription here. The controls stay mounted across a
-  // fullscreen toggle (Cursor never unmounts its titlebar) and are hidden
-  // purely by CSS off the shell root's data-shell-fullscreen-target attribute.
-  // Subscribing would re-render the whole topbar on every toggle.
-  const rightOpen = resolveEffectiveRightOpen({
-    storedRightOpen,
-    routeThreadId: props.routeThreadId,
-    gitFocusId: props.gitFocusId,
-    muted,
-  });
 
   const activeKeybindings =
     keybindings.length > 0 ? keybindings : COMMAND_PALETTE_FALLBACK_KEYBINDINGS;
@@ -590,22 +631,11 @@ function ShellHeaderControls(props: {
   return (
     <div className="honk-shell-titlebar-controls pointer-events-none absolute top-0 right-0 left-0 z-(--z-index-shell-titlebar-controls) box-border flex h-(--honk-header-height) min-w-0 items-center">
       <div className="honk-shell-titlebar-left-controls pointer-events-auto no-drag absolute flex h-(--honk-titlebar-control-height) shrink-0 items-center gap-0.5">
-        <button
-          type="button"
-          onClick={() => shellPanelsActions.toggleLeft()}
-          className="flex h-(--honk-titlebar-control-height) w-(--honk-titlebar-control-height) shrink-0 items-center justify-center rounded-honk-control bg-transparent p-0 text-honk-fg-secondary transition-[background-color,color,transform] hover:bg-honk-bg-quaternary hover:text-honk-fg-primary active:scale-[0.96] [&_svg]:block"
-          aria-label={leftOpen ? "Collapse chats" : "Expand chats"}
-        >
-          {leftOpen ? (
-            <IconSidebarHiddenLeftWide className="size-4 shrink-0" />
-          ) : (
-            <IconSidebar className="size-4 shrink-0" />
-          )}
-        </button>
+        <ShellLeftToggleButton />
         <button
           type="button"
           onClick={() => setCommandPaletteOpen(true)}
-          className="flex h-(--honk-titlebar-control-height) w-(--honk-titlebar-control-height) shrink-0 items-center justify-center rounded-honk-control bg-transparent p-0 text-honk-fg-secondary transition-[background-color,color,transform] hover:bg-honk-bg-quaternary hover:text-honk-fg-primary active:scale-[0.94] [&_svg]:block"
+          className="flex h-(--honk-titlebar-control-height) w-(--honk-titlebar-control-height) shrink-0 items-center justify-center rounded-honk-control bg-transparent p-0 text-honk-fg-secondary transition-[background-color,color] hover:bg-honk-bg-quaternary hover:text-honk-fg-primary [&_svg]:block"
           aria-label="Search"
           title={commandPaletteTitle}
         >
@@ -617,7 +647,7 @@ function ShellHeaderControls(props: {
           <button
             type="button"
             onClick={() => setRightPanelOpen(!rightOpen, props.workspaceKey)}
-            className="flex h-(--honk-titlebar-control-height) w-(--honk-titlebar-control-height) shrink-0 items-center justify-center rounded-honk-control bg-transparent p-0 text-honk-fg-secondary transition-[background-color,color,transform] hover:bg-honk-bg-quaternary hover:text-honk-fg-primary active:scale-[0.96] [&_svg]:block"
+            className="flex h-(--honk-titlebar-control-height) w-(--honk-titlebar-control-height) shrink-0 items-center justify-center rounded-honk-control bg-transparent p-0 text-honk-fg-secondary transition-[background-color,color] hover:bg-honk-bg-quaternary hover:text-honk-fg-primary [&_svg]:block"
             aria-label={rightPanelLabel}
             aria-pressed={rightOpen}
             title={rightPanelLabel}
@@ -632,21 +662,11 @@ function ShellHeaderControls(props: {
       ) : null}
     </div>
   );
-}
+});
 
-/**
- * The chat center region. The maximized workbench reflows over it, so its
- * `inert`/`aria-hidden` are flipped imperatively by ShellFullscreenLayer (via
- * `centerRef`) rather than from a fullscreen subscription here. That way a
- * fullscreen toggle re-renders no chrome at all; only the null layer reacts.
- */
-function ShellCenterRegion(props: {
-  centerRef: RefObject<HTMLElement | null>;
-  children: ReactNode;
-}) {
+function ShellCenterRegion(props: { children: ReactNode }) {
   return (
     <main
-      ref={props.centerRef}
       className="agent-window__center flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--honk-shell-center-surface-background) outline-hidden"
       data-component="chat-panel"
     >
@@ -657,93 +677,57 @@ function ShellCenterRegion(props: {
   );
 }
 
-/**
- * Single owner of the right-workbench fullscreen transition. On toggle this is
- * the ONLY chrome that reacts: it re-renders to null and runs one
- * layout-synchronous effect that flips the root `data-shell-fullscreen-target`
- * attribute and the center's `inert`/`aria-hidden`. Every visual change then
- * follows from CSS off that attribute. This mirrors Cursor, which flips a root
- * class synchronously with the grid reflow and never re-renders its chrome.
- *
- * The write is layout-synchronous (pre-paint), not a passive effect: a passive
- * `useEffect` would set the attribute one frame late, so the CSS reflow would
- * not match for that frame and the layout would lag a frame behind the toggle.
- */
-function ShellFullscreenLayer(props: {
-  rootRef: RefObject<HTMLDivElement | null>;
-  centerRef: RefObject<HTMLElement | null>;
-  workspaceKey: string | null;
-  rightOpen: boolean;
-}) {
-  const fullscreenTarget = useWorkspaceFullscreenTarget(props.workspaceKey);
-  const active = props.rightOpen && fullscreenTarget === "right-workbench";
-  useLayoutSyncEffect(() => {
-    const root = props.rootRef.current;
-    const center = props.centerRef.current;
-    if (root) {
-      root.dataset.shellFullscreenTarget = active ? "right-workbench" : "none";
+function ShellCenterBoundary(props: { children: ReactNode }) {
+  const editorPanelFullscreen = useShellLayout((snapshot) => snapshot.editorPanelFullscreen);
+  if (editorPanelFullscreen) {
+    return null;
+  }
+  return <ShellCenterRegion>{props.children}</ShellCenterRegion>;
+}
+
+function RightWorkbenchWindowExpander(props: { electron: boolean }) {
+  const layout = useShellLayout((snapshot) => ({
+    editorPanelVisible: snapshot.editorPanelVisible,
+    leftWidth: snapshot.leftWidth,
+    rightWidth: snapshot.rightWidth,
+    shellWidth: snapshot.shellWidth,
+    sidebarOverlayMode: snapshot.sidebarOverlayMode,
+    sidebarVisible: snapshot.sidebarVisible,
+  }));
+  const hadRightOpenRef = useRef(false);
+
+  useEffect(() => {
+    const wasOpen = hadRightOpenRef.current;
+    hadRightOpenRef.current = layout.editorPanelVisible;
+    if (!layout.editorPanelVisible || wasOpen || !props.electron) {
+      return;
     }
-    if (center) {
-      center.inert = active;
-      if (active) {
-        center.setAttribute("aria-hidden", "true");
-      } else {
-        center.removeAttribute("aria-hidden");
-      }
+    if (layout.shellWidth <= 0) {
+      return;
     }
-    return () => {
-      if (root) {
-        root.dataset.shellFullscreenTarget = "none";
-      }
-      if (center) {
-        center.inert = false;
-        center.removeAttribute("aria-hidden");
-      }
-    };
-  }, [active, props.rootRef, props.centerRef]);
+    const leftWidth =
+      layout.sidebarVisible && !layout.sidebarOverlayMode ? layout.leftWidth : 0;
+    const deficit = leftWidth + layout.rightWidth + SHELL_CENTER_MIN_WIDTH - layout.shellWidth;
+    if (deficit > 0) {
+      void window.desktopBridge?.expandWindowWidth?.(deficit);
+    }
+  }, [
+    layout.editorPanelVisible,
+    layout.leftWidth,
+    layout.rightWidth,
+    layout.shellWidth,
+    layout.sidebarOverlayMode,
+    layout.sidebarVisible,
+    props.electron,
+  ]);
+
   return null;
 }
 
-export function AppShell(props: {
-  cwd: string | null;
-  workspaceKey?: string | null;
-  left: ReactNode;
-  center: ReactNode;
-  right: RightWorkbenchDefinition | null;
-  centerSurface?: "chat" | "editor";
-  routeThreadId?: string | null;
-  gitFocusId?: string | null;
-}) {
-  const electron = isElectronHost();
-  const showRight = props.right !== null;
-  const workspaceKey = props.workspaceKey ?? null;
-  const leftOpen = useLeftOpen();
-  const leftWidth = useLeftWidth();
-  const storedRightOpen = useRightOpen(workspaceKey);
-  const rightWidth = useRightWidth(workspaceKey);
-  const muted = useIsMuted(workspaceKey);
-  const keybindings = useServerKeybindings();
-  const agentWindowFontSmoothingAntialiased = useSettings(
-    (settings) => settings.agentWindowFontSmoothingAntialiased,
+function ShellOverlayBackdrop() {
+  const overlayActive = useShellLayout(
+    (snapshot) => snapshot.leftPresentation === "overlay-expanded",
   );
-  const shellRightOpen =
-    showRight &&
-    resolveEffectiveRightOpen({
-      storedRightOpen,
-      routeThreadId: props.routeThreadId ?? null,
-      gitFocusId: props.gitFocusId ?? null,
-      muted,
-    });
-  // Fullscreen is intentionally NOT read here: AppShell sits atop the shell
-  // tree, so subscribing would re-render every chrome panel on each toggle.
-  // Only the panels' inert flags and the null-rendering ShellFullscreenLayer
-  // (which flips the root data attribute) subscribe individually. The topbar
-  // controls stay mounted; the visual change is pure CSS off that attribute.
-  const agentWindowRef = useRef<HTMLDivElement | null>(null);
-  const centerRef = useRef<HTMLElement | null>(null);
-  const modes = useShellPanelModes(agentWindowRef);
-  const leftPresentation = panelPresentation(modes.left, leftOpen);
-  const overlayActive = leftPresentation === "overlay-expanded";
 
   useEffect(() => {
     if (!overlayActive) {
@@ -758,6 +742,47 @@ export function AppShell(props: {
     window.addEventListener("keydown", closeOverlay);
     return () => window.removeEventListener("keydown", closeOverlay);
   }, [overlayActive]);
+
+  return (
+    <div
+      aria-hidden
+      data-shell-overlay-backdrop=""
+      className="absolute inset-0 z-(--z-index-shell-overlay-backdrop) bg-black/32 backdrop-blur-sm transition-opacity duration-(--motion-duration-drawer) ease-out motion-reduce:transition-none"
+      onClick={() => shellPanelsActions.setLeftOpen(false)}
+    />
+  );
+}
+
+export function AppShell(props: {
+  cwd: string | null;
+  workspaceKey?: string | null;
+  left: ReactNode;
+  center: ReactNode;
+  right: RightWorkbenchDefinition | null;
+  centerSurface?: "chat" | "editor";
+  centerRouteKind?: AppShellRouteKind | undefined;
+  routeThreadId?: string | null;
+  gitFocusId?: string | null;
+  threadTitle?: string | null;
+}) {
+  const electron = isElectronHost();
+  const showRight = props.right !== null;
+  const workspaceKey = props.workspaceKey ?? null;
+  const keybindings = useServerKeybindings();
+  const agentWindowFontSmoothingAntialiased = useSettings(
+    (settings) => settings.agentWindowFontSmoothingAntialiased,
+  );
+  const agentWindowRef = useRef<HTMLDivElement | null>(null);
+  const modes = useShellPanelModes(agentWindowRef);
+  const shellLayoutService = useMemo(() => new ShellLayoutService(), []);
+  useShellLayoutConfig(shellLayoutService, {
+    gitFocusId: props.gitFocusId ?? null,
+    leftMode: modes.left,
+    rootRef: agentWindowRef,
+    routeThreadId: props.routeThreadId ?? null,
+    showRight,
+    workspaceKey,
+  });
 
   // Always-registered; reads fullscreen state at event time so AppShell never
   // subscribes (and never re-renders on a fullscreen toggle). Bubble phase (not
@@ -792,7 +817,10 @@ export function AppShell(props: {
           terminalOpen: false,
         },
       });
-      if (command !== "editorPanel.toggleFullscreen" || !shellRightOpen) {
+      if (
+        command !== "editorPanel.toggleFullscreen" ||
+        !shellLayoutService.getSnapshot().editorPanelVisible
+      ) {
         return;
       }
       event.preventDefault();
@@ -801,38 +829,12 @@ export function AppShell(props: {
     };
     window.addEventListener("keydown", toggleFullscreen);
     return () => window.removeEventListener("keydown", toggleFullscreen);
-  }, [keybindings, shellRightOpen, workspaceKey]);
-
-  // Cursor parity: a workbench that cannot fit grows the OS window by the
-  // deficit so it force-expands without crushing the chat column. Fires when
-  // the panel opens and once on mount when it is already open — never while
-  // it stays open, so sash drags and user window-shrinks are not fought.
-  const hadShellRightOpenRef = useRef(false);
-  useEffect(() => {
-    const wasOpen = hadShellRightOpenRef.current;
-    hadShellRightOpenRef.current = shellRightOpen;
-    if (!shellRightOpen || wasOpen || !electron) {
-      return;
-    }
-    const shellWidth = agentWindowRef.current?.getBoundingClientRect().width ?? 0;
-    if (shellWidth <= 0) {
-      return;
-    }
-    // Resolve the sidebar's flow width from the live measurement: the
-    // observed mode state can lag a frame behind at mount.
-    const leftInline = leftOpen && resolveShellPanelModes(shellWidth).left === "inline";
-    const deficit = (leftInline ? leftWidth : 0) + rightWidth + SHELL_CENTER_MIN_WIDTH - shellWidth;
-    if (deficit > 0) {
-      void window.desktopBridge?.expandWindowWidth?.(deficit);
-    }
-  }, [shellRightOpen, electron, leftOpen, leftWidth, rightWidth]);
+  }, [keybindings, shellLayoutService, workspaceKey]);
 
   const shellStyle: ShellRootStyle = {
-    "--honk-shell-left-width": `${leftWidth}px`,
     "--honk-shell-left-collapsed-width": "0px",
     "--honk-shell-left-min-width": `${LEFT_LIMITS.min}px`,
     "--honk-shell-left-max-width": `${LEFT_LIMITS.max}px`,
-    "--honk-shell-right-workbench-width": `${rightWidth}px`,
     "--honk-shell-right-workbench-collapsed-width": "0px",
     "--honk-shell-right-workbench-min-width": `${RIGHT_LIMITS.min}px`,
     "--honk-shell-right-workbench-max-width": `${RIGHT_LIMITS.max}px`,
@@ -856,67 +858,47 @@ export function AppShell(props: {
   });
 
   return (
-    <div
-      className="agent-window relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-row overflow-x-clip bg-transparent"
-      data-component="root"
-      data-agent-window=""
-      data-shell-left-intent={leftOpen ? "expanded" : "collapsed"}
-      data-shell-right-intent={shellRightOpen ? "expanded" : "collapsed"}
-      data-shell-left-mode={modes.left}
-      data-shell-secondary-rail-mode={modes.secondaryRail}
-      data-shell-left-presentation={leftPresentation}
-      data-shell-right-panel={showRight ? "true" : "false"}
-      data-shell-right-open={shellRightOpen ? "true" : "false"}
-      data-shell-center-surface={props.centerSurface ?? "chat"}
-      data-shell-platform={electron ? "electron" : "web"}
-      data-shell-chrome="surface"
-      data-agent-window-font-smoothing={
-        agentWindowFontSmoothingAntialiased ? "antialiased" : "subpixel"
-      }
-      style={shellStyle}
-      ref={agentWindowRef}
-    >
-      <ShellFullscreenLayer
-        rootRef={agentWindowRef}
-        centerRef={centerRef}
-        workspaceKey={workspaceKey}
-        rightOpen={shellRightOpen}
-      />
-      <LeftAside mode={modes.left}>{props.left}</LeftAside>
-
-      <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col">
-        <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-row">
-          <ShellCenterRegion centerRef={centerRef}>{props.center}</ShellCenterRegion>
-
-          {showRight && props.right ? (
-            <RightAside
-              cwd={props.cwd}
-              workspaceKey={workspaceKey}
-              right={props.right}
-              routeThreadId={props.routeThreadId ?? null}
-              gitFocusId={props.gitFocusId ?? null}
-              keybindings={keybindings}
-            />
-          ) : null}
-        </div>
-      </div>
-
+    <ShellLayoutProvider service={shellLayoutService}>
       <div
-        aria-hidden
-        data-shell-overlay-backdrop=""
-        className={cn(
-          "absolute inset-0 z-(--z-index-shell-overlay-backdrop) bg-black/32 backdrop-blur-sm transition-opacity duration-(--motion-duration-drawer) ease-out motion-reduce:transition-none",
-          overlayActive ? "opacity-100" : "pointer-events-none opacity-0",
-        )}
-        onClick={() => shellPanelsActions.setLeftOpen(false)}
-      />
+        className="agent-window relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-row overflow-x-clip bg-transparent"
+        data-component="root"
+        data-agent-window=""
+        data-shell-left-mode={modes.left}
+        data-shell-secondary-rail-mode={modes.secondaryRail}
+        data-shell-right-panel={showRight ? "true" : "false"}
+        data-shell-center-surface={props.centerSurface ?? "chat"}
+        data-shell-route-kind={props.centerRouteKind}
+        data-shell-platform={electron ? "electron" : "web"}
+        data-shell-chrome="surface"
+        data-agent-window-font-smoothing={
+          agentWindowFontSmoothingAntialiased ? "antialiased" : "subpixel"
+        }
+        style={shellStyle}
+        ref={agentWindowRef}
+      >
+        <RightWorkbenchWindowExpander electron={electron} />
+        <LeftAside mode={modes.left}>{props.left}</LeftAside>
 
-      <ShellHeaderControls
-        showRight={showRight}
-        workspaceKey={workspaceKey}
-        routeThreadId={props.routeThreadId ?? null}
-        gitFocusId={props.gitFocusId ?? null}
-      />
-    </div>
+        <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col">
+          <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-row">
+            <ShellCenterBoundary>{props.center}</ShellCenterBoundary>
+
+            {showRight && props.right ? (
+              <RightAside
+                cwd={props.cwd}
+                workspaceKey={workspaceKey}
+                right={props.right}
+                keybindings={keybindings}
+                threadTitle={props.threadTitle ?? null}
+              />
+            ) : null}
+          </div>
+        </div>
+
+        <ShellOverlayBackdrop />
+
+        <ShellHeaderControls showRight={showRight} workspaceKey={workspaceKey} />
+      </div>
+    </ShellLayoutProvider>
   );
 }

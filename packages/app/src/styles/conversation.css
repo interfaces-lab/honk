@@ -46,11 +46,9 @@
     transparent
   );
   --honk-composer-command-text: var(--warning);
-  --honk-composer-blur: 10px;
+  --honk-composer-blur: var(--honk-glass-blur-bubble);
   --honk-composer-queue-panel-radius: var(--honk-composer-radius-expanded);
-  --honk-composer-queue-panel-shadow:
-    0 1px 1px color-mix(in srgb, var(--honk-shadow-primary) 10%, transparent),
-    0 8px 22px -18px color-mix(in srgb, var(--honk-shadow-primary) 55%, transparent);
+  --honk-composer-queue-panel-shadow: var(--honk-shadow-soft);
   --honk-composer-queue-panel-blur: var(--honk-composer-blur, 10px);
   --honk-composer-queue-panel-background: var(--honk-composer-surface-background);
   --honk-composer-queue-panel-opaque-background: var(--honk-composer-surface-opaque-background);
@@ -58,8 +56,7 @@
   /* Cursor: `min(70dvh, max(220px, available))` with min-height 220px. */
   --honk-composer-subagent-preview-min-height: 220px;
   --honk-composer-subagent-tray-radius: var(--honk-composer-radius-expanded);
-  --honk-composer-subagent-tray-shadow:
-    0 1px 2px 0 oklch(0 0 0 / 0.06), 0 6px 24px -10px oklch(0 0 0 / 0.18);
+  --honk-composer-subagent-tray-shadow: var(--honk-shadow-soft);
   --honk-composer-subagent-tray-blur: var(--honk-composer-blur, 10px);
   --honk-composer-subagent-tray-background: var(--honk-composer-surface-background);
   --honk-composer-subagent-tray-opaque-background: var(--honk-composer-surface-opaque-background);
@@ -73,8 +70,9 @@
   --honk-motion-duration-normal: 150ms;
   --honk-motion-duration-slow: 200ms;
   --honk-motion-duration-slower: 300ms;
-  --honk-motion-ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --honk-motion-ease-default: var(--ease-shell);
   --honk-motion-ease-float: cubic-bezier(0.16, 1, 0.3, 1);
+  --honk-composer-blur: var(--honk-glass-blur-bubble);
   --honk-composer-subagent-preview-mask-transition: opacity var(--honk-motion-duration-fast)
     ease-out;
 }

@@ -56,19 +56,19 @@ function contextUsageColorValue(color: ContextUsageColor): string {
     case "gray":
       return "var(--honk-fg-tertiary)";
     case "purple":
-      return "color-mix(in oklch, var(--primary) 78%, var(--cursor-text-red-primary))";
+      return "color-mix(in oklch, var(--primary) 78%, var(--honk-fg-red-primary))";
     case "green":
-      return "var(--cursor-text-green-primary)";
+      return "var(--honk-fg-green-primary)";
     case "yellow":
-      return "var(--cursor-text-yellow-primary)";
+      return "var(--honk-tone-yellow)";
     case "pink":
-      return "color-mix(in oklch, var(--cursor-text-red-primary) 62%, var(--primary))";
+      return "color-mix(in oklch, var(--honk-fg-red-primary) 62%, var(--primary))";
     case "blue":
-      return "var(--cursor-text-cyan-primary)";
+      return "var(--honk-fg-cyan-primary)";
     case "orange":
-      return "var(--cursor-text-orange-primary)";
+      return "var(--honk-fg-orange-primary)";
     case "red":
-      return "var(--cursor-text-red-primary)";
+      return "var(--honk-fg-red-primary)";
   }
 }
 

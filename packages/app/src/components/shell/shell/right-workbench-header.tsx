@@ -1,198 +1,601 @@
 "use client";
 
-import { TabsList, TabsTab } from "@honk/honkkit/tabs";
-import { Button } from "@honk/honkkit/button";
-import { IconConsole, IconCrossMediumDefault, IconPlusLarge } from "central-icons";
-import { memo, type ComponentType, type ReactNode } from "react";
+import {
+  IconBranch,
+  IconConsole,
+  IconCrossMediumDefault,
+  IconFileText,
+  IconGlobe,
+  IconPlusLarge,
+  IconSidebarHiddenRightWide,
+} from "central-icons";
+import {
+  memo,
+  type ComponentType,
+  type DragEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useRef,
+  useState,
+} from "react";
 
-import type { TerminalSessionEntry } from "~/stores/shell-panels-store";
-import type { WorkbenchTab } from "~/lib/workbench-tabs";
-import { cn } from "~/lib/utils";
-
+import {
+  Menu,
+  MenuItem,
+  MenuPopup,
+  MenuTrigger,
+  WorkbenchMenuIconSlot,
+  WorkbenchMenuPrimaryText,
+} from "@honk/honkkit/menu";
 import {
   WorkbenchIconButton,
   WorkbenchTabIconContent,
   workbenchIconButtonVariants,
 } from "@honk/honkkit/workbench-button";
-import {
-  WorkbenchChromeActionGroup,
-  WorkbenchChromeDivider,
-  WorkbenchChromeSpacer,
-  workbenchChromeActionGroupVariants,
-  workbenchChromeTextControlVariants,
-} from "@honk/honkkit/workbench-chrome-row";
+import { WorkbenchChromeDivider } from "@honk/honkkit/workbench-chrome-row";
+
+import { cn } from "~/lib/utils";
+import type { WorkbenchTab } from "~/lib/workbench-tabs";
+import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { RightWorkbenchToolIsland } from "./right-workbench-tool-island";
 
+const WORKBENCH_TAB_DRAG_MIME_TYPE = "application/x-honk-workbench-tab";
+
 export interface WorkbenchTabMeta {
-  id: WorkbenchTab;
-  label: string;
-  icon: ComponentType<{ className?: string }>;
-  badge?: string | null;
-  closable?: boolean;
+  readonly id: string;
+  readonly kind: WorkbenchTab;
+  readonly label: string;
+  readonly icon: ComponentType<{ className?: string | undefined }>;
+  readonly closable?: boolean | undefined;
+  readonly stable?: boolean | undefined;
+  readonly terminalId?: string | undefined;
+  readonly browserId?: string | undefined;
+  readonly browserUrl?: string | undefined;
+  readonly browserFaviconUrl?: string | undefined;
+  readonly filePath?: string | undefined;
 }
 
-function ToolIconButton(props: { tab: WorkbenchTabMeta }) {
-  const Icon = props.tab.icon;
-  const badge = props.tab.badge && props.tab.badge !== "0" ? props.tab.badge : null;
-  const badgeText = badge ? `, ${badge}` : "";
+interface NewTabMenuItem {
+  readonly id: "changes" | "terminal" | "browser" | "file";
+  readonly label: string;
+  readonly icon: ComponentType<{ className?: string | undefined }>;
+}
+
+const NEW_TAB_MENU_ITEMS: readonly NewTabMenuItem[] = [
+  { id: "changes", label: "Changes", icon: IconBranch },
+  { id: "terminal", label: "Terminal", icon: IconConsole },
+  { id: "browser", label: "Browser", icon: IconGlobe },
+  { id: "file", label: "Files", icon: IconFileText },
+];
+
+interface TabDropTarget {
+  readonly insertIndex: number;
+  readonly left: number;
+}
+
+interface ScrollMaskState {
+  readonly atEnd: boolean;
+  readonly atStart: boolean;
+  readonly hasOverflow: boolean;
+}
+
+const DEFAULT_SCROLL_MASK_STATE: ScrollMaskState = Object.freeze({
+  atEnd: true,
+  atStart: true,
+  hasOverflow: false,
+});
+
+function readDraggedTabId(event: DragEvent<HTMLElement>): string | null {
+  const typed = event.dataTransfer.getData(WORKBENCH_TAB_DRAG_MIME_TYPE);
+  if (typed) return typed;
+  const plain = event.dataTransfer.getData("text/plain");
+  return plain.startsWith("workbench-tab:") ? plain.slice("workbench-tab:".length) : null;
+}
+
+function dynamicTabElements(viewport: HTMLElement): HTMLElement[] {
+  return Array.from(viewport.querySelectorAll<HTMLElement>("[data-workbench-dynamic-tab='true']"));
+}
+
+function dynamicTabElementById(viewport: HTMLElement, tabId: string): HTMLElement | null {
+  return dynamicTabElements(viewport).find((element) => element.dataset.tabId === tabId) ?? null;
+}
+
+function scrollMaskStateFromElement(element: HTMLElement | null): ScrollMaskState {
+  if (!element) return DEFAULT_SCROLL_MASK_STATE;
+  const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
+  const scrollLeft = Math.max(0, Math.min(maxScrollLeft, element.scrollLeft));
+  const hasOverflow = maxScrollLeft > 1;
+  return {
+    atEnd: !hasOverflow || maxScrollLeft - scrollLeft <= 1,
+    atStart: !hasOverflow || scrollLeft <= 1,
+    hasOverflow,
+  };
+}
+
+function areScrollMaskStatesEqual(left: ScrollMaskState, right: ScrollMaskState): boolean {
   return (
-    <TabsTab
-      value={props.tab.id}
+    left.atEnd === right.atEnd &&
+    left.atStart === right.atStart &&
+    left.hasOverflow === right.hasOverflow
+  );
+}
+
+function tabDropTargetFromPoint(viewport: HTMLElement, clientX: number): TabDropTarget {
+  const tabs = dynamicTabElements(viewport);
+  const insertIndex = tabs.findIndex((element) => {
+    const rect = element.getBoundingClientRect();
+    return clientX < rect.left + rect.width / 2;
+  });
+  const index = insertIndex >= 0 ? insertIndex : tabs.length;
+  const nextElement = tabs[index] ?? null;
+  const previousElement = index > 0 ? (tabs[index - 1] ?? null) : null;
+  const left = nextElement
+    ? nextElement.offsetLeft
+    : previousElement
+      ? previousElement.offsetLeft + previousElement.offsetWidth
+      : 0;
+
+  return { insertIndex: index, left };
+}
+
+function StableTabButton(props: {
+  active: boolean;
+  onActivate: () => void;
+  tab: WorkbenchTabMeta;
+}) {
+  const Icon = props.tab.icon;
+  const badge = props.tab.kind === "git" && "badge" in props.tab ? null : null;
+
+  return (
+    <button
+      type="button"
+      aria-current={props.active ? "page" : undefined}
+      aria-label={props.tab.label}
+      aria-selected={props.active}
+      className={cn(
+        workbenchIconButtonVariants({
+          active: props.active,
+          chrome: "tool",
+          tabSystem: true,
+        }),
+        "p-0",
+      )}
+      data-active={props.active ? "true" : "false"}
       data-stable=""
-      className={(state) =>
-        cn(
-          workbenchIconButtonVariants({
-            active: state.active,
-            chrome: "tool",
-            tabSystem: true,
-          }),
-          "size-(--honk-workbench-action-size) p-0",
-        )
-      }
-      aria-label={`${props.tab.label}${badgeText}`}
-      title={`${props.tab.label}${badgeText}`}
+      onClick={props.onActivate}
+      role="tab"
+      title={props.tab.label}
     >
       <WorkbenchTabIconContent badge={badge}>
         <Icon aria-hidden />
       </WorkbenchTabIconContent>
-    </TabsTab>
+    </button>
   );
 }
 
-function WorkbenchTabList(props: { activeTab: WorkbenchTab; tabs: readonly WorkbenchTabMeta[] }) {
-  const activeMeta = props.tabs.find((tab) => tab.id === props.activeTab) ?? props.tabs[0] ?? null;
-  return (
-    <TabsList className={workbenchChromeActionGroupVariants()}>
-      {props.tabs.map((tab) => (
-        <ToolIconButton key={tab.id} tab={tab} />
-      ))}
-      {activeMeta ? (
-        <div className="sr-only" aria-live="polite">
-          {activeMeta.label}
-        </div>
-      ) : null}
-    </TabsList>
-  );
-}
-
-function WorkbenchChromeButton(props: { label: string; onClick: () => void; children: ReactNode }) {
-  return (
-    <WorkbenchIconButton aria-label={props.label} chrome="tool" onClick={props.onClick}>
-      {props.children}
-    </WorkbenchIconButton>
-  );
-}
-
-function TerminalSessionTab(props: {
-  session: TerminalSessionEntry;
+function DynamicTabPill(props: {
   active: boolean;
+  dragging: boolean;
+  onDragEnd: () => void;
+  onDragStart: (event: DragEvent<HTMLElement>, tabId: string) => void;
   onActivate: () => void;
   onClose: () => void;
-  closable: boolean;
+  tab: WorkbenchTabMeta;
 }) {
+  const Icon = props.tab.icon;
+  const title = props.tab.filePath ?? props.tab.browserUrl ?? props.tab.label;
+  const faviconUrl = props.tab.kind === "browser" ? props.tab.browserFaviconUrl : undefined;
+  const showLabel =
+    props.tab.kind === "terminal" ||
+    props.tab.kind === "dev" ||
+    (props.tab.kind === "browser" && Boolean(props.tab.closable)) ||
+    Boolean(props.tab.filePath);
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    props.onActivate();
+  };
+
   return (
     <div
-      role="presentation"
+      role="tab"
+      tabIndex={props.active ? 0 : -1}
       className={cn(
-        workbenchChromeTextControlVariants({ tone: props.active ? "primary" : "default" }),
-        "group relative max-w-(--honk-workbench-tab-label-max-width) px-0",
-        props.active ? "bg-honk-bg-tertiary text-honk-fg-primary" : "",
+        workbenchIconButtonVariants({
+          active: props.active,
+          chrome: "tool",
+          tabSystem: true,
+        }),
+        "ui-tab-system-tab group relative",
+        props.active && "bg-honk-bg-tertiary text-honk-fg-primary",
+        props.dragging && "opacity-45",
       )}
+      aria-label={props.tab.label}
+      aria-selected={props.active}
+      data-active={props.active ? "true" : "false"}
+      data-closable={props.tab.closable ? "true" : undefined}
+      data-dragging={props.dragging ? "true" : undefined}
+      data-tab-id={props.tab.id}
+      data-workbench-dynamic-tab="true"
+      draggable
+      onAuxClick={(event) => {
+        if (event.button !== 1 || !props.tab.closable) return;
+        event.preventDefault();
+        props.onClose();
+      }}
+      onClick={(event) => {
+        event.currentTarget.focus();
+        props.onActivate();
+      }}
+      onDragEnd={props.onDragEnd}
+      onDragStart={(event) => props.onDragStart(event, props.tab.id)}
+      onKeyDown={handleKeyDown}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest("[data-no-drag]")) return;
+        props.onActivate();
+      }}
+      title={title}
     >
-      <Button
-        type="button"
-        variant="ghost"
-        role="tab"
-        aria-selected={props.active}
-        onClick={props.onActivate}
-        className="h-full min-w-0 flex-1 justify-start gap-(--honk-workbench-text-control-gap) rounded-none border-0 bg-transparent px-(--honk-workbench-text-control-padding-inline) text-left text-inherit shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
-        aria-current={props.active ? "page" : undefined}
-      >
-        <IconConsole className="size-3 shrink-0 opacity-60" aria-hidden />
-        <span className="min-w-0 truncate">{props.session.label}</span>
-      </Button>
-      {props.closable ? (
-        <Button
+      <span className="ui-tab-system-tab__content flex min-w-0 flex-1 items-center justify-start gap-1.5">
+        {faviconUrl ? (
+          <img
+            alt=""
+            aria-hidden
+            className="ui-tab-system-tab__icon size-4 shrink-0 rounded-[3px]"
+            draggable={false}
+            src={faviconUrl}
+          />
+        ) : (
+          <span className="ui-tab-system-tab__icon inline-flex size-4 shrink-0 items-center justify-center [&_svg]:size-4 [&_svg]:shrink-0">
+            <Icon aria-hidden />
+          </span>
+        )}
+        {showLabel ? (
+          <span className="ui-tab-system-tab__label min-w-0 truncate">{props.tab.label}</span>
+        ) : null}
+      </span>
+      {props.tab.closable ? (
+        <button
           type="button"
-          variant="ghost"
-          aria-label={`Close ${props.session.label}`}
-          onClick={(e) => {
-            e.stopPropagation();
+          aria-label={`Close ${props.tab.label}`}
+          className="ui-tab-system-tab__close no-drag absolute top-0 right-0 bottom-0 flex w-4 shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-honk-fg-tertiary opacity-0 shadow-none outline-hidden transition-opacity hover:bg-transparent hover:text-honk-fg-primary focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset group-hover:opacity-100"
+          data-no-drag=""
+          draggable={false}
+          onClick={(event) => {
+            event.stopPropagation();
             props.onClose();
           }}
-          className="no-drag mr-0.5 size-4 shrink-0 rounded-sm border-0 bg-transparent p-0 text-honk-fg-tertiary opacity-0 shadow-none before:hidden transition-opacity hover:bg-transparent hover:text-honk-fg-primary group-hover:opacity-100 data-pressed:bg-transparent focus-visible:opacity-100"
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
         >
-          <IconCrossMediumDefault className="size-3" />
-        </Button>
+          <IconCrossMediumDefault className="size-3" aria-hidden />
+        </button>
       ) : null}
     </div>
   );
 }
 
-interface RightWorkbenchHeaderProps {
+function WorkbenchTabClusters(props: {
+  activeTabId: string;
   tabs: readonly WorkbenchTabMeta[];
-  activeTab: WorkbenchTab;
-  terminalSessions?: TerminalSessionEntry[];
-  activeTerminalId?: string;
-  onTerminalTab?: (id: string) => void;
-  onNewTerminal?: () => void;
-  onCloseTerminal?: (id: string) => void;
-  onCloseTab?: (tab: WorkbenchTab) => void;
-  trailing?: ReactNode;
+  onActivateTab: (tabId: string) => void;
+  onCloseTab: (tabId: string) => void;
+  onMoveTab: (tabId: string, targetIndex: number) => void;
+}) {
+  const scrollableRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<TabDropTarget | null>(null);
+  const [scrollMaskState, setScrollMaskState] = useState<ScrollMaskState>(
+    DEFAULT_SCROLL_MASK_STATE,
+  );
+  const activeMeta =
+    props.tabs.find((tab) => tab.id === props.activeTabId) ?? props.tabs[0] ?? null;
+  const stableTabs = props.tabs.filter((tab) => tab.stable);
+  const dynamicTabs = props.tabs.filter((tab) => !tab.stable);
+
+  const setNextDropTarget = useCallback((nextTarget: TabDropTarget | null) => {
+    setDropTarget((current) =>
+      current?.insertIndex === nextTarget?.insertIndex && current?.left === nextTarget?.left
+        ? current
+        : nextTarget,
+    );
+  }, []);
+
+  const syncScrollMaskState = useCallback(() => {
+    const next = scrollMaskStateFromElement(scrollableRef.current);
+    setScrollMaskState((current) => (areScrollMaskStatesEqual(current, next) ? current : next));
+  }, []);
+
+  const onDynamicDragStart = useCallback((event: DragEvent<HTMLElement>, tabId: string) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest("[data-no-drag]")) {
+      event.preventDefault();
+      return;
+    }
+    event.stopPropagation();
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(WORKBENCH_TAB_DRAG_MIME_TYPE, tabId);
+    event.dataTransfer.setData("text/plain", `workbench-tab:${tabId}`);
+    setDraggingTabId(tabId);
+    setDropTarget(null);
+  }, []);
+
+  const resetDragState = useCallback(() => {
+    setDraggingTabId(null);
+    setDropTarget(null);
+  }, []);
+
+  const onScrollableDragOver = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      const viewport = viewportRef.current;
+      const tabId = draggingTabId ?? readDraggedTabId(event);
+      if (!viewport || !tabId || !dynamicTabs.some((tab) => tab.id === tabId)) {
+        setNextDropTarget(null);
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "move";
+      setNextDropTarget(tabDropTargetFromPoint(viewport, event.clientX));
+    },
+    [draggingTabId, dynamicTabs, setNextDropTarget],
+  );
+
+  const onScrollableDrop = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      const viewport = viewportRef.current;
+      const tabId = draggingTabId ?? readDraggedTabId(event);
+      if (!viewport || !tabId) {
+        resetDragState();
+        return;
+      }
+      const currentIndex = dynamicTabs.findIndex((tab) => tab.id === tabId);
+      if (currentIndex < 0) {
+        resetDragState();
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      const target = dropTarget ?? tabDropTargetFromPoint(viewport, event.clientX);
+      const targetIndex =
+        currentIndex < target.insertIndex ? target.insertIndex - 1 : target.insertIndex;
+      if (targetIndex !== currentIndex) {
+        props.onMoveTab(tabId, targetIndex);
+      }
+      resetDragState();
+    },
+    [draggingTabId, dropTarget, dynamicTabs, props.onMoveTab, resetDragState],
+  );
+
+  const onScrollableDragLeave = useCallback((event: DragEvent<HTMLDivElement>) => {
+    const nextTarget = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+    if (nextTarget && event.currentTarget.contains(nextTarget)) return;
+    setDropTarget(null);
+  }, []);
+
+  useLayoutSyncEffect(() => {
+    if (draggingTabId) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const activeElement = dynamicTabElementById(viewport, props.activeTabId);
+    activeElement?.scrollIntoView({ behavior: "instant", block: "nearest", inline: "nearest" });
+    syncScrollMaskState();
+  }, [draggingTabId, props.activeTabId, dynamicTabs.length, syncScrollMaskState]);
+
+  useLayoutSyncEffect(() => {
+    syncScrollMaskState();
+  }, [dynamicTabs.length, stableTabs.length, syncScrollMaskState]);
+
+  return (
+    <div
+      role="tablist"
+      aria-label="Workbench tabs"
+      className="ui-tab-system-tabs no-drag flex h-full min-w-0 flex-1 select-none items-center self-stretch"
+      data-has-stable={stableTabs.length > 0 ? "" : undefined}
+    >
+      {stableTabs.length > 0 ? (
+        <div className="ui-tab-system-tabs__section flex h-full min-w-0 shrink-0 items-center overflow-hidden">
+          {stableTabs.map((tab) => (
+            <StableTabButton
+              key={tab.id}
+              tab={tab}
+              active={tab.id === props.activeTabId}
+              onActivate={() => props.onActivateTab(tab.id)}
+            />
+          ))}
+        </div>
+      ) : null}
+      <div
+        ref={scrollableRef}
+        className="ui-tab-system-tabs__scrollable relative h-full min-w-0 flex-1 scrollbar-none overflow-x-auto overflow-y-hidden"
+        data-scroll-at-end={scrollMaskState.atEnd ? "true" : "false"}
+        data-scroll-at-start={scrollMaskState.atStart ? "true" : "false"}
+        data-scroll-overflow={scrollMaskState.hasOverflow ? "true" : "false"}
+        onDragLeave={onScrollableDragLeave}
+        onDragOver={onScrollableDragOver}
+        onDrop={onScrollableDrop}
+        onScroll={syncScrollMaskState}
+      >
+        <div
+          ref={viewportRef}
+          className="ui-tab-system-tabs__viewport relative flex h-full min-w-max items-center"
+        >
+          {dynamicTabs.map((tab) => (
+            <DynamicTabPill
+              key={tab.id}
+              tab={tab}
+              active={tab.id === props.activeTabId}
+              dragging={tab.id === draggingTabId}
+              onActivate={() => props.onActivateTab(tab.id)}
+              onClose={() => props.onCloseTab(tab.id)}
+              onDragEnd={resetDragState}
+              onDragStart={onDynamicDragStart}
+            />
+          ))}
+          {dropTarget ? (
+            <div
+              aria-hidden
+              className="ui-tab-system-drop-indicator"
+              style={{ left: `${dropTarget.left}px` }}
+            />
+          ) : null}
+        </div>
+      </div>
+      {activeMeta ? (
+        <div className="sr-only" aria-live="polite">
+          {activeMeta.label}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function NewTabMenu(props: {
+  onActivateChanges: () => void;
+  onCreateBrowser: (url?: string | undefined) => void;
+  onCreateFile: () => void;
+  onCreateTerminal: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const runItem = (id: NewTabMenuItem["id"]) => {
+    if (id === "changes") props.onActivateChanges();
+    if (id === "terminal") props.onCreateTerminal();
+    if (id === "browser") props.onCreateBrowser();
+    if (id === "file") props.onCreateFile();
+    setOpen(false);
+  };
+
+  return (
+    <div className="editor-panel-overflow-action pointer-events-auto flex shrink-0 items-center">
+      <Menu open={open} onOpenChange={setOpen}>
+        <MenuTrigger
+          aria-expanded={open}
+          aria-label="Open new tab menu"
+          className={cn(
+            workbenchIconButtonVariants({ active: open, chrome: "tool" }),
+          )}
+          title="New Tab"
+        >
+          <IconPlusLarge className="size-4 shrink-0" aria-hidden />
+        </MenuTrigger>
+        <MenuPopup
+          aria-label="New tab options"
+          align="end"
+          className="w-max min-w-32 max-w-[calc(100vw-16px)] max-h-[min(720px,var(--available-height))]"
+          side="bottom"
+          sideOffset={4}
+          variant="workbench"
+        >
+          <div className="flex flex-col gap-px">
+            {NEW_TAB_MENU_ITEMS.map((item) => {
+              const Icon = item.icon;
+              return (
+                <MenuItem
+                  className="min-h-7 gap-2 px-2 py-1"
+                  key={item.id}
+                  onClick={() => {
+                    runItem(item.id);
+                  }}
+                  variant="workbench"
+                >
+                  <WorkbenchMenuIconSlot className="[&>svg]:size-4">
+                    <Icon className="size-4 shrink-0" aria-hidden />
+                  </WorkbenchMenuIconSlot>
+                  <WorkbenchMenuPrimaryText className="flex-none whitespace-nowrap">
+                    {item.label}
+                  </WorkbenchMenuPrimaryText>
+                </MenuItem>
+              );
+            })}
+          </div>
+        </MenuPopup>
+      </Menu>
+    </div>
+  );
+}
+
+function FullscreenChatTitle(props: { title: string | null }) {
+  const title = props.title?.trim() ?? "";
+  if (!title) return null;
+
+  return (
+    <>
+      <span
+        className="chat-title-tab-row no-drag min-w-0 shrink"
+        data-shell-fullscreen-chat-title=""
+      >
+        <span className="chat-title-tab-trigger">
+          <span className="chat-title-tab-title">{title}</span>
+        </span>
+      </span>
+      <WorkbenchChromeDivider data-shell-fullscreen-chat-divider="" />
+    </>
+  );
+}
+
+interface RightWorkbenchHeaderProps {
+  workspaceKey: string | null;
+  threadTitle: string | null;
+  tabs: readonly WorkbenchTabMeta[];
+  activeTabId: string;
+  fullscreenControl?: ReactNode | undefined;
+  onActivateChanges: () => void;
+  onActivateTab: (tabId: string) => void;
+  onCloseTab: (tabId: string) => void;
+  onCreateBrowser: (url?: string | undefined) => void;
+  onCreateFile: () => void;
+  onCreateTerminal: () => void;
+  onHidePanel: () => void;
+  onMoveTab: (tabId: string, targetIndex: number) => void;
 }
 
 export const RightWorkbenchHeader = memo(function RightWorkbenchHeader(
   props: RightWorkbenchHeaderProps,
 ) {
-  const isTerminal = props.activeTab === "terminal";
-  const sessions = props.terminalSessions ?? [];
-  const showTerminalSessionTabs = isTerminal && sessions.length > 0;
-  const activeMeta = props.tabs.find((tab) => tab.id === props.activeTab) ?? null;
+  const trailing = (
+    <>
+      <NewTabMenu
+        onActivateChanges={props.onActivateChanges}
+        onCreateBrowser={props.onCreateBrowser}
+        onCreateFile={props.onCreateFile}
+        onCreateTerminal={props.onCreateTerminal}
+      />
+      {props.fullscreenControl}
+    </>
+  );
 
   return (
     <RightWorkbenchToolIsland
-      trailing={props.trailing}
-      end={<div className="honk-workbench-titlebar-end-space shrink-0" aria-hidden />}
+      trailing={trailing}
+      end={
+        <WorkbenchIconButton
+          aria-label="Hide Panel"
+          chrome="tool"
+          onClick={props.onHidePanel}
+          title="Hide Panel"
+        >
+          <IconSidebarHiddenRightWide className="size-4 shrink-0" aria-hidden />
+        </WorkbenchIconButton>
+      }
     >
       <>
-        <WorkbenchTabList activeTab={props.activeTab} tabs={props.tabs} />
-
-        {showTerminalSessionTabs ? (
-          <>
-            <WorkbenchChromeDivider />
-            <WorkbenchChromeActionGroup role="tablist" aria-label="Terminal sessions" overflow>
-              {sessions.map((session) => (
-                <TerminalSessionTab
-                  key={session.id}
-                  session={session}
-                  active={session.id === props.activeTerminalId}
-                  onActivate={() => props.onTerminalTab?.(session.id)}
-                  onClose={() => props.onCloseTerminal?.(session.id)}
-                  closable={sessions.length > 1}
-                />
-              ))}
-            </WorkbenchChromeActionGroup>
-          </>
-        ) : null}
-        {isTerminal && props.onNewTerminal ? (
-          <>
-            {!showTerminalSessionTabs ? <WorkbenchChromeDivider /> : null}
-            <WorkbenchChromeButton label="New terminal" onClick={props.onNewTerminal}>
-              <IconPlusLarge className="size-4 shrink-0" aria-hidden />
-            </WorkbenchChromeButton>
-          </>
-        ) : null}
-
-        <WorkbenchChromeSpacer />
-
-        {activeMeta?.closable && props.onCloseTab ? (
-          <WorkbenchChromeButton
-            label={`Close ${activeMeta.label}`}
-            onClick={() => props.onCloseTab?.(activeMeta.id)}
-          >
-            <IconCrossMediumDefault className="size-4 shrink-0" aria-hidden />
-          </WorkbenchChromeButton>
-        ) : null}
+        <div className="editor-panel-tab-bar-leading" data-shell-fullscreen-leading="" />
+        <FullscreenChatTitle title={props.threadTitle} />
+        <WorkbenchTabClusters
+          activeTabId={props.activeTabId}
+          tabs={props.tabs}
+          onActivateTab={props.onActivateTab}
+          onCloseTab={props.onCloseTab}
+          onMoveTab={props.onMoveTab}
+        />
       </>
     </RightWorkbenchToolIsland>
   );

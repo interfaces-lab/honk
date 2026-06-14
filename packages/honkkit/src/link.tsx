@@ -4,12 +4,12 @@ import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn, controlTransitionClassName } from "./utils";
+import { cn, controlTransitionVariants } from "./utils";
 
 const linkVariants = cva(
   cn(
     "font-medium outline-none underline-offset-4 transition-colors focus-visible:ring-1 focus-visible:ring-honk-stroke-focused",
-    controlTransitionClassName,
+    controlTransitionVariants(),
   ),
   {
     defaultVariants: {

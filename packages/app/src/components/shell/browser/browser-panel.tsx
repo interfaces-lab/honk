@@ -1,19 +1,11 @@
 "use client";
 
-import {
-  IconArrowLeft,
-  IconArrowRight,
-  IconArrowRotateClockwise,
-  IconBrowserTabs,
-  IconGlobe,
-} from "central-icons";
-import type { FormEvent, MouseEventHandler, ReactNode } from "react";
+import { IconBrowserTabs } from "central-icons";
+import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizePathSeparators } from "@honk/shared/paths";
 
-import { WorkbenchIconButton } from "@honk/honkkit/workbench-button";
-import { WorkbenchChromeActionGroup, WorkbenchChromeRow } from "@honk/honkkit/workbench-chrome-row";
-
+import { useCopyToClipboard } from "~/hooks/use-copy-to-clipboard";
 import { resolveShortcutCommand, type ShortcutEventLike } from "~/keybindings";
 import { useServerKeybindings } from "~/rpc/server-state";
 import {
@@ -21,10 +13,18 @@ import {
   useBrowserWorkbenchState,
   type BrowserWorkbenchState,
 } from "~/stores/shell-panels-store";
+import { workbenchTabPersistenceActions } from "~/stores/workbench-tab-store";
 import { cn } from "~/lib/utils";
 import { useRightWorkbenchPanelRuntime } from "../shell/app";
-import { WorkbenchPanel } from "../shell/workbench-panel";
+import { BrowserWorkbenchSubChrome } from "./browser-subchrome";
 import { normalizeBrowserNavigationInput } from "./browser-url";
+import {
+  browserWebviewCapturePage,
+  browserWebviewClearHistory,
+  browserWebviewHardReload,
+  browserWebviewOpenDevTools,
+  copyBrowserScreenshotDataUrl,
+} from "./browser-webview";
 
 type BrowserWebviewNavigationEvent = Event & {
   errorCode?: number;
@@ -68,6 +68,15 @@ function readWebviewUrl(webview: HTMLWebViewElement, fallback: string): string {
   }
 }
 
+function readWebviewTitle(webview: HTMLWebViewElement): string | undefined {
+  try {
+    const title = webview.getTitle?.().trim();
+    return title || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function readWebviewNavigationState(
   webview: HTMLWebViewElement,
 ): Pick<BrowserWorkbenchState, "canGoBack" | "canGoForward"> {
@@ -82,6 +91,10 @@ function readWebviewNavigationState(
       canGoForward: false,
     };
   }
+}
+
+function isEmptyBrowserState(state: BrowserWorkbenchState): boolean {
+  return !state.committedUrl && !state.pendingUrl;
 }
 
 function isShortcutEventLike(value: unknown): value is ShortcutEventLike {
@@ -113,37 +126,21 @@ function toDetectedLocalhostServers(ports: readonly number[]): DetectedLocalhost
     }));
 }
 
-function BrowserToolbarIconButton(props: {
-  "aria-label": string;
-  children: ReactNode;
-  className?: string | undefined;
-  disabled?: boolean | undefined;
-  onClick?: MouseEventHandler<HTMLButtonElement> | undefined;
-}) {
-  return (
-    <WorkbenchIconButton
-      aria-label={props["aria-label"]}
-      chrome="panel"
-      className={cn(
-        "border border-honk-workbench-panel-border-muted bg-honk-bg-quinary text-honk-icon-primary shadow-xs hover:border-honk-stroke-secondary hover:bg-honk-bg-tertiary disabled:border-transparent disabled:bg-transparent disabled:text-honk-fg-quaternary/45 disabled:hover:border-transparent disabled:hover:bg-transparent",
-        props.className,
-      )}
-      disabled={props.disabled}
-      onClick={props.onClick}
-    >
-      {props.children}
-    </WorkbenchIconButton>
-  );
+interface BrowserPanelProps {
+  workspaceKey: string;
+  tabId?: string | undefined;
+  browserId?: string | undefined;
+  active?: boolean | undefined;
 }
 
-export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
+export function BrowserPanel(props: BrowserPanelProps) {
   const runtime = useRightWorkbenchPanelRuntime();
-  const browserActive = runtime.open && runtime.activeTab === "browser";
-  const browserState = useBrowserWorkbenchState(props.workspaceKey);
+  const browserActive =
+    props.active ?? (runtime.open && runtime.activeTabId === (props.tabId ?? "browser"));
+  const browserState = useBrowserWorkbenchState(props.workspaceKey, props.browserId);
   const keybindings = useServerKeybindings();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const webviewRef = useRef<HTMLWebViewElement | null>(null);
-  const initialWebviewSrcRef = useRef(browserState.committedUrl || "about:blank");
   const [webviewElement, setWebviewElement] = useState<HTMLWebViewElement | null>(null);
   const [detectedLocalhostServers, setDetectedLocalhostServers] = useState<
     readonly DetectedLocalhostServer[]
@@ -152,12 +149,17 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
     "idle",
   );
   const preloadUrl = useBrowserWebviewPreloadUrl();
+  const { copyToClipboard } = useCopyToClipboard();
+  const browserCommittedUrl = browserState.committedUrl;
+  const browserPendingUrl = browserState.pendingUrl;
+  const browserIsEmpty = !browserCommittedUrl && !browserPendingUrl;
+  const webviewInstanceKey = `${props.browserId ?? "default"}:${browserIsEmpty ? "empty" : "loaded"}`;
 
   const updateBrowserState = useCallback(
     (patch: Partial<BrowserWorkbenchState>) => {
-      shellPanelsActions.setBrowserWorkbenchState(props.workspaceKey, patch);
+      shellPanelsActions.setBrowserWorkbenchState(props.workspaceKey, patch, props.browserId);
     },
-    [props.workspaceKey],
+    [props.browserId, props.workspaceKey],
   );
 
   const focusLocationBar = useCallback(() => {
@@ -216,7 +218,7 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
   };
 
   useEffect(() => {
-    if (!browserActive || browserState.committedUrl) return undefined;
+    if (!browserActive || browserCommittedUrl) return undefined;
 
     const detectLocalhostPorts =
       typeof window !== "undefined" ? window.desktopBridge?.detectLocalhostPorts : undefined;
@@ -258,7 +260,7 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [browserActive, browserState.committedUrl]);
+  }, [browserActive, browserCommittedUrl]);
 
   const syncLoadedWebviewState = useCallback(() => {
     const webview = webviewRef.current;
@@ -272,7 +274,18 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
       return;
     }
 
-    const url = readWebviewUrl(webview, browserState.committedUrl);
+    const url = readWebviewUrl(webview, browserCommittedUrl);
+    if (url === "about:blank") {
+      updateBrowserState({
+        ...readWebviewNavigationState(webview),
+        committedUrl: "",
+        isLoading: false,
+        loadError: null,
+        pendingUrl: null,
+      });
+      return;
+    }
+    if (browserIsEmpty) return;
     updateBrowserState({
       ...readWebviewNavigationState(webview),
       committedUrl: url,
@@ -281,7 +294,14 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
       loadError: null,
       pendingUrl: null,
     });
-  }, [browserState.committedUrl, updateBrowserState]);
+    if (props.tabId) {
+      workbenchTabPersistenceActions.setBrowserTabMetadata(
+        props.workspaceKey,
+        props.tabId,
+        { url, title: readWebviewTitle(webview) },
+      );
+    }
+  }, [browserCommittedUrl, browserIsEmpty, props.tabId, props.workspaceKey, updateBrowserState]);
 
   const syncWebviewNavigationState = useCallback(() => {
     const webview = webviewRef.current;
@@ -326,13 +346,31 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
     const handleFinishLoad = () => syncLoadedWebviewState();
     const handleNavigate = (event: Event) => {
       const navigationEvent = event as BrowserWebviewNavigationEvent;
-      if (navigationEvent.url === "about:blank" || !navigationEvent.url) return;
+      if (navigationEvent.url === "about:blank" || !navigationEvent.url) {
+        if (browserIsEmpty) {
+          updateBrowserState({
+            ...readWebviewNavigationState(webviewElement),
+            committedUrl: "",
+            isLoading: false,
+            pendingUrl: null,
+          });
+        }
+        return;
+      }
+      if (browserIsEmpty) return;
       updateBrowserState({
         ...readWebviewNavigationState(webviewElement),
         committedUrl: navigationEvent.url,
         inputValue: navigationEvent.url,
         loadError: null,
       });
+      if (props.tabId) {
+        workbenchTabPersistenceActions.setBrowserTabMetadata(
+          props.workspaceKey,
+          props.tabId,
+          { url: navigationEvent.url },
+        );
+      }
     };
     const handleFailLoad = (event: Event) => {
       const failEvent = event as BrowserWebviewNavigationEvent;
@@ -341,7 +379,7 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
       const failedUrl =
         failEvent.validatedURL && failEvent.validatedURL !== "about:blank"
           ? failEvent.validatedURL
-          : browserState.pendingUrl || browserState.committedUrl;
+          : browserPendingUrl || browserCommittedUrl;
       updateBrowserState({
         ...(failedUrl ? { committedUrl: failedUrl, inputValue: failedUrl } : {}),
         isLoading: false,
@@ -376,10 +414,13 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
       webviewElement.removeEventListener("ipc-message", handleIpcMessage);
     };
   }, [
-    browserState.committedUrl,
-    browserState.pendingUrl,
+    browserCommittedUrl,
+    browserIsEmpty,
+    browserPendingUrl,
     focusLocationBar,
     matchesFocusLocationBarShortcut,
+    props.tabId,
+    props.workspaceKey,
     syncLoadedWebviewState,
     updateBrowserState,
     webviewElement,
@@ -417,110 +458,141 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
     webview.reload();
   }, [browserState.committedUrl, navigateToUrl, updateBrowserState]);
 
-  const reloadIcon = (
-    <IconArrowRotateClockwise
-      className={cn("size-4 shrink-0", browserState.isLoading && "opacity-0")}
-      aria-hidden
-    />
+  const hardReload = useCallback(() => {
+    const targetUrl = browserState.committedUrl;
+    if (!targetUrl) return;
+    updateBrowserState({
+      isLoading: true,
+      loadError: null,
+    });
+
+    const webview = webviewRef.current;
+    if (!webview) {
+      void navigateToUrl(targetUrl);
+      return;
+    }
+    browserWebviewHardReload(webview);
+  }, [browserState.committedUrl, navigateToUrl, updateBrowserState]);
+
+  const openDevTools = useCallback(() => {
+    const webview = webviewRef.current;
+    if (!webview) return;
+    browserWebviewOpenDevTools(webview);
+  }, []);
+
+  const copyCurrentUrl = useCallback(() => {
+    const url = browserState.committedUrl;
+    if (!url) return;
+    copyToClipboard(url, undefined);
+  }, [browserState.committedUrl, copyToClipboard]);
+
+  const takeScreenshot = useCallback(() => {
+    const webview = webviewRef.current;
+    if (!webview) return;
+    void browserWebviewCapturePage(webview).then((dataUrl) => {
+      if (!dataUrl) return;
+      void copyBrowserScreenshotDataUrl(dataUrl);
+    });
+  }, []);
+
+  const clearBrowserPartitionStorage = useCallback(
+    async (
+      storages: readonly (
+        | "cachestorage"
+        | "cookies"
+        | "filesystem"
+        | "indexdb"
+        | "localstorage"
+        | "serviceworkers"
+        | "shadercache"
+        | "websql"
+      )[],
+    ) => {
+      const clearStorage = window.desktopBridge?.clearBrowserPartitionStorage;
+      if (!clearStorage) return;
+      await clearStorage({ storages });
+    },
+    [],
   );
 
-  const reloadSpinner = browserState.isLoading ? (
-    <span
-      className="pointer-events-none absolute inset-0 flex items-center justify-center"
-      aria-hidden
-    >
-      <span className="size-3.5 animate-spin rounded-full border border-honk-stroke-tertiary border-t-honk-icon-primary" />
-    </span>
-  ) : null;
+  const clearBrowsingHistory = useCallback(() => {
+    const webview = webviewRef.current;
+    if (webview) {
+      browserWebviewClearHistory(webview);
+    }
+    updateBrowserState({
+      canGoBack: false,
+      canGoForward: false,
+    });
+  }, [updateBrowserState]);
+
+  const clearCookies = useCallback(() => {
+    void clearBrowserPartitionStorage(["cookies"]);
+  }, [clearBrowserPartitionStorage]);
+
+  const clearCache = useCallback(() => {
+    void clearBrowserPartitionStorage(["cachestorage", "filesystem", "shadercache", "serviceworkers"]);
+  }, [clearBrowserPartitionStorage]);
+
+  const locationPlaceholder =
+    detectedLocalhostServers[0]?.url ?? "Search or enter URL";
 
   return (
-    <WorkbenchPanel className="bg-honk-bg-secondary">
-      <WorkbenchChromeRow variant="panel">
-        <WorkbenchChromeActionGroup>
-          <BrowserToolbarIconButton
-            aria-label="Back"
-            disabled={!browserState.canGoBack}
-            onClick={goBack}
-          >
-            <IconArrowLeft className="size-4 shrink-0" aria-hidden />
-          </BrowserToolbarIconButton>
-          <BrowserToolbarIconButton
-            aria-label="Forward"
-            disabled={!browserState.canGoForward}
-            onClick={goForward}
-          >
-            <IconArrowRight className="size-4 shrink-0" aria-hidden />
-          </BrowserToolbarIconButton>
-          <div
-            className="relative flex size-(--honk-workbench-action-size) shrink-0 items-center justify-center"
-            data-loading={browserState.isLoading ? "true" : undefined}
-          >
-            <BrowserToolbarIconButton
-              aria-label="Reload"
-              disabled={!browserState.committedUrl}
-              onClick={reload}
-            >
-              {reloadIcon}
-            </BrowserToolbarIconButton>
-            {reloadSpinner}
-          </div>
-        </WorkbenchChromeActionGroup>
-
-        <form
-          className="no-drag flex h-(--honk-workbench-action-size) min-w-0 flex-1 items-center gap-(--honk-workbench-text-control-gap) rounded-honk-control border border-honk-workbench-panel-border-muted bg-honk-bg-quinary px-(--honk-workbench-text-control-padding-inline) text-body text-honk-fg-primary focus-within:border-honk-stroke-focused focus-within:ring-1 focus-within:ring-honk-stroke-focused focus-within:ring-inset"
-          onSubmit={handleSubmit}
-        >
-          <IconGlobe className="size-4 shrink-0 text-honk-icon-primary" aria-hidden />
-          <input
-            ref={inputRef}
-            aria-label="Browser location"
-            className="min-w-0 flex-1 bg-transparent p-0 text-body text-honk-fg-primary outline-hidden placeholder:text-honk-fg-quaternary"
-            onChange={(event) => updateBrowserState({ inputValue: event.currentTarget.value })}
-            placeholder={detectedLocalhostServers[0]?.url ?? "Search or enter URL"}
-            spellCheck={false}
-            value={browserState.inputValue}
-          />
-        </form>
-      </WorkbenchChromeRow>
-
-      <div
-        className={cn(
-          "h-0.5 shrink-0 transition-colors",
-          browserState.isLoading ? "bg-honk-icon-accent-primary" : "bg-transparent",
-        )}
+    <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
+      <BrowserWorkbenchSubChrome
+        canGoBack={browserState.canGoBack}
+        canGoForward={browserState.canGoForward}
+        committedUrl={browserState.committedUrl}
+        inputRef={inputRef}
+        inputValue={browserState.inputValue}
+        isLoading={browserState.isLoading}
+        locationPlaceholder={locationPlaceholder}
+        onBack={goBack}
+        onClearBrowsingHistory={clearBrowsingHistory}
+        onClearCache={clearCache}
+        onClearCookies={clearCookies}
+        onCopyUrl={copyCurrentUrl}
+        onForward={goForward}
+        onHardReload={hardReload}
+        onInputChange={(value) => updateBrowserState({ inputValue: value })}
+        onOpenDevTools={openDevTools}
+        onReload={reload}
+        onSubmit={handleSubmit}
+        onTakeScreenshot={takeScreenshot}
       />
 
       {browserState.loadError ? (
-        <div className="shrink-0 border-b border-honk-workbench-panel-border-muted px-3 py-1.5 text-detail text-honk-fg-red-primary">
+        <div className="shrink-0 border-b border-honk-stroke-tertiary px-3 py-1.5 text-honk-chrome text-honk-fg-red-primary">
           {browserState.loadError}
         </div>
       ) : null}
 
-      <div className="relative flex min-h-0 min-w-0 flex-1 bg-honk-bg-secondary">
+      <div className="honk-shell-workbench-preview relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <webview
+          key={webviewInstanceKey}
           ref={handleWebviewRef}
           allowpopups
           className={cn(
-            "min-h-0 min-w-0 flex-1 bg-(--honk-bg-primary)",
+            "min-h-0 min-w-0 flex-1 bg-(--honk-workbench-editor-surface-background)",
             !browserState.committedUrl && "pointer-events-none opacity-0",
           )}
           partition="persist:honk-browser"
           preload={preloadUrl}
-          src={initialWebviewSrcRef.current}
+          src={browserCommittedUrl || "about:blank"}
           webpreferences="contextIsolation=yes, nodeIntegration=no, sandbox=yes"
         />
 
         {!browserState.committedUrl ? (
           <div className="pointer-events-auto absolute inset-0 z-10 flex min-h-0 min-w-0 flex-col items-center justify-center px-4 py-8 text-center text-honk-fg-primary">
             <div className="flex w-full max-w-xs flex-col items-center gap-4">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary text-honk-icon-primary shadow-xs">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary text-honk-icon-primary shadow-honk-flat-ring">
                 <IconBrowserTabs className="size-6 shrink-0" aria-hidden />
               </div>
               <div className="flex max-w-2xs flex-col items-center gap-1">
-                <div className="text-body font-medium text-honk-fg-primary">
+                <div className="text-honk-chrome font-medium text-honk-fg-primary">
                   Open a local preview
                 </div>
-                <div className="text-detail text-honk-fg-secondary">
+                <div className="text-honk-chrome text-honk-fg-secondary">
                   Enter a URL or choose a detected localhost server.
                 </div>
               </div>
@@ -528,14 +600,14 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
               <div className="flex w-full flex-col gap-1.5">
                 {detectedLocalhostServers.length > 0 ? (
                   <>
-                    <div className="px-1 text-left text-caption font-medium text-honk-fg-tertiary">
+                    <div className="px-1 text-left text-honk-tab font-medium text-honk-fg-tertiary">
                       Detected localhost
                     </div>
                     {detectedLocalhostServers.map((server) => (
                       <button
                         key={server.port}
                         type="button"
-                        className="no-drag flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary px-2 text-left text-detail text-honk-fg-primary shadow-xs outline-hidden transition-colors hover:border-honk-stroke-secondary hover:bg-honk-bg-tertiary focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset"
+                        className="no-drag flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary px-2 text-left text-honk-chrome text-honk-fg-primary shadow-honk-flat-ring outline-hidden transition-colors hover:border-honk-stroke-secondary hover:bg-honk-bg-tertiary focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset"
                         onClick={() => void navigateToUrl(server.url)}
                       >
                         <span className="min-w-0 truncate font-honk-mono">{server.url}</span>
@@ -544,7 +616,7 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
                     ))}
                   </>
                 ) : (
-                  <div className="rounded-honk-control border border-honk-workbench-panel-border-muted bg-honk-bg-tertiary px-2.5 py-2 text-detail text-honk-fg-secondary">
+                  <div className="rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-tertiary px-2.5 py-2 text-honk-chrome text-honk-fg-secondary">
                     {localhostScanState === "scanning"
                       ? "Looking for localhost servers..."
                       : "No localhost server detected."}
@@ -555,6 +627,6 @@ export function BrowserWorkbenchPanel(props: { workspaceKey: string }) {
           </div>
         ) : null}
       </div>
-    </WorkbenchPanel>
+    </div>
   );
 }

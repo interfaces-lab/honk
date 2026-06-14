@@ -3,12 +3,12 @@
 import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn, interactiveControlCursorClassName } from "./utils";
+import { cn, interactiveControlCursorVariants } from "./utils";
 
 const toggleVariants = cva(
   cn(
     "[&_svg]:-mx-0.5 relative inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg border font-medium text-base text-foreground outline-none transition-shadow before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-64 data-pressed:bg-input/64 data-pressed:text-accent-foreground sm:text-sm [&_svg:not([class*='opacity-'])]:opacity-80 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-    interactiveControlCursorClassName,
+    interactiveControlCursorVariants(),
   ),
   {
     defaultVariants: {
@@ -17,10 +17,10 @@ const toggleVariants = cva(
     },
     variants: {
       size: {
-        default: "h-9 min-w-9 px-2 sm:h-8 sm:min-w-8",
-        lg: "h-10 min-w-10 px-2.5 sm:h-9 sm:min-w-9",
-        sm: "h-8 min-w-8 px-1.5 sm:h-7 sm:min-w-7",
-        xs: "h-7 min-w-7 px-1 sm:h-6 sm:min-w-6 rounded-md",
+        default: "h-6 min-w-6 px-2",
+        lg: "h-7 min-w-7 px-2.5",
+        sm: "h-5 min-w-5 px-1.5",
+        xs: "h-4 min-w-4 rounded-md px-1",
       },
       variant: {
         default: "border-transparent",

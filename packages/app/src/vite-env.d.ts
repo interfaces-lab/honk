@@ -14,11 +14,16 @@ declare global {
   interface HTMLWebViewElement extends HTMLElement {
     canGoBack: () => boolean;
     canGoForward: () => boolean;
+    capturePage?: (callback: (image: { toDataURL: () => string }) => void) => void;
+    clearHistory?: () => void;
+    getTitle?: () => string;
     getURL: () => string;
     goBack: () => void;
     goForward: () => void;
     loadURL: (url: string) => Promise<void>;
+    openDevTools?: () => void;
     reload: () => void;
+    reloadIgnoringCache?: () => void;
   }
 
   interface Window {

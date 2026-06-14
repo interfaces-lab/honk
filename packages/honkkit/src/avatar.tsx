@@ -2,7 +2,7 @@
 
 import { Avatar as AvatarPrimitive } from "@base-ui/react/avatar";
 
-import { cn, controlTransitionClassName } from "./utils";
+import { cn, controlTransitionVariants } from "./utils";
 
 function Avatar({ className, ...props }: AvatarPrimitive.Root.Props) {
   return (
@@ -35,7 +35,7 @@ function AvatarFallback({ className, ...props }: AvatarPrimitive.Fallback.Props)
     <AvatarPrimitive.Fallback
       className={cn(
         "flex size-full items-center justify-center rounded-[inherit]",
-        controlTransitionClassName,
+        controlTransitionVariants(),
         className,
       )}
       data-slot="avatar-fallback"

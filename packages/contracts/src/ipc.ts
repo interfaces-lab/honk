@@ -280,6 +280,18 @@ export interface DesktopBridge {
   getAppBranding: () => DesktopAppBranding | null;
   getBrowserWebviewPreloadPath?: () => string | null;
   detectLocalhostPorts?: (ports: readonly number[]) => Promise<readonly number[]>;
+  clearBrowserPartitionStorage?: (input: {
+    storages: readonly (
+      | "cachestorage"
+      | "cookies"
+      | "filesystem"
+      | "indexdb"
+      | "localstorage"
+      | "serviceworkers"
+      | "shadercache"
+      | "websql"
+    )[];
+  }) => Promise<void>;
   getLocalEnvironmentBootstrap: () => DesktopEnvironmentBootstrap | null;
   getWindowChromeState: () => DesktopWindowChromeState;
   onWindowChromeState: (listener: (state: DesktopWindowChromeState) => void) => () => void;

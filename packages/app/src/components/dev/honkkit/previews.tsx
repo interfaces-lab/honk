@@ -292,7 +292,7 @@ function WorkbenchChromeRowPreview() {
           >
             <IconChevronRightMedium className="size-4 rotate-90" />
           </WorkbenchIconButton>
-          <span className="no-drag min-w-0 truncate text-body font-medium text-honk-fg-secondary">
+          <span className="no-drag min-w-0 truncate text-honk-chrome font-medium text-honk-fg-secondary">
             {variant === "tool" ? "Tool island" : "Panel title row"}
           </span>
         </WorkbenchChromeRow>
@@ -529,7 +529,7 @@ function ToggleGroupPreview() {
 }
 
 function TextPreview() {
-  const sizes = ["xs", "sm", "base", "lg", "xl"] as const;
+  const sizes = ["xs", "sm", "base", "lg", "xl", "tab", "chrome", "workbench"] as const;
   const tones = ["primary", "secondary", "tertiary", "quaternary"] as const;
   const weights = ["regular", "medium", "semibold"] as const;
   const params = useDialKit("Text", {
@@ -1253,7 +1253,7 @@ function ScrollAreaPreview() {
 }
 
 function TabsPreview() {
-  const variants = ["segmented", "underline"] as const;
+  const variants = ["segmented", "underline", "workbench"] as const;
   const params = useDialKit("Tabs", {
     variant: dialSelect(variants, "segmented"),
     tabCount: [3, 2, 5, 1],
@@ -1520,7 +1520,7 @@ function CommandPreview() {
     <Command aria-label="Command preview" items={items} mode="none">
       <div
         className={cn(
-          "relative w-96 max-w-full overflow-hidden rounded-lg border border-honk-stroke-secondary bg-honk-bg-elevated font-honk text-body text-honk-fg-primary shadow-honk-popup",
+          "relative w-96 max-w-full overflow-hidden rounded-lg border border-honk-stroke-secondary bg-honk-bg-elevated font-honk text-honk-chrome text-honk-fg-primary shadow-honk-xl backdrop-blur-[length:var(--honk-glass-blur-floating)]",
           mode !== "palette" && "max-w-sm bg-honk-bg-quinary",
         )}
       >
@@ -1924,6 +1924,109 @@ function ToolCallPreview() {
   );
 }
 
+function WorkbenchParityPreview() {
+  const params = useDialKit("Workbench Parity", {
+    showMotion: true,
+    showShadows: true,
+    showTypography: true,
+  });
+
+  return (
+    <PreviewFrame>
+      <div className="flex w-full max-w-2xl flex-col gap-6">
+        <div className="flex flex-col gap-2">
+          <Text size="chrome" weight="medium">
+            35px chrome row · 24px icons · 1px gap
+          </Text>
+          <div className="overflow-hidden rounded-honk-lg border border-honk-stroke-tertiary bg-honk-bg-elevated">
+            <WorkbenchChromeRow
+              variant="tool"
+              trailing={
+                <WorkbenchIconButton aria-label="Settings" chrome="tool">
+                  <IconSettingsGear1 className="size-4" />
+                </WorkbenchIconButton>
+              }
+            >
+              <WorkbenchIconButton active aria-label="Tab 1" chrome="tool" tabSystem>
+                <IconBubbleText className="size-4" />
+              </WorkbenchIconButton>
+              <WorkbenchIconButton aria-label="Tab 2" chrome="tool" tabSystem>
+                <IconConsole className="size-4" />
+              </WorkbenchIconButton>
+            </WorkbenchChromeRow>
+          </div>
+        </div>
+
+        {params.showShadows ? (
+          <div className="flex flex-col gap-2">
+            <Text size="chrome" weight="medium">
+              Shadow ladder
+            </Text>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {(
+                [
+                  ["soft", "shadow-honk-soft"],
+                  ["sm", "shadow-honk-sm"],
+                  ["base", "shadow-honk-base"],
+                  ["xl", "shadow-honk-xl"],
+                ] as const
+              ).map(([label, shadow]) => (
+                <div
+                  className={cn(
+                    "flex h-16 items-center justify-center rounded-honk-lg border border-honk-stroke-tertiary bg-honk-bg-elevated text-honk-tab text-honk-fg-secondary",
+                    shadow,
+                  )}
+                  key={label}
+                >
+                  {label}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {params.showTypography ? (
+          <div className="flex flex-col gap-2">
+            <Text size="chrome" weight="medium">
+              Workbench typography ramp
+            </Text>
+            <div className="flex flex-col gap-1 rounded-honk-lg border border-honk-stroke-tertiary bg-honk-bg-elevated p-3">
+              <Text size="tab">Tab 12px / 16px leading</Text>
+              <Text size="chrome">Chrome 13px / 18px leading</Text>
+              <Text size="workbench">Workbench body 14px / 20px leading</Text>
+            </div>
+          </div>
+        ) : null}
+
+        {params.showMotion ? (
+          <div className="flex flex-col gap-2">
+            <Text size="chrome" weight="medium">
+              Motion tiers (150ms UI · 300ms dialog)
+            </Text>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline">UI control (150ms)</Button>
+              <Dialog>
+                <DialogTrigger render={<Button variant="outline" />}>Dialog (300ms)</DialogTrigger>
+                <DialogPopup>
+                  <DialogHeader>
+                    <DialogTitle>Dialog motion</DialogTitle>
+                    <DialogDescription>Uses --motion-duration-dialog easing.</DialogDescription>
+                  </DialogHeader>
+                </DialogPopup>
+              </Dialog>
+            </div>
+          </div>
+        ) : null}
+
+        <Text as="p" size="tab" tone="tertiary">
+          QA: top bar tabs, panel headers, composer prompt, menus, dialogs, reduced-motion, light/dark
+          glass.
+        </Text>
+      </div>
+    </PreviewFrame>
+  );
+}
+
 function AlertDialogPreview() {
   const params = useDialKit("Alert Dialog", {
     title: dialText("Title"),
@@ -1967,6 +2070,7 @@ export const MULTIKIT_PREVIEWS: Record<string, () => ReactNode> = {
   combobox: ComboboxPreview,
   command: CommandPreview,
   "context-menu": ContextMenuPreview,
+  "workbench-parity": WorkbenchParityPreview,
   dialog: DialogPreview,
   empty: EmptyPreview,
   group: GroupPreview,

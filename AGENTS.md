@@ -23,7 +23,8 @@
 - Do not preserve backward compatibility unless the user asks for it.
 - Ask before removing intentional-looking behavior or large code paths.
 - Keybindings must be configurable. Do not hardcode checks like `matchesKey(keyData, "ctrl+x")`; add defaults to the relevant keybinding map.
-- Keep Tailwind utilities on elements or in `cva` variants. Do not create decorative `*_CLASSNAME` buckets unless needed as a real CSS/test selector.
+- Keep Tailwind utilities on elements or in `cva` variants. Do not create decorative `*ClassName` / `*_CLASSNAME` buckets unless needed as a real CSS/test selector.
+- For shared UI styling, prefer a small component when callers need markup composition, or a `cva` recipe when callers need conditional/reusable class composition. Inline one-off static classes at the element.
 
 ## Icons
 

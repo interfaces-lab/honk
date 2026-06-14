@@ -19,6 +19,9 @@ const textVariants = cva("font-honk", {
       base: "text-honk-base",
       lg: "text-honk-lg",
       xl: "text-honk-xl",
+      tab: "text-honk-tab",
+      chrome: "text-honk-chrome",
+      workbench: "text-honk-conversation-lg",
     },
     tone: {
       primary: "text-honk-fg-primary",
@@ -30,7 +33,7 @@ const textVariants = cva("font-honk", {
     weight: {
       regular: "font-normal",
       medium: "font-medium",
-      semibold: "font-semibold",
+      semibold: "font-[590]",
     },
     truncate: {
       true: "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap",

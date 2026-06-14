@@ -614,6 +614,7 @@ function TaskToolCall({
 const EMPTY_TOOL_METADATA_ITEMS: readonly string[] = [];
 const STREAMING_SHELL_OUTPUT_MAX_CHARS = 12_000;
 const STREAMING_TOOL_OUTPUT_PREVIEW_MAX_HEIGHT_PX = 90;
+const COLLAPSED_EDIT_DIFF_PREVIEW_MAX_HEIGHT_PX = 102;
 
 export function ExpandableToolMetadataLine({
   icon: Icon,
@@ -1366,6 +1367,9 @@ function EditToolCall({
   const hasContent = hasEditExpandableContent(detail, path, diffArtifact);
   const forceDiffPreview = diffArtifact !== undefined;
   const showCollapsedPreview = (!compactLayout || forceDiffPreview) && hasContent && !isExpanded;
+  const collapsedPreviewMaxHeightPx = diffArtifact
+    ? COLLAPSED_EDIT_DIFF_PREVIEW_MAX_HEIGHT_PX
+    : STREAMING_TOOL_OUTPUT_PREVIEW_MAX_HEIGHT_PX;
 
   const toggleExpanded = () => {
     if (!hasContent) return;
@@ -1443,7 +1447,7 @@ function EditToolCall({
             style={
               showCollapsedPreview
                 ? ({
-                    "--streaming-tool-output-preview-max-height": `${STREAMING_TOOL_OUTPUT_PREVIEW_MAX_HEIGHT_PX}px`,
+                    "--streaming-tool-output-preview-max-height": `${collapsedPreviewMaxHeightPx}px`,
                   } as CSSProperties)
                 : undefined
             }

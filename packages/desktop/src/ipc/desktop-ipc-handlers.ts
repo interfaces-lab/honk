@@ -20,6 +20,7 @@ import { getServerExposureState, setServerExposureMode } from "./methods/server-
 import { checkForUpdate, downloadUpdate, getUpdateState, installUpdate } from "./methods/updates";
 import {
   confirm,
+  clearBrowserPartitionStorage,
   detectLocalhostPorts,
   expandWindowWidth,
   getAppBranding,
@@ -66,6 +67,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(pickFolder);
   yield* ipc.handle(confirm);
   yield* ipc.handle(detectLocalhostPorts);
+  yield* ipc.handle(clearBrowserPartitionStorage);
   yield* ipc.handle(setActiveWorkState);
   yield* ipc.handle(setTheme);
   yield* ipc.handle(setBackgroundColor);

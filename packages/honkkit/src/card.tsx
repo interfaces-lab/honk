@@ -7,14 +7,14 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "./utils";
 
 const cardVariants = cva(
-  "relative min-w-0 overflow-hidden rounded-honk-card border font-honk text-body text-honk-fg-primary",
+  "relative min-w-0 overflow-hidden rounded-honk-lg border font-honk text-honk-chrome text-honk-fg-primary",
   {
     defaultVariants: {
       variant: "default",
     },
     variants: {
       variant: {
-        default: "border-honk-stroke-tertiary bg-honk-bg-elevated shadow-honk-card",
+        default: "border-honk-stroke-tertiary bg-honk-bg-elevated shadow-honk-flat-ring",
         flat: "border-honk-stroke-tertiary bg-transparent shadow-none",
         panel:
           "border-honk-workbench-panel-border-soft bg-honk-workbench-panel-background shadow-none",
@@ -47,7 +47,7 @@ function CardHeader({ className, render, ...props }: useRender.ComponentProps<"d
     defaultTagName: "div",
     props: mergeProps(
       {
-        className: cn("flex min-w-0 flex-col gap-1 px-4 pt-4", className),
+        className: cn("flex min-h-[30px] min-w-0 flex-col gap-1 px-4 py-2", className),
         "data-slot": "card-header",
       },
       props,

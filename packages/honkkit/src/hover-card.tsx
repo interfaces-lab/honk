@@ -57,7 +57,7 @@ function HoverCardPopup({
       >
         <PreviewCardPrimitive.Popup
           className={cn(
-            "relative min-w-56 max-w-80 origin-(--transform-origin) overflow-hidden rounded-[8px] border border-honk-stroke-tertiary bg-honk-bg-elevated font-honk text-body text-honk-fg-primary shadow-honk-popup outline-none backdrop-blur-xl transition-[scale,opacity] duration-150 ease-out data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none",
+            "relative min-w-56 max-w-80 origin-(--transform-origin) honk-glass-inset-ring overflow-hidden rounded-honk-lg border border-honk-stroke-tertiary bg-honk-bg-elevated font-honk text-honk-chrome text-honk-fg-primary shadow-honk-soft outline-none backdrop-blur-[length:var(--honk-glass-blur-surface)] transition-[scale,opacity] duration-(--motion-duration-ui) ease-(--ease-shell) data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none",
             className,
           )}
           data-slot="hover-card-popup"

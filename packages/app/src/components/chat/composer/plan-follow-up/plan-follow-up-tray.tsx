@@ -29,7 +29,7 @@ export function PlanFollowUpTray(props: {
   return (
     <div
       className={cn(
-        "plan-tray pointer-events-auto min-w-0 overflow-hidden rounded-(--honk-composer-plan-tray-radius) bg-honk-bg-elevated font-honk text-detail text-honk-fg-primary shadow-honk-card",
+        "plan-tray pointer-events-auto min-w-0 overflow-hidden rounded-(--honk-composer-plan-tray-radius) bg-honk-bg-elevated font-honk text-honk-chrome text-honk-fg-primary shadow-honk-soft honk-glass-inset-ring",
         props.compact ? "mx-auto w-full" : "",
       )}
       data-testid="plan-tray"
@@ -82,7 +82,7 @@ export function PlanFollowUpTray(props: {
           type="button"
           variant="default"
           size="sm"
-          className="bg-(--cursor-bg-yellow-primary) text-detail text-(--vscode-editor-background) hover:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] data-pressed:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] [&_svg]:size-3.5"
+          className="bg-(--honk-bg-yellow-primary) text-detail text-(--vscode-editor-background) hover:bg-[color-mix(in_srgb,var(--honk-bg-yellow-primary)_80%,var(--honk-bg-yellow-secondary))] data-pressed:bg-[color-mix(in_srgb,var(--honk-bg-yellow-primary)_80%,var(--honk-bg-yellow-secondary))] [&_svg]:size-3.5"
           disabled={props.isBuilding || !props.onBuildPlan}
           aria-label="Build plan"
           title="Build plan"

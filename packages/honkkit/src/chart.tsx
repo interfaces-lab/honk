@@ -39,13 +39,6 @@ function getDatumColor(datum: ChartDatum, index: number): string {
   return datum.color ?? chartColors[index % chartColors.length] ?? chartColors[0];
 }
 
-function chartClassName(className: string | undefined): string {
-  return cn(
-    "block h-32 w-full max-w-full overflow-visible font-honk text-detail text-honk-fg-tertiary",
-    className,
-  );
-}
-
 function BarChart({ className, data, maxValue, showLabels = true, ...props }: ChartSvgProps) {
   const chartMax = getChartMax(data, maxValue);
   const width = 240;
@@ -60,7 +53,10 @@ function BarChart({ className, data, maxValue, showLabels = true, ...props }: Ch
   return (
     <svg
       aria-hidden={props["aria-label"] ? undefined : true}
-      className={chartClassName(className)}
+      className={cn(
+        "block h-32 w-full max-w-full overflow-visible font-honk text-detail text-honk-fg-tertiary",
+        className,
+      )}
       data-slot="bar-chart"
       preserveAspectRatio="none"
       role={props["aria-label"] ? "img" : undefined}
@@ -122,7 +118,10 @@ function LineChart({ className, data, maxValue, showLabels = false, ...props }: 
   return (
     <svg
       aria-hidden={props["aria-label"] ? undefined : true}
-      className={chartClassName(className)}
+      className={cn(
+        "block h-32 w-full max-w-full overflow-visible font-honk text-detail text-honk-fg-tertiary",
+        className,
+      )}
       data-slot="line-chart"
       preserveAspectRatio="none"
       role={props["aria-label"] ? "img" : undefined}
@@ -218,7 +217,10 @@ function PieChart({ className, data, showLabels = false, ...props }: PieChartPro
   return (
     <svg
       aria-hidden={props["aria-label"] ? undefined : true}
-      className={chartClassName(className)}
+      className={cn(
+        "block h-32 w-full max-w-full overflow-visible font-honk text-detail text-honk-fg-tertiary",
+        className,
+      )}
       data-slot="pie-chart"
       preserveAspectRatio="xMidYMid meet"
       role={props["aria-label"] ? "img" : undefined}

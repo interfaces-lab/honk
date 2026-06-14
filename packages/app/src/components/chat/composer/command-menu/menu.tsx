@@ -617,7 +617,7 @@ export function ComposerCommandMenu(props: {
       }}
     >
       <div
-        className="relative w-full max-w-full min-w-0 overflow-hidden rounded-lg border border-honk-stroke-secondary bg-(--honk-composer-popup-surface-background) font-honk text-body text-honk-fg-primary shadow-honk-popup motion-reduce:animate-none motion-reduce:transition-none"
+        className="relative w-full max-w-full min-w-0 overflow-hidden rounded-lg border border-honk-stroke-secondary bg-(--honk-composer-popup-surface-background) font-honk text-honk-chrome text-honk-fg-primary shadow-honk-xl backdrop-blur-[length:var(--honk-glass-blur-floating)] motion-reduce:animate-none motion-reduce:transition-none"
         data-menu-kind={props.menuKind}
         data-variant="surface"
       >

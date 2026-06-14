@@ -5,7 +5,7 @@ import { IconChevronRightMedium } from "central-icons";
 import { cva } from "class-variance-authority";
 import type { ComponentPropsWithoutRef, ComponentType, ReactNode } from "react";
 
-import { cn, interactiveControlCursorClassName } from "./utils";
+import { cn, interactiveControlCursorVariants } from "./utils";
 
 type ToolCallIconComponent = ComponentType<{ className?: string | undefined }>;
 type ToolCallLineStatus = "idle" | "loading" | "completed" | "error";
@@ -22,7 +22,7 @@ const toolCallLineVariants = cva(
     variants: {
       clickable: {
         false: "",
-        true: interactiveControlCursorClassName,
+        true: interactiveControlCursorVariants(),
       },
       status: {
         idle: "",
@@ -77,7 +77,7 @@ const toolCallLineDetailsVariants = cva(
         false: "",
         true: cn(
           "underline",
-          interactiveControlCursorClassName,
+          interactiveControlCursorVariants(),
           "decoration-[color-mix(in_srgb,var(--honk-fg-tertiary)_45%,transparent)]",
           "hover:text-honk-fg-secondary",
           "hover:decoration-[color-mix(in_srgb,var(--honk-fg-secondary)_55%,transparent)]",
@@ -257,7 +257,7 @@ function ToolCallTaskHeader({
       type="button"
       className={cn(
         "inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 border-0 bg-transparent py-0 text-left font-[inherit] text-inherit outline-none select-none",
-        interactiveControlCursorClassName,
+        interactiveControlCursorVariants(),
         className,
       )}
       data-task-tool-call-header=""
@@ -397,7 +397,7 @@ function ToolCallShellHeader({
       className={cn(
         "group/shell-trigger inline-flex min-h-6 w-fit max-w-full min-w-0 items-center gap-1 overflow-visible",
         "border-0 bg-transparent py-0 text-left text-conversation text-honk-fg-primary select-none",
-        expandable ? interactiveControlCursorClassName : "cursor-default",
+        expandable ? interactiveControlCursorVariants() : "cursor-default",
         hasError && "text-honk-fg-red-primary",
         className,
       )}
@@ -414,7 +414,7 @@ function ToolCallShellBody({ className, ...props }: ComponentPropsWithoutRef<"di
   return (
     <div
       className={cn(
-        "mt-1 min-w-0 max-w-full overflow-hidden rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-elevated",
+        "mt-1 min-w-0 max-w-full overflow-hidden rounded-honk-xl border border-honk-stroke-tertiary bg-honk-bg-elevated",
         className,
       )}
       data-shell-tool-call-body=""

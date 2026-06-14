@@ -144,7 +144,7 @@ function DevPanelTabs(props: {
             aria-selected={selected}
             onClick={() => props.onActiveChange(section.id)}
             className={cn(
-              "flex h-9 shrink-0 items-center gap-2 rounded-honk-control border px-3 text-body font-medium transition-[background-color,border-color,color,transform] active:scale-[0.96]",
+              "flex h-9 shrink-0 items-center gap-2 rounded-honk-control border px-3 text-body font-medium transition-[background-color,border-color,color]",
               selected
                 ? "border-honk-stroke-secondary bg-honk-bg-quinary text-honk-fg-primary shadow-xs"
                 : "border-transparent text-honk-fg-secondary hover:border-honk-workbench-panel-border-muted hover:bg-honk-bg-tertiary hover:text-honk-fg-primary",
@@ -217,19 +217,19 @@ function contextUsageColorValue(color: ContextUsageColor): string {
     case "gray":
       return "var(--honk-fg-tertiary)";
     case "purple":
-      return "color-mix(in oklch, var(--primary) 78%, var(--cursor-text-red-primary))";
+      return "color-mix(in oklch, var(--primary) 78%, var(--honk-fg-red-primary))";
     case "green":
-      return "var(--cursor-text-green-primary)";
+      return "var(--honk-fg-green-primary)";
     case "yellow":
-      return "var(--cursor-text-yellow-primary)";
+      return "var(--honk-tone-yellow)";
     case "pink":
-      return "color-mix(in oklch, var(--cursor-text-red-primary) 62%, var(--primary))";
+      return "color-mix(in oklch, var(--honk-fg-red-primary) 62%, var(--primary))";
     case "blue":
-      return "var(--cursor-text-cyan-primary)";
+      return "var(--honk-fg-cyan-primary)";
     case "orange":
-      return "var(--cursor-text-orange-primary)";
+      return "var(--honk-fg-orange-primary)";
     case "red":
-      return "var(--cursor-text-red-primary)";
+      return "var(--honk-fg-red-primary)";
   }
 }
 
@@ -423,10 +423,10 @@ function messageAccentClassName(role: DevMessageItem["role"]): string {
     return "bg-honk-icon-accent-primary";
   }
   if (role === "assistant") {
-    return "bg-(--cursor-text-green-primary)";
+    return "bg-(--honk-fg-green-primary)";
   }
   if (role === "system") {
-    return "bg-(--cursor-text-yellow-primary)";
+    return "bg-(--honk-tone-yellow)";
   }
   return "bg-honk-icon-secondary";
 }
@@ -628,10 +628,10 @@ function timelineStatusClassName(item: RuntimeDisplayTimelineItem): string {
     return "bg-honk-icon-accent-primary";
   }
   if (item.kind === "tool" && item.status === "error") {
-    return "bg-(--cursor-text-red-primary)";
+    return "bg-(--honk-fg-red-primary)";
   }
   if (item.kind === "extension-ui-request" && item.status === "pending") {
-    return "bg-(--cursor-text-yellow-primary)";
+    return "bg-(--honk-tone-yellow)";
   }
   return "bg-honk-stroke-secondary";
 }
@@ -811,10 +811,10 @@ function eventDescription(event: AgentRuntimeEvent): string {
 
 function eventDotClassName(event: AgentRuntimeEvent): string {
   if (event.type === "runtime.error") {
-    return "bg-(--cursor-text-red-primary)";
+    return "bg-(--honk-fg-red-primary)";
   }
   if (event.type === "runtime.warning") {
-    return "bg-(--cursor-text-yellow-primary)";
+    return "bg-(--honk-tone-yellow)";
   }
   if (
     event.type === "turn.started" ||

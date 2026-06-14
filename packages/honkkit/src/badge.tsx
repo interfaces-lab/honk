@@ -4,12 +4,12 @@ import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn, interactiveHostCursorClassName } from "./utils";
+import { cn, interactiveHostCursorVariants } from "./utils";
 
 const badgeVariants = cva(
   cn(
     "relative inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-sm border border-transparent font-medium outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-64 [&_svg:not([class*='opacity-'])]:opacity-80 [&_svg:not([class*='size-'])]:size-3.5 sm:[&_svg:not([class*='size-'])]:size-3 [&_svg]:pointer-events-none [&_svg]:shrink-0 [button&,a&]:pointer-coarse:after:absolute [button&,a&]:pointer-coarse:after:size-full [button&,a&]:pointer-coarse:after:min-h-11 [button&,a&]:pointer-coarse:after:min-w-11",
-    interactiveHostCursorClassName,
+    interactiveHostCursorVariants(),
   ),
   {
     defaultVariants: {
@@ -18,9 +18,10 @@ const badgeVariants = cva(
     },
     variants: {
       size: {
-        default: "h-5.5 min-w-5.5 px-1 text-sm sm:h-4.5 sm:min-w-4.5 sm:text-xs",
-        lg: "h-6.5 min-w-6.5 px-1.5 text-base sm:h-5.5 sm:min-w-5.5 sm:text-sm",
-        sm: "h-5 min-w-5 rounded-[.25rem] px-1 text-xs sm:h-4 sm:min-w-4 sm:text-[.625rem]",
+        default: "h-5 min-w-5 px-1 text-[10px] leading-none",
+        lg: "h-6 min-w-6 px-1.5 text-[10px] leading-none",
+        sm: "h-4.5 min-w-4.5 rounded-[.25rem] px-1 text-[9px] leading-none",
+        xs: "h-4 min-w-4 rounded-[.25rem] px-0.5 text-[7px] leading-none",
       },
       variant: {
         default: "bg-primary text-primary-foreground [button&,a&]:hover:bg-primary/90",

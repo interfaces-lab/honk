@@ -7,20 +7,16 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { IconCheckmark1, IconChevronRightMedium } from "central-icons";
 import type * as React from "react";
 
-import {
-  workbenchMenuItemClassName,
-  workbenchMenuPopupClassName,
-  workbenchMenuViewportClassName,
-} from "./menu";
-import { cn, controlTransitionClassName, interactiveControlCursorClassName } from "./utils";
+import { menuPopupVariants, workbenchMenuItemVariants } from "./menu";
+import { cn, controlTransitionVariants, interactiveControlCursorVariants } from "./utils";
 
 const Select = SelectPrimitive.Root;
 
 const selectTriggerVariants = cva(
   cn(
     "relative inline-flex select-none items-center justify-between gap-2 border rounded-lg text-left text-base outline-none transition-[color,box-shadow,background-color] data-disabled:pointer-events-none data-disabled:opacity-64 sm:text-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4",
-    interactiveControlCursorClassName,
-    controlTransitionClassName,
+    interactiveControlCursorVariants(),
+    controlTransitionVariants(),
   ),
   {
     defaultVariants: {
@@ -50,8 +46,6 @@ const selectTriggerVariants = cva(
   },
 );
 
-const selectTriggerIconClassName = "-me-1 size-4.5 rotate-90 opacity-80 sm:size-4";
-
 interface SelectButtonProps extends useRender.ComponentProps<"button"> {
   size?: VariantProps<typeof selectTriggerVariants>["size"];
   variant?: VariantProps<typeof selectTriggerVariants>["variant"];
@@ -71,7 +65,7 @@ function SelectButton({ className, size, variant, render, children, ...props }: 
         {variant === "ghost" ? (
           <IconChevronRightMedium className="size-3 rotate-90 opacity-50" />
         ) : (
-          <IconChevronRightMedium className={selectTriggerIconClassName} />
+          <IconChevronRightMedium className="-me-1 size-4.5 rotate-90 opacity-80 sm:size-4" />
         )}
       </>
     ),
@@ -163,9 +157,11 @@ function SelectPopup({
           >
             <IconChevronRightMedium className="relative size-4.5 -rotate-90 sm:size-4" />
           </SelectPrimitive.ScrollUpArrow>
-          <div className={cn(workbenchMenuPopupClassName, "min-w-(--anchor-width)")}>
+          <div
+            className={cn(menuPopupVariants({ variant: "workbench" }), "min-w-(--anchor-width)")}
+          >
             <SelectPrimitive.List
-              className={cn(workbenchMenuViewportClassName, className)}
+              className={cn("max-h-(--available-height) w-full overflow-y-auto p-1", className)}
               data-slot="select-list"
             >
               {children}
@@ -194,7 +190,7 @@ function SelectItem({
   return (
     <SelectPrimitive.Item
       className={cn(
-        workbenchMenuItemClassName,
+        workbenchMenuItemVariants(),
         hideIndicator ? "px-1" : "grid grid-cols-[1rem_1fr] ps-1 pe-2",
         className,
       )}
@@ -205,7 +201,7 @@ function SelectItem({
         <SelectPrimitive.ItemIndicator
           className={cn(
             "col-start-1 inline-flex size-4 items-center justify-center text-honk-fg-primary opacity-0 transition-opacity in-data-selected:opacity-100 [&_svg:not([class*='size-'])]:size-3",
-            controlTransitionClassName,
+            controlTransitionVariants(),
           )}
           data-slot="select-item-indicator"
           keepMounted

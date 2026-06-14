@@ -58,7 +58,7 @@ export function TipTapPlanEditor(props: {
       data-plan-editor-input=""
       data-testid="plan-editor-input"
       className={cn(
-        "plan-editor-prosemirror min-h-48 w-full px-1.5 py-2 text-title leading-(--honk-leading-title) text-(--cursor-text-primary) outline-none",
+        "plan-editor-prosemirror min-h-48 w-full px-1.5 py-2 text-title leading-(--honk-leading-title) text-(--honk-fg-primary) outline-none",
         props.disabled && "opacity-60",
       )}
     />

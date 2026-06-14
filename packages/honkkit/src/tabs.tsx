@@ -10,7 +10,7 @@ import type {
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
 import { createContext, useContext, type ReactNode } from "react";
 
-import { cn, interactiveControlCursorClassName } from "./utils";
+import { cn, interactiveControlCursorVariants } from "./utils";
 
 const TabsIndicatorSegmentedContext = createContext(false);
 const TabsIndicatorUnderlineContext = createContext(false);
@@ -37,7 +37,7 @@ function TabsIndicatorRender(props: React.ComponentProps<"div">) {
 }
 
 export const HONK_TABS_VARIANTS = {
-  variant: ["segmented", "underline"],
+  variant: ["segmented", "underline", "workbench"],
 } as const;
 
 export const HONK_TABS_DEFAULT_VARIANTS = {
@@ -105,7 +105,7 @@ function TabsTab({ className, ...props }: TabsTabPrimitive.Props) {
       className={mergeStatefulClassName(
         cn(
           "t-tab relative flex items-center whitespace-nowrap bg-transparent outline-none transition-colors duration-(--tabs-dur) ease-(--tabs-ease) focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 motion-reduce:transition-none",
-          interactiveControlCursorClassName,
+          interactiveControlCursorVariants(),
         ),
         className,
       )}
@@ -156,6 +156,7 @@ function Tabs({
   const isControlled = value !== undefined;
   const isSegmented = variant === "segmented";
   const isUnderline = variant === "underline";
+  const isWorkbench = variant === "workbench";
 
   return (
     <TabsIndicatorSegmentedContext.Provider value={isSegmented}>
@@ -176,6 +177,8 @@ function Tabs({
                 isSegmented &&
                   "h-7 rounded-[6px] bg-honk-bg-quinary p-0.5 ring-1 ring-honk-stroke-tertiary",
                 isUnderline && "h-7 gap-3 border-b border-honk-stroke-tertiary pb-1",
+                isWorkbench &&
+                  "h-(--honk-workbench-chrome-row-height) gap-px px-(--honk-workbench-tab-container-padding)",
                 listClassName,
               )}
             >
@@ -185,18 +188,20 @@ function Tabs({
                   value={tab.value}
                   render={tab.render}
                   className={cn(
-                    "relative z-[2] rounded-[5px] text-body",
+                    "relative z-[2]",
                     isSegmented &&
-                      "h-6 px-2 text-honk-fg-secondary hover:text-honk-fg-primary aria-selected:text-honk-fg-primary focus-visible:ring-inset",
+                      "h-6 rounded-[5px] px-2 text-body text-honk-fg-secondary hover:text-honk-fg-primary aria-selected:text-honk-fg-primary focus-visible:ring-inset",
                     isUnderline &&
-                      "px-1.5 py-1 text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary aria-selected:font-medium aria-selected:text-honk-fg-primary",
+                      "rounded-[5px] px-1.5 py-1 text-body text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary aria-selected:font-medium aria-selected:text-honk-fg-primary",
+                    isWorkbench &&
+                      "ui-tab-system-tab h-(--honk-workbench-tab-height) max-w-(--honk-workbench-tab-label-max-width) me-px rounded-honk-control px-(--honk-spacing-2) text-honk-tab text-honk-fg-tertiary hover:bg-honk-bg-card hover:text-honk-fg-primary focus-visible:shadow-[inset_0_0_0_2px_var(--honk-stroke-focused)] focus-visible:ring-0 aria-selected:bg-honk-bg-quaternary aria-selected:text-honk-fg-primary",
                     tab.className,
                   )}
                 >
                   {tab.label}
                 </TabsTab>
               ))}
-              <TabsIndicator render={TabsIndicatorRender} />
+              {!isWorkbench ? <TabsIndicator render={TabsIndicatorRender} /> : null}
             </TabsList>
           </TabsRoot>
         </TabsIndicatorClassNameContext.Provider>

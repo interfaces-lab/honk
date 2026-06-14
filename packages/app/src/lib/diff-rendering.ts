@@ -1,8 +1,8 @@
 import { registerCustomTheme } from "@pierre/diffs";
 
 export const DIFF_THEME_NAMES = {
-  light: "honk-cursor-light",
-  dark: "honk-cursor-dark",
+  light: "honk-diff-light",
+  dark: "honk-diff-dark",
 } as const;
 
 export type DiffThemeName = (typeof DIFF_THEME_NAMES)[keyof typeof DIFF_THEME_NAMES];

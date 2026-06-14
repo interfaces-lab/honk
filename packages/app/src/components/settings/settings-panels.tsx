@@ -19,6 +19,7 @@ import {
   type AgentPreferencesPatch,
   type AgentWindowSendWhileStreamingBehavior,
   type AgentWindowUsageSummaryDisplay,
+  DEFAULT_PROJECTLESS_CWD,
   type HonkRuntimeHostSnapshot,
   type ScopedThreadRef,
 } from "@honk/contracts";
@@ -436,7 +437,7 @@ export function GeneralSettingsPanel() {
         />
         <SettingsRow
           title="Add project starts in"
-          description='Leave empty to use "~/" when the Add Project browser opens.'
+          description={`Leave empty to use "${DEFAULT_PROJECTLESS_CWD}" when the Add Project browser opens.`}
           resetAction={
             settings.addProjectBaseDirectory !==
             DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory ? (
@@ -456,7 +457,7 @@ export function GeneralSettingsPanel() {
               className="w-full border-honk-stroke-tertiary bg-honk-bg-quinary shadow-none has-focus-visible:border-honk-stroke-focused has-focus-visible:ring-1 has-focus-visible:ring-honk-stroke-focused sm:w-34"
               value={settings.addProjectBaseDirectory}
               onChange={(event) => updateSettings({ addProjectBaseDirectory: event.target.value })}
-              placeholder="~/"
+              placeholder={DEFAULT_PROJECTLESS_CWD}
               spellCheck={false}
               aria-label="Add project base directory"
             />
@@ -739,16 +740,6 @@ export function AgentsSettingsPanel() {
         <SettingsRow
           title="Diff line wrapping"
           description="Set the default wrap state when the diff panel opens."
-          resetAction={
-            settings.diffWordWrap !== DEFAULT_UNIFIED_SETTINGS.diffWordWrap ? (
-              <SettingResetButton
-                label="diff line wrapping"
-                onClick={() =>
-                  updateSettings({ diffWordWrap: DEFAULT_UNIFIED_SETTINGS.diffWordWrap })
-                }
-              />
-            ) : null
-          }
           control={
             <Switch
               checked={settings.diffWordWrap}
@@ -998,7 +989,7 @@ function AgentModeSelector({
         side="bottom"
         sideOffset={4}
         variant="workbench"
-        className="w-[240px] border-transparent shadow-[0_0_0_1px_var(--honk-stroke-tertiary),0_0_4px_0_var(--honk-shadow-secondary),0_8px_24px_-2px_var(--honk-shadow-secondary)]"
+        className="w-[240px] border-transparent shadow-honk-base"
       >
         {AGENT_MODE_OPTIONS.map((option) => {
           const details = AGENT_MODE_MODEL_DETAILS[option.value];
@@ -1062,7 +1053,7 @@ function AgentModeSelector({
               <MenuSubPopup
                 variant="workbench"
                 side="inline-end"
-                className="w-[220px] border-transparent shadow-[0_0_0_1px_var(--honk-stroke-tertiary),0_0_4px_0_var(--honk-shadow-secondary),0_8px_24px_-2px_var(--honk-shadow-secondary)]"
+                className="w-[220px] border-transparent shadow-honk-base"
               >
                 <div className="px-2 py-1.5">
                   <div className="flex items-center gap-1.5 text-body font-medium text-honk-fg-primary">

@@ -1,4 +1,4 @@
-import { type CxOptions, cx } from "class-variance-authority";
+import { cva, type CxOptions, cx } from "class-variance-authority";
 import { extendTailwindMerge } from "tailwind-merge";
 
 const twMerge = extendTailwindMerge({
@@ -54,6 +54,8 @@ export function cn(...inputs: CxOptions) {
   return twMerge(cx(inputs));
 }
 
-export const controlTransitionClassName = "duration-150 ease-out motion-reduce:transition-none";
-export const interactiveControlCursorClassName = "cursor-(--honk-button-cursor)";
-export const interactiveHostCursorClassName = "[button&,a&]:cursor-(--honk-button-cursor)";
+export const controlTransitionVariants = cva(
+  "duration-(--motion-duration-ui) ease-(--ease-shell) motion-reduce:transition-none",
+);
+export const interactiveControlCursorVariants = cva("cursor-(--honk-button-cursor)");
+export const interactiveHostCursorVariants = cva("[button&,a&]:cursor-(--honk-button-cursor)");

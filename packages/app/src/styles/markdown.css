@@ -13,7 +13,7 @@
     calc(var(--conversation-text-font-size, 13px) * 1.55)
   );
   --honk-markdown-widget-shadow: color-mix(in srgb, var(--foreground) 10%, transparent);
-  --honk-markdown-code-background: var(--cursor-bg-editor);
+  --honk-markdown-code-background: var(--honk-base-editor);
   --honk-markdown-inline-code-background: var(--honk-bg-tertiary);
   --honk-markdown-blockquote-background: transparent;
   --honk-markdown-blockquote-border: color-mix(in srgb, var(--foreground) 18%, transparent);
@@ -205,7 +205,7 @@
 }
 
 .chat-markdown--plan-panel.chat-markdown {
-  color: var(--cursor-text-primary);
+  color: var(--honk-fg-primary);
   font-size: var(--honk-text-title);
   letter-spacing: 0;
   line-height: var(--honk-leading-title);
@@ -220,7 +220,7 @@
 
 .chat-markdown--plan-panel.chat-markdown h1 {
   margin: 0 0 12px;
-  color: var(--cursor-text-primary);
+  color: var(--honk-fg-primary);
   font-size: var(--honk-text-heading);
   font-weight: 600;
   letter-spacing: 0;
@@ -230,7 +230,7 @@
 .chat-markdown--plan-panel.chat-markdown h2 {
   display: block;
   margin: 16px 0 8px;
-  color: var(--cursor-text-primary);
+  color: var(--honk-fg-primary);
   font-size: var(--honk-text-title);
   font-weight: 600;
   letter-spacing: 0;
@@ -247,7 +247,7 @@
 .chat-markdown--plan-panel.chat-markdown h5,
 .chat-markdown--plan-panel.chat-markdown h6 {
   margin: 12px 0 6px;
-  color: var(--cursor-text-primary);
+  color: var(--honk-fg-primary);
   font-size: var(--honk-text-title);
   font-weight: 600;
   letter-spacing: 0;

@@ -36,6 +36,7 @@ import {
   useWorkspaceEditorFileState,
   workspaceEditorActions,
 } from "~/stores/workspace-editor-store";
+import { workbenchTabPersistenceActions } from "~/stores/workbench-tab-store";
 import { markProjectModelClosed } from "~/lib/monaco/project-models";
 import {
   ProjectFileEditorShell,
@@ -100,7 +101,7 @@ function ProjectFilesPanelContent(props: {
   }, [fileRailInitialized, isFilesPanelActive, props.workspaceKey]);
 
   const openEditorPath = (relativePath: string) => {
-    workspaceEditorActions.openFile(props.workspaceKey, relativePath);
+    workbenchTabPersistenceActions.createFile(props.workspaceKey, relativePath);
   };
 
   const navigateEditorHistory = (delta: -1 | 1) => {

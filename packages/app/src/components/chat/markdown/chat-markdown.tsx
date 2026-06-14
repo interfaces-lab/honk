@@ -354,7 +354,7 @@ function MermaidSvgView({
       className={cn(
         "min-w-max origin-center p-3",
         "[&_svg]:mx-auto [&_svg]:block [&_svg]:h-auto [&_svg]:min-w-[480px]",
-        "[&_svg]:[--accent:var(--cursor-text-cyan-primary,var(--primary))] [&_svg]:[--bg:var(--vscode-editor-background)] [&_svg]:[--border:var(--cursor-stroke-primary,var(--vscode-widget-border))] [&_svg]:[--fg:var(--cursor-text-primary)] [&_svg]:[--line:var(--cursor-stroke-secondary,var(--vscode-widget-border))] [&_svg]:[--muted:var(--cursor-text-secondary)] [&_svg]:[--surface:var(--cursor-bg-tertiary,var(--vscode-editor-background))]",
+        "[&_svg]:[--accent:var(--honk-fg-cyan-primary,var(--primary))] [&_svg]:[--bg:var(--vscode-editor-background)] [&_svg]:[--border:var(--honk-stroke-primary,var(--vscode-widget-border))] [&_svg]:[--fg:var(--honk-fg-primary)] [&_svg]:[--line:var(--honk-stroke-secondary,var(--vscode-widget-border))] [&_svg]:[--muted:var(--honk-fg-secondary)] [&_svg]:[--surface:var(--honk-bg-tertiary,var(--vscode-editor-background))]",
         fullscreen
           ? "flex size-full min-h-0 min-w-0 items-center justify-center overflow-auto p-12 [&_svg]:max-w-none"
           : "[&_svg]:max-w-full",
@@ -383,7 +383,7 @@ function MermaidIconButton({
       type="button"
       size="icon-sm"
       variant="ghost"
-      className="size-6 min-h-6 min-w-6 flex-[0_0_24px] rounded-[4px] border-0 bg-transparent p-0 text-(--cursor-text-secondary) hover:bg-(--vscode-list-hoverBackground) hover:text-(--cursor-text-primary) [&_svg]:size-3.5 [&_svg]:shrink-0"
+      className="size-6 min-h-6 min-w-6 flex-[0_0_24px] rounded-[4px] border-0 bg-transparent p-0 text-(--honk-fg-secondary) hover:bg-(--vscode-list-hoverBackground) hover:text-(--honk-fg-primary) [&_svg]:size-3.5 [&_svg]:shrink-0"
       aria-label={label}
       title={label}
       onClick={onClick}
@@ -411,7 +411,7 @@ function MermaidCodeBlock({ code, themeName }: { code: string; themeName: DiffTh
     return (
       <Dialog open={fullscreenOpen} onOpenChange={setFullscreenOpen}>
         <div
-          className="relative w-full overflow-auto rounded-[6px] bg-(--vscode-editor-background) text-detail text-(--cursor-text-primary) leading-(--honk-leading-detail) [contain:paint]"
+          className="relative w-full overflow-auto rounded-[6px] bg-(--vscode-editor-background) text-detail text-(--honk-fg-primary) leading-(--honk-leading-detail) [contain:paint]"
           data-renderer="mermaid"
         >
           <div className="absolute top-1 right-1 z-10 flex items-center gap-1 rounded-[4px] bg-(--vscode-editor-background) p-1">
@@ -464,9 +464,9 @@ function MermaidCodeBlock({ code, themeName }: { code: string; themeName: DiffTh
     return (
       <>
         {renderSync}
-        <div className="w-full overflow-auto rounded-[6px] border border-[color-mix(in_srgb,var(--destructive)_45%,var(--vscode-widget-border))] bg-[color-mix(in_srgb,var(--destructive)_7%,var(--vscode-editor-background))] p-3 text-detail leading-(--honk-leading-detail) text-(--cursor-text-primary) [contain:paint]">
+        <div className="w-full overflow-auto rounded-[6px] border border-[color-mix(in_srgb,var(--destructive)_45%,var(--vscode-widget-border))] bg-[color-mix(in_srgb,var(--destructive)_7%,var(--vscode-editor-background))] p-3 text-detail leading-(--honk-leading-detail) text-(--honk-fg-primary) [contain:paint]">
           <div className="mb-1 font-semibold text-destructive">Mermaid Syntax Error</div>
-          <div className="text-(--cursor-text-secondary)">{rendered.error}</div>
+          <div className="text-(--honk-fg-secondary)">{rendered.error}</div>
           <pre className="mt-2 whitespace-pre-wrap">
             <code>{code}</code>
           </pre>
@@ -478,7 +478,7 @@ function MermaidCodeBlock({ code, themeName }: { code: string; themeName: DiffTh
   return (
     <>
       {renderSync}
-      <div className="w-full overflow-auto rounded-[6px] bg-(--vscode-editor-background) p-3 text-detail leading-(--honk-leading-detail) text-(--cursor-text-secondary) [contain:paint]">
+      <div className="w-full overflow-auto rounded-[6px] bg-(--vscode-editor-background) p-3 text-detail leading-(--honk-leading-detail) text-(--honk-fg-secondary) [contain:paint]">
         Rendering diagram...
       </div>
     </>

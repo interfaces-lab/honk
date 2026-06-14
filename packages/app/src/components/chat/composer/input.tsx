@@ -413,7 +413,7 @@ function ComposerAgentModePicker(props: {
         side="top"
         sideOffset={6}
         variant="workbench"
-        className="w-[184px] border-transparent shadow-[0_0_0_1px_var(--honk-stroke-tertiary),0_0_4px_0_var(--honk-shadow-secondary),0_8px_24px_-2px_var(--honk-shadow-secondary)]"
+        className="w-[184px] border-transparent shadow-honk-base"
       >
         {COMPOSER_AGENT_MODE_OPTIONS.map((mode) => {
           const selected = mode === props.agentMode;
@@ -507,7 +507,7 @@ function ComposerAgentModePicker(props: {
                 variant="workbench"
                 side="inline-end"
                 className={cn(
-                  "border-transparent shadow-[0_0_0_1px_var(--honk-stroke-tertiary),0_0_4px_0_var(--honk-shadow-secondary),0_8px_24px_-2px_var(--honk-shadow-secondary)]",
+                  "border-transparent shadow-honk-base",
                   showEffortSettings ? "w-[160px]" : "w-[220px]",
                 )}
               >
@@ -1065,7 +1065,7 @@ function PrimaryActionControls(props: {
         type="submit"
         size="sm"
         variant="ghost"
-        className="h-6 gap-1 rounded-full bg-transparent px-2.5 text-detail font-medium text-(--cursor-bg-yellow-primary) hover:opacity-85 disabled:opacity-30 [&_svg]:size-3.5 [&_svg]:shrink-0"
+        className="h-6 gap-1 rounded-full bg-transparent px-2.5 text-detail font-medium text-(--honk-bg-yellow-primary) hover:opacity-85 disabled:opacity-30 [&_svg]:size-3.5 [&_svg]:shrink-0"
         disabled={props.isSendBusy || props.isConnecting}
         aria-label="Refine plan"
         title="Refine plan"

@@ -354,6 +354,10 @@ export function getWorkspaceFullscreenTarget(
   return useWorkspaceEditorStore.getState().fullscreenByWorkspaceKey[resolvedKey] ?? "none";
 }
 
+export function subscribeWorkspaceEditor(onStoreChange: () => void): () => void {
+  return useWorkspaceEditorStore.subscribe(onStoreChange);
+}
+
 export const workspaceEditorActions = {
   enterFullscreen: (workspaceKey: string | null, target: WorkspacePanelFullscreenTarget): void =>
     useWorkspaceEditorStore.getState().enterFullscreen(workspaceKey, target),

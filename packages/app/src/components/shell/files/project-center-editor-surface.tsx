@@ -4,6 +4,7 @@ import { IconCrossSmall } from "central-icons";
 import { useRef, useState } from "react";
 
 import { shellPanelsActions } from "~/stores/shell-panels-store";
+import { workbenchTabPersistenceActions } from "~/stores/workbench-tab-store";
 import {
   useWorkspaceEditorFileState,
   workspaceEditorActions,
@@ -60,13 +61,11 @@ export function ProjectCenterEditorSurface(props: {
         canGoForward={editorState.canGoForward}
         placement={editorState.placement}
         onToggleFileTree={() => {
-          shellPanelsActions.setActiveTab("files", props.workspaceKey);
-          shellPanelsActions.setRightOpen(true, props.workspaceKey);
+          workbenchTabPersistenceActions.createFile(props.workspaceKey, selectedPath);
           shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", true);
         }}
         onOpenFile={() => {
-          shellPanelsActions.setActiveTab("files", props.workspaceKey);
-          shellPanelsActions.setRightOpen(true, props.workspaceKey);
+          workbenchTabPersistenceActions.createFile(props.workspaceKey, selectedPath);
         }}
         onBack={() => workspaceEditorActions.navigateFileHistory(props.workspaceKey, -1)}
         onForward={() => workspaceEditorActions.navigateFileHistory(props.workspaceKey, 1)}
@@ -82,8 +81,7 @@ export function ProjectCenterEditorSurface(props: {
           workspaceEditorActions.closeEditor(props.workspaceKey);
         }}
         onRevealInFileTree={() => {
-          shellPanelsActions.setActiveTab("files", props.workspaceKey);
-          shellPanelsActions.setRightOpen(true, props.workspaceKey);
+          workbenchTabPersistenceActions.createFile(props.workspaceKey, selectedPath);
           shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", true);
         }}
         onOpenExternalEditor={() => {

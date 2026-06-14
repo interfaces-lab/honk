@@ -161,6 +161,19 @@ function toRowsWithReuse(
   return reusedAny ? reusedRows : nextRows;
 }
 
+function rowSyncKey(row: DiffRow): string {
+  return [
+    row.id,
+    row.path,
+    row.prevPath ?? "",
+    row.state,
+    row.staged ? "1" : "0",
+    row.unstaged ? "1" : "0",
+    row.add,
+    row.del,
+  ].join("\0");
+}
+
 function getGitErrorMessage(error: GitManagerServiceError | null): string {
   if (!error) {
     return "Unable to load Git status.";
@@ -229,6 +242,7 @@ function EnvironmentGitPanelRowsSync({
   rows: DiffRow[];
 }) {
   const prevRows = useRef<DiffRow[]>([]);
+  const rowsSyncKey = rows.map(rowSyncKey).join("\x01");
 
   useEffect(() => {
     const previousRows = prevRows.current;
@@ -261,7 +275,7 @@ function EnvironmentGitPanelRowsSync({
         queryKey: gitQueryKeys.image(environmentId, cwd, id),
       });
     }
-  }, [cwd, environmentId, queryClient, rows]);
+  }, [cwd, environmentId, queryClient, rowsSyncKey]);
 
   return null;
 }
@@ -341,9 +355,11 @@ export function useEnvironmentGitPanel(
   rowReuseRef.current = nextRows;
   const rows = nextRows;
 
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set());
-  const [requestedDiffIds, setRequestedDiffIds] = useState<Set<string>>(() => new Set());
-  const [activeDiffIds, setActiveDiffIds] = useState<Set<string>>(() => new Set());
+  const [storedCollapsedIds, setStoredCollapsedIds] = useState<Set<string>>(() => new Set());
+  const [storedRequestedDiffIds, setStoredRequestedDiffIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [storedActiveDiffIds, setStoredActiveDiffIds] = useState<Set<string>>(() => new Set());
   const gitPanelRowsSync = createElement(EnvironmentGitPanelRowsSync, {
     key: [cwd ?? "", environmentId ?? ""].join("\0"),
     cwd: enabled ? cwd : null,
@@ -352,13 +368,20 @@ export function useEnvironmentGitPanel(
     rows,
   });
 
-  const rowIds = useMemo(() => new Set(rows.map((row) => row.id)), [rows]);
-
-  useEffect(() => {
-    setCollapsedIds((current) => pruneSetToIds(current, rowIds));
-    setRequestedDiffIds((current) => pruneSetToIds(current, rowIds));
-    setActiveDiffIds((current) => pruneSetToIds(current, rowIds));
-  }, [rowIds]);
+  const rowIdsKey = rows.map((row) => row.id).join("\0");
+  const rowIds = useMemo(() => new Set(rows.map((row) => row.id)), [rowIdsKey]);
+  const collapsedIds = useMemo(
+    () => pruneSetToIds(storedCollapsedIds, rowIds),
+    [rowIds, storedCollapsedIds],
+  );
+  const requestedDiffIds = useMemo(
+    () => pruneSetToIds(storedRequestedDiffIds, rowIds),
+    [rowIds, storedRequestedDiffIds],
+  );
+  const activeDiffIds = useMemo(
+    () => pruneSetToIds(storedActiveDiffIds, rowIds),
+    [rowIds, storedActiveDiffIds],
+  );
 
   const expandedIds = new Set(rows.filter((row) => !collapsedIds.has(row.id)).map((row) => row.id));
 
@@ -529,7 +552,7 @@ export function useEnvironmentGitPanel(
   const requestDiff = (id: string) => {
     if (!rowIds.has(id)) return;
 
-    setRequestedDiffIds((current) => {
+    setStoredRequestedDiffIds((current) => {
       if (current.has(id)) {
         return current;
       }
@@ -538,7 +561,7 @@ export function useEnvironmentGitPanel(
       return next;
     });
 
-    setActiveDiffIds((current) => {
+    setStoredActiveDiffIds((current) => {
       const next = new Set(current);
       next.delete(id);
       next.add(id);
@@ -559,7 +582,7 @@ export function useEnvironmentGitPanel(
       requestDiff(id);
     }
 
-    setCollapsedIds((current) => {
+    setStoredCollapsedIds((current) => {
       const next = new Set(current);
       const shouldOpen = open ?? next.has(id);
       if (shouldOpen) {
@@ -571,9 +594,9 @@ export function useEnvironmentGitPanel(
     });
   };
 
-  const expandAll = () => setCollapsedIds(new Set());
+  const expandAll = () => setStoredCollapsedIds(new Set());
   const collapseAll = () => {
-    setCollapsedIds(new Set(rows.map((row) => row.id)));
+    setStoredCollapsedIds(new Set(rows.map((row) => row.id)));
   };
   const totalAdd = rows.reduce((sum, row) => sum + row.add, 0);
   const totalDel = rows.reduce((sum, row) => sum + row.del, 0);

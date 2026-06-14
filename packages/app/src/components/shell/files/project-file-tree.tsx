@@ -1,18 +1,13 @@
 "use client";
 
 import {
+  type ContextMenuItem,
+  type ContextMenuOpenContext,
   prepareFileTreeInput,
   type FileTreeDirectoryHandle,
   type FileTreeItemHandle,
-  type GitStatus,
-  type GitStatusEntry,
 } from "@pierre/trees";
-import type {
-  EditorId,
-  EnvironmentId,
-  GitWorkingTreeFileStatus,
-  ProjectEntry,
-} from "@honk/contracts";
+import type { EditorId, EnvironmentId, ProjectEntry } from "@honk/contracts";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -26,12 +21,14 @@ import { Button } from "@honk/honkkit/button";
 import { normalizePathSeparators as normalizeTreePath } from "@honk/shared/paths";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import {
+  type CSSProperties,
   type Dispatch,
   forwardRef,
   type RefObject,
   type SetStateAction,
   useImperativeHandle,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -39,7 +36,6 @@ import { toast } from "sonner";
 
 import { resolveAndPersistPreferredEditor } from "~/editor-preferences";
 import { isElectronHost } from "~/env";
-import { useGitStatus } from "~/lib/git-status-state";
 import { ensureLocalApi } from "~/local-api";
 import { formatProjectErrorDescription } from "~/lib/project-error-description";
 import {
@@ -54,6 +50,7 @@ import { useEnvironmentApiReady } from "~/hooks/use-environment-api-ready";
 import { useTheme } from "~/hooks/use-theme";
 import { workspaceEditorActions } from "~/stores/workspace-editor-store";
 import { Tree, useTreeModel } from "../../tree";
+import { resolveFileTreeContextMenuPosition } from "./project-file-tree-context-menu-position";
 
 const DIRECTORY_PLACEHOLDER_FILE_NAME = "Loading...";
 type ProjectTreeModel = ReturnType<typeof useTreeModel>["model"];
@@ -114,34 +111,8 @@ function projectFileName(relativePath: string): string {
   return relativePath.split(/[\\/]/).filter(Boolean).at(-1) ?? relativePath;
 }
 
-function workingTreeFileStatusToTreesStatus(status: GitWorkingTreeFileStatus): GitStatus {
-  switch (status) {
-    case "added":
-      return "added";
-    case "deleted":
-      return "deleted";
-    case "ignored":
-      return "ignored";
-    case "renamed":
-      return "renamed";
-    case "untracked":
-      return "untracked";
-    case "conflict":
-    case "modified":
-    default:
-      return "modified";
-  }
-}
-
-function toGitStatusEntries(status: ReturnType<typeof useGitStatus>["data"]): GitStatusEntry[] {
-  if (!status?.workingTree.files.length) {
-    return [];
-  }
-
-  return status.workingTree.files.map((file) => ({
-    path: normalizeTreePath(file.path),
-    status: workingTreeFileStatusToTreesStatus(file.status),
-  }));
+function codeEditorIds(availableEditors: readonly EditorId[]): EditorId[] {
+  return availableEditors.filter((editorId) => editorId !== "file-manager");
 }
 
 function getExpandedDirectoryPaths(
@@ -167,9 +138,9 @@ export function openProjectFilePath(input: {
 }): void {
   if (!input.cwd) return;
 
-  const editor = resolveAndPersistPreferredEditor(input.availableEditors);
+  const editor = resolveAndPersistPreferredEditor(codeEditorIds(input.availableEditors));
   if (!editor) {
-    toast.error("No available editor found.");
+    toast.error("No available code editor found.");
     return;
   }
 
@@ -210,31 +181,79 @@ function revealProjectFilePath(input: { relativePath: string; cwd: string | null
 const FILE_TREE_MENU_ITEM_CLASS =
   "flex min-h-6 w-full items-center rounded-xs px-2 text-left text-muted-foreground outline-hidden hover:bg-honk-hover hover:text-foreground focus-visible:bg-honk-hover focus-visible:text-foreground";
 
+function fileTreeContextMenuPosition(
+  anchorRect: ContextMenuOpenContext["anchorRect"],
+  menuElement: HTMLElement | null,
+): { left: number; top: number } {
+  const viewportWidth = typeof window === "undefined" ? 0 : window.innerWidth;
+  const viewportHeight = typeof window === "undefined" ? 0 : window.innerHeight;
+  const menuRect = menuElement?.getBoundingClientRect();
+  return resolveFileTreeContextMenuPosition({
+    anchorRect,
+    menuSize: {
+      height: menuRect?.height ?? 0,
+      width: menuRect?.width ?? 0,
+    },
+    viewport: {
+      height: viewportHeight,
+      width: viewportWidth,
+    },
+  });
+}
+
 /**
  * Context-menu surface for a file-tree row. Adds proper `menu`/`menuitem`
  * semantics and moves focus to the first item on open — the Pierre React-slot
  * menu path strips the native render hook, so it never auto-focuses itself.
  */
 function FileTreeContextMenu(props: {
-  item: { kind: "directory" | "file"; name: string; path: string };
-  context: { close: () => void };
+  item: ContextMenuItem;
+  context: ContextMenuOpenContext;
   cwd: string | null;
   availableEditors: readonly EditorId[];
   canRevealInFinder: boolean;
   onRequestDelete: (path: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState(() =>
+    fileTreeContextMenuPosition(props.context.anchorRect, null),
+  );
+
+  useLayoutEffect(() => {
+    const nextPosition = fileTreeContextMenuPosition(
+      props.context.anchorRect,
+      containerRef.current,
+    );
+    setPosition((currentPosition) =>
+      currentPosition.left === nextPosition.left && currentPosition.top === nextPosition.top
+        ? currentPosition
+        : nextPosition,
+    );
+  }, [
+    props.context.anchorRect.bottom,
+    props.context.anchorRect.height,
+    props.context.anchorRect.left,
+    props.context.anchorRect.top,
+    props.context.anchorRect.width,
+  ]);
+
   useEffect(() => {
     containerRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
   }, []);
+
+  const menuStyle: CSSProperties = {
+    left: position.left,
+    top: position.top,
+  };
 
   return (
     <div
       ref={containerRef}
       role="menu"
       aria-label={`Actions for ${props.item.name}`}
-      className="min-w-32 rounded-honk-control border border-honk-border/70 bg-honk-bubble-opaque p-1 font-honk text-body text-foreground shadow-honk-popup"
+      className="fixed z-(--z-index-workbench-menu) min-w-32 max-w-[calc(100vw-16px)] rounded-honk-control border border-honk-border/70 bg-honk-bubble-opaque p-1 font-honk text-honk-chrome text-foreground shadow-honk-sm"
       data-file-tree-context-menu-root="true"
+      style={menuStyle}
     >
       <button
         type="button"
@@ -249,7 +268,7 @@ function FileTreeContextMenu(props: {
           });
         }}
       >
-        Open in Editor
+        Open in External Editor
       </button>
       {props.canRevealInFinder ? (
         <button
@@ -501,13 +520,7 @@ export const ProjectFileTree = forwardRef<
     },
   });
 
-  const gitStatus = useGitStatus({
-    environmentId: props.environmentId,
-    cwd: props.cwd,
-  });
-
   const externalSelectedPath = props.selectedPath ? normalizeTreePath(props.selectedPath) : null;
-  const gitStatusEntries = toGitStatusEntries(gitStatus.data);
 
   useImperativeHandle(
     ref,
@@ -604,7 +617,6 @@ export const ProjectFileTree = forwardRef<
         model={model}
         suppressSelectionOpenRef={suppressSelectionOpenRef}
       />
-      <ProjectFileTreeGitStatusSync gitStatusEntries={gitStatusEntries} model={model} />
       <div className="min-h-0 flex-1 overflow-hidden">
         {canRenderTree ? (
           <Tree
@@ -870,20 +882,6 @@ function ProjectFileTreeSelectionSync({
     selectedItem.select();
     model.focusPath(externalSelectedPath);
   }, [externalSelectedPath, filePathSetRef, lastOpenedPathRef, model, suppressSelectionOpenRef]);
-
-  return null;
-}
-
-function ProjectFileTreeGitStatusSync({
-  gitStatusEntries,
-  model,
-}: {
-  gitStatusEntries: readonly GitStatusEntry[];
-  model: ProjectTreeModel;
-}) {
-  useEffect(() => {
-    model.setGitStatus(gitStatusEntries);
-  }, [gitStatusEntries, model]);
 
   return null;
 }

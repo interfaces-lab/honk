@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./styles/tokens.css";
 @import "@pierre/truncate/style.css";
 
 @source "./**/*.{ts,tsx}";
@@ -62,6 +63,7 @@
   --color-honk-bg-quinary: var(--honk-bg-quinary);
   --color-honk-bg-quaternary: var(--honk-bg-quaternary);
   --color-honk-bg-tertiary: var(--honk-bg-tertiary);
+  --color-honk-bg-card: var(--honk-bg-card);
   --color-honk-bg-secondary: var(--honk-bg-secondary);
   --color-honk-bg-active: var(--honk-bg-active);
   --color-honk-fg-primary: var(--honk-fg-primary);
@@ -107,6 +109,12 @@
   --font-honk-mono: var(--honk-font-mono);
   --shadow-honk-card: var(--honk-shadow-card);
   --shadow-honk-popup: var(--honk-shadow-popup);
+  --shadow-honk-soft: var(--honk-shadow-soft);
+  --shadow-honk-sm: var(--honk-shadow-sm);
+  --shadow-honk-base: var(--honk-shadow-base);
+  --shadow-honk-lg: var(--honk-shadow-lg);
+  --shadow-honk-xl: var(--honk-shadow-xl);
+  --shadow-honk-flat-ring: var(--honk-shadow-flat-ring);
   --shadow-honk-toolbar: var(--honk-shadow-toolbar);
   --shadow-honk-swatch-inset: var(--honk-swatch-inset-shadow);
   --text-caption: var(--honk-text-caption);
@@ -135,6 +143,12 @@
   --text-honk-lg--line-height: var(--honk-leading-title);
   --text-honk-xl: var(--honk-text-heading);
   --text-honk-xl--line-height: var(--honk-leading-heading);
+  --text-honk-tab: var(--honk-text-tab);
+  --text-honk-tab--line-height: var(--honk-leading-tab);
+  --text-honk-chrome: var(--honk-text-chrome);
+  --text-honk-chrome--line-height: var(--honk-leading-chrome);
+  --text-honk-conversation-lg: var(--honk-text-conversation-lg);
+  --text-honk-conversation-lg--line-height: var(--honk-leading-conversation-lg);
   --text-sidebar-label: var(--honk-sidebar-label-size);
   --text-sidebar-label--line-height: var(--honk-sidebar-label-leading);
   --text-sidebar-subtitle: var(--honk-sidebar-subtitle-size);
@@ -148,6 +162,11 @@
   --radius-honk-control: var(--honk-radius-control);
   --radius-honk-card: var(--honk-radius-card);
   --radius-honk-pill: var(--honk-radius-pill);
+  --radius-honk-xs: var(--honk-radius-xs);
+  --radius-honk-sm: var(--honk-radius-sm);
+  --radius-honk-base: var(--honk-radius-base);
+  --radius-honk-lg: var(--honk-radius-lg);
+  --radius-honk-xl: var(--honk-radius-xl);
   --radius-xs: 2px;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

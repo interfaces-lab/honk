@@ -144,10 +144,10 @@ export function PlanWorkbenchPanel({
 
   return (
     <div className="plan-tab-content min-h-0 min-w-0 flex-1 text-title">
-      <div className="plan-tab-header no-drag flex h-(--honk-workbench-chrome-row-height) min-h-(--honk-workbench-chrome-row-height) shrink-0 items-center justify-between gap-(--honk-workbench-chrome-action-gap) border-b border-(--cursor-stroke-tertiary) px-(--honk-workbench-chrome-padding-inline)">
+      <div className="plan-tab-header no-drag flex h-(--honk-workbench-chrome-row-height) min-h-(--honk-workbench-chrome-row-height) shrink-0 items-center justify-between gap-(--honk-workbench-chrome-action-gap) border-b border-(--honk-stroke-tertiary) px-(--honk-workbench-chrome-padding-inline)">
         <div className="flex min-w-0 items-center gap-(--honk-workbench-text-control-gap)">
-          <IconFileText className="size-4 shrink-0 text-(--cursor-text-secondary)" aria-hidden />
-          <span className="min-w-0 truncate text-detail font-medium text-(--cursor-text-primary)">
+          <IconFileText className="size-4 shrink-0 text-(--honk-fg-secondary)" aria-hidden />
+          <span className="min-w-0 truncate text-detail font-medium text-(--honk-fg-primary)">
             {title}
           </span>
         </div>
@@ -176,7 +176,7 @@ export function PlanWorkbenchPanel({
                 title="Build plan"
                 tone="primary"
                 disabled={!canImplementPlan || isImplementingPlan}
-                className="breadcrumbs-action-btn plan-build-button bg-(--cursor-bg-yellow-primary) text-title leading-(--honk-leading-title) text-(--vscode-editor-background) shadow-none hover:bg-[color-mix(in_srgb,var(--cursor-bg-yellow-primary)_80%,var(--cursor-bg-yellow-secondary))] disabled:bg-honk-bg-tertiary disabled:text-honk-fg-quaternary/45 [&_svg]:text-(--vscode-editor-background)"
+                className="breadcrumbs-action-btn plan-build-button bg-(--honk-bg-yellow-primary) text-title leading-(--honk-leading-title) text-(--vscode-editor-background) shadow-none hover:bg-[color-mix(in_srgb,var(--honk-bg-yellow-primary)_80%,var(--honk-bg-yellow-secondary))] disabled:bg-honk-bg-tertiary disabled:text-honk-fg-quaternary/45 [&_svg]:text-(--vscode-editor-background)"
               >
                 {isImplementingPlan ? (
                   <IconLoader className="size-4 shrink-0 animate-spin" aria-hidden />
@@ -222,15 +222,15 @@ export function PlanWorkbenchPanel({
               {activePlan ? (
                 <section className="composer-plan-todos mt-2 border-t border-(--vscode-widget-border) pt-3">
                   {activePlan.explanation ? (
-                    <p className="mb-3 px-1.5 text-title leading-(--honk-leading-title) text-(--cursor-text-secondary)">
+                    <p className="mb-3 px-1.5 text-title leading-(--honk-leading-title) text-(--honk-fg-secondary)">
                       {activePlan.explanation}
                     </p>
                   ) : null}
                   <div className="composer-plan-section-header mb-3 flex items-center gap-2 px-1.5">
-                    <h2 className="composer-plan-section-title m-0 text-title leading-(--honk-leading-title) font-semibold text-(--cursor-text-primary)">
+                    <h2 className="composer-plan-section-title m-0 text-title leading-(--honk-leading-title) font-semibold text-(--honk-fg-primary)">
                       Tasks
                     </h2>
-                    <span className="composer-plan-section-count text-detail leading-(--honk-leading-detail) text-(--cursor-text-secondary) opacity-70">
+                    <span className="composer-plan-section-count text-detail leading-(--honk-leading-detail) text-(--honk-fg-secondary) opacity-70">
                       {activePlan.steps.length}
                     </span>
                   </div>
@@ -242,10 +242,10 @@ export function PlanWorkbenchPanel({
                           className={cn(
                             "m-0 min-w-0 text-title leading-(--honk-leading-title)",
                             step.status === "completed"
-                              ? "text-(--cursor-text-tertiary) line-through decoration-honk-fg-quaternary"
+                              ? "text-(--honk-fg-tertiary) line-through decoration-honk-fg-quaternary"
                               : step.status === "inProgress"
-                                ? "text-(--cursor-text-primary)"
-                                : "text-(--cursor-text-secondary)",
+                                ? "text-(--honk-fg-primary)"
+                                : "text-(--honk-fg-secondary)",
                           )}
                         >
                           {step.step}
@@ -258,7 +258,7 @@ export function PlanWorkbenchPanel({
 
               {!activePlan && !planMarkdown ? (
                 <div className="composer-plan-empty-state flex min-h-0 flex-1 items-center justify-center px-4 py-10 text-center">
-                  <p className="text-title leading-(--honk-leading-title) text-(--cursor-text-tertiary)">
+                  <p className="text-title leading-(--honk-leading-title) text-(--honk-fg-tertiary)">
                     No plan data available.
                   </p>
                 </div>

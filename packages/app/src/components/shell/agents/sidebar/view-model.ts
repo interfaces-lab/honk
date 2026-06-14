@@ -33,27 +33,16 @@ function shortProjectPathLabel(path: string, home: string | null): string {
   const normalizedPath = contractHomeDir(path, home);
   if (!normalizedPath) return "Project";
 
-  const gitSsh = normalizedPath.match(/git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/i);
-  if (gitSsh) return `${gitSsh[1]}/${gitSsh[2]}`;
+  const gitSsh = normalizedPath.match(/git@github\.com:[^/]+\/([^/]+?)(?:\.git)?$/i);
+  if (gitSsh) return gitSsh[1] ?? "Project";
 
-  const gitHttps = normalizedPath.match(/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/|$)/i);
-  if (gitHttps) return `${gitHttps[1]}/${gitHttps[2]}`;
+  const gitHttps = normalizedPath.match(/github\.com\/[^/]+\/([^/]+?)(?:\.git)?(?:\/|$)/i);
+  if (gitHttps) return gitHttps[1] ?? "Project";
 
   if (normalizedPath === "~") return "~";
-  if (normalizedPath.startsWith("~/")) {
-    const relativeSegments = normalizedPath.slice(2).split("/").filter(Boolean);
-    if (relativeSegments.length >= 2) {
-      return `${relativeSegments[relativeSegments.length - 2]}/${relativeSegments[relativeSegments.length - 1]}`;
-    }
-    if (relativeSegments.length === 1) return `~/${relativeSegments[0]}`;
-    return "~";
-  }
 
   const segments = normalizedPath.split("/").filter(Boolean);
-  if (segments.length >= 2) {
-    return `${segments[segments.length - 2]}/${segments[segments.length - 1]}`;
-  }
-  return segments[0] ?? "Project";
+  return segments.at(-1) ?? "Project";
 }
 
 export function deriveSidebarDraftTitle(draft: {

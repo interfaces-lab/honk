@@ -147,7 +147,7 @@ export function ComposerPathPreviewPanel(props: {
       data-composer-menu-preview=""
       data-variant="surface"
       className={cn(
-        "pointer-events-auto absolute bottom-0 max-h-[342px] w-[320px] overflow-hidden rounded-lg border border-honk-stroke-secondary bg-(--honk-composer-popup-surface-background) shadow-honk-popup",
+        "pointer-events-auto absolute bottom-0 max-h-[342px] w-[320px] overflow-hidden rounded-lg border border-honk-stroke-secondary bg-(--honk-composer-popup-surface-background) shadow-honk-soft honk-glass-inset-ring",
         PREVIEW_SIDE_CLASSES[side],
       )}
       onMouseDown={(event) => {

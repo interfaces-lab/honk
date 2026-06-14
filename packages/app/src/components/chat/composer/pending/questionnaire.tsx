@@ -74,7 +74,7 @@ export function QuestionnaireOptionLetter(props: { selected: boolean; children: 
     <span
       className={
         props.selected
-          ? "inline-flex h-[19px] min-w-[19px] cursor-pointer items-center justify-center rounded-[3px] border border-(--cursor-text-yellow-primary,var(--warning)) bg-(--cursor-text-yellow-primary,var(--warning)) p-px font-sans text-[10px] font-bold leading-none text-(--cursor-editor,var(--background))"
+          ? "inline-flex h-[19px] min-w-[19px] cursor-pointer items-center justify-center rounded-[3px] border border-(--honk-tone-yellow,var(--warning)) bg-(--honk-tone-yellow,var(--warning)) p-px font-sans text-[10px] font-bold leading-none text-(--honk-base-editor,var(--background))"
           : "inline-flex h-[19px] min-w-[19px] cursor-pointer items-center justify-center rounded-[3px] border border-honk-stroke-tertiary bg-transparent p-px font-sans text-[10px] font-bold leading-none text-honk-fg-secondary"
       }
       aria-hidden="true"

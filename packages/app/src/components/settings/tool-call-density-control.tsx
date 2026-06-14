@@ -31,7 +31,19 @@ export const PREVIEW_EDIT_TOOL_CALL: ToolCallModel = {
           format: "unified",
           source: "preview",
           files: [{ path: "math.ts", additions: 4, deletions: 1 }],
-          unifiedDiff: "@@ -1,3 +1,3 @@\n-old line\n+new line\n",
+          unifiedDiff:
+            "diff --git a/math.ts b/math.ts\n" +
+            "--- a/math.ts\n" +
+            "+++ b/math.ts\n" +
+            "@@ -1,3 +1,7 @@\n" +
+            " export function add(a: number, b: number) {\n" +
+            "-  return a - b;\n" +
+            "+  const sum = a + b;\n" +
+            "+  return sum;\n" +
+            " }\n" +
+            "+export const answer = 42;\n" +
+            "+export const ok = true;\n" +
+            "+// preview\n",
         },
       ],
     },
