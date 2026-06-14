@@ -52,7 +52,7 @@ export const PREVIEW_EDIT_TOOL_CALL: ToolCallModel = {
 
 export const PREVIEW_SHELL_TOOL_CALL: ToolCallModel = {
   tool: {
-    case: "shellToolCall",
+    case: "bashToolCall",
     value: {
       action: "Ran",
       details: "npm test",

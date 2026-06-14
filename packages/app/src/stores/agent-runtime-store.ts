@@ -5,6 +5,8 @@ import {
   EnvironmentId as EnvironmentIdSchema,
   type HonkRuntimeHostEvent,
   type HonkRuntimeHostSnapshot,
+  migrateLegacyRuntimeHostEventInput,
+  migrateLegacyRuntimeHostSnapshotInput,
   type RuntimeDisplayTimelineItem,
   type RuntimeDisplayTimelineProjection,
   type RuntimeThreadIdentity,
@@ -564,8 +566,11 @@ export const useAgentRuntimeStore = create<AgentRuntimeState>()((set) => ({
   snapshot: createEmptyRuntimeHostSnapshot(),
   localRuntimeThreadIds: new Set(),
   setSnapshot: (snapshot) => {
+    const migratedSnapshot = migrateLegacyRuntimeHostSnapshotInput(
+      snapshot,
+    ) as HonkRuntimeHostSnapshot;
     set((state) => {
-      const normalizedSnapshot = normalizeRuntimeHostSnapshot(snapshot, state.snapshot);
+      const normalizedSnapshot = normalizeRuntimeHostSnapshot(migratedSnapshot, state.snapshot);
       syncRuntimeSnapshotToThreadStore(normalizedSnapshot, state.snapshot);
       const localRuntimeThreadIds = clearAcknowledgedLocalRuntimeThreadIds(
         state.localRuntimeThreadIds,
@@ -578,12 +583,13 @@ export const useAgentRuntimeStore = create<AgentRuntimeState>()((set) => ({
     });
   },
   applyHostEvent: (event) => {
+    const migratedEvent = migrateLegacyRuntimeHostEventInput(event) as HonkRuntimeHostEvent;
     set((state) => {
-      applyRuntimeHostEventToThreadStore(event, state.snapshot);
-      const snapshot = reduceHostEvent(state.snapshot, event);
+      applyRuntimeHostEventToThreadStore(migratedEvent, state.snapshot);
+      const snapshot = reduceHostEvent(state.snapshot, migratedEvent);
       const localRuntimeThreadIds = clearAcknowledgedLocalRuntimeThreadIds(
         state.localRuntimeThreadIds,
-        hostOwnedRuntimeThreadIdsForEvent(event),
+        hostOwnedRuntimeThreadIdsForEvent(migratedEvent),
       );
       if (snapshot === state.snapshot && localRuntimeThreadIds === state.localRuntimeThreadIds) {
         return state;

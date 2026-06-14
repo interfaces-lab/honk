@@ -74,6 +74,29 @@ const RIGHT_LIMITS = RIGHT_WORKBENCH_WIDTH_LIMITS;
 const FALLBACK_WORKBENCH_TAB = "git" satisfies WorkbenchTab;
 type AppShellRouteKind = "draft" | "server" | "settings";
 
+function cssPixelLimit(limit: number): string {
+  return Number.isFinite(limit) ? `${limit}px` : "100cqw";
+}
+
+function resolveDockedRightWorkbenchMaxWidth(input: {
+  leftWidth: number;
+  maxWidth: number;
+  shellWidth: number;
+  sidebarOverlayMode: boolean;
+  sidebarVisible: boolean;
+}): number {
+  if (input.shellWidth <= 0) {
+    return input.maxWidth;
+  }
+
+  const dockedSidebarWidth =
+    input.sidebarVisible && !input.sidebarOverlayMode ? input.leftWidth : 0;
+  return Math.min(
+    input.maxWidth,
+    Math.max(RIGHT_LIMITS.min, input.shellWidth - dockedSidebarWidth - SHELL_CENTER_MIN_WIDTH),
+  );
+}
+
 const workbenchPanelSlotVariants = cva(
   "absolute inset-0 flex min-h-0 min-w-0 flex-col overflow-hidden",
   {
@@ -362,7 +385,11 @@ function RightAsideFrame(props: {
   const layout = useShellLayout((snapshot) => ({
     editorPanelFullscreen: snapshot.editorPanelFullscreen,
     editorPanelVisible: snapshot.editorPanelVisible,
+    leftWidth: snapshot.leftWidth,
     rightWidth: snapshot.rightWidth,
+    shellWidth: snapshot.shellWidth,
+    sidebarOverlayMode: snapshot.sidebarOverlayMode,
+    sidebarVisible: snapshot.sidebarVisible,
     suppressMotion: snapshot.suppressMotion,
   }));
   // Near-constant in steady state (undefined unless a ?panel= deep-link is
@@ -386,9 +413,23 @@ function RightAsideFrame(props: {
   }
 
   const asideRef = useRef<HTMLElement | null>(null);
+  const rightResizeLimits = () => ({
+    min: RIGHT_LIMITS.min,
+    max: resolveDockedRightWorkbenchMaxWidth({
+      leftWidth: layout.leftWidth,
+      maxWidth: RIGHT_LIMITS.max,
+      shellWidth: layout.shellWidth,
+      sidebarOverlayMode: layout.sidebarOverlayMode,
+      sidebarVisible: layout.sidebarVisible,
+    }),
+  });
+  const maxRightWidth = rightResizeLimits().max;
+  const effectiveRightWidth = layout.editorPanelFullscreen
+    ? layout.rightWidth
+    : Math.min(Math.max(layout.rightWidth, RIGHT_LIMITS.min), maxRightWidth);
   const resize = useColumnResize({
-    width: layout.rightWidth,
-    limits: RIGHT_LIMITS,
+    width: effectiveRightWidth,
+    limits: rightResizeLimits,
     elementRef: asideRef,
     direction: "left",
     onCommit: (nextWidth) => shellPanelsActions.setRightWidth(nextWidth, props.workspaceKey),
@@ -412,7 +453,12 @@ function RightAsideFrame(props: {
       ref={asideRef}
       aria-hidden={!rightOpen ? true : undefined}
       inert={!rightOpen}
-      style={{ "--honk-shell-right-workbench-width": `${layout.rightWidth}px` } as ShellRootStyle}
+      style={
+        {
+          "--honk-shell-right-workbench-max-width": cssPixelLimit(maxRightWidth),
+          "--honk-shell-right-workbench-width": `${effectiveRightWidth}px`,
+        } as ShellRootStyle
+      }
     >
       {hasOpened ? props.children : null}
       {rightOpen ? (
@@ -837,7 +883,7 @@ export function AppShell(props: {
     "--honk-shell-left-max-width": `${LEFT_LIMITS.max}px`,
     "--honk-shell-right-workbench-collapsed-width": "0px",
     "--honk-shell-right-workbench-min-width": `${RIGHT_LIMITS.min}px`,
-    "--honk-shell-right-workbench-max-width": `${RIGHT_LIMITS.max}px`,
+    "--honk-shell-right-workbench-max-width": cssPixelLimit(RIGHT_LIMITS.max),
     "--honk-shell-titlebar-control-size": "var(--honk-titlebar-control-height)",
     "--honk-shell-titlebar-control-y": "var(--honk-titlebar-control-row-top)",
     "--honk-shell-titlebar-gutter": "8px",

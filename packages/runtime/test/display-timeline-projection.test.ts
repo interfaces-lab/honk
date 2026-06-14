@@ -94,20 +94,20 @@ describe("runtime display timeline projection", () => {
       runtimeEvent({
         id: "runtime-event:tool-started",
         type: "tool.started",
-        summary: "Started shell",
+        summary: "Started bash",
         data: {
           toolCallId: "toolu-1",
-          toolName: "shell",
+          toolName: "bash",
           args: { command: "git status --short" },
         },
       }),
       runtimeEvent({
         id: "runtime-event:tool-updated",
         type: "tool.updated",
-        summary: "Running shell",
+        summary: "Running bash",
         data: {
           toolCallId: "toolu-1",
-          toolName: "shell",
+          toolName: "bash",
           partialResult: { content: [{ type: "text", text: "M file.ts" }] },
         },
         createdAt: "2026-06-05T20:30:01.000Z",
@@ -115,10 +115,10 @@ describe("runtime display timeline projection", () => {
       runtimeEvent({
         id: "runtime-event:tool-completed",
         type: "tool.completed",
-        summary: "Completed shell",
+        summary: "Completed bash",
         data: {
           toolCallId: "toolu-1",
-          toolName: "shell",
+          toolName: "bash",
           result: {
             content: [{ type: "text", text: "M file.ts" }],
             details: { exitCode: 0 },
@@ -140,11 +140,11 @@ describe("runtime display timeline projection", () => {
         id: "tool:toolu-1",
         kind: "tool",
         toolCallId: "toolu-1",
-        toolName: "shell",
+        toolName: "bash",
         status: "completed",
         args: { command: "git status --short" },
         display: {
-          kind: "shell",
+          kind: "bash",
           command: "git status --short",
           output: "M file.ts",
           exitCode: 0,
@@ -168,20 +168,20 @@ describe("runtime display timeline projection", () => {
       runtimeEvent({
         id: "runtime-event:tool-started",
         type: "tool.started",
-        summary: "Started shell",
+        summary: "Started bash",
         data: {
           toolCallId: "toolu-incremental",
-          toolName: "shell",
+          toolName: "bash",
           args: { command: "git status --short" },
         },
       }),
       runtimeEvent({
         id: "runtime-event:tool-updated",
         type: "tool.updated",
-        summary: "Running shell",
+        summary: "Running bash",
         data: {
           toolCallId: "toolu-incremental",
-          toolName: "shell",
+          toolName: "bash",
           partialResult: { content: [{ type: "text", text: "M file.ts" }] },
         },
         createdAt: "2026-06-05T20:30:01.000Z",
@@ -189,10 +189,10 @@ describe("runtime display timeline projection", () => {
       runtimeEvent({
         id: "runtime-event:tool-completed",
         type: "tool.completed",
-        summary: "Completed shell",
+        summary: "Completed bash",
         data: {
           toolCallId: "toolu-incremental",
-          toolName: "shell",
+          toolName: "bash",
           result: {
             content: [{ type: "text", text: "M file.ts\nM second.ts" }],
             details: { exitCode: 0 },
@@ -231,7 +231,7 @@ describe("runtime display timeline projection", () => {
           details: { exitCode: 0 },
         },
         display: {
-          kind: "shell",
+          kind: "bash",
           command: "git status --short",
           output: "M file.ts\nM second.ts",
           exitCode: 0,
@@ -253,10 +253,10 @@ describe("runtime display timeline projection", () => {
         runtimeEvent({
           id: "runtime-event:tool-updated",
           type: "tool.updated",
-          summary: "Running shell",
+          summary: "Running bash",
           data: {
             toolCallId: "toolu-partial",
-            toolName: "shell",
+            toolName: "bash",
             partialResult: { content: [{ type: "text", text: "M file.ts" }] },
           },
         }),
@@ -270,7 +270,7 @@ describe("runtime display timeline projection", () => {
         status: "running",
         result: { content: [{ type: "text", text: "M file.ts" }] },
         display: {
-          kind: "shell",
+          kind: "bash",
           output: "M file.ts",
         },
         isPartial: true,
@@ -283,20 +283,20 @@ describe("runtime display timeline projection", () => {
       runtimeEvent({
         id: "runtime-event:tool-started:chunks",
         type: "tool.started",
-        summary: "Started shell",
+        summary: "Started bash",
         data: {
           toolCallId: "toolu-chunks",
-          toolName: "shell",
+          toolName: "bash",
           args: { command: "git status --short" },
         },
       }),
       runtimeEvent({
         id: "runtime-event:tool-updated:chunk-1",
         type: "tool.updated",
-        summary: "Running shell",
+        summary: "Running bash",
         data: {
           toolCallId: "toolu-chunks",
-          toolName: "shell",
+          toolName: "bash",
           partialResult: { content: [{ type: "text", text: "M first.ts" }] },
         },
         createdAt: "2026-06-05T20:30:01.000Z",
@@ -304,10 +304,10 @@ describe("runtime display timeline projection", () => {
       runtimeEvent({
         id: "runtime-event:tool-updated:chunk-2",
         type: "tool.updated",
-        summary: "Running shell",
+        summary: "Running bash",
         data: {
           toolCallId: "toolu-chunks",
-          toolName: "shell",
+          toolName: "bash",
           partialResult: { content: [{ type: "text", text: "M second.ts" }] },
         },
         createdAt: "2026-06-05T20:30:02.000Z",
@@ -337,7 +337,7 @@ describe("runtime display timeline projection", () => {
         status: "running",
         output: "M first.ts\nM second.ts",
         display: {
-          kind: "shell",
+          kind: "bash",
           command: "git status --short",
           output: "M first.ts\nM second.ts",
         },
@@ -354,10 +354,10 @@ describe("runtime display timeline projection", () => {
         runtimeEvent({
           id: "runtime-event:tool-command-data",
           type: "tool.completed",
-          summary: "Completed shell",
+          summary: "Completed bash",
           data: {
             toolCallId: "toolu-command-data",
-            toolName: "shell",
+            toolName: "bash",
             command: "pwd",
             result: { content: [{ type: "text", text: "/repo" }] },
           },
@@ -365,10 +365,10 @@ describe("runtime display timeline projection", () => {
         runtimeEvent({
           id: "runtime-event:tool-command-details",
           type: "tool.completed",
-          summary: "Completed shell",
+          summary: "Completed bash",
           data: {
             toolCallId: "toolu-command-details",
-            toolName: "shell",
+            toolName: "bash",
             result: {
               content: [{ type: "text", text: "main" }],
               details: { command: "git branch --show-current" },
@@ -379,10 +379,10 @@ describe("runtime display timeline projection", () => {
         runtimeEvent({
           id: "runtime-event:tool-raw-command",
           type: "tool.completed",
-          summary: "Completed shell",
+          summary: "Completed bash",
           data: {
             toolCallId: "toolu-raw-command",
-            toolName: "shell",
+            toolName: "bash",
             args: { rawCommand: "git status --short" },
             result: { content: [{ type: "text", text: "M file.ts" }] },
           },
@@ -396,7 +396,7 @@ describe("runtime display timeline projection", () => {
         id: "tool:toolu-command-data",
         command: "pwd",
         display: expect.objectContaining({
-          kind: "shell",
+          kind: "bash",
           command: "pwd",
         }),
       }),
@@ -404,7 +404,7 @@ describe("runtime display timeline projection", () => {
         id: "tool:toolu-command-details",
         command: "git branch --show-current",
         display: expect.objectContaining({
-          kind: "shell",
+          kind: "bash",
           command: "git branch --show-current",
         }),
       }),
@@ -412,7 +412,7 @@ describe("runtime display timeline projection", () => {
         id: "tool:toolu-raw-command",
         command: "git status --short",
         display: expect.objectContaining({
-          kind: "shell",
+          kind: "bash",
           command: "git status --short",
         }),
       }),

@@ -131,10 +131,10 @@ describe("runtime ingestion", () => {
       turnId,
       agentRuntime: "pi",
       type: "tool.completed",
-      summary: "Ran shell",
+      summary: "Ran bash",
       createdAt,
       data: {
-        toolName: "shell",
+        toolName: "bash",
         toolCallId: "toolu-1",
         isError: false,
       },

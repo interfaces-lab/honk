@@ -999,11 +999,11 @@ function projectRuntimeToolDisplay(input: {
       activities: subagentDetails.activities,
     };
   }
-  if (isShellToolName(normalizedToolName)) {
+  if (isBashToolName(normalizedToolName)) {
     const command = input.command ?? extractToolCommand(input.args, input.result, input.details);
     const exitCode = extractExitCode(input.result, input.details);
     return {
-      kind: "shell",
+      kind: "bash",
       ...(command !== undefined ? { command } : {}),
       ...(input.output !== undefined ? { output: input.output } : {}),
       ...(exitCode !== undefined ? { exitCode } : {}),
@@ -1119,14 +1119,12 @@ function normalizeToolName(toolName: string): string {
   return toolName.trim().toLowerCase().replaceAll("-", "_");
 }
 
-function isShellToolName(toolName: string): boolean {
+function isBashToolName(toolName: string): boolean {
   return (
-    toolName === "shell" ||
     toolName === "bash" ||
     toolName === "terminal" ||
     toolName === "exec" ||
     toolName === "command" ||
-    toolName.includes("shell") ||
     toolName.includes("command_execution")
   );
 }

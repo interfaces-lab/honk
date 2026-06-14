@@ -270,6 +270,43 @@ describe("agent runtime store", () => {
     ]);
   });
 
+  it("migrates legacy shell display timeline host events to bash", () => {
+    const legacyTimeline = {
+      ...displayTimelinePrototype,
+      items: [
+        {
+          id: "tool:toolu-legacy-shell",
+          kind: "tool",
+          orderKey: `${turnStartedAt}:tool:toolu-legacy-shell`,
+          createdAt: turnStartedAt,
+          toolCallId: "toolu-legacy-shell",
+          toolName: "bash",
+          turnId,
+          status: "completed",
+          eventIds: [EventId.make("runtime-event:legacy-shell")],
+          display: {
+            kind: "shell",
+            command: "pwd",
+            output: "/repo",
+          },
+        },
+      ],
+    } as unknown as RuntimeDisplayTimelineProjection;
+
+    useAgentRuntimeStore.getState().applyHostEvent({
+      type: "display-timeline",
+      timeline: legacyTimeline,
+    });
+
+    expect(useAgentRuntimeStore.getState().snapshot.displayTimelines[0]?.items[0]).toMatchObject({
+      kind: "tool",
+      display: {
+        kind: "bash",
+        command: "pwd",
+      },
+    });
+  });
+
   it("does not update display timelines for diagnostic-only timeline changes", () => {
     const timeline = {
       ...displayTimelinePrototype,
@@ -280,16 +317,16 @@ describe("agent runtime store", () => {
           orderKey: `${turnStartedAt}:tool:toolu-diagnostic-only`,
           createdAt: turnStartedAt,
           toolCallId: "toolu-diagnostic-only",
-          toolName: "shell",
+          toolName: "bash",
           turnId,
           status: "running",
           eventIds: [EventId.make("runtime-event:tool-started")],
           args: { command: "git status --short" },
           command: "git status --short",
           output: "M file.ts",
-          summary: "Running shell",
+          summary: "Running bash",
           display: {
-            kind: "shell",
+            kind: "bash",
             command: "git status --short",
             output: "M file.ts",
           },
@@ -439,14 +476,14 @@ describe("agent runtime store", () => {
           orderKey: `${turnStartedAt}:tool:toolu-visible-output`,
           createdAt: turnStartedAt,
           toolCallId: "toolu-visible-output",
-          toolName: "shell",
+          toolName: "bash",
           turnId,
           status: "running",
           eventIds: [EventId.make("runtime-event:tool-started")],
           command: "git status --short",
           output: "M file.ts",
           display: {
-            kind: "shell",
+            kind: "bash",
             command: "git status --short",
             output: "M file.ts",
           },
@@ -469,7 +506,7 @@ describe("agent runtime store", () => {
             ],
             output: "M file.ts\nM second.ts",
             display: {
-              kind: "shell",
+              kind: "bash",
               command: "git status --short",
               output: "M file.ts\nM second.ts",
             },
@@ -496,14 +533,14 @@ describe("agent runtime store", () => {
           orderKey: `${turnStartedAt}:tool:toolu-snapshot-diagnostic-only`,
           createdAt: turnStartedAt,
           toolCallId: "toolu-snapshot-diagnostic-only",
-          toolName: "shell",
+          toolName: "bash",
           turnId,
           status: "running",
           eventIds: [EventId.make("runtime-event:tool-started")],
           command: "git status --short",
           output: "M file.ts",
           display: {
-            kind: "shell",
+            kind: "bash",
             command: "git status --short",
             output: "M file.ts",
           },
@@ -549,14 +586,14 @@ describe("agent runtime store", () => {
           orderKey: `${turnStartedAt}:tool:toolu-snapshot-visible-output`,
           createdAt: turnStartedAt,
           toolCallId: "toolu-snapshot-visible-output",
-          toolName: "shell",
+          toolName: "bash",
           turnId,
           status: "running",
           eventIds: [EventId.make("runtime-event:tool-started")],
           command: "git status --short",
           output: "M file.ts",
           display: {
-            kind: "shell",
+            kind: "bash",
             command: "git status --short",
             output: "M file.ts",
           },
@@ -579,7 +616,7 @@ describe("agent runtime store", () => {
               ...timeline.items[0]!,
               output: "M file.ts\nM second.ts",
               display: {
-                kind: "shell",
+                kind: "bash",
                 command: "git status --short",
                 output: "M file.ts\nM second.ts",
               },
@@ -602,14 +639,14 @@ describe("agent runtime store", () => {
           orderKey: `${turnStartedAt}:tool:toolu-snapshot-typed-display`,
           createdAt: turnStartedAt,
           toolCallId: "toolu-snapshot-typed-display",
-          toolName: "shell",
+          toolName: "bash",
           turnId,
           status: "running",
           eventIds: [EventId.make("runtime-event:tool-started")],
           command: "git status --short",
           output: "M file.ts",
           display: {
-            kind: "shell",
+            kind: "bash",
             command: "git status --short",
             output: "M file.ts",
           },

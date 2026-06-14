@@ -512,8 +512,8 @@ export const RuntimeDisplayTimelineExtensionUiStatus = Schema.Literals(["pending
 export type RuntimeDisplayTimelineExtensionUiStatus =
   typeof RuntimeDisplayTimelineExtensionUiStatus.Type;
 
-const RuntimeDisplayTimelineShellToolDisplay = Schema.Struct({
-  kind: Schema.Literal("shell"),
+const RuntimeDisplayTimelineBashToolDisplay = Schema.Struct({
+  kind: Schema.Literal("bash"),
   command: Schema.optional(Schema.String),
   output: Schema.optional(Schema.String),
   exitCode: Schema.optional(NonNegativeInt),
@@ -578,7 +578,7 @@ const RuntimeDisplayTimelineUnknownToolDisplay = Schema.Struct({
 });
 
 export const RuntimeDisplayTimelineToolDisplay = Schema.Union([
-  RuntimeDisplayTimelineShellToolDisplay,
+  RuntimeDisplayTimelineBashToolDisplay,
   RuntimeDisplayTimelineReadToolDisplay,
   RuntimeDisplayTimelineGrepToolDisplay,
   RuntimeDisplayTimelineFindToolDisplay,
@@ -711,7 +711,7 @@ export const HonkRuntimeHostSnapshot = Schema.Struct({
   ),
 });
 export type HonkRuntimeHostSnapshot = typeof HonkRuntimeHostSnapshot.Type;
-export const decodeHonkRuntimeHostSnapshot = Schema.decodeUnknownSync(HonkRuntimeHostSnapshot);
+const decodeHonkRuntimeHostSnapshotValue = Schema.decodeUnknownSync(HonkRuntimeHostSnapshot);
 
 export const HonkRuntimeHostEvent = Schema.Union([
   Schema.Struct({
@@ -745,7 +745,78 @@ export const HonkRuntimeHostEvent = Schema.Union([
   }),
 ]);
 export type HonkRuntimeHostEvent = typeof HonkRuntimeHostEvent.Type;
-export const decodeHonkRuntimeHostEvent = Schema.decodeUnknownSync(HonkRuntimeHostEvent);
+const decodeHonkRuntimeHostEventValue = Schema.decodeUnknownSync(HonkRuntimeHostEvent);
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function migrateLegacyRuntimeDisplay(display: unknown): unknown {
+  if (!isUnknownRecord(display) || display.kind !== "shell") {
+    return display;
+  }
+  return {
+    ...display,
+    kind: "bash",
+  };
+}
+
+function migrateLegacyRuntimeDisplayTimelineItem(item: unknown): unknown {
+  if (!isUnknownRecord(item) || item.kind !== "tool") {
+    return item;
+  }
+  return {
+    ...item,
+    display: migrateLegacyRuntimeDisplay(item.display),
+  };
+}
+
+function migrateLegacyRuntimeDisplayTimeline(timeline: unknown): unknown {
+  if (!isUnknownRecord(timeline) || !Array.isArray(timeline.items)) {
+    return timeline;
+  }
+  return {
+    ...timeline,
+    items: timeline.items.map(migrateLegacyRuntimeDisplayTimelineItem),
+  };
+}
+
+export function migrateLegacyRuntimeHostSnapshotInput(value: unknown): unknown {
+  if (!isUnknownRecord(value) || !Array.isArray(value.displayTimelines)) {
+    return value;
+  }
+  return {
+    ...value,
+    displayTimelines: value.displayTimelines.map(migrateLegacyRuntimeDisplayTimeline),
+  };
+}
+
+export function migrateLegacyRuntimeHostEventInput(value: unknown): unknown {
+  if (!isUnknownRecord(value)) {
+    return value;
+  }
+  if (value.type === "snapshot") {
+    return {
+      ...value,
+      snapshot: migrateLegacyRuntimeHostSnapshotInput(value.snapshot),
+    };
+  }
+  if (value.type === "display-timeline") {
+    return {
+      ...value,
+      timeline: migrateLegacyRuntimeDisplayTimeline(value.timeline),
+    };
+  }
+  return value;
+}
+
+export function decodeHonkRuntimeHostSnapshot(value: unknown): HonkRuntimeHostSnapshot {
+  return decodeHonkRuntimeHostSnapshotValue(migrateLegacyRuntimeHostSnapshotInput(value));
+}
+
+export function decodeHonkRuntimeHostEvent(value: unknown): HonkRuntimeHostEvent {
+  return decodeHonkRuntimeHostEventValue(migrateLegacyRuntimeHostEventInput(value));
+}
 
 export const RuntimeSkillSummary = Schema.Struct({
   name: Schema.String,

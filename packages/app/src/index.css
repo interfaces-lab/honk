@@ -232,6 +232,20 @@
       transform: scale(0.9);
     }
   }
+  @keyframes agent-sidebar-status-finish {
+    0% {
+      opacity: 0.35;
+      transform: scale(0.72);
+    }
+    42% {
+      opacity: 1;
+      transform: scale(1.16);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
 }
 
 @layer utilities {
@@ -267,6 +281,11 @@
   .chat-loader-diagonal-sweep {
     animation: var(--animate-chat-loader-diagonal-sweep);
     animation-delay: calc(var(--chat-loader-path, 0) * -0.72s);
+  }
+
+  .agent-sidebar-status-finish {
+    animation: agent-sidebar-status-finish 720ms var(--ease-shell, ease-out);
+    transform-origin: center;
   }
 }
 

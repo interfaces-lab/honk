@@ -141,11 +141,11 @@ describe("projectThreadTimeline", () => {
           orderKey: "2026-06-05T16:00:02.000Z:tool:timeline-projector:shell",
           createdAt: "2026-06-05T16:00:02.000Z",
           toolCallId: "toolu-timeline-projector-shell",
-          toolName: "shell",
+          toolName: "bash",
           status: "running",
           eventIds: [],
           display: {
-            kind: "shell",
+            kind: "bash",
             command: "git status --short",
           },
         },
@@ -301,7 +301,7 @@ describe("projectThreadTimeline", () => {
           turnId: activeTurnId,
           status: "running",
           eventIds: [],
-          display: { kind: "shell", command: "pnpm run typecheck" },
+          display: { kind: "bash", command: "pnpm run typecheck" },
         },
       ],
     } satisfies RuntimeDisplayTimelineProjection;
@@ -617,11 +617,11 @@ describe("projectThreadTimeline", () => {
           orderKey: "2026-06-05T16:00:02.000Z:tool:timeline-projector:shell",
           createdAt: "2026-06-05T16:00:02.000Z",
           toolCallId: "toolu-timeline-projector-shell",
-          toolName: "shell",
+          toolName: "bash",
           status: "running",
           eventIds: [],
           display: {
-            kind: "shell",
+            kind: "bash",
             command: "git status --short",
             output: " M file.ts",
           },
@@ -645,7 +645,7 @@ describe("projectThreadTimeline", () => {
         tool: expect.objectContaining({
           toolCallId: "toolu-timeline-projector-shell",
           display: expect.objectContaining({
-            kind: "shell",
+            kind: "bash",
             output: " M file.ts",
           }),
         }),

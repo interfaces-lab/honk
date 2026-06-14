@@ -21,11 +21,29 @@ import {
 
 import {
   panelPresentation,
+  SHELL_CENTER_MIN_WIDTH,
   type PanelPresentation,
   type ShellPanelMode,
 } from "./shell-layout";
 
 const MIN_EDITOR_PANEL_WIDTH = RIGHT_WORKBENCH_WIDTH_LIMITS.min;
+
+function resolveDockedEditorPanelMaxWidth(input: {
+  dockedSidebarWidth: number;
+  maxWidth: number;
+  shellWidth: number;
+}): number {
+  if (input.shellWidth <= 0) {
+    return input.maxWidth;
+  }
+  return Math.min(
+    input.maxWidth,
+    Math.max(
+      MIN_EDITOR_PANEL_WIDTH,
+      input.shellWidth - input.dockedSidebarWidth - SHELL_CENTER_MIN_WIDTH,
+    ),
+  );
+}
 
 export interface ShellLayoutSnapshot {
   readonly activeAgentId: string | null;
@@ -63,7 +81,7 @@ const EMPTY_SNAPSHOT: ShellLayoutSnapshot = Object.freeze({
   leftOpen: true,
   leftPresentation: "inline-expanded",
   leftWidth: 260,
-  maxEditorPanelWidth: 600,
+  maxEditorPanelWidth: Number.POSITIVE_INFINITY,
   rightOpen: false,
   rightWidth: 400,
   sidebarOverlayMode: false,
@@ -192,9 +210,14 @@ export class ShellLayoutService {
       rightOpen && getWorkspaceFullscreenTarget(config.workspaceKey) === "right-workbench";
     const effectiveDockedSidebarWidth =
       sidebarVisible && !sidebarOverlayMode ? panelInputs.leftWidth : 0;
+    const maxEditorPanelWidth = resolveDockedEditorPanelMaxWidth({
+      dockedSidebarWidth: effectiveDockedSidebarWidth,
+      maxWidth: panelInputs.rightWidthLimits.max,
+      shellWidth,
+    });
     const editorPanelWidth = fullscreenActive
       ? Math.max(0, shellWidth - effectiveDockedSidebarWidth)
-      : panelInputs.rightWidth;
+      : Math.min(panelInputs.rightWidth, maxEditorPanelWidth);
     const suppressMotion =
       this.snapshot.editorPanelFullscreen !== fullscreenActive ||
       this.snapshot.activeAgentId !== config.routeThreadId;
@@ -208,7 +231,7 @@ export class ShellLayoutService {
       leftOpen: panelInputs.leftOpen,
       leftPresentation,
       leftWidth: panelInputs.leftWidth,
-      maxEditorPanelWidth: panelInputs.rightWidthLimits.max,
+      maxEditorPanelWidth,
       rightOpen,
       rightWidth: panelInputs.rightWidth,
       sidebarOverlayMode,

@@ -11,7 +11,7 @@ export function runtimeToolDisplaySignature(
     return "";
   }
   switch (display.kind) {
-    case "shell":
+    case "bash":
       return [
         display.kind,
         display.command ?? "",

@@ -17,8 +17,11 @@ export const SHELL_LEFT_PANEL_WIDTH_LIMITS = { min: 180, max: 560 } as const;
 const SHELL_LEFT_PANEL_DEFAULT_WIDTH = 260;
 const PREVIOUS_SHELL_LEFT_PANEL_DEFAULT_WIDTH = 180;
 
-/** Cursor/VS Code auxiliary workbench width floor. Cursor's bundled part uses minimumWidth 300. */
-export const RIGHT_WORKBENCH_WIDTH_LIMITS = { min: 300, max: 600 } as const;
+/** Cursor auxiliary workbench constraints: minimumWidth 300, maximumWidth Infinity. */
+export const RIGHT_WORKBENCH_WIDTH_LIMITS = {
+  min: 300,
+  max: Number.POSITIVE_INFINITY,
+} as const;
 
 export const SECONDARY_RAIL_LIMITS = { min: 160, max: 320 } as const;
 const SECONDARY_RAIL_DEFAULT_WIDTH = 220;

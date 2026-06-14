@@ -116,7 +116,7 @@ export type ToolCase =
   | "readToolCall"
   | "grepToolCall"
   | "globToolCall"
-  | "shellToolCall"
+  | "bashToolCall"
   | "editToolCall"
   | "deleteToolCall"
   | "mcpToolCall"
@@ -265,7 +265,7 @@ export function ToolCallRenderer({
           loading={loading}
         />
       );
-    case "shellToolCall": {
+    case "bashToolCall": {
       const shellCommand = artifactLookup.command?.command ?? command ?? "";
       if (compactShells) {
         // Cursor parity (kRm compact): collapsed line, accordion to full output on expand.
@@ -1623,7 +1623,7 @@ function iconForToolCase(toolCase: ToolCase): CentralIconComponent {
     case "editToolCall":
     case "deleteToolCall":
       return IconFileEdit;
-    case "shellToolCall":
+    case "bashToolCall":
       return IconConsole;
     case "dynamicToolCall":
       return IconCodeBrackets;
@@ -1644,7 +1644,7 @@ const TOOL_ACTION_LABELS: Record<ToolCase, { loading: string; completed: string;
       completed: "Searched",
       error: "Search",
     },
-    shellToolCall: { loading: "Running", completed: "Ran", error: "Command" },
+    bashToolCall: { loading: "Running", completed: "Ran", error: "Command" },
     editToolCall: { loading: "Editing", completed: "Edited", error: "Edit" },
     deleteToolCall: { loading: "Deleting", completed: "Deleted", error: "Delete" },
     mcpToolCall: { loading: "Running MCP", completed: "Ran MCP", error: "MCP" },

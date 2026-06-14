@@ -3,7 +3,6 @@ import type { ToolLifecycleItemType } from "@honk/contracts";
 export function runtimeToolItemTypeForName(toolName: string): ToolLifecycleItemType {
   switch (toolName) {
     case "bash":
-    case "shell":
       return "command_execution";
     case "read":
       return "file_read";

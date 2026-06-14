@@ -777,12 +777,11 @@ function isCommandLikeRuntimeTool(
   displayKind: RuntimeDisplayTimelineToolItem["display"]["kind"] | undefined,
 ): boolean {
   return (
-    displayKind === "shell" ||
+    displayKind === "bash" ||
     normalizedToolName === "bash" ||
     normalizedToolName === "terminal" ||
     normalizedToolName === "exec" ||
     normalizedToolName === "command" ||
-    normalizedToolName.includes("shell") ||
     normalizedToolName.includes("command_execution") ||
     typeof command === "string"
   );

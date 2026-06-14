@@ -578,8 +578,8 @@ function timelineItemKindLabel(item: RuntimeDisplayTimelineItem): string {
 function toolDisplayDescription(item: RuntimeToolItem): string {
   const display = item.display;
   switch (display.kind) {
-    case "shell":
-      return display.command ? `Command: ${display.command}` : "Shell command";
+    case "bash":
+      return display.command ? `Command: ${display.command}` : "Bash command";
     case "read":
       return display.path ? `Read ${display.path}` : "Read file";
     case "grep":

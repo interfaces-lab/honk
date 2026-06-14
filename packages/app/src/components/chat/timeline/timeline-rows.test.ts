@@ -148,7 +148,7 @@ describe("computeStableMessagesTimelineRows", () => {
       tool: {
         ...updated.tool,
         display: {
-          kind: "shell",
+          kind: "bash",
           command: "git diff --stat",
           output: "1 file changed",
         },
@@ -338,14 +338,14 @@ function runtimeToolRow(
       orderKey: `${createdAt}:tool:toolu-row-stability`,
       createdAt,
       toolCallId: "toolu-row-stability",
-      toolName: "shell",
+      toolName: "bash",
       turnId,
       status,
       eventIds,
       args: runtimeToolArgs,
       command: runtimeToolArgs.command,
       display: {
-        kind: "shell",
+        kind: "bash",
         command: runtimeToolArgs.command,
         output: "clean",
       },
@@ -355,7 +355,7 @@ function runtimeToolRow(
       isError: status === "error",
       result: "clean",
       output: "clean",
-      summary: "Completed shell",
+      summary: "Completed bash",
     },
   };
 }

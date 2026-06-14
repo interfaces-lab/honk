@@ -49,7 +49,7 @@ describe("tool renderer conversation density", () => {
       <ToolCallRenderer
         toolCall={{
           tool: {
-            case: "shellToolCall",
+            case: "bashToolCall",
             value: {
               action: "Running",
               details: "git push origin main",
@@ -71,7 +71,7 @@ describe("tool renderer conversation density", () => {
       <ToolCallRenderer
         toolCall={{
           tool: {
-            case: "shellToolCall",
+            case: "bashToolCall",
             value: {
               action: "Ran",
               details: "git status --short",
@@ -94,7 +94,7 @@ describe("tool renderer conversation density", () => {
       <ToolCallRenderer
         toolCall={{
           tool: {
-            case: "shellToolCall",
+            case: "bashToolCall",
             value: {
               action: "Ran",
               details: "git status --short",
@@ -338,7 +338,7 @@ describe("tool renderer conversation density", () => {
   it("switches shell markers when density changes without changing tool payload", () => {
     const toolCall = {
       tool: {
-        case: "shellToolCall" as const,
+        case: "bashToolCall" as const,
         value: {
           action: "Ran",
           details: "git status --short",

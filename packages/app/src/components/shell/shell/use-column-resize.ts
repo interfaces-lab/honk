@@ -9,6 +9,8 @@ interface ColumnResizeLimits {
   max: number;
 }
 
+type ColumnResizeLimitsInput = ColumnResizeLimits | (() => ColumnResizeLimits);
+
 interface ColumnResizeState {
   base: number;
   pointerId: number;
@@ -20,9 +22,15 @@ function clampColumnWidth(width: number, limits: ColumnResizeLimits): number {
   return Math.min(limits.max, Math.max(limits.min, width));
 }
 
+function normalizeColumnResizeLimits(limits: ColumnResizeLimits): ColumnResizeLimits {
+  const min = Number.isFinite(limits.min) ? limits.min : 0;
+  const max = Math.max(min, limits.max);
+  return { min, max };
+}
+
 export function useColumnResize<TElement extends HTMLElement>(input: {
   width: number;
-  limits: ColumnResizeLimits;
+  limits: ColumnResizeLimitsInput;
   elementRef: RefObject<TElement | null>;
   direction: "left" | "right";
   onCommit: (width: number) => void;
@@ -31,14 +39,21 @@ export function useColumnResize<TElement extends HTMLElement>(input: {
   const [dragging, setDragging] = useState(false);
   const stateRef = useRef<ColumnResizeState | null>(null);
   const liveWidthRef = useRef(width);
+  const limitsRef = useRef(limits);
   const onCommitRef = useRef(onCommit);
   const pendingWidthRef = useRef<number | null>(null);
   const applyWidthFrameRef = useRef<number | null>(null);
 
+  limitsRef.current = limits;
   onCommitRef.current = onCommit;
 
+  const resolveLimits = () =>
+    normalizeColumnResizeLimits(
+      typeof limitsRef.current === "function" ? limitsRef.current() : limitsRef.current,
+    );
+
   if (!dragging) {
-    liveWidthRef.current = width;
+    liveWidthRef.current = clampColumnWidth(width, resolveLimits());
   }
 
   const applyWidth = (nextWidth: number) => {
@@ -116,7 +131,7 @@ export function useColumnResize<TElement extends HTMLElement>(input: {
       return;
     }
 
-    const width = liveWidthRef.current;
+    const width = clampColumnWidth(liveWidthRef.current, resolveLimits());
     node.style.width = `${width}px`;
     stateRef.current = {
       base: width,
@@ -138,7 +153,7 @@ export function useColumnResize<TElement extends HTMLElement>(input: {
     }
 
     const delta = direction === "right" ? event.clientX - drag.startX : drag.startX - event.clientX;
-    const nextWidth = clampColumnWidth(drag.base + delta, limits);
+    const nextWidth = clampColumnWidth(drag.base + delta, resolveLimits());
     liveWidthRef.current = nextWidth;
     scheduleWidthApply(nextWidth);
 

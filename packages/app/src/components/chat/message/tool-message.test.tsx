@@ -44,7 +44,7 @@ function renderShellRendererWithoutCommand(): string {
     <ToolCallRenderer
       toolCall={{
         tool: {
-          case: "shellToolCall",
+          case: "bashToolCall",
           value: {
             action: "Ran",
             details: "M AGENTS.md M packages/app/src/session-logic.ts",
@@ -140,16 +140,16 @@ describe("RuntimeToolCallMessage command entries", () => {
       orderKey: `${createdAt}:tool:output-only`,
       createdAt,
       toolCallId: "toolu-output-only",
-      toolName: "shell",
+      toolName: "bash",
       status: "completed",
       eventIds: [],
       details: "M AGENTS.md M packages/app/src/session-logic.ts",
       result: { content: [{ type: "text", text: "M AGENTS.md" }] },
       output: "M AGENTS.md",
-      summary: "Completed shell",
+      summary: "Completed bash",
       display: {
         kind: "unknown",
-        toolName: "shell",
+        toolName: "bash",
         output: "M AGENTS.md",
       },
     });
@@ -167,16 +167,16 @@ describe("RuntimeToolCallMessage command entries", () => {
       orderKey: `${createdAt}:tool:typed-command`,
       createdAt,
       toolCallId: "toolu-typed-command",
-      toolName: "shell",
+      toolName: "bash",
       status: "completed",
       eventIds: [],
       args: { command: "git status --short" },
       command: "git status --short",
       result: { content: [{ type: "text", text: "M AGENTS.md" }] },
       output: "M AGENTS.md",
-      summary: "Completed shell",
+      summary: "Completed bash",
       display: {
-        kind: "shell",
+        kind: "bash",
         command: "git status --short",
         output: "M AGENTS.md",
       },
@@ -200,7 +200,7 @@ describe("RuntimeToolCallMessage command entries", () => {
       output: "done",
       summary: "Completed bash",
       display: {
-        kind: "shell",
+        kind: "bash",
         output: "done",
       },
     };
@@ -215,6 +215,7 @@ describe("RuntimeToolCallMessage command entries", () => {
     expect(html).toContain("data-shell-tool-call");
     expect(html).toContain("data-shell-tool-call-output");
     expect(html).toContain("done");
+    expect(html).not.toContain("Completed bash");
     expect(html).not.toContain("raw");
   });
 

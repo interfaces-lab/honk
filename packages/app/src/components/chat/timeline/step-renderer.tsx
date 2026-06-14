@@ -658,7 +658,7 @@ function CompactToolOutputStrip({ output, loading }: { output: string; loading: 
 function resolveLastRunningPreviewOutputStepId(
   lastStep: TimelineGroupedStep | undefined,
 ): string | null {
-  if (!lastStep || !isPreviewShellOrEditStep(lastStep) || !isPreviewOutputStepRunning(lastStep)) {
+  if (!lastStep || !isPreviewBashOrEditStep(lastStep) || !isPreviewOutputStepRunning(lastStep)) {
     return null;
   }
   return resolvePreviewStepOutput(lastStep) ? lastStep.id : null;
@@ -727,10 +727,10 @@ function isPreviewOutputStepRunning(step: TimelineStep): boolean {
   return false;
 }
 
-function isPreviewShellOrEditStep(step: TimelineStep): boolean {
+function isPreviewBashOrEditStep(step: TimelineStep): boolean {
   if (step.kind === "runtime-tool") {
     const displayKind = step.tool.display?.kind;
-    return displayKind === "shell" || displayKind === "edit";
+    return displayKind === "bash" || displayKind === "edit";
   }
   if (step.kind === "work") {
     const entry = step.entry;
@@ -753,7 +753,7 @@ function isPreviewShellOrEditStep(step: TimelineStep): boolean {
 function resolvePreviewStepOutput(step: TimelineStep): PreviewStepOutput | null {
   if (step.kind === "runtime-tool") {
     const display = step.tool.display;
-    if (display?.kind !== "shell" && display?.kind !== "edit") {
+    if (display?.kind !== "bash" && display?.kind !== "edit") {
       return null;
     }
     const output = display.output?.trim();

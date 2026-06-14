@@ -306,8 +306,8 @@ export function runtimeToolDisplayToToolCall(
   display: RuntimeToolDisplay,
 ): ToolCallModel {
   switch (display.kind) {
-    case "shell":
-      return runtimeShellDisplayToToolCall(tool, display);
+    case "bash":
+      return runtimeBashDisplayToToolCall(tool, display);
     case "read":
       return runtimeReadDisplayToToolCall(tool, display);
     case "grep":
@@ -459,9 +459,9 @@ function runtimeSubagentStatusLabel(state: RuntimeSubagentRun["state"]): string 
   }
 }
 
-function runtimeShellDisplayToToolCall(
+function runtimeBashDisplayToToolCall(
   tool: RuntimeDisplayTimelineToolItem,
-  display: Extract<NonNullable<RuntimeDisplayTimelineToolItem["display"]>, { kind: "shell" }>,
+  display: Extract<NonNullable<RuntimeDisplayTimelineToolItem["display"]>, { kind: "bash" }>,
 ): ToolCallModel {
   const command = runtimeTrimmedString(display.command) ?? "";
   const output = runtimeTrimmedString(display.output);
@@ -474,7 +474,7 @@ function runtimeShellDisplayToToolCall(
   };
   return {
     tool: {
-      case: "shellToolCall",
+      case: "bashToolCall",
       value: {
         action: runtimeToolAction(tool),
         details: command,
@@ -657,7 +657,7 @@ function runtimeToolAction(tool: RuntimeDisplayTimelineToolItem): string {
 
 function runtimeToolHasStreamingOutput(tool: RuntimeDisplayTimelineToolItem): boolean {
   const display = tool.display;
-  if (display?.kind === "shell" || display?.kind === "read") {
+  if (display?.kind === "bash" || display?.kind === "read") {
     return runtimeTrimmedString(display.output) !== undefined;
   }
   return false;
@@ -997,7 +997,7 @@ function summarizeDiffStats(diffArtifact: ToolDiffArtifact): {
 
 function resolveToolCase(workEntry: WorkLogEntry): ToolCallModel["tool"]["case"] {
   if (workEntry.requestKind === "command" || workEntry.itemType === "command_execution") {
-    return "shellToolCall";
+    return "bashToolCall";
   }
   if (workEntry.requestKind === "file-change" || workEntry.itemType === "file_change") {
     return "editToolCall";
@@ -1030,7 +1030,7 @@ function resolveToolCase(workEntry: WorkLogEntry): ToolCallModel["tool"]["case"]
     return "editToolCall";
   }
   if (workEntry.command) {
-    return "shellToolCall";
+    return "bashToolCall";
   }
   return "unknownToolCall";
 }
@@ -1063,7 +1063,7 @@ function resolveOutput(
   const searchArtifact = artifacts?.find((artifact) => artifact.type === "search");
   const diagnosticArtifact = artifacts?.find((artifact) => artifact.type === "diagnostic");
   const rawArtifact = artifacts?.find((artifact) => artifact.type === "raw");
-  if (toolCase === "shellToolCall") {
+  if (toolCase === "bashToolCall") {
     return commandArtifact?.output ?? workEntry.output ?? null;
   }
   if (toolCase === "editToolCall") {
@@ -1099,7 +1099,7 @@ function resolveToolDetails(
   projectRoot: string | undefined,
 ): string | null {
   const toolCase = resolveToolCase(workEntry);
-  if (toolCase === "shellToolCall") {
+  if (toolCase === "bashToolCall") {
     return workEntry.command ?? workEntry.rawCommand ?? null;
   }
   if (toolCase === "editToolCall" && (workEntry.changedFiles?.length ?? 0) > 0) {
