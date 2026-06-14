@@ -8,7 +8,7 @@ import { type ScopedProjectRef, type ScopedThreadRef, ThreadId } from "@honk/con
 import type { SidebarThreadSortOrder } from "@honk/contracts/settings";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { useComposerDraftStore } from "../stores/chat-drafts";
 import { useNewThreadHandler } from "./use-handle-new-thread";
@@ -18,7 +18,7 @@ import { ensureEnvironmentGitApi } from "../lib/environment-git-api";
 import { sortThreads, type ThreadSortInput } from "../lib/thread-sort";
 import { newCommandId } from "../lib/utils";
 import { readHonkRuntimeApi } from "~/lib/honk-runtime-api";
-import { ensureLocalApi, readLocalApi } from "../local-api";
+import { readLocalApi } from "../local-api";
 import {
   selectProjectsAcrossEnvironments,
   selectThreadByRef,
@@ -183,6 +183,37 @@ function threadHasOngoingWork(thread: Pick<Thread, "session">): boolean {
   return thread.session?.status === "running" || thread.session?.status === "connecting";
 }
 
+interface ArchiveWarningPrompt {
+  title: string;
+  description: string;
+}
+
+export type ArchiveWarningDialogController = ArchiveWarningPrompt & {
+  onConfirm: () => void;
+  onOpenChange: (open: boolean) => void;
+};
+
+function formatArchiveWarningThreadTitle(title: string): string {
+  const trimmed = title.trim();
+  return trimmed.length > 0 ? trimmed : "Untitled agent";
+}
+
+function getArchiveWarningPrompt(threadTitles: readonly string[]): ArchiveWarningPrompt | null {
+  if (threadTitles.length === 0) {
+    return null;
+  }
+  if (threadTitles.length === 1) {
+    return {
+      title: `Archive "${formatArchiveWarningThreadTitle(threadTitles[0] ?? "")}"?`,
+      description: "This agent still has tasks running. Archiving force-stops them.",
+    };
+  }
+  return {
+    title: `Archive ${threadTitles.length} threads?`,
+    description: `${threadTitles.length} threads still have tasks running. Archiving force-stops them.`,
+  };
+}
+
 async function stopThreadWork(target: ScopedThreadRef, thread: Pick<Thread, "session">) {
   try {
     await readHonkRuntimeApi().abort({ threadId: target.threadId });
@@ -204,18 +235,6 @@ async function stopThreadWork(target: ScopedThreadRef, thread: Pick<Thread, "ses
       createdAt: new Date().toISOString(),
     })
     .catch(() => undefined);
-}
-
-async function confirmArchiveWithOngoingWork(threadTitles: readonly string[]): Promise<boolean> {
-  if (threadTitles.length === 0) {
-    return true;
-  }
-  const localApi = readLocalApi() ?? ensureLocalApi();
-  const subject =
-    threadTitles.length === 1
-      ? `"${threadTitles[0]}" still has tasks running.`
-      : `${threadTitles.length} threads still have tasks running.`;
-  return localApi.dialogs.confirm([subject, "Archiving force-stops them. Continue?"].join("\n"));
 }
 
 async function unarchiveThread(target: ScopedThreadRef): Promise<void> {
@@ -251,6 +270,56 @@ export function useThreadActions() {
   handleNewThreadRef.current = handleNewThread;
   routeTargetRef.current = routeTarget;
   const queryClient = useQueryClient();
+  const [archiveWarningPrompt, setArchiveWarningPrompt] = useState<ArchiveWarningPrompt | null>(
+    null,
+  );
+  const archiveWarningResolveRef = useRef<((confirmed: boolean) => void) | null>(null);
+
+  const completeArchiveWarning = useCallback((confirmed: boolean) => {
+    const resolve = archiveWarningResolveRef.current;
+    archiveWarningResolveRef.current = null;
+    setArchiveWarningPrompt(null);
+    resolve?.(confirmed);
+  }, []);
+
+  const requestArchiveWarningConfirmation = useCallback(
+    (threadTitles: readonly string[]): Promise<boolean> => {
+      const prompt = getArchiveWarningPrompt(threadTitles);
+      if (!prompt) {
+        return Promise.resolve(true);
+      }
+      return new Promise<boolean>((resolve) => {
+        archiveWarningResolveRef.current?.(false);
+        archiveWarningResolveRef.current = resolve;
+        setArchiveWarningPrompt(prompt);
+      });
+    },
+    [],
+  );
+
+  const confirmArchiveWarning = useCallback(() => {
+    completeArchiveWarning(true);
+  }, [completeArchiveWarning]);
+
+  const handleArchiveWarningOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        completeArchiveWarning(false);
+      }
+    },
+    [completeArchiveWarning],
+  );
+
+  const archiveWarningDialog = useMemo<ArchiveWarningDialogController | null>(() => {
+    if (!archiveWarningPrompt) {
+      return null;
+    }
+    return {
+      ...archiveWarningPrompt,
+      onConfirm: confirmArchiveWarning,
+      onOpenChange: handleArchiveWarningOpenChange,
+    };
+  }, [archiveWarningPrompt, confirmArchiveWarning, handleArchiveWarningOpenChange]);
 
   const getCurrentRouteTarget = useCallback(() => {
     return routeTargetRef.current;
@@ -281,7 +350,7 @@ export function useThreadActions() {
       const { thread, threadRef } = resolved;
 
       if (threadHasOngoingWork(thread)) {
-        const confirmed = await confirmArchiveWithOngoingWork([thread.title]);
+        const confirmed = await requestArchiveWarningConfirmation([thread.title]);
         if (!confirmed) return;
       }
       await stopThreadWork(threadRef, thread);
@@ -315,7 +384,7 @@ export function useThreadActions() {
         );
       }
     },
-    [getCurrentRouteThreadRef, router, undoArchiveThreads],
+    [getCurrentRouteThreadRef, requestArchiveWarningConfirmation, router, undoArchiveThreads],
   );
 
   const archiveThreads = useCallback(
@@ -339,7 +408,7 @@ export function useThreadActions() {
         return thread && threadHasOngoingWork(thread) ? [{ target, thread }] : [];
       });
       if (targetsWithOngoingWork.length > 0) {
-        const confirmed = await confirmArchiveWithOngoingWork(
+        const confirmed = await requestArchiveWarningConfirmation(
           targetsWithOngoingWork.map(({ thread }) => thread.title),
         );
         if (!confirmed) {
@@ -432,7 +501,13 @@ export function useThreadActions() {
 
       await openChatIndex(router, { replace: true });
     },
-    [getCurrentRouteThreadRef, router, sidebarThreadSortOrder, undoArchiveThreads],
+    [
+      getCurrentRouteThreadRef,
+      requestArchiveWarningConfirmation,
+      router,
+      sidebarThreadSortOrder,
+      undoArchiveThreads,
+    ],
   );
 
   const removeProjectFromSidebar = useCallback(
@@ -672,7 +747,15 @@ export function useThreadActions() {
       deleteThread,
       confirmAndDeleteThread,
       removeProjectFromSidebar,
+      archiveWarningDialog,
     }),
-    [archiveThread, archiveThreads, confirmAndDeleteThread, deleteThread, removeProjectFromSidebar],
+    [
+      archiveThread,
+      archiveThreads,
+      archiveWarningDialog,
+      confirmAndDeleteThread,
+      deleteThread,
+      removeProjectFromSidebar,
+    ],
   );
 }

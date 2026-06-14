@@ -1,5 +1,4 @@
 export const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
-export const CONFIRM_CHANNEL = "desktop:confirm";
 export const SET_THEME_CHANNEL = "desktop:set-theme";
 export const SET_BACKGROUND_COLOR_CHANNEL = "desktop:set-background-color";
 export const SET_VIBRANCY_CHANNEL = "desktop:set-vibrancy";

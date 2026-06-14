@@ -301,7 +301,6 @@ export interface DesktopBridge {
   getServerExposureState: () => Promise<DesktopServerExposureState>;
   setServerExposureMode: (mode: DesktopServerExposureMode) => Promise<DesktopServerExposureState>;
   pickFolder: (options?: PickFolderOptions) => Promise<string | null>;
-  confirm: (message: string) => Promise<boolean>;
   setTheme: (theme: DesktopTheme) => Promise<void>;
   setBackgroundColor: (color: string) => Promise<void>;
   setVibrancy: (enabled: boolean) => Promise<void>;

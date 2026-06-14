@@ -117,13 +117,12 @@ describe("runtime orchestration commands", () => {
           id: EventId.make("runtime-activity:runtime-event:tool"),
           tone: "tool",
           kind: "tool.completed",
-          summary: "Ran bash",
+          summary: "Ran command",
           payload: {
             itemId: "toolu-1",
             itemType: "command_execution",
             status: "completed",
-            title: "bash",
-            detail: "Ran bash",
+            title: "command",
             data: {
               toolCallId: "toolu-1",
               toolName: "bash",
@@ -136,6 +135,39 @@ describe("runtime orchestration commands", () => {
         },
         createdAt,
       },
+    ]);
+  });
+
+  it("canonicalizes legacy generic bash tool completions", () => {
+    const event: AgentRuntimeEvent = {
+      id: EventId.make("runtime-event:legacy-bash-tool"),
+      agentRuntime: "pi",
+      threadId,
+      runtimeSessionId,
+      turnId,
+      type: "tool.completed",
+      summary: "Completed bash",
+      createdAt,
+      data: {
+        toolName: "tool",
+        toolCallId: "toolu-legacy-bash",
+        isError: false,
+      },
+    };
+
+    expect(runtimeToolCompletedActivityCommands(event)).toEqual([
+      expect.objectContaining({
+        activity: expect.objectContaining({
+          summary: "Ran command",
+          payload: expect.objectContaining({
+            itemType: "command_execution",
+            title: "command",
+            data: expect.objectContaining({
+              toolName: "bash",
+            }),
+          }),
+        }),
+      }),
     ]);
   });
 

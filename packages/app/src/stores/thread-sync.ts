@@ -997,14 +997,23 @@ function defaultToolActivitySummary(input: {
   readonly toolName: string;
   readonly isError: boolean;
 }): string {
+  const toolLabel = toolActivityDisplayLabel(input.toolName);
   switch (input.phase) {
     case "started":
-      return `Started ${input.toolName}`;
+      return `Started ${toolLabel}`;
     case "updated":
-      return `Running ${input.toolName}`;
+      return `Running ${toolLabel}`;
     case "completed":
-      return input.isError ? `${input.toolName} failed` : `Completed ${input.toolName}`;
+      return input.isError ? `${capitalizeToolLabel(toolLabel)} failed` : `Ran ${toolLabel}`;
   }
+}
+
+function toolActivityDisplayLabel(toolName: string): string {
+  return toolItemTypeForName(toolName) === "command_execution" ? "command" : toolName;
+}
+
+function capitalizeToolLabel(label: string): string {
+  return `${label.slice(0, 1).toUpperCase()}${label.slice(1)}`;
 }
 
 function buildToolLifecycleActivity(input: {
@@ -1020,6 +1029,7 @@ function buildToolLifecycleActivity(input: {
   readonly runtimeEvent: unknown;
 }): OrchestrationThreadActivity {
   const itemType = toolItemTypeForName(input.toolName);
+  const title = itemType === "command_execution" ? "command" : input.toolName;
   const detail = toolResultText(input.result);
   const command = asTrimmedString(asRecord(input.args)?.command);
   const isError = input.isError === true;
@@ -1036,7 +1046,7 @@ function buildToolLifecycleActivity(input: {
       itemType,
       itemId: input.toolCallId,
       status: input.phase === "completed" ? (isError ? "failed" : "completed") : "running",
-      title: input.toolName,
+      title,
       ...(detail ? { detail } : {}),
       data: {
         ...(input.args !== undefined ? { args: input.args } : {}),

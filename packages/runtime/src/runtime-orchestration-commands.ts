@@ -11,6 +11,7 @@ import {
   type SessionTreeProjection,
   type ThreadEntryId,
   type ThreadId,
+  type ToolLifecycleItemType,
 } from "@honk/contracts";
 import { toJsonValue } from "@honk/shared/schema-json";
 import { Schema } from "effect";
@@ -20,6 +21,22 @@ import { asRecord } from "./runtime-record";
 import { runtimeToolItemTypeForName } from "./runtime-tool-item-type";
 
 const isThreadTokenUsageSnapshot = Schema.is(ThreadTokenUsageSnapshot);
+
+const legacyCommandActivitySummaryByText: Readonly<Record<string, string>> = {
+  "Started bash": "Started command",
+  "Running bash": "Running command",
+  "Ran bash": "Ran command",
+  "Completed bash": "Ran command",
+  "Bash failed": "Command failed",
+  "bash failed": "Command failed",
+};
+
+const commandLifecycleSummaries: ReadonlySet<string> = new Set([
+  "Started command",
+  "Running command",
+  "Ran command",
+  "Command failed",
+]);
 
 export interface RuntimeOrchestrationCommandContext {
   readonly resolveTurnUserEntryId?: (threadId: ThreadId, turnId: TurnId) => ThreadEntryId | null;
@@ -38,6 +55,53 @@ export function runtimeAssistantEntryIngestionKey(
 
 function asTrimmedString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function isLegacyCommandActivitySummary(value: unknown): boolean {
+  const summary = asTrimmedString(value);
+  return summary !== null && legacyCommandActivitySummaryByText[summary] !== undefined;
+}
+
+function isCommandLifecycleSummary(value: unknown): boolean {
+  const summary = asTrimmedString(value);
+  return summary !== null && commandLifecycleSummaries.has(summary);
+}
+
+function runtimeToolNameForActivity(input: {
+  readonly rawToolName: string;
+  readonly eventSummary: unknown;
+}): string {
+  if (
+    isLegacyCommandActivitySummary(input.eventSummary) ||
+    (input.rawToolName === "tool" && isCommandLifecycleSummary(input.eventSummary))
+  ) {
+    return "bash";
+  }
+  return input.rawToolName;
+}
+
+function runtimeToolActivitySummary(input: {
+  readonly eventSummary: unknown;
+  readonly itemType: ToolLifecycleItemType;
+  readonly isError: boolean;
+}): { readonly summary: string; readonly detail?: string } {
+  const eventSummary = asTrimmedString(input.eventSummary);
+  if (eventSummary !== null) {
+    const migratedSummary = legacyCommandActivitySummaryByText[eventSummary];
+    if (migratedSummary !== undefined) {
+      return { summary: migratedSummary };
+    }
+    if (input.itemType === "command_execution" && commandLifecycleSummaries.has(eventSummary)) {
+      return { summary: eventSummary };
+    }
+    return { summary: eventSummary, detail: eventSummary };
+  }
+
+  if (input.itemType === "command_execution") {
+    return { summary: input.isError ? "Command failed" : "Ran command" };
+  }
+
+  return { summary: input.isError ? "Tool failed" : "Tool completed" };
 }
 
 function runtimeAssistantCompleteCommandId(
@@ -190,11 +254,20 @@ export function runtimeToolCompletedActivities(
     return [];
   }
   const record = asRecord(event.data) ?? {};
-  const toolName = asTrimmedString(record.toolName) ?? "tool";
+  const rawToolName = asTrimmedString(record.toolName) ?? "tool";
+  const toolName = runtimeToolNameForActivity({
+    rawToolName,
+    eventSummary: event.summary,
+  });
   const toolCallId = asTrimmedString(record.toolCallId) ?? event.id;
   const isError = record.isError === true;
-  const summary = asTrimmedString(event.summary) ?? (isError ? "Tool failed" : "Tool completed");
-  const detail = typeof event.summary === "string" ? event.summary : undefined;
+  const itemType = runtimeToolItemTypeForName(toolName);
+  const title = itemType === "command_execution" ? "command" : toolName;
+  const summary = runtimeToolActivitySummary({
+    eventSummary: event.summary,
+    itemType,
+    isError,
+  });
   const subagentActivities = runtimeSubagentActivitiesForToolEvent(event);
   const subagentParentItem =
     toolName === "subagent"
@@ -204,13 +277,13 @@ export function runtimeToolCompletedActivities(
     id: EventId.make(`runtime-activity:${event.id}`),
     tone: isError ? ("error" as const) : ("tool" as const),
     kind: "tool.completed",
-    summary,
+    summary: summary.summary,
     payload: {
       itemId: toolCallId,
-      itemType: runtimeToolItemTypeForName(toolName),
+      itemType,
       status: isError ? "error" : "completed",
-      title: toolName,
-      ...(detail !== undefined ? { detail } : {}),
+      title,
+      ...(summary.detail !== undefined ? { detail: summary.detail } : {}),
       data:
         toJsonValue({
           toolCallId,

@@ -1,9 +1,19 @@
+import {
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogPopup,
+  AlertDialogTitle,
+} from "@honk/honkkit/alert-dialog";
+import { Button } from "@honk/honkkit/button";
 import { Menu, MenuCheckboxItem, MenuPopup, MenuSeparator, MenuTrigger } from "@honk/honkkit/menu";
 import { SidebarItem } from "@honk/honkkit/sidebar";
 import { IconChevronRightMedium, IconFilter2, IconFolderAddRight } from "central-icons";
 import { type DragEvent, useCallback, useId, useMemo, useState } from "react";
 
-import { useThreadActions } from "~/hooks/use-thread-actions";
+import { type ArchiveWarningDialogController, useThreadActions } from "~/hooks/use-thread-actions";
 import { type SidebarThreadFilter, useUiStateStore } from "~/stores/ui-state-store";
 import { cn } from "~/lib/utils";
 import type { SidebarDragPayload, SidebarDropTarget } from "./drag-and-drop";
@@ -17,6 +27,25 @@ const THREAD_STATUS_FILTER_OPTIONS: readonly { value: SidebarThreadFilter; label
   { value: "stopped", label: "Stopped" },
   { value: "error", label: "Error" },
 ];
+
+function ArchiveWarningDialog({ dialog }: { dialog: ArchiveWarningDialogController | null }) {
+  return (
+    <AlertDialog open={dialog !== null} onOpenChange={(open) => dialog?.onOpenChange(open)}>
+      <AlertDialogPopup>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{dialog?.title ?? "Archive agent?"}</AlertDialogTitle>
+          <AlertDialogDescription>{dialog?.description ?? ""}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
+          <Button variant="destructive" onClick={dialog?.onConfirm}>
+            Archive
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogPopup>
+    </AlertDialog>
+  );
+}
 
 function SidebarThreadFilterMenu() {
   const sidebarThreadFilters = useUiStateStore((store) => store.sidebarThreadFilters);
@@ -73,8 +102,14 @@ function SidebarThreadFilterMenu() {
 }
 
 export function AgentSidebarBody(props: AgentSidebarProps) {
-  const { archiveThread, archiveThreads, unarchiveThread, commitRename, removeProjectFromSidebar } =
-    useThreadActions();
+  const {
+    archiveThread,
+    archiveThreads,
+    unarchiveThread,
+    commitRename,
+    removeProjectFromSidebar,
+    archiveWarningDialog,
+  } = useThreadActions();
   const reorderProjects = useUiStateStore((store) => store.reorderProjects);
   const [dragPayload, setDragPayload] = useState<SidebarDragPayload | null>(null);
   const [dropTarget, setDropTarget] = useState<SidebarDropTarget | null>(null);
@@ -272,6 +307,7 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
           ) : null}
         </section>
       ) : null}
+      <ArchiveWarningDialog dialog={archiveWarningDialog} />
     </div>
   );
 }

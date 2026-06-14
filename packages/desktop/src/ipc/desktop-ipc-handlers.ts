@@ -19,7 +19,6 @@ import { logRendererDiagnostic } from "./methods/renderer-diagnostics";
 import { getServerExposureState, setServerExposureMode } from "./methods/server-exposure";
 import { checkForUpdate, downloadUpdate, getUpdateState, installUpdate } from "./methods/updates";
 import {
-  confirm,
   clearBrowserPartitionStorage,
   detectLocalhostPorts,
   expandWindowWidth,
@@ -65,7 +64,6 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(setServerExposureMode);
 
   yield* ipc.handle(pickFolder);
-  yield* ipc.handle(confirm);
   yield* ipc.handle(detectLocalhostPorts);
   yield* ipc.handle(clearBrowserPartitionStorage);
   yield* ipc.handle(setActiveWorkState);

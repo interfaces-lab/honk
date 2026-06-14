@@ -991,16 +991,22 @@ describe("Pi runtime thread sync", () => {
         }),
         expect.objectContaining({
           kind: "tool.started",
+          summary: "Started command",
           payload: expect.objectContaining({
             itemId: seededToolCallId,
+            itemType: "command_execution",
+            title: "command",
             data: expect.objectContaining({ command: "pwd" }),
           }),
           turnId,
         }),
         expect.objectContaining({
           kind: "tool.completed",
+          summary: "Ran command",
           payload: expect.objectContaining({
             itemId: seededToolCallId,
+            itemType: "command_execution",
+            title: "command",
             detail: "/Users/workgyver/Developer/honk",
           }),
           turnId,

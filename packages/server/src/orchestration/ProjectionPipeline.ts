@@ -2,6 +2,7 @@ import {
   ApprovalRequestId,
   type ChatAttachment,
   MessageId,
+  type OrchestrationThreadActivity,
   type OrchestrationEvent,
   resolveLeafIdAfterThreadMessage,
   ThreadId,
@@ -777,21 +778,21 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
       "applyThreadActivitiesProjection",
     )(function* (event, _attachmentSideEffects) {
       switch (event.type) {
-        case "thread.activity-appended":
+        case "thread.activity-appended": {
+          const activity: OrchestrationThreadActivity = event.payload.activity;
           yield* projectionThreadActivityRepository.upsert({
-            activityId: event.payload.activity.id,
+            activityId: activity.id,
             threadId: event.payload.threadId,
-            turnId: event.payload.activity.turnId,
-            tone: event.payload.activity.tone,
-            kind: event.payload.activity.kind,
-            summary: event.payload.activity.summary,
-            payload: event.payload.activity.payload,
-            ...(event.payload.activity.sequence !== undefined
-              ? { sequence: event.payload.activity.sequence }
-              : {}),
-            createdAt: event.payload.activity.createdAt,
+            turnId: activity.turnId,
+            tone: activity.tone,
+            kind: activity.kind,
+            summary: activity.summary,
+            payload: activity.payload,
+            ...(activity.sequence !== undefined ? { sequence: activity.sequence } : {}),
+            createdAt: activity.createdAt,
           });
           return;
+        }
 
         default:
           return;

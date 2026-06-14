@@ -82,12 +82,7 @@ export function createLocalApi(rpcClient: LocalApiRpcClient): LocalApi {
         if (!window.desktopBridge) return null;
         return window.desktopBridge.pickFolder(options);
       },
-      confirm: async (message) => {
-        if (window.desktopBridge) {
-          return window.desktopBridge.confirm(message);
-        }
-        return window.confirm(message);
-      },
+      confirm: async (message) => window.confirm(message),
     },
     shell: {
       openInEditor: (cwd, editor) => rpcClient.shell.openInEditor(cwd, editor),
@@ -135,12 +130,7 @@ function createDesktopLocalApi(): LocalApi {
   return attachDesktopRuntimeApi({
     dialogs: {
       pickFolder: async (options) => window.desktopBridge?.pickFolder(options) ?? null,
-      confirm: async (message) => {
-        if (window.desktopBridge) {
-          return window.desktopBridge.confirm(message);
-        }
-        return window.confirm(message);
-      },
+      confirm: async (message) => window.confirm(message),
     },
     shell: {
       openInEditor: async () => {

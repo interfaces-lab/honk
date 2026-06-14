@@ -104,7 +104,7 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
     isDevelopment,
   });
   const displayName = branding.displayName;
-  const stateDir = path.join(baseDir, "userdata");
+  const stateDir = path.join(baseDir, isDevelopment ? "dev" : "userdata");
   const userDataDirName = isDevelopment ? "honk-dev" : "honk";
   const resourcesPath = input.resourcesPath;
   const desktopPackageDir = input.isPackaged ? input.appPath : path.resolve(input.dirname, "../..");

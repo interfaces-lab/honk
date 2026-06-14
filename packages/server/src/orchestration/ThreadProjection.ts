@@ -6,6 +6,7 @@ import {
   type OrchestrationProjectShell,
   type OrchestrationSession,
   type OrchestrationThread,
+  type OrchestrationThreadActivity as OrchestrationThreadActivityModel,
   OrchestrationThreadActivity,
   type OrchestrationThreadEntry,
   type OrchestrationThreadShell,
@@ -55,6 +56,23 @@ import {
   type ThreadProjectionCounts,
   type ThreadProjectionShape,
 } from "./ThreadProjection.service.ts";
+
+type ProjectionThreadActivityRow = typeof ProjectionThreadActivityDbRowSchema.Type;
+
+function decodeProjectionThreadActivity(
+  row: ProjectionThreadActivityRow,
+): OrchestrationThreadActivityModel {
+  return Schema.decodeUnknownSync(OrchestrationThreadActivity)({
+    id: row.activityId,
+    tone: row.tone,
+    kind: row.kind,
+    summary: row.summary,
+    payload: row.payload,
+    turnId: row.turnId,
+    ...(row.sequence !== null ? { sequence: row.sequence } : {}),
+    createdAt: row.createdAt,
+  });
+}
 
 function toPersistenceSqlOrDecodeError(sqlOperation: string, decodeOperation: string) {
   return (cause: unknown): ProjectionRepositoryError =>
@@ -640,18 +658,7 @@ const makeThreadProjection = Effect.gen(function* () {
               for (const row of activityRows) {
                 updatedAt = maxIso(updatedAt, row.createdAt);
                 const threadActivities = activitiesByThread.get(row.threadId) ?? [];
-                threadActivities.push(
-                  Schema.decodeUnknownSync(OrchestrationThreadActivity)({
-                    id: row.activityId,
-                    tone: row.tone,
-                    kind: row.kind,
-                    summary: row.summary,
-                    payload: row.payload,
-                    turnId: row.turnId,
-                    ...(row.sequence !== null ? { sequence: row.sequence } : {}),
-                    createdAt: row.createdAt,
-                  }),
-                );
+                threadActivities.push(decodeProjectionThreadActivity(row));
                 activitiesByThread.set(row.threadId, threadActivities);
               }
 
@@ -1164,18 +1171,7 @@ const makeThreadProjection = Effect.gen(function* () {
             createdAt: row.createdAt,
             updatedAt: row.updatedAt,
           })),
-          activities: activityRows.map((row) =>
-            Schema.decodeUnknownSync(OrchestrationThreadActivity)({
-              id: row.activityId,
-              tone: row.tone,
-              kind: row.kind,
-              summary: row.summary,
-              payload: row.payload,
-              turnId: row.turnId,
-              ...(row.sequence !== null ? { sequence: row.sequence } : {}),
-              createdAt: row.createdAt,
-            }),
-          ),
+          activities: activityRows.map(decodeProjectionThreadActivity),
           session: Option.isSome(sessionRow) ? mapSessionRow(sessionRow.value) : null,
         }).pipe(
           Effect.mapError(
