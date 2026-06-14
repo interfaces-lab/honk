@@ -333,25 +333,47 @@ html:not([data-electron]) .agent-window {
   border-left-color: transparent;
 }
 
-/* Editor panel fullscreen: shell state is driven by the root data attribute. */
+/* Center (chat) region: BEM peer of __sidebar / __workbench, so its layout +
+ * fullscreen reflow live here in the central shell stylesheet (not as ad-hoc
+ * utilities). Its collapse animates on the shared panel-reflow duration token
+ * (matching the sidebar/workbench width transition); the token is zeroed under
+ * prefers-reduced-motion, so no separate media query is needed. Only flex-grow
+ * is animated — flex-basis stays 0 throughout, so it has nothing to tween. */
+.agent-window__center {
+  transition: flex-grow var(--motion-duration-panel) ease-out;
+}
+
+/* Editor-panel fullscreen: a genuine flex reflow (Cursor's editor maximize),
+ * driven by the root data attribute. The workbench grows into the freed center
+ * space. The LEFT agent list stays put: Cursor's editor/agent maximize keeps
+ * the `unifiedsidebar` agent list mounted and visible, and only the center
+ * conversation yields. No overlay; the only JS is the synchronous attribute
+ * flip in ShellFullscreenLayer, so no chrome re-renders on toggle. */
 .agent-window[data-shell-fullscreen-target="right-workbench"] .agent-window__workbench {
-  position: absolute;
-  inset: 0;
-  z-index: var(--z-index-shell-overlay-panel);
-  width: 100%;
+  flex: 1 1 auto;
   min-width: 0;
   max-width: 100cqw;
   border-left-color: transparent;
 }
 
-.agent-window[data-shell-fullscreen-target="right-workbench"] .agent-window__sidebar {
+/* Collapse the center (chat) region out of flow so the workbench reflows into
+ * it. The left agent list is intentionally untouched. */
+.agent-window[data-shell-fullscreen-target="right-workbench"] .agent-window__center {
+  flex-grow: 0;
+  flex-basis: 0;
   width: 0;
   min-width: 0;
-  border-right-color: transparent;
+  overflow: hidden;
 }
 
 .agent-window[data-shell-fullscreen-target="right-workbench"] .agent-window__workbench-body {
   width: 100%;
+}
+
+/* The workbench fills the window in fullscreen, so its resize sash has nothing
+ * to drag against; hide it (CSS only, the sash node stays mounted). */
+.agent-window[data-shell-fullscreen-target="right-workbench"] .honk-shell-workbench-sash {
+  display: none;
 }
 
 [data-electron]

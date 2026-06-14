@@ -9,6 +9,10 @@
 @custom-variant wco (&:is(.wco, .wco *));
 
 @theme inline {
+  /* Default duration for bare transition utilities (transition, transition-colors,
+   * …) that don't specify a duration. Named durations (duration-*, the
+   * --motion-duration-* tokens) still win where set. */
+  --default-transition-duration: 100ms;
   --animate-skeleton: skeleton 2s -1s infinite linear;
   --animate-thinking: thinking-shimmer 2s linear infinite;
   --animate-thinking-details-in: thinking-details-in 0.14s ease-out;

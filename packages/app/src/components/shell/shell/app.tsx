@@ -3,7 +3,6 @@
 import {
   IconExpandSimple,
   IconMagnifyingGlass,
-  IconMinimize,
   IconSidebar,
   IconSidebarHiddenLeftWide,
   IconSidebarHiddenRightWide,
@@ -33,6 +32,7 @@ import {
   shortcutLabelForCommand,
 } from "~/keybindings";
 import { syncAppearanceVibrancy } from "~/lib/appearance-settings";
+import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { useSettings } from "~/hooks/use-settings";
 import { useServerKeybindings } from "~/rpc/server-state";
@@ -170,18 +170,13 @@ function useModeCrossSnap(mode: ShellPanelMode): boolean {
   return snap;
 }
 
-function LeftAside(props: {
-  children: ReactNode;
-  mode: ShellPanelMode;
-  workspaceKey: string | null;
-  rightOpen: boolean;
-}) {
+function LeftAside(props: { children: ReactNode; mode: ShellPanelMode }) {
   const leftOpen = useLeftOpen();
   const leftWidth = useLeftWidth();
-  // Subscribe to fullscreen here (not in AppShell) so a fullscreen toggle only
-  // re-renders this panel's `inert`/`aria-hidden`, never the whole shell.
-  const fullscreenTarget = useWorkspaceFullscreenTarget(props.workspaceKey);
-  const fullscreen = props.rightOpen && fullscreenTarget === "right-workbench";
+  // No fullscreen subscription. The agent list stays mounted, visible, and
+  // interactive when the workbench maximizes (Cursor parity: editor maximize
+  // keeps the `unifiedsidebar` agent list and only yields the center
+  // conversation). So this panel never re-renders on a fullscreen toggle.
   const asideRef = useRef<HTMLElement | null>(null);
   const resize = useColumnResize({
     width: leftWidth,
@@ -192,7 +187,7 @@ function LeftAside(props: {
   });
   const snapTransition = useModeCrossSnap(props.mode);
   const presentation = panelPresentation(props.mode, leftOpen);
-  const hidden = fullscreen || !leftOpen;
+  const hidden = !leftOpen;
 
   return (
     <aside
@@ -200,7 +195,7 @@ function LeftAside(props: {
         "agent-window__sidebar honk-shell-sidebar relative flex h-full shrink-0 select-none flex-col overflow-hidden border-r border-honk-stroke-tertiary",
         resize.dragging
           ? "transition-none"
-          : "transition-[width] duration-150 ease-out motion-reduce:transition-none",
+          : "transition-[width] duration-(--motion-duration-panel) ease-out motion-reduce:transition-none",
       )}
       data-agent-window-sidebar=""
       data-shell-left-expanded={leftOpen ? "true" : "false"}
@@ -220,7 +215,7 @@ function LeftAside(props: {
       <div
         aria-hidden={hidden}
         className={cn(
-          "flex h-full min-h-0 w-[min(var(--honk-shell-left-width),100cqw)] flex-col transition-opacity duration-150 ease-out in-data-[resizing=true]:w-full in-data-[shell-left-mode=overlay]:w-full motion-reduce:transition-none",
+          "flex h-full min-h-0 w-[min(var(--honk-shell-left-width),100cqw)] flex-col transition-opacity duration-(--motion-duration-panel) ease-out in-data-[resizing=true]:w-full in-data-[shell-left-mode=overlay]:w-full motion-reduce:transition-none",
           leftOpen ? "opacity-100" : "opacity-0",
         )}
       >
@@ -240,32 +235,26 @@ function LeftAside(props: {
   );
 }
 
-// Cursor isolates its maximize button: the action's `toggled` state is bound to
-// the `agentChatMaximized` context key, so toggling swaps the icon without
-// re-rendering the toolbar or panel body (only the titlebar RAF-repositions).
-// We mirror that here — this leaf owns the fullscreen subscription, so a toggle
-// re-renders ONLY this button, not RightAsideHeader / the tool-island row.
+// A single fixed icon that never swaps glyph or moves on toggle (intentionally
+// simpler than Cursor's CSS toggled-state swap). It owns no fullscreen
+// subscription, so toggling fullscreen never re-renders it — the layout state is
+// conveyed by the reflow itself, not by this button.
 const RightWorkbenchFullscreenToggle = memo(function RightWorkbenchFullscreenToggle(props: {
   workspaceKey: string | null;
-  rightOpen: boolean;
   keybindings: ReturnType<typeof useServerKeybindings>;
 }) {
-  const fullscreenTarget = useWorkspaceFullscreenTarget(props.workspaceKey);
-  const fullscreen = props.rightOpen && fullscreenTarget === "right-workbench";
-  const fullscreenLabel = fullscreen ? "Exit editor panel fullscreen" : "Editor panel fullscreen";
   const shortcut = shortcutLabelForCommand(props.keybindings, "editorPanel.toggleFullscreen");
-  const title = shortcut ? `${fullscreenLabel} (${shortcut})` : fullscreenLabel;
-  // Both icons render at a fixed 16px box so the swap never shifts neighbors.
-  const FullscreenIcon = fullscreen ? IconMinimize : IconExpandSimple;
+  const title = shortcut
+    ? `Toggle editor panel fullscreen (${shortcut})`
+    : "Toggle editor panel fullscreen";
   return (
     <WorkbenchIconButton
-      aria-label={fullscreenLabel}
-      aria-pressed={fullscreen}
+      aria-label="Toggle editor panel fullscreen"
       chrome="tool"
       onClick={() => workspaceEditorActions.toggleFullscreen(props.workspaceKey, "right-workbench")}
       title={title}
     >
-      <FullscreenIcon className="size-4 shrink-0" aria-hidden />
+      <IconExpandSimple className="size-4 shrink-0" aria-hidden />
     </WorkbenchIconButton>
   );
 });
@@ -274,10 +263,9 @@ function RightAsideHeader(props: {
   workspaceKey: string | null;
   activeTab: WorkbenchTab;
   tabs: readonly WorkbenchTabMeta[];
-  rightOpen: boolean;
   keybindings: ReturnType<typeof useServerKeybindings>;
 }) {
-  const { workspaceKey, rightOpen, keybindings } = props;
+  const { workspaceKey, keybindings } = props;
   const terminalState = useTerminalSessions(workspaceKey);
   const sessionCount = terminalState.sessions.length;
 
@@ -307,14 +295,8 @@ function RightAsideHeader(props: {
   );
 
   const trailing = useMemo(
-    () => (
-      <RightWorkbenchFullscreenToggle
-        workspaceKey={workspaceKey}
-        rightOpen={rightOpen}
-        keybindings={keybindings}
-      />
-    ),
-    [workspaceKey, rightOpen, keybindings],
+    () => <RightWorkbenchFullscreenToggle workspaceKey={workspaceKey} keybindings={keybindings} />,
+    [workspaceKey, keybindings],
   );
 
   return (
@@ -344,7 +326,6 @@ function RightAsideFrame(props: {
 }) {
   const storedRightOpen = useRightOpen(props.workspaceKey);
   const muted = useIsMuted(props.workspaceKey);
-  const fullscreenTarget = useWorkspaceFullscreenTarget(props.workspaceKey);
   const rightWidth = useRightWidth(props.workspaceKey);
   // Near-constant in steady state (undefined unless a ?panel= deep-link is
   // pending); only used to mount Content on a cold deep-link so its effect can
@@ -361,7 +342,6 @@ function RightAsideFrame(props: {
     gitFocusId: props.gitFocusId,
     muted,
   });
-  const fullscreen = rightOpen && fullscreenTarget === "right-workbench";
 
   // Mount the workbench on first open (or on a cold ?panel= deep-link, so the
   // content effect can run and open it), then keep it: remount churn on toggle
@@ -399,11 +379,11 @@ function RightAsideFrame(props: {
       inert={!rightOpen}
     >
       {hasOpened ? props.children : null}
-      {rightOpen && !fullscreen ? (
+      {rightOpen ? (
         <div
           aria-label="Resize project panel width"
           aria-orientation="vertical"
-          className="pointer-events-auto absolute inset-y-0 left-0 z-30 w-3 cursor-col-resize touch-none select-none outline-hidden [-webkit-app-region:no-drag] after:absolute after:inset-y-0 after:left-0 after:w-(--honk-shell-sash-stripe-width) after:rounded-px after:bg-transparent after:transition-[background-color,box-shadow] after:duration-100 after:ease-out hover:after:bg-(--honk-shell-sash-hover-shade) focus-visible:after:bg-(--honk-shell-sash-hover-shade) data-[active=true]:after:bg-(--honk-shell-sash-hover-shade) motion-reduce:after:transition-none"
+          className="honk-shell-workbench-sash pointer-events-auto absolute inset-y-0 left-0 z-30 w-3 cursor-col-resize touch-none select-none outline-hidden [-webkit-app-region:no-drag] after:absolute after:inset-y-0 after:left-0 after:w-(--honk-shell-sash-stripe-width) after:rounded-px after:bg-transparent after:transition-[background-color,box-shadow] after:duration-100 after:ease-out hover:after:bg-(--honk-shell-sash-hover-shade) focus-visible:after:bg-(--honk-shell-sash-hover-shade) data-[active=true]:after:bg-(--honk-shell-sash-hover-shade) motion-reduce:after:transition-none"
           data-active={resize.dragging ? "true" : undefined}
           {...resize.sashProps}
           role="separator"
@@ -419,13 +399,9 @@ function RightAsideFrame(props: {
 function RightWorkbenchContent(props: {
   workspaceKey: string | null;
   right: RightWorkbenchDefinition;
-  routeThreadId: string | null;
-  gitFocusId: string | null;
   keybindings: ReturnType<typeof useServerKeybindings>;
 }) {
   const storedActiveTab = useActiveTab(props.workspaceKey);
-  const storedRightOpen = useRightOpen(props.workspaceKey);
-  const muted = useIsMuted(props.workspaceKey);
   const searchActiveTab = useSearch({
     from: "/_chat",
     shouldThrow: false,
@@ -438,15 +414,6 @@ function RightWorkbenchContent(props: {
     [props.right.tabs],
   );
   const effectiveActiveTab = visibleTabs.has(activeTab) ? activeTab : FALLBACK_WORKBENCH_TAB;
-  // The toggle in the header needs rightOpen; compute it here (subscribe at the
-  // consumer) rather than threading it from the Frame, which would rebuild the
-  // stable content element and defeat the children-stability bailout.
-  const rightOpen = resolveEffectiveRightOpen({
-    storedRightOpen,
-    routeThreadId: props.routeThreadId,
-    gitFocusId: props.gitFocusId,
-    muted,
-  });
 
   const handleWorkbenchTabChange = (value: unknown) => {
     if (!isWorkbenchTab(value)) {
@@ -498,7 +465,6 @@ function RightWorkbenchContent(props: {
           workspaceKey={props.workspaceKey}
           activeTab={effectiveActiveTab}
           tabs={props.right.tabs}
-          rightOpen={rightOpen}
           keybindings={props.keybindings}
         />
         <RightAsidePanels
@@ -537,12 +503,10 @@ const RightAside = memo(function RightAside(props: {
       <RightWorkbenchContent
         workspaceKey={props.workspaceKey}
         right={props.right}
-        routeThreadId={props.routeThreadId}
-        gitFocusId={props.gitFocusId}
         keybindings={props.keybindings}
       />
     ),
-    [props.workspaceKey, props.right, props.routeThreadId, props.gitFocusId, props.keybindings],
+    [props.workspaceKey, props.right, props.keybindings],
   );
 
   return (
@@ -601,14 +565,16 @@ function ShellHeaderControls(props: {
   const muted = useIsMuted(props.workspaceKey);
   const setCommandPaletteOpen = useCommandPaletteStore((store) => store.setOpen);
   const keybindings = useServerKeybindings();
-  const fullscreenTarget = useWorkspaceFullscreenTarget(props.workspaceKey);
+  // No fullscreen subscription here. The controls stay mounted across a
+  // fullscreen toggle (Cursor never unmounts its titlebar) and are hidden
+  // purely by CSS off the shell root's data-shell-fullscreen-target attribute.
+  // Subscribing would re-render the whole topbar on every toggle.
   const rightOpen = resolveEffectiveRightOpen({
     storedRightOpen,
     routeThreadId: props.routeThreadId,
     gitFocusId: props.gitFocusId,
     muted,
   });
-  const fullscreen = rightOpen && fullscreenTarget === "right-workbench";
 
   const activeKeybindings =
     keybindings.length > 0 ? keybindings : COMMAND_PALETTE_FALLBACK_KEYBINDINGS;
@@ -620,10 +586,6 @@ function ShellHeaderControls(props: {
     ? `Search (${commandPaletteShortcutLabel})`
     : "Search";
   const rightPanelLabel = rightOpen ? "Hide project panel" : SHOW_RIGHT_WORKBENCH_LABEL;
-
-  if (fullscreen) {
-    return null;
-  }
 
   return (
     <div className="honk-shell-titlebar-controls pointer-events-none absolute top-0 right-0 left-0 z-(--z-index-shell-titlebar-controls) box-border flex h-(--honk-header-height) min-w-0 items-center">
@@ -673,23 +635,20 @@ function ShellHeaderControls(props: {
 }
 
 /**
- * The chat center region. Owns its own fullscreen subscription so toggling
- * fullscreen flips only this element's `inert`/`aria-hidden` — the chat subtree
- * (passed as children) keeps its stable element identity and never re-renders.
+ * The chat center region. The maximized workbench reflows over it, so its
+ * `inert`/`aria-hidden` are flipped imperatively by ShellFullscreenLayer (via
+ * `centerRef`) rather than from a fullscreen subscription here. That way a
+ * fullscreen toggle re-renders no chrome at all; only the null layer reacts.
  */
 function ShellCenterRegion(props: {
-  workspaceKey: string | null;
-  rightOpen: boolean;
+  centerRef: RefObject<HTMLElement | null>;
   children: ReactNode;
 }) {
-  const fullscreenTarget = useWorkspaceFullscreenTarget(props.workspaceKey);
-  const fullscreen = props.rightOpen && fullscreenTarget === "right-workbench";
   return (
     <main
+      ref={props.centerRef}
       className="agent-window__center flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--honk-shell-center-surface-background) outline-hidden"
       data-component="chat-panel"
-      aria-hidden={fullscreen ? true : undefined}
-      inert={fullscreen}
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden outline-hidden">
         {props.children}
@@ -699,27 +658,49 @@ function ShellCenterRegion(props: {
 }
 
 /**
- * Writes `data-shell-fullscreen-target` on the shell root imperatively. Keeping
- * the attribute out of AppShell's JSX is what lets a fullscreen toggle avoid
- * re-rendering AppShell: only this null component (and the inert leaves) react.
+ * Single owner of the right-workbench fullscreen transition. On toggle this is
+ * the ONLY chrome that reacts: it re-renders to null and runs one
+ * layout-synchronous effect that flips the root `data-shell-fullscreen-target`
+ * attribute and the center's `inert`/`aria-hidden`. Every visual change then
+ * follows from CSS off that attribute. This mirrors Cursor, which flips a root
+ * class synchronously with the grid reflow and never re-renders its chrome.
+ *
+ * The write is layout-synchronous (pre-paint), not a passive effect: a passive
+ * `useEffect` would set the attribute one frame late, so the CSS reflow would
+ * not match for that frame and the layout would lag a frame behind the toggle.
  */
 function ShellFullscreenLayer(props: {
   rootRef: RefObject<HTMLDivElement | null>;
+  centerRef: RefObject<HTMLElement | null>;
   workspaceKey: string | null;
   rightOpen: boolean;
 }) {
   const fullscreenTarget = useWorkspaceFullscreenTarget(props.workspaceKey);
   const active = props.rightOpen && fullscreenTarget === "right-workbench";
-  useEffect(() => {
-    const node = props.rootRef.current;
-    if (!node) {
-      return undefined;
+  useLayoutSyncEffect(() => {
+    const root = props.rootRef.current;
+    const center = props.centerRef.current;
+    if (root) {
+      root.dataset.shellFullscreenTarget = active ? "right-workbench" : "none";
     }
-    node.dataset.shellFullscreenTarget = active ? "right-workbench" : "none";
+    if (center) {
+      center.inert = active;
+      if (active) {
+        center.setAttribute("aria-hidden", "true");
+      } else {
+        center.removeAttribute("aria-hidden");
+      }
+    }
     return () => {
-      node.dataset.shellFullscreenTarget = "none";
+      if (root) {
+        root.dataset.shellFullscreenTarget = "none";
+      }
+      if (center) {
+        center.inert = false;
+        center.removeAttribute("aria-hidden");
+      }
     };
-  }, [active, props.rootRef]);
+  }, [active, props.rootRef, props.centerRef]);
   return null;
 }
 
@@ -755,10 +736,11 @@ export function AppShell(props: {
     });
   // Fullscreen is intentionally NOT read here: AppShell sits atop the shell
   // tree, so subscribing would re-render every chrome panel on each toggle.
-  // The leaves that need it (panels' inert flags, the header button, and the
-  // null-rendering ShellFullscreenLayer that flips the root data attribute)
-  // subscribe individually; the visual change is pure CSS off that attribute.
+  // Only the panels' inert flags and the null-rendering ShellFullscreenLayer
+  // (which flips the root data attribute) subscribe individually. The topbar
+  // controls stay mounted; the visual change is pure CSS off that attribute.
   const agentWindowRef = useRef<HTMLDivElement | null>(null);
+  const centerRef = useRef<HTMLElement | null>(null);
   const modes = useShellPanelModes(agentWindowRef);
   const leftPresentation = panelPresentation(modes.left, leftOpen);
   const overlayActive = leftPresentation === "overlay-expanded";
@@ -896,18 +878,15 @@ export function AppShell(props: {
     >
       <ShellFullscreenLayer
         rootRef={agentWindowRef}
+        centerRef={centerRef}
         workspaceKey={workspaceKey}
         rightOpen={shellRightOpen}
       />
-      <LeftAside mode={modes.left} workspaceKey={workspaceKey} rightOpen={shellRightOpen}>
-        {props.left}
-      </LeftAside>
+      <LeftAside mode={modes.left}>{props.left}</LeftAside>
 
       <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col">
         <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-row">
-          <ShellCenterRegion workspaceKey={workspaceKey} rightOpen={shellRightOpen}>
-            {props.center}
-          </ShellCenterRegion>
+          <ShellCenterRegion centerRef={centerRef}>{props.center}</ShellCenterRegion>
 
           {showRight && props.right ? (
             <RightAside
