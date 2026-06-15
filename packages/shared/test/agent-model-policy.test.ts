@@ -11,6 +11,7 @@ const preferences = {
   interactionMode: "agent",
   modelSelection: DEFAULT_AGENT_POLICY_MODEL_SELECTION,
   modelSettingsByModelId: {},
+  fast: false,
   thinkingLevel: "high",
   resources: DEFAULT_AGENT_RESOURCE_PREFERENCES,
   credentials: [],

@@ -28,6 +28,17 @@ function asTrimmedString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
+const SUBAGENT_ROLE_LABELS: Record<string, string> = {
+  "general-purpose": "General Purpose",
+  oracle: "Oracle",
+  scout: "Scout",
+};
+
+export function formatSubagentRoleLabel(role: string | undefined): string | undefined {
+  const trimmed = role?.trim();
+  return trimmed && trimmed.length > 0 ? SUBAGENT_ROLE_LABELS[trimmed] : undefined;
+}
+
 function readSubagentDetails(
   item: Record<string, unknown> | null | undefined,
 ): Pick<SubagentToolDetails, "runs"> | null {

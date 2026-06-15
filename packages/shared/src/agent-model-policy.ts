@@ -88,6 +88,7 @@ export function createAgentModelPolicy(input: {
     agentMode: input.preferences.agentMode,
     interactionMode: input.interactionMode,
     modelSelection,
+    fast: input.preferences.fast,
     thinkingLevel:
       input.preferences.agentMode === "rush" || input.preferences.agentMode === "composer"
         ? thinkingLevelForAgentMode(input.preferences.agentMode)

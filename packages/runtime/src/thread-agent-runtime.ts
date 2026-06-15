@@ -16,6 +16,7 @@ import type {
   ThreadTokenUsageSnapshot,
   TurnId,
 } from "@honk/contracts";
+import { threadEntryIdForMessageId, type ThreadEntryId } from "@honk/contracts";
 import {
   AuthStorage,
   type AgentSessionEvent,
@@ -44,6 +45,7 @@ import {
   createContextUsageExtension,
   type ContextUsageSnapshotSink,
 } from "./context-usage-extension";
+import { createCodexRuntimePolicyExtension } from "./codex-runtime-policy-extension";
 import { createDesktopExtensionUi, type DesktopExtensionUiController } from "./extension-ui";
 import { makeRuntimeEventId, makeRuntimeSessionId, makeTurnId } from "./ids";
 import { projectPiAgentSessionEvent } from "./event-projection";
@@ -98,6 +100,7 @@ export interface ThreadAgentRuntimeOptions {
 export interface SendMessageOptions {
   readonly clientMessageId: MessageId | null;
   readonly replacesClientMessageId: MessageId | null;
+  readonly parentEntryId?: ThreadEntryId | null;
   readonly interactionMode: AgentInteractionMode;
   readonly sourceProposedPlan: SourceProposedPlanReference | null;
   readonly images: readonly ThreadAgentRuntimeImageAttachment[];
@@ -249,6 +252,7 @@ export class ThreadAgentRuntime {
         additionalExtensionPaths: [...(options.extensionPaths ?? [])],
         extensionFactories: [
           createHonkSystemPromptIdentityExtension(),
+          createCodexRuntimePolicyExtension(options.policy),
           ...(options.extensionFactories ?? []),
           createInteractionModeExtension(interactionModeQueue),
           createContextUsageExtension(contextUsageSink),
@@ -276,6 +280,7 @@ export class ThreadAgentRuntime {
         agentMode: options.policy.agentMode,
         interactionMode: options.policy.interactionMode,
         thinkingLevel: sessionResult.session.thinkingLevel,
+        fast: options.policy.fast,
         ...(options.tools ? { allowedToolNames: options.tools } : {}),
         excludedToolNames: excludeTools,
       };
@@ -368,7 +373,9 @@ export class ThreadAgentRuntime {
   }
 
   async sendMessage(text: string, options: SendMessageOptions): Promise<TurnId> {
-    if (options.replacesClientMessageId !== null) {
+    if (options.parentEntryId !== undefined) {
+      this.prepareParentBranch(options.parentEntryId);
+    } else if (options.replacesClientMessageId !== null) {
       this.prepareRevisionBranch(options.replacesClientMessageId);
     }
     const turnId = makeTurnId(this.threadId, ++this.turnSequence);
@@ -504,6 +511,11 @@ export class ThreadAgentRuntime {
     await this.session.followUp(text, toPiImageContent(images));
   }
 
+  async compactContext(customInstructions?: string): Promise<void> {
+    await this.session.compact(customInstructions);
+    this.emit(this.createEvent("tree.updated", "Session tree updated"));
+  }
+
   async abort(): Promise<void> {
     const turnId = this.activeTurnId ?? this.activeRunFirstTurnId;
     await this.session.abort();
@@ -591,6 +603,26 @@ export class ThreadAgentRuntime {
     this.session.agent.state.messages = this.session.sessionManager.buildSessionContext().messages;
   }
 
+  private prepareParentBranch(parentEntryId: ThreadEntryId | null): void {
+    if (this.isTurnInProgress()) {
+      throw new Error("Cannot branch a message while a runtime turn is in progress.");
+    }
+
+    if (parentEntryId === null) {
+      this.session.sessionManager.resetLeaf();
+      this.session.agent.state.messages = this.session.sessionManager.buildSessionContext().messages;
+      return;
+    }
+
+    const entryId = this.entryIdForThreadEntryId(parentEntryId);
+    if (!entryId) {
+      throw new Error(`Cannot branch from thread entry ${parentEntryId}: runtime entry not found.`);
+    }
+
+    this.session.sessionManager.branch(entryId);
+    this.session.agent.state.messages = this.session.sessionManager.buildSessionContext().messages;
+  }
+
   private isTurnInProgress(): boolean {
     return (
       this.pendingFirstTurnId !== undefined ||
@@ -606,6 +638,33 @@ export class ThreadAgentRuntime {
       }
     }
     return null;
+  }
+
+  private entryIdForThreadEntryId(threadEntryId: ThreadEntryId): string | null {
+    const threadEntryIdValue = String(threadEntryId);
+    const runtimeEntryPrefix = "runtime:";
+    if (threadEntryIdValue.startsWith(runtimeEntryPrefix)) {
+      const entryId = threadEntryIdValue.slice(runtimeEntryPrefix.length);
+      return this.hasSessionEntry(entryId) ? entryId : null;
+    }
+
+    const runtimeMessagePrefix = `message:runtime:${this.runtimeSessionId}:`;
+    if (threadEntryIdValue.startsWith(runtimeMessagePrefix)) {
+      const entryId = threadEntryIdValue.slice(runtimeMessagePrefix.length);
+      return this.hasSessionEntry(entryId) ? entryId : null;
+    }
+
+    for (const [entryId, clientMessageId] of this.clientMessageIdByEntryId) {
+      if (String(threadEntryIdForMessageId(clientMessageId)) === threadEntryIdValue) {
+        return this.hasSessionEntry(entryId) ? entryId : null;
+      }
+    }
+
+    return null;
+  }
+
+  private hasSessionEntry(entryId: string): boolean {
+    return this.session.sessionManager.getEntries().some((entry) => entry.id === entryId);
   }
 
   private createEvent(

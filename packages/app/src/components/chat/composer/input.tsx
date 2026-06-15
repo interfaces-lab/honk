@@ -18,6 +18,7 @@ import { Button } from "@honk/honkkit/button";
 import { Spinner } from "@honk/honkkit/spinner";
 import {
   Menu,
+  MenuCheckboxItem,
   MenuGroupLabel,
   MenuPopup,
   MenuRadioGroup,
@@ -58,6 +59,7 @@ import {
 import type { UnifiedSettings } from "@honk/contracts/settings";
 import {
   clampCollapsedComposerCursor,
+  isComposerModeSlashCommand,
   type ComposerTrigger,
   collapseExpandedComposerCursor,
   detectComposerTrigger,
@@ -449,7 +451,9 @@ function ComposerAgentModePicker(props: {
   composerFastModeEnabled: boolean;
   availability: AgentModeAvailability;
   disabled: boolean;
+  fastMode: boolean;
   onAgentModeChange: (agentMode: AgentMode) => void;
+  onFastModeChange: (fastMode: boolean) => void;
   onAgentModeThinkingLevelChange: (agentMode: AgentMode, thinkingLevel: AgentThinkingLevel) => void;
   onComposerFastModeChange: (fastEnabled: boolean) => void;
 }) {
@@ -490,19 +494,15 @@ function ComposerAgentModePicker(props: {
           const unavailableReason = unavailableAgentModeReason(mode, props.availability);
           const modeUnavailable = unavailableReason !== null;
           const hasEffortSettings = mode !== "rush" && mode !== "composer";
+          const hasOpenAIFastSettings = mode === "deep" || mode === "rush";
           const hasComposerFastSettings = mode === "composer";
-          const hasEditSettings = hasEffortSettings || hasComposerFastSettings;
-          const showEffortSettings =
-            !modeUnavailable &&
-            hasEffortSettings &&
-            openSubmenu?.mode === mode &&
-            openSubmenu.kind === "effort";
-          const showComposerFastSettings =
-            !modeUnavailable &&
-            hasComposerFastSettings &&
-            openSubmenu?.mode === mode &&
-            openSubmenu.kind === "effort";
-          const showEditSettings = showEffortSettings || showComposerFastSettings;
+          const hasEditSettings =
+            hasEffortSettings || hasOpenAIFastSettings || hasComposerFastSettings;
+          const showEditSettings =
+            !modeUnavailable && openSubmenu?.mode === mode && openSubmenu.kind === "effort";
+          const showEffortSettings = showEditSettings && hasEffortSettings;
+          const showOpenAIFastSettings = showEditSettings && hasOpenAIFastSettings;
+          const showComposerFastSettings = showEditSettings && hasComposerFastSettings;
 
           return (
             <MenuSub
@@ -592,45 +592,71 @@ function ComposerAgentModePicker(props: {
                 side="inline-end"
                 className={cn(
                   "border-transparent shadow-honk-base",
-                  showEditSettings ? "w-[160px]" : "w-[220px]",
+                  showOpenAIFastSettings
+                    ? "w-[220px]"
+                    : showEditSettings
+                      ? "w-[160px]"
+                      : "w-[220px]",
                 )}
               >
-                {showEffortSettings ? (
-                  <MenuRadioGroup
-                    value={thinkingLevel}
-                    onValueChange={(value) => {
-                      const option = AGENT_THINKING_LEVEL_OPTIONS.find(
-                        (entry) => entry.value === value,
-                      );
-                      if (option) {
-                        props.onAgentModeThinkingLevelChange(mode, option.value);
-                      }
-                    }}
-                  >
-                    <MenuGroupLabel variant="workbench">Effort</MenuGroupLabel>
-                    {AGENT_THINKING_LEVEL_OPTIONS.map((option) => (
-                      <MenuRadioItem
-                        key={option.value}
-                        value={option.value}
-                        variant="workbench"
-                        className="transition-none"
+                {showEditSettings ? (
+                  <>
+                    {showEffortSettings ? (
+                      <MenuRadioGroup
+                        value={thinkingLevel}
+                        onValueChange={(value) => {
+                          const option = AGENT_THINKING_LEVEL_OPTIONS.find(
+                            (entry) => entry.value === value,
+                          );
+                          if (option) {
+                            props.onAgentModeThinkingLevelChange(mode, option.value);
+                          }
+                        }}
                       >
-                        {MODEL_THINKING_LEVEL_LABELS[option.value]}
-                      </MenuRadioItem>
-                    ))}
-                  </MenuRadioGroup>
-                ) : showComposerFastSettings ? (
-                  <div className="px-2 py-1.5">
-                    <MenuGroupLabel variant="workbench">Mode</MenuGroupLabel>
-                    <label className="mt-1 flex items-center justify-between gap-3 rounded-[4px] px-2 py-1.5 text-body text-honk-fg-primary">
-                      <span className="min-w-0 truncate">Fast mode</span>
-                      <Switch
-                        checked={props.composerFastModeEnabled}
-                        aria-label="Fast mode"
-                        onCheckedChange={props.onComposerFastModeChange}
-                      />
-                    </label>
-                  </div>
+                        <MenuGroupLabel variant="workbench">Effort</MenuGroupLabel>
+                        {AGENT_THINKING_LEVEL_OPTIONS.map((option) => (
+                          <MenuRadioItem
+                            key={option.value}
+                            value={option.value}
+                            variant="workbench"
+                            className="transition-none"
+                          >
+                            {MODEL_THINKING_LEVEL_LABELS[option.value]}
+                          </MenuRadioItem>
+                        ))}
+                      </MenuRadioGroup>
+                    ) : null}
+                    {showOpenAIFastSettings ? (
+                      <>
+                        <MenuGroupLabel
+                          variant="workbench"
+                          className={showEffortSettings ? "mt-1" : undefined}
+                        >
+                          OpenAI
+                        </MenuGroupLabel>
+                        <MenuCheckboxItem
+                          checked={props.fastMode}
+                          onCheckedChange={props.onFastModeChange}
+                          variant="workbench-switch"
+                        >
+                          Fast Mode
+                        </MenuCheckboxItem>
+                      </>
+                    ) : null}
+                    {showComposerFastSettings ? (
+                      <div className="px-2 py-1.5">
+                        <MenuGroupLabel variant="workbench">Mode</MenuGroupLabel>
+                        <label className="mt-1 flex items-center justify-between gap-3 rounded-[4px] px-2 py-1.5 text-body text-honk-fg-primary">
+                          <span className="min-w-0 truncate">Fast mode</span>
+                          <Switch
+                            checked={props.composerFastModeEnabled}
+                            aria-label="Fast mode"
+                            onCheckedChange={props.onComposerFastModeChange}
+                          />
+                        </label>
+                      </div>
+                    ) : null}
+                  </>
                 ) : (
                   <AgentModeDetailsPopup mode={mode} unavailableReason={unavailableReason} />
                 )}
@@ -1353,6 +1379,7 @@ export const ComposerInput = memo(
       composerImagesRef,
       footerSecondaryAction,
       onSend,
+      onCompactContext,
       onInterrupt,
       onBuildPlan,
       onViewPlan,
@@ -1381,6 +1408,7 @@ export const ComposerInput = memo(
       onReorderQueuedComposerItem ?? ignoreQueuedComposerItemReorder;
     const handleQueuedComposerItemsExpandedChange =
       onQueuedComposerItemsExpandedChange ?? ignoreQueuedComposerExpandedChange;
+    const handleCompactContext = onCompactContext ?? (() => undefined);
     const handleRespondToApproval: NonNullable<ComposerInputProps["onRespondToApproval"]> =
       onRespondToApproval ?? missingPendingHandlers.respondToApproval;
     const handleSelectActivePendingUserInputOption: NonNullable<
@@ -1634,6 +1662,10 @@ export const ComposerInput = memo(
       );
     };
 
+    const handleFastModeChange = (fastMode: boolean) => {
+      updateAgentRuntimePreferences({ fast: fastMode }, "Failed to update fast mode.");
+    };
+
     const syncModeSuggestionUsageForPrompt = (prompt: string) => {
       modeSuggestionUsageRef.current = normalizeComposerModeSuggestionUsage(
         modeSuggestionUsageRef.current,
@@ -1775,6 +1807,7 @@ export const ComposerInput = memo(
       composerMenuIsSearching,
     } = useComposerCommandMenu({
       activeThreadId,
+      agentMode: runtimePreferences.agentMode,
       allowModeSlashCommands: showModeControls,
       composerTrigger,
       environmentId,
@@ -2321,6 +2354,27 @@ export const ComposerInput = memo(
         return;
       }
       if (item.type === "slash-command") {
+        if (item.command === "compact") {
+          const removalRange = slashCommandRemovalRange(snapshot.value, trigger);
+          const applied = applyPromptReplacement(
+            removalRange.rangeStart,
+            removalRange.rangeEnd,
+            "",
+            {
+              expectedText: snapshot.value.slice(removalRange.rangeStart, removalRange.rangeEnd),
+            },
+          );
+          if (applied) {
+            clearComposerCommandMenuState();
+            handleCompactContext();
+          }
+          return;
+        }
+        if (item.command === "goal") {
+          applyComposerTokenReplacement(snapshot, trigger, "/goal ");
+          return;
+        }
+        if (!isComposerModeSlashCommand(item.command)) return;
         const nextMode = parseInteractionMode(item.command);
         if (!nextMode) return;
         handleInteractionModeChange(nextMode);
@@ -2554,7 +2608,9 @@ export const ComposerInput = memo(
             composerFastModeEnabled={composerFastModeEnabled}
             availability={agentModeAvailability}
             disabled={isAgentModeSaving || isConnecting}
+            fastMode={runtimePreferences.fast}
             onAgentModeChange={handleAgentModeChange}
+            onFastModeChange={handleFastModeChange}
             onAgentModeThinkingLevelChange={handleAgentModeThinkingLevelChange}
             onComposerFastModeChange={handleComposerFastModeChange}
           />

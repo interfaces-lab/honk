@@ -88,6 +88,7 @@ export const AgentModelPolicy = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed("agent" as const)),
   ),
   modelSelection: AgentPolicyModelSelection,
+  fast: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   thinkingLevel: Schema.NullOr(AgentThinkingLevel).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
@@ -200,6 +201,7 @@ export const AgentPreferences = Schema.Struct({
   modelSettingsByModelId: Schema.Record(ModelId, AgentModelSettings).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
+  fast: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   thinkingLevel: AgentThinkingLevel.pipe(
     Schema.withDecodingDefault(Effect.succeed("high" as const)),
   ),
@@ -217,6 +219,7 @@ export const AgentPreferencesPatch = Schema.Struct({
   interactionMode: Schema.optionalKey(AgentInteractionMode),
   modelSelection: Schema.optionalKey(AgentPolicyModelSelection),
   modelSettingsByModelId: Schema.optionalKey(Schema.Record(ModelId, AgentModelSettings)),
+  fast: Schema.optionalKey(Schema.Boolean),
   thinkingLevel: Schema.optionalKey(AgentThinkingLevel),
   resources: Schema.optionalKey(AgentResourcePreferences),
   credentials: Schema.optionalKey(Schema.Array(AgentCredentialPreference)),
@@ -370,10 +373,15 @@ export const ThreadAgentRuntimeSendTurnInput = Schema.Struct({
   clientMessageId: MessageId,
   /**
    * User message this send revises. The runtime branches the pi session so the
-   * new message becomes a sibling of the revised one; omitted/null appends at
-   * the current leaf.
+   * new message becomes a sibling of the revised one when parentEntryId points
+   * at the revised message's parent.
    */
   replacesClientMessageId: Schema.optional(Schema.NullOr(MessageId)),
+  /**
+   * Thread tree entry this send appends under. This is the canonical branch
+   * point shared by orchestration and the runtime session tree.
+   */
+  parentEntryId: Schema.optional(Schema.NullOr(ThreadEntryId)),
   images: Schema.Array(ThreadAgentRuntimeImageAttachment),
   policy: AgentModelPolicy,
 });
@@ -386,6 +394,14 @@ export const ThreadAgentRuntimeHydrateInput = Schema.Struct({
 });
 export type ThreadAgentRuntimeHydrateInput = typeof ThreadAgentRuntimeHydrateInput.Type;
 
+export const ThreadAgentRuntimeCompactInput = Schema.Struct({
+  threadId: ThreadId,
+  cwd: TrimmedNonEmptyString,
+  customInstructions: Schema.optional(Schema.String),
+  policy: AgentModelPolicy,
+});
+export type ThreadAgentRuntimeCompactInput = typeof ThreadAgentRuntimeCompactInput.Type;
+
 export const ThreadAgentRuntimeSetThreadFocusInput = Schema.Struct({
   threadId: ThreadId,
   focused: Schema.Boolean,
@@ -396,10 +412,6 @@ export type ThreadAgentRuntimeSetThreadFocusInput =
 export const SUBAGENT_MODES = ["single", "parallel", "chain"] as const;
 export const SubagentMode = Schema.Literals(SUBAGENT_MODES);
 export type SubagentMode = typeof SubagentMode.Type;
-
-export const SUBAGENT_SCOPES = ["user", "project", "both"] as const;
-export const SubagentScope = Schema.Literals(SUBAGENT_SCOPES);
-export type SubagentScope = typeof SubagentScope.Type;
 
 export const SUBAGENT_RUN_STATES = ["running", "completed", "failed", "aborted"] as const;
 export const SubagentRunState = Schema.Literals(SUBAGENT_RUN_STATES);
@@ -460,8 +472,6 @@ export type SubagentRunSnapshot = typeof SubagentRunSnapshot.Type;
 
 export const SubagentToolDetails = Schema.Struct({
   mode: SubagentMode,
-  agentScope: SubagentScope,
-  projectAgentsDir: Schema.NullOr(Schema.String),
   runs: Schema.Array(SubagentRunSnapshot),
   activities: Schema.Array(SubagentActivityDetails),
 });
@@ -584,8 +594,6 @@ const RuntimeDisplayTimelineMcpToolDisplay = Schema.Struct({
 const RuntimeDisplayTimelineSubagentToolDisplay = Schema.Struct({
   kind: Schema.Literal("subagent"),
   mode: SubagentMode,
-  agentScope: SubagentScope,
-  projectAgentsDir: Schema.NullOr(Schema.String),
   runs: Schema.Array(SubagentRunSnapshot),
   activities: Schema.Array(SubagentActivityDetails),
 });
@@ -871,6 +879,7 @@ export interface HonkRuntimeApi {
   updatePreferences: (patch: AgentPreferencesPatch) => Promise<AgentPreferences>;
   configureCredential: (input: AgentCredentialConfigureInput) => Promise<HonkRuntimeHostSnapshot>;
   hydrateThread: (input: ThreadAgentRuntimeHydrateInput) => Promise<void>;
+  compactThread: (input: ThreadAgentRuntimeCompactInput) => Promise<void>;
   setThreadFocus: (input: ThreadAgentRuntimeSetThreadFocusInput) => Promise<void>;
   sendTurn: (input: ThreadAgentRuntimeSendTurnInput) => Promise<TurnId>;
   abort: (input: ThreadAgentRuntimeAbortInput) => Promise<void>;

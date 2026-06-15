@@ -1,5 +1,6 @@
 import {
   MessageId,
+  ThreadEntryId,
   ThreadId,
   TurnId,
   type AgentPreferences,
@@ -40,6 +41,7 @@ function createRuntimeApi(input: {
       input.onSendTurn?.(turn);
       return TurnId.make(`turn:${turn.threadId}`);
     },
+    compactThread: async () => undefined,
     abort: async () => undefined,
     respondToExtensionUiRequest: async () => undefined,
     listSkills: async () => ({ skills: [] }),
@@ -338,6 +340,7 @@ describe("sendRuntimeTurn", () => {
       sourceProposedPlan: null,
       clientMessageId: MessageId.make("message:prepared-policy"),
       replacesClientMessageId: MessageId.make("message:original"),
+      parentEntryId: ThreadEntryId.make("message:parent"),
       images: [],
       modelSelection: codexModelSelection,
     });
@@ -352,6 +355,7 @@ describe("sendRuntimeTurn", () => {
       expect.objectContaining({
         threadId: ThreadId.make("thread:prepared-policy"),
         input: "hi",
+        parentEntryId: ThreadEntryId.make("message:parent"),
         replacesClientMessageId: MessageId.make("message:original"),
       }),
     ]);

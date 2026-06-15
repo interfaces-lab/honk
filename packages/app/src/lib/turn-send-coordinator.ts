@@ -21,7 +21,8 @@ import {
   createThreadSendIntent,
   useThreadSendIntentStore,
 } from "~/stores/thread-send-intent-store";
-import { useStore } from "~/stores/thread-store";
+import { selectEnvironmentState, useStore } from "~/stores/thread-store";
+import { getThreadFromEnvironmentState } from "~/thread-derivation";
 import { DEFAULT_RUNTIME_MODE } from "~/types";
 import { newCommandId } from "~/lib/utils";
 import {
@@ -44,9 +45,10 @@ export interface CoordinateTurnSendInput {
   readonly createdAt: string;
   readonly message: TurnSendMessageContent;
   /**
-   * Explicit branch point for branching sends (message edits). Omit for
-   * tip-append sends: the server resolves its own committed leaf, which the
-   * client cannot know reliably while runtime persistence is in flight.
+   * Explicit branch point for this send. Omit for normal sends so the
+   * coordinator resolves the active thread leaf once and passes that same
+   * parent to orchestration and the runtime. Branching edit sends must pass
+   * the edited message's parent explicitly.
    */
   readonly parentEntryId?: ThreadEntryId | null;
   /**
@@ -83,6 +85,18 @@ export interface CoordinateTurnSendResult {
 export async function coordinateTurnSend(
   input: CoordinateTurnSendInput,
 ): Promise<CoordinateTurnSendResult> {
+  if (input.replacesClientMessageId != null && input.parentEntryId === undefined) {
+    throw new Error("Branching edit sends require parentEntryId.");
+  }
+
+  const resolvedParentEntryId =
+    input.parentEntryId !== undefined
+      ? input.parentEntryId
+      : (getThreadFromEnvironmentState(
+          selectEnvironmentState(useStore.getState(), input.environmentId),
+          input.threadId,
+        )?.leafId ?? null);
+
   if (input.appendSendIntent !== false) {
     useThreadSendIntentStore.getState().appendSendIntent(
       input.threadKey,
@@ -92,7 +106,7 @@ export async function coordinateTurnSend(
         ...(input.message.richText !== undefined ? { richText: input.message.richText } : {}),
         attachments: [...input.message.optimisticAttachments],
         createdAt: input.createdAt,
-        parentEntryId: input.parentEntryId ?? null,
+        parentEntryId: resolvedParentEntryId,
       }),
     );
   }
@@ -111,7 +125,7 @@ export async function coordinateTurnSend(
       titleSeed: input.titleSeed,
       runtimeMode: input.runtimeMode ?? DEFAULT_RUNTIME_MODE,
       interactionMode: input.interactionMode,
-      ...(input.parentEntryId !== undefined ? { parentEntryId: input.parentEntryId } : {}),
+      parentEntryId: resolvedParentEntryId,
       ...(input.sourceProposedPlan ? { sourceProposedPlan: input.sourceProposedPlan } : {}),
       createdAt: input.createdAt,
     });
@@ -142,6 +156,7 @@ export async function coordinateTurnSend(
         sourceProposedPlan: input.sourceProposedPlan ?? null,
         clientMessageId: input.clientMessageId,
         replacesClientMessageId: input.replacesClientMessageId ?? null,
+        parentEntryId: resolvedParentEntryId,
         images: turnAttachments as ThreadAgentRuntimeImageAttachment[],
         modelSelection: input.modelSelection,
         preparedPolicy: input.preparedPolicy,
@@ -174,7 +189,7 @@ export async function coordinateTurnSend(
       titleSeed: input.titleSeed,
       runtimeMode: input.runtimeMode ?? DEFAULT_RUNTIME_MODE,
       interactionMode: input.interactionMode,
-      ...(input.parentEntryId !== undefined ? { parentEntryId: input.parentEntryId } : {}),
+      parentEntryId: resolvedParentEntryId,
       sourceProposedPlan: input.sourceProposedPlan ?? null,
       ...(input.bootstrap ? { bootstrap: input.bootstrap } : {}),
     });

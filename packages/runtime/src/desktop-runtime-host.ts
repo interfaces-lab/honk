@@ -28,6 +28,7 @@ import {
   type RuntimeThreadIdentity,
   type SessionTreeProjection,
   type ThreadAgentRuntimeAbortInput,
+  type ThreadAgentRuntimeCompactInput,
   type ThreadAgentRuntimeHydrateInput,
   type ThreadAgentRuntimeSetThreadFocusInput,
   type ThreadAgentRuntimeSendTurnInput,
@@ -57,6 +58,7 @@ const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
   interactionMode: "agent",
   modelSelection: DEFAULT_AGENT_POLICY_MODEL_SELECTION,
   modelSettingsByModelId: {},
+  fast: false,
   thinkingLevel: "high",
   resources: DEFAULT_AGENT_RESOURCE_PREFERENCES,
   credentials: [
@@ -161,6 +163,7 @@ type RuntimeThreadSendInput = Pick<
   | "sourceProposedPlan"
   | "clientMessageId"
   | "replacesClientMessageId"
+  | "parentEntryId"
   | "images"
 >;
 
@@ -472,6 +475,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     return entry.runtime.sendMessage(input.input, {
       clientMessageId: input.clientMessageId,
       replacesClientMessageId: input.replacesClientMessageId ?? null,
+      ...(input.parentEntryId !== undefined ? { parentEntryId: input.parentEntryId } : {}),
       interactionMode: input.interactionMode,
       sourceProposedPlan: input.sourceProposedPlan,
       images: input.images,
@@ -500,6 +504,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       sourceProposedPlan: input.sourceProposedPlan,
       clientMessageId: input.clientMessageId,
       replacesClientMessageId: input.replacesClientMessageId,
+      ...(input.parentEntryId !== undefined ? { parentEntryId: input.parentEntryId } : {}),
       images: input.images,
     };
     const startInput: RuntimeThreadStartInput = {
@@ -522,6 +527,29 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
 
     await this.startThread(startInput);
     return this.send(sendInput);
+  }
+
+  async compactThread(input: ThreadAgentRuntimeCompactInput): Promise<void> {
+    const startInput: RuntimeThreadStartInput = {
+      threadId: input.threadId,
+      cwd: input.cwd,
+      policy: input.policy,
+    };
+
+    if (!this.runtimes.has(input.threadId)) {
+      await this.startThread(startInput);
+    }
+
+    let entry = this.runtimes.get(input.threadId);
+    if (!entry) {
+      await this.startThread(startInput);
+      entry = this.runtimes.get(input.threadId);
+    }
+    if (!entry) {
+      throw new Error(`No runtime thread exists for ${input.threadId}.`);
+    }
+
+    await entry.runtime.compactContext(input.customInstructions);
   }
 
   async abort(input: ThreadAgentRuntimeAbortInput): Promise<void> {
