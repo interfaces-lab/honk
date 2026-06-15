@@ -2,12 +2,6 @@ import { syncAppearanceDisplayZoom } from "./lib/appearance-settings";
 import { isElectron } from "./env";
 import { selectSidebarThreadsAcrossEnvironments, useStore } from "./stores/thread-store";
 import type { AppState } from "./stores/thread-store";
-import type { SidebarThreadSummary } from "./types";
-
-export function hasActiveRunningTurn(summary: SidebarThreadSummary): boolean {
-  const session = summary.session;
-  return session?.orchestrationStatus === "running" && session.activeTurnId !== undefined;
-}
 
 let installed = false;
 let lastRunningThreadCount = -1;
@@ -20,7 +14,9 @@ export function countRunningThreadsWithServerState(state: AppState): number {
   );
 
   return selectSidebarThreadsAcrossEnvironments(state).filter(
-    (summary) => serverEnvironmentIds.has(summary.environmentId) && hasActiveRunningTurn(summary),
+    (summary) =>
+      serverEnvironmentIds.has(summary.environmentId) &&
+      summary.session?.orchestrationStatus === "running",
   ).length;
 }
 

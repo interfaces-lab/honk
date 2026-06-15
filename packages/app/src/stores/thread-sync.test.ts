@@ -337,6 +337,15 @@ const turnCompletedEvent = {
   runtimeSessionId,
   turnId,
   createdAt: turnCompletedAt,
+  data: { type: "turn_end" },
+} satisfies AgentRuntimeEvent;
+const agentCompletedEvent = {
+  id: EventId.make("runtime-event:agent.completed"),
+  type: "agent.completed",
+  agentRuntime: "pi",
+  threadId,
+  runtimeSessionId,
+  createdAt: "2026-06-01T12:00:33.000Z",
 } satisfies AgentRuntimeEvent;
 const subagentThreadId = "thread:pi-runtime-store:subagent";
 const otherThreadId = ThreadId.make("thread:pi-runtime-store:other");
@@ -1290,6 +1299,25 @@ describe("Pi runtime thread sync", () => {
     thread = currentThread().thread;
     expect(thread.latestTurn?.state).toBe("interrupted");
     expect(thread.latestTurn?.completedAt).toBe(turnInterruptedAt);
+  });
+
+  it("keeps the Pi run active between turn_end and agent_end", () => {
+    useStore.getState().applyRuntimeSessionTreeProjection(sessionTreeProjection, environmentId);
+    useStore.getState().applyAgentRuntimeEvent(turnStartedEvent, environmentId);
+    useStore.getState().applyAgentRuntimeEvent(turnCompletedEvent, environmentId);
+
+    let { thread } = currentThread();
+    expect(thread.session?.status).toBe("running");
+    expect(thread.session?.orchestrationStatus).toBe("running");
+    expect(thread.session?.activeTurnId).toBeUndefined();
+    expect(thread.latestTurn?.state).toBe("completed");
+    expect(thread.latestTurn?.completedAt).toBe(turnCompletedAt);
+
+    useStore.getState().applyAgentRuntimeEvent(agentCompletedEvent, environmentId);
+    thread = currentThread().thread;
+    expect(thread.session?.status).toBe("ready");
+    expect(thread.session?.orchestrationStatus).toBe("ready");
+    expect(thread.session?.activeTurnId).toBeUndefined();
   });
 
   it("applies live context window usage events as thread activities", () => {
