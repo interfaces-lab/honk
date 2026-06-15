@@ -80,8 +80,6 @@ function runtimeSubagentRunSignature(display: RuntimeSubagentDisplay): string {
   return [
     display.kind,
     display.mode,
-    display.agentScope,
-    display.projectAgentsDir ?? "",
     ...display.runs.map((run) =>
       [
         run.subagentThreadId,

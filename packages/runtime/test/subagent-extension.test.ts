@@ -35,8 +35,6 @@ function makeActivity(sequence: number): SubagentActivityDetails {
 function makeDetails(activityCount: number): SubagentToolDetails {
   return {
     mode: "parallel",
-    agentScope: "both",
-    projectAgentsDir: null,
     runs: [],
     activities: Array.from({ length: activityCount }, (_, index) => makeActivity(index)),
   };

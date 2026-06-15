@@ -18,7 +18,6 @@ import {
   type SubagentMode,
   type SubagentRunSnapshot,
   type SubagentRunState,
-  type SubagentScope,
   type SubagentToolDetails,
 } from "@honk/contracts";
 import { ThreadAgentRuntime } from "./thread-agent-runtime";
@@ -109,8 +108,6 @@ interface MutableSubagentRun {
 
 interface SubagentExecutionState {
   readonly mode: SubagentMode;
-  readonly agentScope: SubagentScope;
-  readonly projectAgentsDir: string | null;
   readonly runs: MutableSubagentRun[];
   readonly activities: SubagentActivityDetails[];
   readonly activityIndexById: Map<string, number>;
@@ -153,7 +150,7 @@ const SubagentParams = Type.Object({
   agent: Type.Optional(
     Type.String({
       description:
-        "Default named agent for all tasks (scout, oracle, general-purpose, or a user/project agent). Per-task agent overrides this.",
+        "Default named agent for all tasks (scout, oracle, or general-purpose). Per-task agent overrides this.",
     }),
   ),
   model: Type.Optional(Type.String({ description: "Default override model id for all tasks." })),
@@ -166,11 +163,6 @@ const SubagentParams = Type.Object({
     }),
   ),
   context: Type.Optional(Type.String({ description: "Shared context given to every task." })),
-  agentScope: Type.Optional(
-    Type.Union([Type.Literal("user"), Type.Literal("project"), Type.Literal("both")], {
-      description: "Where to resolve named agents from. Defaults to both.",
-    }),
-  ),
   tasks: Type.Optional(Type.Array(TaskItem, { description: "Parallel subagent tasks." })),
   chain: Type.Optional(Type.Array(ChainItem, { description: "Sequential subagent tasks." })),
   cwd: Type.Optional(Type.String({ description: "Working directory for single mode." })),
@@ -226,15 +218,9 @@ function createTrailingThrottle(fn: () => void, intervalMs: number): TrailingThr
   };
 }
 
-function createExecutionState(
-  mode: SubagentMode,
-  agentScope: SubagentScope,
-  projectAgentsDir: string | null,
-): SubagentExecutionState {
+function createExecutionState(mode: SubagentMode): SubagentExecutionState {
   return {
     mode,
-    agentScope,
-    projectAgentsDir,
     runs: [],
     activities: [],
     activityIndexById: new Map(),
@@ -259,8 +245,6 @@ function runSnapshot(run: MutableSubagentRun): SubagentRunSnapshot {
 function toolDetails(state: SubagentExecutionState): SubagentToolDetails {
   return {
     mode: state.mode,
-    agentScope: state.agentScope,
-    projectAgentsDir: state.projectAgentsDir,
     runs: state.runs.map(runSnapshot),
     activities: [...state.activities],
   };
@@ -640,6 +624,7 @@ async function runSubagentTask(input: {
       agentMode: profile.agentMode,
       interactionMode: "agent",
       modelSelection,
+      fast: false,
       thinkingLevel: productThinkingLevel,
       // The effective allowlist is driven by the `tools` option above (create derives the policy's
       // allowedToolNames from it); leave this empty so we don't fight the branded policy type.
@@ -765,24 +750,20 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
           const hasSingle = Boolean(params.prompt);
           const modeCount = Number(hasChain) + Number(hasTasks) + Number(hasSingle);
           const mode: SubagentMode = hasChain ? "chain" : hasTasks ? "parallel" : "single";
-          const agentScope: SubagentScope = params.agentScope ?? "both";
           const thinkingOverride = normalizeAgentThinkingLevel(params.thinkingLevel);
           const sharedOverrides: SubagentProfileOverrides = {
             ...(params.model ? { model: params.model } : {}),
             ...(thinkingOverride ? { thinkingLevel: thinkingOverride } : {}),
             ...(params.tools && params.tools.length > 0 ? { tools: params.tools } : {}),
           };
-          // Resolve a profile per task: builtin < user < project agents, then per-call overrides
-          // (per-task agent/model win over the shared defaults).
+          // Resolve a built-in profile per task, then apply per-call overrides. Per-task agent/model
+          // values win over the shared defaults.
           const resolveProfileForTask = (taskAgent?: string, taskModel?: string) =>
             resolveSubagentProfile({
               name: taskAgent ?? params.agent ?? null,
-              scope: agentScope,
-              cwd: ctx.cwd,
-              agentDir,
               overrides: { ...sharedOverrides, ...(taskModel ? { model: taskModel } : {}) },
             });
-          const state = createExecutionState(mode, agentScope, null);
+          const state = createExecutionState(mode);
           // Compute + publish the combined details at most ~10 Hz (trailing edge). runSubagentTask
           // calls `notify()` on every child event; the throttle reads the current `state` only when
           // it actually fires, so the expensive `toolDetails` copy no longer runs per child chunk.

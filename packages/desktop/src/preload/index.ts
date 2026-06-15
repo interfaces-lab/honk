@@ -44,6 +44,7 @@ const RUNTIME_CONFIGURE_CREDENTIAL_CHANNEL = "desktop:runtime-configure-credenti
 const RUNTIME_HYDRATE_THREAD_CHANNEL = "desktop:runtime-hydrate-thread";
 const RUNTIME_SET_THREAD_FOCUS_CHANNEL = "desktop:runtime-set-thread-focus";
 const RUNTIME_SEND_TURN_CHANNEL = "desktop:runtime-send-turn";
+const RUNTIME_COMPACT_THREAD_CHANNEL = "desktop:runtime-compact-thread";
 const RUNTIME_ABORT_CHANNEL = "desktop:runtime-abort";
 const RUNTIME_RESPOND_EXTENSION_UI_CHANNEL = "desktop:runtime-respond-extension-ui";
 const RUNTIME_LIST_SKILLS_CHANNEL = "desktop:runtime-list-skills";
@@ -59,6 +60,7 @@ const desktopRuntimeApi = {
   hydrateThread: (input) => ipcRenderer.invoke(RUNTIME_HYDRATE_THREAD_CHANNEL, input),
   setThreadFocus: (input) => ipcRenderer.invoke(RUNTIME_SET_THREAD_FOCUS_CHANNEL, input),
   sendTurn: (input) => ipcRenderer.invoke(RUNTIME_SEND_TURN_CHANNEL, input),
+  compactThread: (input) => ipcRenderer.invoke(RUNTIME_COMPACT_THREAD_CHANNEL, input),
   abort: (input) => ipcRenderer.invoke(RUNTIME_ABORT_CHANNEL, input),
   respondToExtensionUiRequest: (input) =>
     ipcRenderer.invoke(RUNTIME_RESPOND_EXTENSION_UI_CHANNEL, input),

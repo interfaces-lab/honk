@@ -28,6 +28,7 @@ import {
   type RuntimeThreadIdentity,
   type SessionTreeProjection,
   type ThreadAgentRuntimeAbortInput,
+  type ThreadAgentRuntimeCompactInput,
   type ThreadAgentRuntimeHydrateInput,
   type ThreadAgentRuntimeSetThreadFocusInput,
   type ThreadAgentRuntimeSendTurnInput,
@@ -56,6 +57,7 @@ const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
   interactionMode: "agent",
   modelSelection: DEFAULT_AGENT_POLICY_MODEL_SELECTION,
   modelSettingsByModelId: {},
+  fast: false,
   thinkingLevel: "high",
   resources: DEFAULT_AGENT_RESOURCE_PREFERENCES,
   credentials: [
@@ -510,6 +512,29 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
 
     await this.startThread(startInput);
     return this.send(sendInput);
+  }
+
+  async compactThread(input: ThreadAgentRuntimeCompactInput): Promise<void> {
+    const startInput: RuntimeThreadStartInput = {
+      threadId: input.threadId,
+      cwd: input.cwd,
+      policy: input.policy,
+    };
+
+    if (!this.runtimes.has(input.threadId)) {
+      await this.startThread(startInput);
+    }
+
+    let entry = this.runtimes.get(input.threadId);
+    if (!entry) {
+      await this.startThread(startInput);
+      entry = this.runtimes.get(input.threadId);
+    }
+    if (!entry) {
+      throw new Error(`No runtime thread exists for ${input.threadId}.`);
+    }
+
+    await entry.runtime.compactContext(input.customInstructions);
   }
 
   async abort(input: ThreadAgentRuntimeAbortInput): Promise<void> {

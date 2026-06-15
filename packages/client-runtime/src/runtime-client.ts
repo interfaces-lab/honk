@@ -19,6 +19,7 @@ const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
   interactionMode: "agent",
   modelSelection: DEFAULT_AGENT_POLICY_MODEL_SELECTION,
   modelSettingsByModelId: {},
+  fast: false,
   thinkingLevel: "high",
   resources: DEFAULT_AGENT_RESOURCE_PREFERENCES,
   credentials: [
@@ -160,6 +161,13 @@ export function createRuntimeClientFromApi(runtime: HonkRuntimeApi): HonkRuntime
     hydrateThread: (input) => runtime.hydrateThread(input),
     setThreadFocus: (input) => runtime.setThreadFocus(input),
     sendTurn: (input) => runtime.sendTurn(input),
+    compactThread: async (input) => {
+      const compactThread = Reflect.get(runtime, "compactThread");
+      if (typeof compactThread !== "function") {
+        throw new Error("Runtime host does not support context compaction.");
+      }
+      await Promise.resolve(compactThread.call(runtime, input));
+    },
     abort: (input) => runtime.abort(input),
     respondToExtensionUiRequest: (input) => runtime.respondToExtensionUiRequest(input),
     // Older runtime bridges (e.g. a stale window.honkRuntime preload) predate these methods, so

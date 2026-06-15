@@ -28,6 +28,7 @@ import {
   type WorkLogSubagent,
   type WorkLogSubagentLog,
 } from "../../../../session-logic";
+import { formatSubagentRoleLabel } from "../../../../session/subagents";
 import {
   isSubagentTrayLogVisible,
   useSubagentTrayStore,
@@ -197,6 +198,8 @@ function SubagentTray(props: { selection: SubagentTraySelection; onClose: () => 
   }, [selection.activeThreadId, selection.environmentId, selection.key]);
   const subagent = useFocusedSubagent(selection);
   const title = subagent?.title ?? subagent?.nickname ?? subagent?.role ?? "Subagent";
+  const roleLabel = formatSubagentRoleLabel(subagent?.role);
+  const visibleRoleLabel = roleLabel && roleLabel !== title ? roleLabel : undefined;
   const subagentThreadId = subagent?.subagentThreadId ?? selection.subagentThreadId;
 
   return (
@@ -209,11 +212,22 @@ function SubagentTray(props: { selection: SubagentTraySelection; onClose: () => 
         className="flex min-w-0 shrink-0 items-center gap-2 px-3 py-2"
         data-subagent-tray-header=""
       >
-        <div
-          className="min-w-0 flex-1 truncate text-title font-medium text-honk-fg-primary"
-          title={title}
-        >
-          {title}
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {visibleRoleLabel ? (
+            <span
+              data-subagent-role=""
+              className="shrink-0 text-caption font-medium text-honk-fg-secondary"
+              title={subagent?.role}
+            >
+              {visibleRoleLabel}
+            </span>
+          ) : null}
+          <div
+            className="min-w-0 flex-1 truncate text-title font-medium text-honk-fg-primary"
+            title={title}
+          >
+            {title}
+          </div>
         </div>
         <Button
           className="ml-auto shrink-0 text-honk-icon-secondary hover:text-honk-icon-primary"
