@@ -89,6 +89,7 @@ function WorkbenchIconButton(props: {
       title={props.title ?? props["aria-label"]}
       data-active={props.active ?? false}
       data-chrome={props.chrome ?? "tool"}
+      data-shell-no-drag=""
       data-slot="workbench-icon-button"
       data-tab-system={props.tabSystem ?? false}
       disabled={props.disabled}
@@ -123,6 +124,7 @@ function WorkbenchTextButton(props: {
       variant="ghost"
       aria-label={props["aria-label"]}
       title={props.title}
+      data-shell-no-drag=""
       data-slot="workbench-text-button"
       data-tone={props.tone ?? "default"}
       disabled={props.disabled}

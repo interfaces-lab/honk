@@ -63,6 +63,7 @@
 
 - Published versions for `usehonk`, `@honk/app`, `@honk/desktop`, and `@honk/contracts` stay in sync via `scripts/update-release-package-versions.ts`.
 - Release automation lives in `.github/workflows/release.yml`.
+- Inspect or prune GitHub releases/tags with `pnpm run release:manage list` and `pnpm run release:manage prune` (add `--apply` to delete; use `--keep-stable 1` to retain the newest stable tag).
 
 ## Composer command menu (`/` and `@`)
 

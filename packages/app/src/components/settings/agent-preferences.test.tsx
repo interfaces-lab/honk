@@ -15,7 +15,11 @@ function renderAgentPreferences(snapshot = createEmptyRuntimeHostSnapshot()): st
 
 describe("AgentRuntimeSettingsSections", () => {
   beforeEach(() => {
-    useAgentRuntimeStore.setState({ snapshot: createEmptyRuntimeHostSnapshot() });
+    useAgentRuntimeStore.setState({
+      localRuntimeThreadIds: new Set(),
+      runtimeActivityByThreadId: new Map(),
+      snapshot: createEmptyRuntimeHostSnapshot(),
+    });
   });
 
   it("renders the curated Pi account and runtime preference surface", () => {

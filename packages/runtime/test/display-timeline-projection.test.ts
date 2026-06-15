@@ -163,6 +163,74 @@ describe("runtime display timeline projection", () => {
     ]);
   });
 
+  it("extracts a sanitized tool-call short description from args", () => {
+    const projection = projectRuntimeDisplayTimeline({
+      threadId,
+      runtimeSessionId,
+      runtimeEvents: [
+        runtimeEvent({
+          id: "runtime-event:tool-described",
+          type: "tool.started",
+          summary: "Started bash",
+          data: {
+            toolCallId: "toolu-described",
+            toolName: "bash",
+            args: {
+              command: "pnpm run typecheck",
+              description: "  Run\n  the TypeScript checker   ",
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(projection.items).toEqual([
+      expect.objectContaining({
+        id: "tool:toolu-described",
+        kind: "tool",
+        shortDescription: "Run the TypeScript checker",
+        display: {
+          kind: "bash",
+          command: "pnpm run typecheck",
+        },
+      }),
+    ]);
+  });
+
+  it("ignores blank tool-call descriptions and keeps generated display details", () => {
+    const projection = projectRuntimeDisplayTimeline({
+      threadId,
+      runtimeSessionId,
+      runtimeEvents: [
+        runtimeEvent({
+          id: "runtime-event:tool-blank-description",
+          type: "tool.started",
+          summary: "Started read",
+          data: {
+            toolCallId: "toolu-blank-description",
+            toolName: "read",
+            args: {
+              path: "packages/runtime/src/display-timeline-projection.ts",
+              description: "   ",
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(projection.items).toEqual([
+      expect.objectContaining({
+        id: "tool:toolu-blank-description",
+        kind: "tool",
+        display: {
+          kind: "read",
+          path: "packages/runtime/src/display-timeline-projection.ts",
+        },
+      }),
+    ]);
+    expect(projection.items[0]).not.toHaveProperty("shortDescription");
+  });
+
   it("incrementally merges tool lifecycle events without rescanning prior events", () => {
     const events = [
       runtimeEvent({

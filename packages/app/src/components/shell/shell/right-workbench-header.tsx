@@ -162,6 +162,7 @@ function StableTabButton(props: {
         "p-0",
       )}
       data-active={props.active ? "true" : "false"}
+      data-shell-no-drag=""
       data-stable=""
       onClick={props.onActivate}
       role="tab"
@@ -207,7 +208,7 @@ function DynamicTabPill(props: {
           chrome: "tool",
           tabSystem: true,
         }),
-        "ui-tab-system-tab group relative",
+        "group ui-tab-system-tab relative",
         props.active && "bg-honk-bg-tertiary text-honk-fg-primary",
         props.dragging && "opacity-45",
       )}
@@ -216,6 +217,7 @@ function DynamicTabPill(props: {
       data-active={props.active ? "true" : "false"}
       data-closable={props.tab.closable ? "true" : undefined}
       data-dragging={props.dragging ? "true" : undefined}
+      data-shell-no-drag=""
       data-tab-id={props.tab.id}
       data-workbench-dynamic-tab="true"
       draggable
@@ -263,6 +265,7 @@ function DynamicTabPill(props: {
           aria-label={`Close ${props.tab.label}`}
           className="ui-tab-system-tab__close no-drag absolute top-0 right-0 bottom-0 flex w-4 shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-honk-fg-tertiary opacity-0 shadow-none outline-hidden transition-opacity hover:bg-transparent hover:text-honk-fg-primary focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset group-hover:opacity-100"
           data-no-drag=""
+          data-shell-no-drag=""
           draggable={false}
           onClick={(event) => {
             event.stopPropagation();
@@ -424,7 +427,7 @@ function WorkbenchTabClusters(props: {
       >
         <div
           ref={viewportRef}
-          className="ui-tab-system-tabs__viewport relative flex h-full min-w-max items-center"
+          className="ui-tab-system-tabs__viewport relative flex h-full w-max min-w-full items-center"
         >
           {dynamicTabs.map((tab) => (
             <DynamicTabPill
@@ -438,6 +441,11 @@ function WorkbenchTabClusters(props: {
               onDragStart={onDynamicDragStart}
             />
           ))}
+          <div
+            aria-hidden
+            className="editor-panel-tab-bar-spacer ui-tab-system-tabs__spacer min-w-4 flex-1 self-stretch"
+            data-shell-drag-region=""
+          />
           {dropTarget ? (
             <div
               aria-hidden
@@ -473,7 +481,10 @@ function NewTabMenu(props: {
   };
 
   return (
-    <div className="editor-panel-overflow-action pointer-events-auto flex shrink-0 items-center">
+    <div
+      className="editor-panel-overflow-action pointer-events-auto flex shrink-0 items-center"
+      data-shell-no-drag=""
+    >
       <Menu open={open} onOpenChange={setOpen}>
         <MenuTrigger
           aria-expanded={open}
@@ -527,6 +538,7 @@ function FullscreenChatTitle(props: { title: string | null }) {
     <>
       <span
         className="chat-title-tab-row no-drag min-w-0 shrink"
+        data-shell-no-drag=""
         data-shell-fullscreen-chat-title=""
       >
         <span className="chat-title-tab-trigger">

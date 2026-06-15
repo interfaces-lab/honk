@@ -1382,6 +1382,7 @@ export const ComposerInput = memo(
       onCompactContext,
       onInterrupt,
       onBuildPlan,
+      onDismissPlan,
       onViewPlan,
       onRespondToApproval,
       onSelectActivePendingUserInputOption,
@@ -2674,6 +2675,7 @@ export const ComposerInput = memo(
               isBuilding={isConnecting || isSendBusy}
               planSurfaceOpen={planSurfaceOpen}
               onBuildPlan={onBuildPlan}
+              onDismissPlan={onDismissPlan}
               onViewPlan={onViewPlan}
             />
           ) : null}

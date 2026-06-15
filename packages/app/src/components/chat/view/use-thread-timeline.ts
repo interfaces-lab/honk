@@ -4,6 +4,10 @@ import type { TimelineEntry } from "../../../session-logic";
 import { projectThreadTimeline } from "./thread-timeline-projector";
 
 type ProjectThreadTimelineInput = Parameters<typeof projectThreadTimeline>[0];
+interface TimelineTailLease {
+  readonly cacheKey: string;
+  readonly entries: ReadonlyArray<TimelineEntry>;
+}
 
 /**
  * The semantic projector runs per render and holds no cross-frame state. While a turn is
@@ -15,16 +19,21 @@ type ProjectThreadTimelineInput = Parameters<typeof projectThreadTimeline>[0];
  * This is the only place that remembers the previous projection. The projector stays pure,
  * `chat-view` consumes a value, and `MessagesTimeline` still only renders.
  */
-export function useThreadTimeline(input: ProjectThreadTimelineInput): ReadonlyArray<TimelineEntry> {
-  const previousRef = useRef<ReadonlyArray<TimelineEntry>>([]);
+export function useThreadTimeline(
+  input: ProjectThreadTimelineInput,
+  cacheKey: string,
+): ReadonlyArray<TimelineEntry> {
+  const previousRef = useRef<TimelineTailLease>({ cacheKey: "", entries: [] });
   return useMemo(() => {
     const next = projectThreadTimeline(input);
-    const result = keepActiveTimelineTail(previousRef.current, next, input.isTurnActive);
-    previousRef.current = result;
+    const previous = previousRef.current.cacheKey === cacheKey ? previousRef.current.entries : [];
+    const result = keepActiveTimelineTail(previous, next, input.isTurnActive);
+    previousRef.current = { cacheKey, entries: result };
     return result;
     // Recompute only when a projector input changes; `input` is a fresh object each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    cacheKey,
     input.committedMessages,
     input.proposedPlans,
     input.workLogEntries,

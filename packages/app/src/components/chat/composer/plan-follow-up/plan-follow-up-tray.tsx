@@ -1,6 +1,5 @@
 import { Button } from "@honk/honkkit/button";
 import { IconArrowUp, IconCrossSmall, IconEyeOpen } from "central-icons";
-import { useState } from "react";
 
 import ChatMarkdown from "../../markdown/chat-markdown";
 import type { ComposerInputProps } from "../input-contract";
@@ -14,17 +13,12 @@ export function PlanFollowUpTray(props: {
   isBuilding: boolean;
   planSurfaceOpen: boolean;
   onBuildPlan: (() => void) | undefined;
+  onDismissPlan: (() => void) | undefined;
   onViewPlan: (() => void) | undefined;
 }) {
-  const planKey = String(props.plan.id);
-  const [dismissedPlanId, setDismissedPlanId] = useState<string | null>(null);
   const title = proposedPlanTitle(props.plan.planMarkdown) ?? "Plan";
   const previewMarkdown = stripDisplayedPlanMarkdown(props.plan.planMarkdown).trim();
   const showViewPlan = props.onViewPlan !== undefined && !props.planSurfaceOpen;
-
-  if (dismissedPlanId === planKey) {
-    return null;
-  }
 
   return (
     <div
@@ -49,7 +43,7 @@ export function PlanFollowUpTray(props: {
           variant="ghost"
           aria-label="Dismiss plan"
           title="Dismiss plan"
-          onClick={() => setDismissedPlanId(planKey)}
+          onClick={props.onDismissPlan}
         >
           <IconCrossSmall className="size-3" aria-hidden />
         </Button>

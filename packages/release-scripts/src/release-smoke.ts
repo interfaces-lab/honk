@@ -22,6 +22,13 @@ const workspaceFiles = [
   "scripts/package.json",
 ] as const;
 
+const releasePackageFiles = [
+  "packages/server/package.json",
+  "packages/desktop/package.json",
+  "packages/app/package.json",
+  "packages/contracts/package.json",
+] as const;
+
 function copyWorkspaceManifestFixture(targetRoot: string): void {
   for (const relativePath of workspaceFiles) {
     const sourcePath = resolve(repoRoot, relativePath);
@@ -94,12 +101,17 @@ try {
   copyWorkspaceManifestFixture(tempRoot);
 
   execFileSync(
-    process.execPath,
+    "pnpm",
     [
-      resolve(repoRoot, "packages/release-scripts/src/update-release-package-versions.ts"),
+      "exec",
+      "bumpp",
+      "--release",
       "9.9.9-smoke.0",
-      "--root",
-      tempRoot,
+      "--no-commit",
+      "--no-tag",
+      "--no-push",
+      "--yes",
+      ...releasePackageFiles.map((relativePath) => resolve(tempRoot, relativePath)),
     ],
     {
       cwd: repoRoot,

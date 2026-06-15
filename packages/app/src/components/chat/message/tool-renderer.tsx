@@ -267,13 +267,14 @@ export function ToolCallRenderer({
       );
     case "bashToolCall": {
       const shellCommand = artifactLookup.command?.command ?? command ?? "";
+      const shellDetails = shellCommand ? displayState.details : "";
       if (compactShells) {
         // Cursor parity (kRm compact): collapsed line, accordion to full output on expand.
         return (
           <ExpandableToolMetadataLine
             icon={showDetailedIcons ? IconConsole : undefined}
             action={displayState.action}
-            details={shellCommand}
+            details={shellDetails}
             output={artifactLookup.command?.output ?? output ?? null}
             metadataItems={getCommandMetadataItemsFromValues({
               exitCode: artifactLookup.command?.exitCode,
@@ -291,7 +292,7 @@ export function ToolCallRenderer({
       return (
         <ShellToolCall
           action={displayState.action}
-          details={shellCommand}
+          details={shellDetails}
           command={shellCommand}
           output={artifactLookup.command?.output ?? output ?? null}
           artifact={artifactLookup.command}

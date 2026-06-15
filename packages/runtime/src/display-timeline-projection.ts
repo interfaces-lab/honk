@@ -72,6 +72,7 @@ interface MutableToolItem {
   result?: unknown;
   details?: unknown;
   summary?: string | undefined;
+  shortDescription?: string | undefined;
   display: RuntimeDisplayTimelineToolDisplay;
   command?: string | undefined;
   output?: string | undefined;
@@ -337,6 +338,7 @@ function mergeRuntimeDisplayTimelineItem(
         result: eventItem.result ?? previousItem.result,
         details: eventItem.details ?? previousItem.details,
         summary: eventItem.summary ?? previousItem.summary,
+        shortDescription: eventItem.shortDescription ?? previousItem.shortDescription,
         command: eventItem.command ?? previousItem.command,
         output: mergeToolOutput(
           previousItem.output,
@@ -647,6 +649,7 @@ function projectToolItems(events: ReadonlyArray<AgentRuntimeEvent>): MutableTool
     const details = extractDetails(data);
     const command = extractToolCommand(data?.args, result, details, data);
     const output = extractToolOutput(result);
+    const shortDescription = extractToolShortDescription(data?.args);
     const outputIsDelta =
       event.type === "tool.updated" &&
       data?.partialResult !== undefined &&
@@ -666,6 +669,7 @@ function projectToolItems(events: ReadonlyArray<AgentRuntimeEvent>): MutableTool
         ...(result !== undefined ? { result } : {}),
         ...(details !== undefined ? { details } : {}),
         ...(event.summary !== undefined ? { summary: event.summary } : {}),
+        ...(shortDescription !== undefined ? { shortDescription } : {}),
         ...(command !== undefined ? { command } : {}),
         ...(output !== undefined ? { output } : {}),
         executionStarted: true,
@@ -697,6 +701,9 @@ function projectToolItems(events: ReadonlyArray<AgentRuntimeEvent>): MutableTool
     if (event.summary !== undefined) {
       previous.summary = event.summary;
     }
+    if (data?.args !== undefined) {
+      previous.shortDescription = shortDescription;
+    }
     previous.executionStarted = true;
     if (event.type === "tool.updated" || event.type === "tool.completed") {
       previous.argsComplete = true;
@@ -727,6 +734,7 @@ function toRuntimeDisplayTimelineToolItem(item: MutableToolItem): RuntimeDisplay
     ...(item.result !== undefined ? { result: item.result } : {}),
     ...(item.details !== undefined ? { details: item.details } : {}),
     ...(item.summary !== undefined ? { summary: item.summary } : {}),
+    ...(item.shortDescription !== undefined ? { shortDescription: item.shortDescription } : {}),
     display: item.display,
     ...(item.command !== undefined ? { command: item.command } : {}),
     ...(item.output !== undefined ? { output: item.output } : {}),
@@ -976,6 +984,23 @@ function extractToolOutput(value: unknown): string | undefined {
     return text.length > 0 ? text : undefined;
   }
   return asTrimmedString(record.text) ?? undefined;
+}
+
+const MAX_TOOL_SHORT_DESCRIPTION_LENGTH = 160;
+
+function extractToolShortDescription(args: unknown): string | undefined {
+  const description = firstTrimmedRecordString(args, ["description"]);
+  if (description === undefined) {
+    return undefined;
+  }
+  const normalized = description.replace(/\s+/g, " ").trim();
+  if (normalized.length === 0) {
+    return undefined;
+  }
+  if (normalized.length <= MAX_TOOL_SHORT_DESCRIPTION_LENGTH) {
+    return normalized;
+  }
+  return `${normalized.slice(0, MAX_TOOL_SHORT_DESCRIPTION_LENGTH - 1)}…`;
 }
 
 function projectRuntimeToolDisplay(input: {

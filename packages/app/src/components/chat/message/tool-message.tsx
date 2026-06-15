@@ -335,7 +335,7 @@ export function runtimeToolDisplayToToolCall(
           case: "unknownToolCall",
           value: {
             action: runtimeToolAction(tool),
-            details: display.toolName,
+            details: runtimeTrimmedString(tool.shortDescription) ?? display.toolName ?? tool.toolName,
             output: display.output ?? null,
             ...(display.output
               ? { artifacts: [{ type: "raw", text: display.output } satisfies ToolDisplayArtifact] }
@@ -355,7 +355,9 @@ function runtimeSubagentDisplayToToolCall(
       case: "taskToolCall",
       value: {
         action: "Task",
-        details: runtimeSubagentDisplayDetails(tool, display),
+        details:
+          runtimeTrimmedString(tool.shortDescription) ??
+          runtimeSubagentDisplayDetails(tool, display),
       },
     },
   };
@@ -478,7 +480,7 @@ function runtimeBashDisplayToToolCall(
       case: "bashToolCall",
       value: {
         action: runtimeToolAction(tool),
-        details: command,
+        details: runtimeTrimmedString(tool.shortDescription) ?? command,
         command: command || null,
         output: output ?? null,
         artifacts: [artifact],
@@ -504,7 +506,9 @@ function runtimeReadDisplayToToolCall(
       case: "readToolCall",
       value: {
         action: runtimeToolAction(tool),
-        details: runtimeReadDisplayDetails(display, path ?? tool.toolName),
+        details:
+          runtimeTrimmedString(tool.shortDescription) ??
+          runtimeReadDisplayDetails(display, path ?? tool.toolName),
         path: path ?? null,
         output: output ?? null,
         artifacts: [artifact],
@@ -537,7 +541,7 @@ function runtimeGrepDisplayToToolCall(
       case: "grepToolCall",
       value: {
         action: runtimeToolAction(tool),
-        details: query ?? path ?? tool.toolName,
+        details: runtimeTrimmedString(tool.shortDescription) ?? query ?? path ?? tool.toolName,
         path: path ?? null,
         output: output ?? null,
         artifacts: [artifact],
@@ -570,7 +574,7 @@ function runtimeFindDisplayToToolCall(
       case: "globToolCall",
       value: {
         action: runtimeToolAction(tool),
-        details: query ?? path ?? tool.toolName,
+        details: runtimeTrimmedString(tool.shortDescription) ?? query ?? path ?? tool.toolName,
         path: path ?? null,
         output: output ?? null,
         artifacts: [artifact],
@@ -599,7 +603,7 @@ function runtimeEditDisplayToToolCall(
       case: "editToolCall",
       value: {
         action: runtimeToolAction(tool),
-        details: path ?? tool.toolName,
+        details: runtimeTrimmedString(tool.shortDescription) ?? path ?? tool.toolName,
         path: path ?? null,
         output: output ?? null,
         ...(stats ? { stats } : {}),

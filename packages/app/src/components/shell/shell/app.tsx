@@ -281,6 +281,7 @@ const RightWorkbenchFullscreenToggle = memo(function RightWorkbenchFullscreenTog
       aria-pressed="false"
       data-active="false"
       data-chrome="tool"
+      data-shell-no-drag=""
       data-shell-fullscreen-toggle=""
       data-tab-system="false"
       title="Toggle editor panel fullscreen"
@@ -629,6 +630,7 @@ const ShellLeftToggleButton = memo(function ShellLeftToggleButton() {
     <button
       type="button"
       onClick={() => shellPanelsActions.toggleLeft()}
+      data-shell-no-drag=""
       className="flex h-(--honk-titlebar-control-height) w-(--honk-titlebar-control-height) shrink-0 items-center justify-center rounded-honk-control bg-transparent p-0 text-honk-fg-secondary transition-[background-color,color] hover:bg-honk-bg-quaternary hover:text-honk-fg-primary [&_svg]:block"
       aria-label={leftOpen ? "Collapse chats" : "Expand chats"}
       aria-pressed={leftOpen}
@@ -665,13 +667,18 @@ const ShellHeaderControls = memo(function ShellHeaderControls(props: {
     <div className="honk-shell-titlebar-controls pointer-events-none absolute top-0 right-0 left-0 z-(--z-index-shell-titlebar-controls) box-border flex h-(--honk-header-height) min-w-0 items-center">
       <div
         className="honk-shell-titlebar-drag-region drag-region pointer-events-auto absolute inset-0"
+        data-shell-drag-region=""
         aria-hidden
       />
-      <div className="honk-shell-titlebar-left-controls pointer-events-auto no-drag absolute flex h-(--honk-titlebar-control-height) shrink-0 items-center gap-0.5">
+      <div
+        className="honk-shell-titlebar-left-controls pointer-events-auto no-drag absolute flex h-(--honk-titlebar-control-height) shrink-0 items-center gap-0.5"
+        data-shell-no-drag=""
+      >
         <ShellLeftToggleButton />
         <button
           type="button"
           onClick={() => setCommandPaletteOpen(true)}
+          data-shell-no-drag=""
           className="flex h-(--honk-titlebar-control-height) w-(--honk-titlebar-control-height) shrink-0 items-center justify-center rounded-honk-control bg-transparent p-0 text-honk-fg-secondary transition-[background-color,color] hover:bg-honk-bg-quaternary hover:text-honk-fg-primary [&_svg]:block"
           aria-label="Search"
           title={commandPaletteTitle}
@@ -680,10 +687,14 @@ const ShellHeaderControls = memo(function ShellHeaderControls(props: {
         </button>
       </div>
       {props.showRight ? (
-        <div className="honk-shell-titlebar-right-toggle pointer-events-auto no-drag absolute z-40 flex h-(--honk-titlebar-control-height) shrink-0 items-center">
+        <div
+          className="honk-shell-titlebar-right-toggle pointer-events-auto no-drag absolute z-40 flex h-(--honk-titlebar-control-height) shrink-0 items-center"
+          data-shell-no-drag=""
+        >
           <button
             type="button"
             onClick={() => setRightPanelOpen(!rightOpen, props.workspaceKey)}
+            data-shell-no-drag=""
             className="flex h-(--honk-titlebar-control-height) w-(--honk-titlebar-control-height) shrink-0 items-center justify-center rounded-honk-control bg-transparent p-0 text-honk-fg-secondary transition-[background-color,color] hover:bg-honk-bg-quaternary hover:text-honk-fg-primary [&_svg]:block"
             aria-label={rightPanelLabel}
             aria-pressed={rightOpen}

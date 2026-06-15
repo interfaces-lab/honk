@@ -81,9 +81,9 @@ import {
 } from "../../../stores/thread-selectors";
 import { useUiStateStore } from "../../../stores/ui-state-store";
 import {
-  runtimeAgentRunEventState,
   selectIsRuntimeThread,
   selectPendingExtensionUiRequestsForThread,
+  selectRuntimeThreadActivity,
   useAgentRuntimeStore,
 } from "../../../stores/agent-runtime-store";
 import {
@@ -693,8 +693,8 @@ export default function ChatView(props: ChatViewProps) {
   const activeThreadIsRuntimeOwned = useAgentRuntimeStore((state) =>
     selectIsRuntimeThread(state, runtimeThreadId),
   );
-  const activeRuntimeAgentRunEventState = useAgentRuntimeStore(
-    useShallow((state) => runtimeAgentRunEventState(state.snapshot.runtimeEvents, runtimeThreadId)),
+  const activeRuntimeActivity = useAgentRuntimeStore(
+    useShallow((state) => selectRuntimeThreadActivity(state, runtimeThreadId)),
   );
   const activeThreadRef = activeThread
     ? scopeThreadRef(activeThread.environmentId, activeThread.id)
@@ -889,10 +889,23 @@ export default function ChatView(props: ChatViewProps) {
         ? activeLatestTurn.sourceProposedPlan.threadId
         : activeThread.id
       : null;
+  const [dismissedPendingPlanKeys, setDismissedPendingPlanKeys] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const activePendingPlanKey =
+    activeProposedPlanSourceThreadId && activeProposedPlan
+      ? `${activeProposedPlanSourceThreadId}:${activeProposedPlan.id}`
+      : null;
+  const activePendingPlanDismissed =
+    activePendingPlanKey !== null && dismissedPendingPlanKeys.has(activePendingPlanKey);
+  const activePendingPlan = activePendingPlanDismissed ? null : activeProposedPlan;
+  const activePendingPlanSourceThreadId = activePendingPlanDismissed
+    ? null
+    : activeProposedPlanSourceThreadId;
   const showPlanFollowUpPrompt =
     pendingUserInputs.length === 0 &&
     latestTurnSettled &&
-    hasActionableProposedPlan(activeProposedPlan);
+    hasActionableProposedPlan(activePendingPlan);
   const activePendingApproval = pendingApprovals[0] ?? null;
   const {
     beginLocalDispatch,
@@ -917,10 +930,11 @@ export default function ChatView(props: ChatViewProps) {
     () => runtimeDisplayTimelineHasActiveWork(activeRuntimeDisplayTimeline),
     [activeRuntimeDisplayTimeline],
   );
-  const activeRuntimeAgentRunActive = activeRuntimeAgentRunEventState.lifecycle === "active";
-  const activeRuntimeAgentRunTerminal = activeRuntimeAgentRunEventState.lifecycle === "terminal";
+  const activeRuntimeAgentRunActive = activeRuntimeActivity.lifecycle === "active";
   const runtimeSurfaceImpliesTurnRunning =
-    activeRuntimeAgentRunActive || (runtimeTimelineHasActiveWork && !activeRuntimeAgentRunTerminal);
+    activeRuntimeAgentRunActive ||
+    activeRuntimeActivity.presentationActive ||
+    runtimeTimelineHasActiveWork;
   const waitingForRuntimeFirstResponse =
     activeThreadIsRuntimeOwned &&
     activeRuntimeDisplayTimeline !== null &&
@@ -982,22 +996,32 @@ export default function ChatView(props: ChatViewProps) {
     activeRuntimeDisplayTimeline !== null && !latestTurnSettled;
   const timelineTurnActive =
     isTurnRunning || visibleThreadSendIntents.length > 0 || runtimeTimelineImpliesTurnActive;
+  const activeTimelineTailLeaseTurnKey =
+    activeRuntimeActivity.lifecycle === "active"
+      ? (activeRuntimeActivity.latestTurnId ?? "runtime-run-pending")
+      : (activeRunningTurnId ?? activeRuntimeActivity.latestTurnId ?? activeLatestTurn?.turnId ?? "");
+  const activeTimelineTailLeaseKey = [activeThread?.id ?? "", activeTimelineTailLeaseTurnKey].join(
+    "\0",
+  );
   const committedTimelineMessages = useMemo(
     () => applyAttachmentPreviewHandoff(serverMessages),
     [applyAttachmentPreviewHandoff, serverMessages],
   );
   const proposedPlansForTimeline = activeThread?.proposedPlans ?? EMPTY_TIMELINE_PROPOSED_PLANS;
-  const timelineEntries = useThreadTimeline({
-    committedMessages: committedTimelineMessages,
-    proposedPlans: proposedPlansForTimeline,
-    workLogEntries,
-    sendIntents: visibleThreadSendIntents,
-    runtimeAcknowledgedMessageIds: runtimeRenderableUserMessageIds,
-    activeRuntimeDisplayTimeline,
-    isWorking,
-    isTurnActive: timelineTurnActive,
-    activeTurnStartedAt: activeWorkStartedAt,
-  });
+  const timelineEntries = useThreadTimeline(
+    {
+      committedMessages: committedTimelineMessages,
+      proposedPlans: proposedPlansForTimeline,
+      workLogEntries,
+      sendIntents: visibleThreadSendIntents,
+      runtimeAcknowledgedMessageIds: runtimeRenderableUserMessageIds,
+      activeRuntimeDisplayTimeline,
+      isWorking,
+      isTurnActive: timelineTurnActive,
+      activeTurnStartedAt: activeWorkStartedAt,
+    },
+    activeTimelineTailLeaseKey,
+  );
   const editableUserMessageIds = useMemo(() => {
     if (!activeThread || activeThread.entries.length === 0) {
       return new Set<MessageId>();
@@ -1932,6 +1956,10 @@ export default function ChatView(props: ChatViewProps) {
         draftText: trimmed,
         planMarkdown: planFollowUp.planMarkdown,
       });
+      if (followUp.interactionMode === DEFAULT_INTERACTION_MODE) {
+        dismissPendingPlan(planFollowUp.planThreadId, planFollowUp.planId);
+        setComposerDraftInteractionMode(composerDraftTarget, DEFAULT_INTERACTION_MODE);
+      }
       if (clearComposerOnSubmit) {
         composerRef.current?.clearComposer();
         composerClearedForSend = true;
@@ -2044,6 +2072,7 @@ export default function ChatView(props: ChatViewProps) {
     const composerImagesSnapshot = [...composerImages];
     const messageIdForSend = snapshot.messageId ?? newMessageId();
     const messageCreatedAt = snapshot.createdAt ?? new Date().toISOString();
+    const parentEntryIdForSend = activeThread.leafId ?? null;
     const readTurnAttachments = (() => {
       const preparedAttachments = prepareComposerTurnAttachments(composerImagesSnapshot);
       return () => preparedAttachments;
@@ -2065,7 +2094,7 @@ export default function ChatView(props: ChatViewProps) {
         richText: compiledTurn.outgoingRichText,
         attachments: optimisticAttachments,
         createdAt: messageCreatedAt,
-        parentEntryId: null,
+        parentEntryId: parentEntryIdForSend,
       }),
     );
 
@@ -2124,6 +2153,7 @@ export default function ChatView(props: ChatViewProps) {
           titleSeed: title,
           runtimeMode: DEFAULT_RUNTIME_MODE,
           interactionMode: interactionModeForSend,
+          parentEntryId: parentEntryIdForSend,
           createdAt: messageCreatedAt,
         });
         localTurnStartAnnounced = true;
@@ -2229,6 +2259,7 @@ export default function ChatView(props: ChatViewProps) {
         titleSeed: title,
         runtimeMode: DEFAULT_RUNTIME_MODE,
         interactionMode: interactionModeForSend,
+        parentEntryId: parentEntryIdForSend,
         ...(turnBootstrap ? { bootstrap: turnBootstrap } : {}),
         cwd: initialRuntimeCwd,
         preparedPolicy: preparedRuntimePolicy,
@@ -2347,6 +2378,25 @@ export default function ChatView(props: ChatViewProps) {
     composerRef.current?.clearComposer();
   };
 
+  const dismissPendingPlan = (agentId: ThreadId, planId: ProposedPlan["id"]) => {
+    const key = `${agentId}:${planId}`;
+    setDismissedPendingPlanKeys((existing) => {
+      if (existing.has(key)) {
+        return existing;
+      }
+      const next = new Set(existing);
+      next.add(key);
+      return next;
+    });
+  };
+
+  const onDismissPendingPlan = () => {
+    if (!activePendingPlan || !activePendingPlanSourceThreadId) {
+      return;
+    }
+    dismissPendingPlan(activePendingPlanSourceThreadId, activePendingPlan.id);
+  };
+
   const onSend = async (e?: { preventDefault: () => void }) => {
     e?.preventDefault();
     if (activePendingProgress) {
@@ -2365,14 +2415,14 @@ export default function ChatView(props: ChatViewProps) {
     const hasOnlyBlankPlanFollowUp = !currentComposerSendState.hasSendableContent;
     const planFollowUp =
       showPlanFollowUpPrompt &&
-      activeProposedPlan &&
-      activeProposedPlanSourceThreadId &&
+      activePendingPlan &&
+      activePendingPlanSourceThreadId &&
       activeThread &&
       (hasPlanFeedbackText || hasOnlyBlankPlanFollowUp)
         ? {
-            planMarkdown: activeProposedPlan.planMarkdown,
-            planId: activeProposedPlan.id,
-            planThreadId: activeProposedPlanSourceThreadId,
+            planMarkdown: activePendingPlan.planMarkdown,
+            planId: activePendingPlan.id,
+            planThreadId: activePendingPlanSourceThreadId,
           }
         : null;
     const hasUnresolvedSlashCommand =
@@ -2462,11 +2512,11 @@ export default function ChatView(props: ChatViewProps) {
     });
   };
 
-  const onBuildActiveProposedPlan = () => {
+  const onBuildPendingPlan = () => {
     if (
       !showPlanFollowUpPrompt ||
-      !activeProposedPlan ||
-      !activeProposedPlanSourceThreadId ||
+      !activePendingPlan ||
+      !activePendingPlanSourceThreadId ||
       isConnecting ||
       isSendBusy ||
       sendInFlightRef.current
@@ -2479,17 +2529,19 @@ export default function ChatView(props: ChatViewProps) {
       return;
     }
 
+    dismissPendingPlan(activePendingPlanSourceThreadId, activePendingPlan.id);
+    setComposerDraftInteractionMode(composerDraftTarget, DEFAULT_INTERACTION_MODE);
     void submitComposerSendSnapshot({
       sendContext: {
         ...sendContext,
         prompt: "",
         images: [],
       },
-      interactionMode,
+      interactionMode: DEFAULT_INTERACTION_MODE,
       planFollowUp: {
-        planMarkdown: activeProposedPlan.planMarkdown,
-        planId: activeProposedPlan.id,
-        planThreadId: activeProposedPlanSourceThreadId,
+        planMarkdown: activePendingPlan.planMarkdown,
+        planId: activePendingPlan.id,
+        planThreadId: activePendingPlanSourceThreadId,
       },
       clearComposerOnSubmit: true,
     });
@@ -2504,13 +2556,13 @@ export default function ChatView(props: ChatViewProps) {
           (timeline) => timeline.threadId === runtimeThreadId,
         ) ?? null)
       : null;
-    const runtimeEventState = runtimeAgentRunEventState(
-      runtimeSnapshot.runtimeEvents,
+    const runtimeActivity = selectRuntimeThreadActivity(
+      useAgentRuntimeStore.getState(),
       runtimeThreadId,
     );
     const runtimeTurnId = runtimeSurfaceImpliesTurnRunning
       ? (runtimeDisplayTimelineActiveTurnId(runtimeDisplayTimeline) ??
-        runtimeEventState.latestTurnId)
+        runtimeActivity.latestTurnId)
       : null;
     const latestUnsettledTurnId = !latestTurnSettled ? (activeLatestTurn?.turnId ?? null) : null;
     const turnId = activeRunningTurnId ?? runtimeTurnId ?? latestUnsettledTurnId ?? undefined;
@@ -2686,6 +2738,7 @@ export default function ChatView(props: ChatViewProps) {
     const api = readEnvironmentApi(environmentId);
     const messageIdForSend = newMessageId();
     const messageCreatedAt = new Date().toISOString();
+    const parentEntryIdForSend = activeThread.leafId ?? null;
     const outgoingMessageText = trimmed;
     const sourceProposedPlan =
       nextInteractionMode === "agent"
@@ -2722,6 +2775,7 @@ export default function ChatView(props: ChatViewProps) {
         titleSeed: activeThread.title,
         runtimeMode: DEFAULT_RUNTIME_MODE,
         interactionMode: nextInteractionMode,
+        parentEntryId: parentEntryIdForSend,
         ...(sourceProposedPlan ? { sourceProposedPlan } : {}),
         createdAt: messageCreatedAt,
       });
@@ -2754,6 +2808,7 @@ export default function ChatView(props: ChatViewProps) {
         modelSelection: activeThread.modelSelection,
         titleSeed: activeThread.title,
         interactionMode: nextInteractionMode,
+        parentEntryId: parentEntryIdForSend,
         sourceProposedPlan,
         cwd: runtimeCwd,
         preparedPolicy: preparedRuntimePolicy,
@@ -2804,7 +2859,8 @@ export default function ChatView(props: ChatViewProps) {
   const handleComposerSend = useStableEvent(onSend);
   const handleCompactContext = useStableEvent(onCompactContext);
   const handleComposerInterrupt = useStableEvent(onInterrupt);
-  const handleBuildActiveProposedPlan = useStableEvent(onBuildActiveProposedPlan);
+  const handleBuildPendingPlan = useStableEvent(onBuildPendingPlan);
+  const handleDismissPendingPlan = useStableEvent(onDismissPendingPlan);
   const handleViewActivePlan = useStableEvent(() => {
     workbenchTabPersistenceActions.activatePlan(workspaceTarget.workspaceKey);
   });
@@ -3063,6 +3119,7 @@ export default function ChatView(props: ChatViewProps) {
               reserveTitleBarControlInset &&
               "wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
           )}
+          data-shell-drag-region=""
         >
           <ChatHeader activeThreadTitle={activeThread.title} actions={workspaceTopnavActions} />
         </header>
@@ -3211,7 +3268,7 @@ export default function ChatView(props: ChatViewProps) {
               activePendingQuestionIndex={activePendingQuestionIndex}
               respondingRequestIds={respondingRequestIds}
               showPlanFollowUpPrompt={showPlanFollowUpPrompt}
-              activeProposedPlan={activeProposedPlan}
+              activeProposedPlan={activePendingPlan}
               planSurfaceOpen={planSurfaceOpen}
               interactionMode={interactionMode}
               modelSelection={threadCreateModelSelection}
@@ -3227,7 +3284,8 @@ export default function ChatView(props: ChatViewProps) {
               onSend={handleComposerSend}
               onCompactContext={handleCompactContext}
               onInterrupt={handleComposerInterrupt}
-              onBuildPlan={handleBuildActiveProposedPlan}
+              onBuildPlan={handleBuildPendingPlan}
+              onDismissPlan={handleDismissPendingPlan}
               onViewPlan={handleViewActivePlan}
               onRespondToApproval={handleRespondToApproval}
               onSelectActivePendingUserInputOption={onSelectActivePendingUserInputOption}

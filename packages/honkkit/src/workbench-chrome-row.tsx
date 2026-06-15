@@ -12,7 +12,7 @@ const workbenchChromeRowVariants = cva(
       variant: {
         panel:
           "no-drag honk-workbench-panel-title-row w-full min-w-0 flex-row items-center justify-between gap-(--honk-workbench-chrome-action-gap)",
-        tool: "drag-region ui-tab-system honk-workbench-tool-island relative z-20 box-border flex h-(--honk-workbench-chrome-row-height) min-h-(--honk-workbench-chrome-row-height) max-h-(--honk-workbench-chrome-row-height) w-full min-w-0 flex-none flex-row select-none items-center gap-0 overflow-hidden border-0 px-0 [--tab-system-bar-background:transparent] [--tab-system-height:var(--honk-workbench-chrome-row-height)] editor-panel-tab-root editor-panel-tab-root--simple-tabs",
+        tool: "editor-panel-tab-root editor-panel-tab-root--simple-tabs honk-workbench-tool-island no-drag ui-tab-system relative z-20 box-border flex h-(--honk-workbench-chrome-row-height) max-h-(--honk-workbench-chrome-row-height) min-h-(--honk-workbench-chrome-row-height) w-full min-w-0 flex-none flex-row items-center gap-0 overflow-hidden border-0 px-0 select-none [--tab-system-bar-background:transparent] [--tab-system-height:var(--honk-workbench-chrome-row-height)]",
       },
     },
   },
@@ -96,6 +96,7 @@ function WorkbenchChromeRow(props: {
   return (
     <div
       className={workbenchChromeRowVariants({ variant: props.variant })}
+      data-shell-no-drag=""
       data-slot="workbench-chrome-row"
       data-variant={props.variant === "tool" ? "simple-tabs" : props.variant}
     >
@@ -113,6 +114,7 @@ function WorkbenchChromeRow(props: {
               ? "editor-panel-tab-bar-trailing-section no-drag box-border flex h-full shrink-0 items-center gap-0 px-2 py-1"
               : "flex shrink-0 items-center self-center"
           }
+          data-shell-no-drag=""
           data-slot={
             props.variant === "tool"
               ? "workbench-chrome-trailing-section"
@@ -127,6 +129,7 @@ function WorkbenchChromeRow(props: {
       {props.end && props.variant !== "tool" ? (
         <div
           className="flex shrink-0 items-center self-center"
+          data-shell-no-drag=""
           data-slot="workbench-chrome-row-end"
         >
           {props.end}
@@ -151,6 +154,7 @@ function WorkbenchChromeActionGroup({
         workbenchChromeActionGroupVariants({ gap, overflow: overflow ?? false }),
         className,
       )}
+      data-shell-no-drag=""
       data-slot="workbench-chrome-action-group"
       {...props}
     />
@@ -178,6 +182,7 @@ function WorkbenchChromeLabel({ className, ...props }: ComponentProps<"span">) {
         "no-drag inline-flex h-(--honk-workbench-tab-height) shrink-0 items-center text-honk-fg-secondary",
         className,
       )}
+      data-shell-no-drag=""
       data-slot="workbench-chrome-label"
       {...props}
     />

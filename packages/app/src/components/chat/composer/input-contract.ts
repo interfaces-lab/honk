@@ -123,6 +123,7 @@ export interface ComposerInputProps {
   onCompactContext?: (() => void) | undefined;
   onInterrupt: () => void;
   onBuildPlan?: (() => void) | undefined;
+  onDismissPlan?: (() => void) | undefined;
   onViewPlan?: (() => void) | undefined;
   footerSecondaryAction?: ReactNode | undefined;
 

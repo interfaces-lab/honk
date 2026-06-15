@@ -97,6 +97,7 @@ export default defineConfig({
       emptyOutDir: true,
       externalizeDeps: {
         exclude: ["@honk/runtime"],
+        include: ["sqlite3"],
       },
       lib: {
         entry: "src/main/index.ts",

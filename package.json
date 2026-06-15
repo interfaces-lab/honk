@@ -34,6 +34,7 @@
     "dist:desktop:dmg:arm64": "turbo run package:mac --filter=@honk/desktop -- --arm64",
     "dist:desktop:dmg:x64": "turbo run package:mac --filter=@honk/desktop -- --x64",
     "dist:desktop:linux": "turbo run package:linux --filter=@honk/desktop -- --x64",
+    "release:bump": "bumpp --no-commit --no-tag --no-push packages/server/package.json packages/desktop/package.json packages/app/package.json packages/contracts/package.json",
     "release:smoke": "pnpm --filter=@honk/release-scripts run test",
     "clean": "rm -rf node_modules packages/*/node_modules packages/*/dist packages/*/dist-electron packages/*/out .turbo packages/*/.turbo",
     "sync:vscode-icons": "node scripts/sync-vscode-icons.mjs"
@@ -42,6 +43,7 @@
     "@effect/language-service": "catalog:",
     "@types/node": "catalog:",
     "@typescript/native-preview": "7.0.0-dev.20260601.1",
+    "bumpp": "11.1.0",
     "bun": "catalog:",
     "knip": "^6.16.1",
     "oxfmt": "^0.54.0",

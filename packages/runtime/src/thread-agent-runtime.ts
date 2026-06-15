@@ -52,6 +52,7 @@ import { projectPiAgentSessionEvent } from "./event-projection";
 import { extractMessageText } from "./message-text";
 import { DEBUG_LOGS_TOOL_NAME } from "./debug-logs-extension";
 import { CREATE_PLAN_TOOL_NAME, extractCreatePlanToolResultMarkdown } from "./plan-extension";
+import { createToolCallDescriptionExtension } from "./tool-call-description-extension";
 import {
   CLIENT_MESSAGE_ID_SIDECAR_TYPE,
   collectClientMessageIdSidecars,
@@ -251,6 +252,7 @@ export class ThreadAgentRuntime {
         settingsManager,
         additionalExtensionPaths: [...(options.extensionPaths ?? [])],
         extensionFactories: [
+          createToolCallDescriptionExtension(),
           createHonkSystemPromptIdentityExtension(),
           createCodexRuntimePolicyExtension(options.policy),
           ...(options.extensionFactories ?? []),

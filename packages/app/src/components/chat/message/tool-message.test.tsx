@@ -187,6 +187,58 @@ describe("RuntimeToolCallMessage command entries", () => {
     expect(html).not.toContain("M AGENTS.md");
   });
 
+  it("prefers runtime short descriptions over generated command details", () => {
+    const tool: RuntimeDisplayTimelineToolItem = {
+      id: "tool:short-description",
+      kind: "tool",
+      orderKey: `${createdAt}:tool:short-description`,
+      createdAt,
+      toolCallId: "toolu-short-description",
+      toolName: "bash",
+      status: "completed",
+      eventIds: [],
+      shortDescription: "Check repository status",
+      args: { command: "git status --short", description: "Check repository status" },
+      command: "git status --short",
+      display: {
+        kind: "bash",
+        command: "git status --short",
+      },
+    };
+
+    const toolCall = runtimeToolDisplayToToolCall(tool, tool.display);
+    const html = renderRuntimeTool(tool);
+
+    expect(toolCall.tool.value.details).toBe("Check repository status");
+    expect(toolCall.tool.value.command).toBe("git status --short");
+    expect(html).toContain("Check repository status");
+  });
+
+  it("falls back to generated runtime details when short descriptions are absent", () => {
+    const tool: RuntimeDisplayTimelineToolItem = {
+      id: "tool:short-description-fallback",
+      kind: "tool",
+      orderKey: `${createdAt}:tool:short-description-fallback`,
+      createdAt,
+      toolCallId: "toolu-short-description-fallback",
+      toolName: "read",
+      status: "completed",
+      eventIds: [],
+      display: {
+        kind: "read",
+        path: "packages/app/src/components/chat/message/tool-message.tsx",
+        startLine: 10,
+        endLine: 20,
+      },
+    };
+
+    const toolCall = runtimeToolDisplayToToolCall(tool, tool.display);
+
+    expect(toolCall.tool.value.details).toBe(
+      "packages/app/src/components/chat/message/tool-message.tsx:10-20",
+    );
+  });
+
   it("keeps command chrome for runtime shell displays without command text", () => {
     const tool: RuntimeDisplayTimelineToolItem = {
       id: "tool:shell-output-only",

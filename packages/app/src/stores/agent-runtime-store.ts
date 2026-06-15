@@ -23,9 +23,10 @@ import { runtimeParentToolDisplaySignature } from "../lib/runtime-tool-display";
 import { useComposerDraftStore } from "./chat-drafts";
 import { useStore, type EnvironmentState } from "./thread-store";
 
-interface AgentRuntimeState {
+export interface AgentRuntimeState {
   readonly snapshot: HonkRuntimeHostSnapshot;
   readonly localRuntimeThreadIds: ReadonlySet<ThreadId>;
+  readonly runtimeActivityByThreadId: ReadonlyMap<ThreadId, RuntimeThreadActivityState>;
   readonly setSnapshot: (snapshot: HonkRuntimeHostSnapshot) => void;
   readonly applyHostEvent: (event: HonkRuntimeHostEvent) => void;
   readonly markLocalRuntimeThread: (threadId: ThreadId) => void;
@@ -45,6 +46,20 @@ export interface RuntimeAgentRunEventState {
   readonly lifecycle: RuntimeAgentRunLifecycle;
   readonly latestTurnId: TurnId | null;
 }
+
+export interface RuntimeThreadActivityState extends RuntimeAgentRunEventState {
+  /**
+   * Live presentation state derived from runtime events until the next display timeline
+   * confirms the visible rows. This bridges the host's raw-event-before-timeline ordering.
+   */
+  readonly presentationActive: boolean;
+}
+
+const EMPTY_RUNTIME_THREAD_ACTIVITY: RuntimeThreadActivityState = {
+  lifecycle: null,
+  latestTurnId: null,
+  presentationActive: false,
+};
 
 function resolveRuntimeThreadEnvironmentId(threadId: ThreadId): EnvironmentId {
   const store = useStore.getState();
@@ -190,6 +205,16 @@ export function latestRuntimeEventTurnId(
   return runtimeAgentRunEventState(events, threadId).latestTurnId;
 }
 
+export function selectRuntimeThreadActivity(
+  state: AgentRuntimeState,
+  threadId: ThreadId | null | undefined,
+): RuntimeThreadActivityState {
+  if (!threadId) {
+    return EMPTY_RUNTIME_THREAD_ACTIVITY;
+  }
+  return state.runtimeActivityByThreadId.get(threadId) ?? EMPTY_RUNTIME_THREAD_ACTIVITY;
+}
+
 function hostOwnedRuntimeThreadIds(snapshot: HonkRuntimeHostSnapshot): Set<ThreadId> {
   const threadIds = new Set<ThreadId>();
   for (const tree of snapshot.sessionTrees) {
@@ -329,6 +354,243 @@ function reduceHostEvent(
         credentialAuthFlows: [...event.flows],
       };
   }
+}
+
+function reduceRuntimeActivitiesForHostEvent(
+  activities: ReadonlyMap<ThreadId, RuntimeThreadActivityState>,
+  event: HonkRuntimeHostEvent,
+  snapshot: HonkRuntimeHostSnapshot,
+): ReadonlyMap<ThreadId, RuntimeThreadActivityState> {
+  switch (event.type) {
+    case "snapshot":
+      return normalizeRuntimeActivitiesForSnapshot(snapshot, activities);
+    case "runtime-event":
+      return updateRuntimeThreadActivity(
+        activities,
+        event.event.threadId,
+        reduceRuntimeThreadActivityEvent(
+          activities.get(event.event.threadId) ?? EMPTY_RUNTIME_THREAD_ACTIVITY,
+          event.event,
+        ),
+      );
+    case "display-timeline":
+      return updateRuntimeThreadActivity(
+        activities,
+        event.timeline.threadId,
+        reduceRuntimeThreadActivityDisplayTimeline(
+          activities.get(event.timeline.threadId) ?? EMPTY_RUNTIME_THREAD_ACTIVITY,
+          event.timeline,
+        ),
+      );
+    case "pending-extension-ui":
+      return reduceRuntimeThreadActivityPendingRequests(activities, event.requests);
+    case "session-tree":
+    case "runtime-identities":
+    case "credential-auth-flows":
+      return activities;
+  }
+}
+
+function normalizeRuntimeActivitiesForSnapshot(
+  snapshot: HonkRuntimeHostSnapshot,
+  previousActivities: ReadonlyMap<ThreadId, RuntimeThreadActivityState>,
+): ReadonlyMap<ThreadId, RuntimeThreadActivityState> {
+  const nextActivities = new Map<ThreadId, RuntimeThreadActivityState>();
+  for (const threadId of runtimeThreadIds(snapshot)) {
+    let activity = previousActivities.get(threadId) ?? EMPTY_RUNTIME_THREAD_ACTIVITY;
+    for (const event of snapshot.runtimeEvents) {
+      if (event.threadId === threadId) {
+        activity = reduceRuntimeThreadActivityEvent(activity, event);
+      }
+    }
+    const timeline = snapshot.displayTimelines.find((candidate) => candidate.threadId === threadId);
+    if (timeline) {
+      activity = reduceRuntimeThreadActivityDisplayTimeline(activity, timeline);
+    }
+    if (snapshot.pendingExtensionUiRequests.some((request) => request.threadId === threadId)) {
+      activity = {
+        ...activity,
+        presentationActive: true,
+      };
+    }
+    if (!isEmptyRuntimeThreadActivity(activity)) {
+      nextActivities.set(threadId, activity);
+    }
+  }
+  return runtimeThreadActivityMapsEqual(previousActivities, nextActivities)
+    ? previousActivities
+    : nextActivities;
+}
+
+function reduceRuntimeThreadActivityEvent(
+  activity: RuntimeThreadActivityState,
+  event: AgentRuntimeEvent,
+): RuntimeThreadActivityState {
+  const lifecycle = runtimeLifecycleAfterEvent(activity.lifecycle, event);
+  const latestTurnId = runtimeLatestTurnIdAfterEvent(activity.latestTurnId, event);
+  const presentationActive = runtimePresentationActiveAfterEvent(activity, event, lifecycle);
+  const nextActivity = {
+    lifecycle,
+    latestTurnId,
+    presentationActive,
+  };
+  return runtimeThreadActivitiesEqual(activity, nextActivity) ? activity : nextActivity;
+}
+
+function runtimeLifecycleAfterEvent(
+  lifecycle: RuntimeAgentRunLifecycle,
+  event: AgentRuntimeEvent,
+): RuntimeAgentRunLifecycle {
+  switch (event.type) {
+    case "agent.started":
+    case "turn.started":
+      return "active";
+    case "agent.completed":
+    case "turn.interrupted":
+    case "runtime.error":
+      return "terminal";
+    default:
+      return lifecycle;
+  }
+}
+
+function runtimePresentationActiveAfterEvent(
+  activity: RuntimeThreadActivityState,
+  event: AgentRuntimeEvent,
+  lifecycle: RuntimeAgentRunLifecycle,
+): boolean {
+  switch (event.type) {
+    case "message.started":
+    case "message.updated":
+      return event.messageRole !== "user";
+    case "tool.started":
+    case "tool.updated":
+    case "extension-ui.requested":
+      return true;
+    case "agent.completed":
+    case "turn.interrupted":
+    case "runtime.error":
+      // The host emits the raw runtime event before the coalesced display timeline. Keep
+      // the presentation live until that timeline confirms the visible tail has settled.
+      return activity.presentationActive || activity.lifecycle === "active";
+    default:
+      return lifecycle === "active" ? activity.presentationActive : false;
+  }
+}
+
+function reduceRuntimeThreadActivityDisplayTimeline(
+  activity: RuntimeThreadActivityState,
+  timeline: RuntimeDisplayTimelineProjection,
+): RuntimeThreadActivityState {
+  const nextActivity = {
+    ...activity,
+    presentationActive: runtimeDisplayTimelineHasActiveWorkForActivity(timeline),
+  };
+  return runtimeThreadActivitiesEqual(activity, nextActivity) ? activity : nextActivity;
+}
+
+function reduceRuntimeThreadActivityPendingRequests(
+  activities: ReadonlyMap<ThreadId, RuntimeThreadActivityState>,
+  requests: ReadonlyArray<DesktopExtensionUiRequest>,
+): ReadonlyMap<ThreadId, RuntimeThreadActivityState> {
+  const requestThreadIds = new Set(requests.map((request) => request.threadId));
+  let result = activities;
+  for (const threadId of requestThreadIds) {
+    const activity = result.get(threadId) ?? EMPTY_RUNTIME_THREAD_ACTIVITY;
+    result = updateRuntimeThreadActivity(result, threadId, {
+      ...activity,
+      presentationActive: true,
+    });
+  }
+  return result;
+}
+
+function runtimeDisplayTimelineHasActiveWorkForActivity(
+  timeline: RuntimeDisplayTimelineProjection,
+): boolean {
+  return timeline.items.some((item) => {
+    switch (item.kind) {
+      case "message":
+        return item.streaming === true;
+      case "tool":
+        return (
+          item.status === "running" ||
+          (item.display.kind === "subagent" &&
+            item.display.runs.some((run) => run.state === "running"))
+        );
+      case "extension-ui-request":
+        return item.status === "pending";
+      case "proposed-plan":
+        return false;
+    }
+  });
+}
+
+function updateRuntimeThreadActivity(
+  activities: ReadonlyMap<ThreadId, RuntimeThreadActivityState>,
+  threadId: ThreadId,
+  activity: RuntimeThreadActivityState,
+): ReadonlyMap<ThreadId, RuntimeThreadActivityState> {
+  const previousActivity = activities.get(threadId) ?? EMPTY_RUNTIME_THREAD_ACTIVITY;
+  if (runtimeThreadActivitiesEqual(previousActivity, activity)) {
+    return activities;
+  }
+  const nextActivities = new Map(activities);
+  if (isEmptyRuntimeThreadActivity(activity)) {
+    nextActivities.delete(threadId);
+  } else {
+    nextActivities.set(threadId, activity);
+  }
+  return nextActivities;
+}
+
+function isEmptyRuntimeThreadActivity(activity: RuntimeThreadActivityState): boolean {
+  return (
+    activity.lifecycle === null &&
+    activity.latestTurnId === null &&
+    activity.presentationActive === false
+  );
+}
+
+function runtimeLatestTurnIdAfterEvent(
+  latestTurnId: TurnId | null,
+  event: AgentRuntimeEvent,
+): TurnId | null {
+  switch (event.type) {
+    case "agent.started":
+      return event.turnId ?? null;
+    case "turn.started":
+      return event.turnId ?? null;
+    default:
+      return latestTurnId;
+  }
+}
+
+function runtimeThreadActivitiesEqual(
+  left: RuntimeThreadActivityState,
+  right: RuntimeThreadActivityState,
+): boolean {
+  return (
+    left.lifecycle === right.lifecycle &&
+    left.latestTurnId === right.latestTurnId &&
+    left.presentationActive === right.presentationActive
+  );
+}
+
+function runtimeThreadActivityMapsEqual(
+  left: ReadonlyMap<ThreadId, RuntimeThreadActivityState>,
+  right: ReadonlyMap<ThreadId, RuntimeThreadActivityState>,
+): boolean {
+  if (left.size !== right.size) {
+    return false;
+  }
+  for (const [threadId, leftActivity] of left) {
+    const rightActivity = right.get(threadId);
+    if (!rightActivity || !runtimeThreadActivitiesEqual(leftActivity, rightActivity)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function retainRecentRuntimeEvents(
@@ -511,6 +773,7 @@ function areDisplayTimelineItemsVisiblyEqual(
         left.isPartial === right.isPartial &&
         left.isError === right.isError &&
         left.summary === right.summary &&
+        left.shortDescription === right.shortDescription &&
         areRuntimeToolVisibleDetailsEqual(left, right)
       );
     }
@@ -591,6 +854,7 @@ function preserveDisplayTimelineIdentities(
 export const useAgentRuntimeStore = create<AgentRuntimeState>()((set) => ({
   snapshot: createEmptyRuntimeHostSnapshot(),
   localRuntimeThreadIds: new Set(),
+  runtimeActivityByThreadId: new Map(),
   setSnapshot: (snapshot) => {
     const migratedSnapshot = migrateLegacyRuntimeHostSnapshotInput(
       snapshot,
@@ -602,9 +866,16 @@ export const useAgentRuntimeStore = create<AgentRuntimeState>()((set) => ({
         state.localRuntimeThreadIds,
         hostOwnedRuntimeThreadIds(normalizedSnapshot),
       );
+      const runtimeActivityByThreadId = normalizeRuntimeActivitiesForSnapshot(
+        normalizedSnapshot,
+        state.runtimeActivityByThreadId,
+      );
       return {
         snapshot: normalizedSnapshot,
         ...(localRuntimeThreadIds !== state.localRuntimeThreadIds ? { localRuntimeThreadIds } : {}),
+        ...(runtimeActivityByThreadId !== state.runtimeActivityByThreadId
+          ? { runtimeActivityByThreadId }
+          : {}),
       };
     });
   },
@@ -617,12 +888,24 @@ export const useAgentRuntimeStore = create<AgentRuntimeState>()((set) => ({
         state.localRuntimeThreadIds,
         hostOwnedRuntimeThreadIdsForEvent(migratedEvent),
       );
-      if (snapshot === state.snapshot && localRuntimeThreadIds === state.localRuntimeThreadIds) {
+      const runtimeActivityByThreadId = reduceRuntimeActivitiesForHostEvent(
+        state.runtimeActivityByThreadId,
+        migratedEvent,
+        snapshot,
+      );
+      if (
+        snapshot === state.snapshot &&
+        localRuntimeThreadIds === state.localRuntimeThreadIds &&
+        runtimeActivityByThreadId === state.runtimeActivityByThreadId
+      ) {
         return state;
       }
       return {
         ...(snapshot !== state.snapshot ? { snapshot } : {}),
         ...(localRuntimeThreadIds !== state.localRuntimeThreadIds ? { localRuntimeThreadIds } : {}),
+        ...(runtimeActivityByThreadId !== state.runtimeActivityByThreadId
+          ? { runtimeActivityByThreadId }
+          : {}),
       };
     });
   },
@@ -708,15 +991,29 @@ export function selectPendingExtensionUiRequestsForThread(
 export function startDesktopRuntimeHostSync(): () => void {
   const api = readHonkRuntimeApi();
   let disposed = false;
+  let snapshotApplied = false;
+  const bufferedEvents: HonkRuntimeHostEvent[] = [];
 
   void api.getHostSnapshot().then((snapshot) => {
     if (!disposed) {
       useAgentRuntimeStore.getState().setSnapshot(snapshot);
+      snapshotApplied = true;
+      for (const event of bufferedEvents.splice(0)) {
+        useAgentRuntimeStore.getState().applyHostEvent(event);
+      }
+    }
+  }, () => {
+    if (!disposed) {
+      snapshotApplied = true;
+      bufferedEvents.length = 0;
     }
   });
 
   const unsubscribe = api.onHostEvent((event) => {
     if (!disposed) {
+      if (!snapshotApplied) {
+        bufferedEvents.push(event);
+      }
       useAgentRuntimeStore.getState().applyHostEvent(event);
     }
   });

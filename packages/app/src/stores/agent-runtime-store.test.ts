@@ -132,6 +132,7 @@ describe("agent runtime store", () => {
     useAgentRuntimeStore.setState({
       snapshot: createEmptyRuntimeHostSnapshot(),
       localRuntimeThreadIds: new Set(),
+      runtimeActivityByThreadId: new Map(),
     });
   });
 
@@ -753,20 +754,14 @@ describe("agent runtime store", () => {
 
   it("does not append live raw runtime events to the app snapshot", () => {
     const initialSnapshot = useAgentRuntimeStore.getState().snapshot;
-    let storeUpdateCount = 0;
-    const unsubscribe = useAgentRuntimeStore.subscribe(() => {
-      storeUpdateCount += 1;
-    });
 
     useAgentRuntimeStore.getState().applyHostEvent({
       type: "runtime-event",
       event: turnStartedEventPrototype,
     });
-    unsubscribe();
 
     expect(useAgentRuntimeStore.getState().snapshot).toBe(initialSnapshot);
     expect(useAgentRuntimeStore.getState().snapshot.runtimeEvents).toEqual([]);
-    expect(storeUpdateCount).toBe(0);
   });
 
   it("does not dispatch orchestration persistence commands from renderer runtime events", () => {

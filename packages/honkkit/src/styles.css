@@ -9,6 +9,7 @@
   --z-index-shell-overlay-backdrop: 45;
   --z-index-shell-overlay-panel: 48;
   --z-index-shell-titlebar-controls: 50;
+  --z-index-workbench-tool-island: 51;
   --z-index-popover: 60;
   --z-index-menu: 60;
   --z-index-submenu: 61;

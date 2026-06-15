@@ -650,6 +650,7 @@ export const RuntimeDisplayTimelineToolItem = Schema.Struct({
   result: Schema.optional(Schema.Unknown),
   details: Schema.optional(Schema.Unknown),
   summary: Schema.optional(Schema.String),
+  shortDescription: Schema.optional(Schema.String),
   display: RuntimeDisplayTimelineToolDisplay,
   command: Schema.optional(Schema.String),
   output: Schema.optional(Schema.String),

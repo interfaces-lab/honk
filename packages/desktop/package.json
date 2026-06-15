@@ -33,6 +33,7 @@
     "open": "^11.0.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "sqlite3": "5.1.7",
     "typebox": "^1.2.8"
   },
   "devDependencies": {

@@ -457,9 +457,13 @@ html:not([data-electron]) .agent-window {
   z-index: 50;
 }
 
-/* Cursor .titlebar-drag-region: full-width drag band; controls opt out via .no-drag */
+/*
+ * Honk's shell is Cursor's no-titlebar shape: chat and workbench top rows own
+ * drag, while the floating titlebar layer owns only its visible controls.
+ */
 .honk-shell-titlebar-drag-region {
   z-index: 0;
+  pointer-events: none;
 }
 
 .honk-shell-titlebar-left-controls,
@@ -467,10 +471,71 @@ html:not([data-electron]) .agent-window {
   z-index: 1;
 }
 
-/* Cursor content-pane-top-bar / no-titlebar tabs-container: row drags, tabs opt out */
+/*
+ * Cursor editor-panel-tab-root: bar root drags empty chrome; interactive children opt out.
+ * Raise above .honk-shell-titlebar-controls so the full-width titlebar drag band does not
+ * swallow tab clicks (tabs sit in the same 35px row as the frameless titlebar).
+ */
+[data-shell-platform="electron"] .honk-workbench-tool-island.editor-panel-tab-root {
+  z-index: var(--z-index-workbench-tool-island);
+}
+
+[data-shell-platform="electron"] [data-shell-drag-region] {
+  -webkit-app-region: drag;
+}
+
+[data-shell-platform="electron"] [data-shell-no-drag],
+[data-shell-platform="electron"] [data-shell-drag-region] button,
+[data-shell-platform="electron"] [data-shell-drag-region] input,
+[data-shell-platform="electron"] [data-shell-drag-region] textarea,
+[data-shell-platform="electron"] [data-shell-drag-region] select,
+[data-shell-platform="electron"] [data-shell-drag-region] a,
+[data-shell-platform="electron"] [data-shell-drag-region] [data-no-drag],
+[data-shell-platform="electron"] [data-shell-drag-region] [data-shell-no-drag],
+[data-shell-platform="electron"] [data-shell-drag-region] [data-slot="workbench-icon-button"],
+[data-shell-platform="electron"] [data-shell-drag-region] [data-slot="workbench-text-button"],
 [data-shell-platform="electron"]
-  .honk-workbench-tool-island.editor-panel-tab-root.drag-region
-  .ui-tab-system-tabs {
+  [data-shell-drag-region]
+  [data-slot="workbench-chrome-action-group"],
+[data-shell-platform="electron"]
+  [data-shell-drag-region]
+  [data-slot="workbench-chrome-row-end"],
+[data-shell-platform="electron"]
+  [data-shell-drag-region]
+  [data-slot="workbench-chrome-row-trailing"],
+[data-shell-platform="electron"]
+  [data-shell-drag-region]
+  [data-slot="workbench-chrome-trailing-section"],
+[data-shell-platform="electron"] [data-shell-drag-region] [role="button"],
+[data-shell-platform="electron"] [data-shell-drag-region] [role="tab"] {
+  -webkit-app-region: no-drag;
+}
+
+[data-shell-platform="electron"]
+  .honk-workbench-tool-island.editor-panel-tab-root
+  .ui-tab-system-tab,
+[data-shell-platform="electron"]
+  .honk-workbench-tool-island.editor-panel-tab-root
+  .ui-tab-system-tabs,
+[data-shell-platform="electron"]
+  .honk-workbench-tool-island.editor-panel-tab-root
+  .ui-tab-system-tabs__scrollable,
+[data-shell-platform="electron"]
+  .honk-workbench-tool-island.editor-panel-tab-root
+  .ui-tab-system-tabs__viewport,
+[data-shell-platform="electron"]
+  .honk-workbench-tool-island.editor-panel-tab-root
+  .editor-panel-tab-bar-trailing-section {
+  -webkit-app-region: no-drag;
+  pointer-events: auto;
+}
+
+[data-shell-platform="electron"]
+  .honk-workbench-tool-island.editor-panel-tab-root
+  .editor-panel-tab-bar-spacer,
+[data-shell-platform="electron"]
+  .honk-workbench-tool-island.editor-panel-tab-root
+  .editor-panel-tab-bar-leading {
   -webkit-app-region: drag;
 }
 

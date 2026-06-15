@@ -372,6 +372,9 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const availableEditors = useServerAvailableEditors();
   const firstProjectCwd = projects[0]?.cwd ?? null;
   const markDraftThreadPromoting = useComposerDraftStore((store) => store.markDraftThreadPromoting);
+  const setComposerDraftInteractionMode = useComposerDraftStore(
+    (store) => store.setInteractionMode,
+  );
   const cancelDraftThreadPromotion = useComposerDraftStore(
     (store) => store.cancelDraftThreadPromotion,
   );
@@ -535,6 +538,10 @@ function ChatShellHost(props: { children?: ReactNode }) {
     }
 
     setIsImplementingPlan(true);
+    setComposerDraftInteractionMode(
+      scopeThreadRef(activeThread.environmentId, activeThread.id),
+      DEFAULT_INTERACTION_MODE,
+    );
     try {
       const clientMessageId = newMessageId();
       const createdAt = new Date().toISOString();

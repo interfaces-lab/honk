@@ -401,11 +401,14 @@ code {
 }
 
 /* Window drag region (frameless titlebar) */
-.drag-region {
+.drag-region,
+[data-shell-drag-region] {
   -webkit-app-region: drag;
 }
 
 .no-drag,
+[data-no-drag],
+[data-shell-no-drag],
 .drag-region button,
 .drag-region input,
 .drag-region textarea,
@@ -414,7 +417,24 @@ code {
 .drag-region [role="button"],
 .drag-region [role="tab"],
 .drag-region [data-slot="tabs-list"],
-.drag-region [data-slot="tabs-tab"] {
+.drag-region [data-slot="tabs-tab"],
+[data-shell-drag-region] button,
+[data-shell-drag-region] input,
+[data-shell-drag-region] textarea,
+[data-shell-drag-region] select,
+[data-shell-drag-region] a,
+[data-shell-drag-region] [role="button"],
+[data-shell-drag-region] [role="tab"],
+[data-shell-drag-region] [data-no-drag],
+[data-shell-drag-region] [data-shell-no-drag],
+[data-shell-drag-region] [data-slot="tabs-list"],
+[data-shell-drag-region] [data-slot="tabs-tab"],
+[data-shell-drag-region] [data-slot="workbench-chrome-action-group"],
+[data-shell-drag-region] [data-slot="workbench-chrome-row-end"],
+[data-shell-drag-region] [data-slot="workbench-chrome-row-trailing"],
+[data-shell-drag-region] [data-slot="workbench-chrome-trailing-section"],
+[data-shell-drag-region] [data-slot="workbench-icon-button"],
+[data-shell-drag-region] [data-slot="workbench-text-button"] {
   -webkit-app-region: no-drag;
 }
 

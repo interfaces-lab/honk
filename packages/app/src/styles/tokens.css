@@ -87,7 +87,7 @@
   --honk-base-editor: #fcfcfc;
   --honk-base-accent: #3685bf;
   --honk-base-focus: #3685bf;
-  --honk-shadow-primary: color-mix(in srgb, #000000 6%, transparent);
+  --honk-shadow-primary: color-mix(in srgb, #000 6%, transparent);
 
   --accent: var(--honk-bg-secondary);
   --accent-foreground: var(--foreground);
@@ -145,15 +145,15 @@
 :root.dark {
   color-scheme: dark;
   --app-background: var(--background);
-  --honk-glass-surface-background: rgb(0 0 0 / 0.42);
+  --honk-glass-surface-background: rgb(0 0 0 / 0.48);
 
   --background: var(--honk-base-editor);
   --honk-base-foreground: #e4e4e4;
   --foreground: var(--honk-base-foreground);
   --honk-swatch-inset-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 16%, transparent);
-  --card: var(--honk-base-editor);
+  --card: var(--honk-color-elevated-opaque);
   --card-foreground: var(--foreground);
-  --popover: var(--honk-base-editor);
+  --popover: var(--honk-color-elevated-opaque);
   --popover-foreground: var(--foreground);
 
   --secondary: color-mix(in srgb, var(--foreground) 8%, transparent);
@@ -166,7 +166,7 @@
   --honk-base-editor: #181818;
   --honk-base-accent: #599ce7;
   --honk-base-focus: #e4e4e4;
-  --honk-shadow-primary: color-mix(in srgb, #000000 20%, transparent);
+  --honk-shadow-primary: transparent;
 
   --accent: var(--honk-bg-secondary);
   --accent-foreground: var(--foreground);
@@ -203,7 +203,7 @@
   --honk-color-editor: var(--honk-color-editor-opaque);
   --honk-color-surface-opaque: var(--honk-base-editor);
   --honk-color-surface: var(--honk-color-surface-opaque);
-  --honk-color-elevated-opaque: var(--honk-base-editor);
+  --honk-color-elevated-opaque: color-mix(in srgb, var(--honk-base-editor) 92%, white);
   --honk-color-elevated: var(--honk-color-elevated-opaque);
   --honk-color-menubar-opaque: var(--honk-base-editor);
   --honk-color-menubar: var(--honk-color-menubar-opaque);
@@ -479,6 +479,48 @@ html.dark {
   --honk-vibrancy-sidebar-mix: 36%;
   --honk-vibrancy-chat-mix: 72%;
   --honk-vibrancy-editor-mix: var(--honk-vibrancy-chat-mix);
+  --honk-pane-surface-background: color-mix(in srgb, var(--honk-color-editor-opaque) 94%, white);
+  --honk-workbench-panel-background: color-mix(
+    in srgb,
+    var(--honk-color-editor) 88%,
+    var(--honk-color-elevated-opaque)
+  );
+  --honk-workbench-surface-background: color-mix(
+    in srgb,
+    var(--honk-workbench-panel-background) 88%,
+    transparent
+  );
+  --honk-workbench-editor-surface-background: color-mix(
+    in srgb,
+    var(--honk-color-editor) 90%,
+    transparent
+  );
+  --honk-workbench-card-background: color-mix(
+    in srgb,
+    var(--honk-color-elevated-opaque) 82%,
+    var(--honk-color-editor) 18%
+  );
+  --honk-bg-elevated: var(--honk-color-elevated-opaque);
+  --honk-command-palette-surface-background: var(--honk-color-elevated-opaque);
+  --honk-shadow-secondary: transparent;
+  --honk-shadow-tertiary: transparent;
+  --honk-shadow-workbench: none;
+  --honk-shadow-toolbar: none;
+  --honk-shadow-soft: none;
+  --honk-shadow-sm: none;
+  --honk-shadow-base: none;
+  --honk-shadow-lg: none;
+  --honk-shadow-xl: none;
+  --honk-shadow-card: none;
+  --honk-shadow-popup: none;
+  --honk-shadow-flat-ring: 0 0 0 1px var(--honk-stroke-quaternary);
+  --shadow-2xs: none;
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-xl: none;
+  --shadow-2xl: none;
 }
 
 /*
@@ -527,6 +569,11 @@ body[data-honk-glass-mode="true"] {
   --honk-color-elevated-opaque: var(--honk-base-editor);
   --honk-color-menubar-opaque: var(--honk-base-editor);
   --honk-command-palette-surface-background: var(--honk-base-chrome);
+}
+
+html.dark body[data-honk-glass-mode="true"] {
+  --honk-color-elevated-opaque: color-mix(in srgb, var(--honk-base-editor) 92%, white);
+  --honk-command-palette-surface-background: var(--honk-color-elevated-opaque);
 }
 
 body.honk-os-vibrancy-on[data-honk-glass-mode="true"] [data-component="root"] {
@@ -585,4 +632,16 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-component="root
 
 body.honk-reduce-transparency[data-honk-glass-mode="true"] {
   --honk-command-palette-surface-background: var(--honk-base-chrome);
+}
+
+html.dark body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-component="root"] {
+  --honk-bubble-surface-opaque-background: var(--honk-color-elevated-opaque);
+  --honk-composer-surface-opaque-background: var(--honk-bubble-surface-opaque-background);
+  --honk-composer-surface-background: var(--honk-composer-surface-opaque-background);
+  --honk-message-bubble-background: var(--honk-composer-surface-opaque-background);
+  --honk-bg-elevated: var(--honk-color-elevated-opaque);
+}
+
+html.dark body.honk-reduce-transparency[data-honk-glass-mode="true"] {
+  --honk-command-palette-surface-background: var(--honk-color-elevated-opaque);
 }

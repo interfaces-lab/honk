@@ -14,6 +14,7 @@ import {
   type ThreadId,
   type ThreadTurnStartBootstrap,
   type UploadChatAttachment,
+  threadEntryIdForMessageId,
 } from "@honk/contracts";
 
 import { applyLocalThreadTurnStartRequested } from "~/stores/local-orchestration-events";
@@ -89,13 +90,18 @@ export async function coordinateTurnSend(
     throw new Error("Branching edit sends require parentEntryId.");
   }
 
+  const currentThread = getThreadFromEnvironmentState(
+    selectEnvironmentState(useStore.getState(), input.environmentId),
+    input.threadId,
+  );
+  const userEntryId = threadEntryIdForMessageId(input.clientMessageId);
+  const existingUserEntry = currentThread?.entries.find((entry) => entry.id === userEntryId);
   const resolvedParentEntryId =
     input.parentEntryId !== undefined
       ? input.parentEntryId
-      : (getThreadFromEnvironmentState(
-          selectEnvironmentState(useStore.getState(), input.environmentId),
-          input.threadId,
-        )?.leafId ?? null);
+      : currentThread?.leafId === userEntryId
+        ? (existingUserEntry?.parentEntryId ?? null)
+        : (currentThread?.leafId ?? null);
 
   if (input.appendSendIntent !== false) {
     useThreadSendIntentStore.getState().appendSendIntent(
