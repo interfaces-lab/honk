@@ -30,6 +30,7 @@ describe("DesktopRuntimeHost", () => {
     agentMode: "deep",
     interactionMode: "agent",
     modelSelection: { type: "pi-managed" },
+    fast: false,
     thinkingLevel: "high",
     allowedToolNames: [],
     excludedToolNames: [],
@@ -223,6 +224,7 @@ describe("DesktopRuntimeHost", () => {
         interactionMode: "agent",
         modelSelection: DEFAULT_AGENT_POLICY_MODEL_SELECTION,
         modelSettingsByModelId: {},
+        fast: false,
         thinkingLevel: "medium",
         resources: DEFAULT_AGENT_RESOURCE_PREFERENCES,
         credentials: [
@@ -321,6 +323,7 @@ describe("DesktopRuntimeHost", () => {
         interactionMode: "agent",
         modelSelection: DEFAULT_AGENT_POLICY_MODEL_SELECTION,
         modelSettingsByModelId: {},
+        fast: false,
         thinkingLevel: "medium",
         resources: DEFAULT_AGENT_RESOURCE_PREFERENCES,
         credentials: [
@@ -402,6 +405,7 @@ describe("DesktopRuntimeHost", () => {
         interactionMode: "debug",
         modelSelection: DEFAULT_AGENT_POLICY_MODEL_SELECTION,
         modelSettingsByModelId: {},
+        fast: false,
         thinkingLevel: "high",
         resources: DEFAULT_AGENT_RESOURCE_PREFERENCES,
         credentials: [],

@@ -613,8 +613,6 @@ describe("runtime display timeline projection", () => {
               content: [{ type: "text", text: "Subagents: 1/1 completed" }],
               details: {
                 mode: "single",
-                agentScope: "project",
-                projectAgentsDir: null,
                 runs: [
                   {
                     subagentThreadId: "thread:child",
@@ -669,7 +667,6 @@ describe("runtime display timeline projection", () => {
         display: expect.objectContaining({
           kind: "subagent",
           mode: "single",
-          agentScope: "project",
           runs: [
             expect.objectContaining({
               subagentThreadId: "thread:child",
@@ -704,8 +701,6 @@ describe("runtime display timeline projection", () => {
               content: [{ type: "text", text: "Malformed" }],
               details: {
                 mode: "single",
-                agentScope: "project",
-                projectAgentsDir: null,
                 runs: [{ subagentThreadId: "thread:child" }],
                 activities: [],
               },

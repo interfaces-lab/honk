@@ -120,6 +120,7 @@ export interface ComposerInputProps {
   composerImagesRef: RefObject<ComposerImageAttachment[]>;
 
   onSend: (e?: { preventDefault: () => void }) => void;
+  onCompactContext?: (() => void) | undefined;
   onInterrupt: () => void;
   onBuildPlan?: (() => void) | undefined;
   onViewPlan?: (() => void) | undefined;

@@ -388,8 +388,10 @@ describe("RuntimeToolCallMessage command entries", () => {
 
     expect(html).toContain("data-subagent-status-container");
     expect(html).toContain("data-subagent-row");
+    expect(html).toContain("data-subagent-role");
     expect(html).toContain("data-subagent-name");
     expect(html).toContain("data-subagent-task");
+    expect(html).toContain("General Purpose");
     expect(html).toContain("Research");
     expect(html).toContain("gpt-5.5");
     expect(html).toContain("Renderer reviewed");
@@ -430,8 +432,6 @@ function runtimeSubagentTool(): RuntimeDisplayTimelineToolItem {
     display: {
       kind: "subagent",
       mode: "single",
-      agentScope: "project",
-      projectAgentsDir: null,
       runs: [
         {
           subagentThreadId: "thread:child",
@@ -482,8 +482,6 @@ function runtimeSubagentToolWithTranscript(): RuntimeDisplayTimelineToolItem {
     display: {
       kind: "subagent",
       mode: "single",
-      agentScope: "project",
-      projectAgentsDir: null,
       runs: [
         {
           subagentThreadId: "thread:child",

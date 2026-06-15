@@ -13,6 +13,7 @@ import {
   type WorkLogEntry,
   type WorkLogSubagent,
 } from "../../../session-logic";
+import { formatSubagentRoleLabel } from "../../../session/subagents";
 import { formatProjectRelativePath } from "../shared/file-path-display";
 import { formatContextWindowTokens } from "~/lib/context-window";
 import { useConversationDensity } from "~/hooks/use-conversation-density";
@@ -762,6 +763,9 @@ function SubagentStatusRow({
     subagentDetailsEnabled &&
     ((subagent.logs?.length ?? 0) > 0 || subagent.hasDetails === true || hasSubagentThread);
   const title = subagent.title ?? subagent.nickname ?? subagent.role ?? "Subagent";
+  const roleLabel = formatSubagentRoleLabel(subagent.role);
+  const visibleRoleLabel = roleLabel && roleLabel !== title ? roleLabel : undefined;
+  const accessibleTitle = visibleRoleLabel ? `${visibleRoleLabel} subagent: ${title}` : title;
   const statusText = subagent.latestUpdate ?? subagent.statusLabel;
   const rowState = subagent.rawStatus ?? (subagent.isActive ? "running" : "completed");
 
@@ -797,7 +801,7 @@ function SubagentStatusRow({
       data-subagent-state={rowState}
       data-subagent-thread-id={hasSubagentThread ? subagentThreadId : undefined}
       disabled={!hasDetails}
-      aria-label={hasDetails ? `Open ${title} details` : undefined}
+      aria-label={hasDetails ? `Open ${accessibleTitle} details` : undefined}
       aria-pressed={hasDetails ? isTrayOpen : undefined}
       onClick={handleOpenTray}
       onKeyDown={stopSubagentStatusRowKeyDown}
@@ -806,6 +810,15 @@ function SubagentStatusRow({
         <span className="inline-flex w-3 shrink-0 items-center justify-center">
           <SubagentStatusIndicator subagent={subagent} />
         </span>
+        {visibleRoleLabel ? (
+          <span
+            data-subagent-role=""
+            className="shrink-0 text-caption font-medium text-honk-fg-secondary"
+            title={subagent.role}
+          >
+            {visibleRoleLabel}
+          </span>
+        ) : null}
         <span
           data-subagent-name=""
           className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium text-honk-fg-primary"
@@ -1006,7 +1019,8 @@ function resolveToolCase(workEntry: WorkLogEntry): ToolCallModel["tool"]["case"]
     return "readToolCall";
   }
   if (workEntry.itemType === "file_search") {
-    return "globToolCall";
+    const searchArtifact = workEntry.artifacts?.find((artifact) => artifact.type === "search");
+    return searchArtifact?.flavor === "grep" ? "grepToolCall" : "globToolCall";
   }
   if (workEntry.itemType === "web_search") {
     return "webSearchToolCall";

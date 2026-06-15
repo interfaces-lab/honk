@@ -39,6 +39,7 @@ import { getGitStatusSnapshot, useGitStatus } from "~/lib/git-status-state";
 import { readEnvironmentApi } from "../../../environment-api";
 import { usePrimaryEnvironmentId } from "../../../environments/primary";
 import {
+  compactRuntimeThread,
   type PreparedRuntimeTurnPolicy,
   prepareRuntimeTurnPolicy,
 } from "~/lib/runtime-turn-dispatch";
@@ -51,6 +52,7 @@ import { isElectron } from "../../../env";
 import { readLocalApi } from "../../../local-api";
 import {
   collapseExpandedComposerCursor,
+  isComposerModeSlashCommand,
   isUnresolvedStandaloneComposerSlashCommand,
   parseStandaloneComposerSlashCommand,
 } from "../composer/prompt-triggers";
@@ -583,6 +585,7 @@ export default function ChatView(props: ChatViewProps) {
   const [terminalLaunchContext, setTerminalLaunchContext] = useState<TerminalLaunchContext | null>(
     null,
   );
+  const [compactingThreadId, setCompactingThreadId] = useState<ThreadId | null>(null);
   const [lastInvokedScriptByProjectId, setLastInvokedScriptByProjectId] = useLocalStorage(
     LAST_INVOKED_SCRIPT_BY_PROJECT_KEY,
     {},
@@ -923,7 +926,9 @@ export default function ChatView(props: ChatViewProps) {
     activeRuntimeDisplayTimeline !== null &&
     !latestTurnSettled &&
     !runtimeTimelineHasResponse;
-  const isTurnRunning = activeRunningTurnId !== null || runtimeSurfaceImpliesTurnRunning;
+  const isCompactingActive = activeThreadId !== null && compactingThreadId === activeThreadId;
+  const isTurnRunning =
+    activeRunningTurnId !== null || runtimeSurfaceImpliesTurnRunning || isCompactingActive;
   const isWorking = isTurnRunning || isSendBusy || isConnecting || waitingForRuntimeFirstResponse;
   const {
     queuedComposerItems,
@@ -1675,6 +1680,48 @@ export default function ChatView(props: ChatViewProps) {
     }
   };
 
+  const onCompactContext = async (customInstructions?: string) => {
+    if (!activeThread) {
+      return;
+    }
+    const threadIdForCompact = activeThread.id;
+    if (isConnecting || isSendBusy || sendInFlightRef.current || isCompactingActive) {
+      return;
+    }
+    if (isTurnRunning) {
+      setThreadError(threadIdForCompact, "Wait for the current turn to finish before compacting.");
+      return;
+    }
+    const runtimeCwd = workspaceTarget.cwd;
+    if (!runtimeCwd) {
+      setThreadError(threadIdForCompact, "Pi runtime requires an active project before compacting.");
+      return;
+    }
+    if (!requireAvailableModelSelectionForSend(threadIdForCompact, activeThread.modelSelection)) {
+      return;
+    }
+
+    setCompactingThreadId(threadIdForCompact);
+    markLocalRuntimeThread(threadIdForCompact);
+    setThreadError(threadIdForCompact, null);
+    try {
+      await compactRuntimeThread({
+        threadId: threadIdForCompact,
+        cwd: runtimeCwd,
+        interactionMode,
+        modelSelection: activeThread.modelSelection,
+        ...(customInstructions && customInstructions.length > 0 ? { customInstructions } : {}),
+      });
+    } catch (error) {
+      setThreadError(
+        threadIdForCompact,
+        error instanceof Error ? error.message : "Failed to compact context.",
+      );
+    } finally {
+      setCompactingThreadId((current) => (current === threadIdForCompact ? null : current));
+    }
+  };
+
   const onSubmitEditUserMessage = async (
     messageId: MessageId,
     input: InlineEditSubmitInput,
@@ -1853,9 +1900,32 @@ export default function ChatView(props: ChatViewProps) {
       planFollowUp,
       clearComposerOnSubmit,
     } = snapshot;
-    const { prompt: promptForSend, images: composerImages } = sendCtx;
+    let sendContextForDispatch = sendCtx;
+    const { prompt: rawPromptForSend, images: composerImages } = sendCtx;
+    const rawTrimmedPrompt = rawPromptForSend.trim();
+    const rawStandaloneSlashCommand =
+      composerImages.length === 0 ? parseStandaloneComposerSlashCommand(rawTrimmedPrompt) : null;
+    if (rawStandaloneSlashCommand?.command === "compact") {
+      if (clearComposerOnSubmit) {
+        composerRef.current?.clearComposer();
+      }
+      await onCompactContext(rawStandaloneSlashCommand.body);
+      return;
+    }
+    if (rawStandaloneSlashCommand?.command === "goal") {
+      if (rawStandaloneSlashCommand.body.length === 0) {
+        setThreadError(activeThread.id, "Add a goal after /goal before sending.");
+        return;
+      }
+      sendContextForDispatch = {
+        prompt: `Goal: ${rawStandaloneSlashCommand.body}`,
+        images: composerImages,
+        hasUnresolvedSlashCommand: false,
+      };
+    }
+    const { prompt: promptForSend } = sendContextForDispatch;
     let composerClearedForSend = false;
-    const compiledTurn = compileComposerSubmitTurn(sendCtx);
+    const compiledTurn = compileComposerSubmitTurn(sendContextForDispatch);
     const { trimmedPrompt: trimmed, hasSendableContent } = compiledTurn;
     if (planFollowUp) {
       const followUp = resolvePlanFollowUpSubmission({
@@ -1879,7 +1949,10 @@ export default function ChatView(props: ChatViewProps) {
     const standaloneSlashCommand =
       composerImages.length === 0 ? parseStandaloneComposerSlashCommand(trimmed) : null;
     if (standaloneSlashCommand) {
-      handleInteractionModeChange(standaloneSlashCommand);
+      if (!isComposerModeSlashCommand(standaloneSlashCommand.command)) {
+        return;
+      }
+      handleInteractionModeChange(standaloneSlashCommand.command);
       if (clearComposerOnSubmit) {
         composerRef.current?.clearComposer();
         composerClearedForSend = true;
@@ -2243,7 +2316,9 @@ export default function ChatView(props: ChatViewProps) {
         composerRef.current?.restoreComposer({
           prompt: promptForSend,
           images: retryComposerImages,
-          ...(sendCtx.richText !== undefined ? { richText: sendCtx.richText } : {}),
+          ...(sendContextForDispatch.richText !== undefined
+            ? { richText: sendContextForDispatch.richText }
+            : {}),
         });
       }
       if (!serverTurnStartSucceeded && promotedLocalSendThreadKey !== null) {
@@ -2350,10 +2425,12 @@ export default function ChatView(props: ChatViewProps) {
       return;
     }
 
-    if (
+    const shouldQueueDuringActiveTurn =
       isTurnRunning &&
-      (sendWhileStreamingBehavior === "queue" || sendWhileStreamingBehavior === "stop-and-send")
-    ) {
+      (isCompactingActive ||
+        sendWhileStreamingBehavior === "queue" ||
+        sendWhileStreamingBehavior === "stop-and-send");
+    if (shouldQueueDuringActiveTurn) {
       const { hasSendableContent } = currentComposerSendState;
       if (!hasSendableContent) {
         return;
@@ -2371,7 +2448,7 @@ export default function ChatView(props: ChatViewProps) {
         }),
       );
       clearLiveComposer();
-      if (sendWhileStreamingBehavior === "stop-and-send") {
+      if (sendWhileStreamingBehavior === "stop-and-send" && !isCompactingActive) {
         await onInterrupt();
       }
       return;
@@ -2725,6 +2802,7 @@ export default function ChatView(props: ChatViewProps) {
     }
   };
   const handleComposerSend = useStableEvent(onSend);
+  const handleCompactContext = useStableEvent(onCompactContext);
   const handleComposerInterrupt = useStableEvent(onInterrupt);
   const handleBuildActiveProposedPlan = useStableEvent(onBuildActiveProposedPlan);
   const handleViewActivePlan = useStableEvent(() => {
@@ -3147,6 +3225,7 @@ export default function ChatView(props: ChatViewProps) {
               executionModeLabel={composerExecutionModeLabel}
               composerImagesRef={composerImagesRef}
               onSend={handleComposerSend}
+              onCompactContext={handleCompactContext}
               onInterrupt={handleComposerInterrupt}
               onBuildPlan={handleBuildActiveProposedPlan}
               onViewPlan={handleViewActivePlan}

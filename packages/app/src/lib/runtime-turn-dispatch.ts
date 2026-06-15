@@ -80,6 +80,27 @@ export async function sendRuntimeTurn(input: RuntimeTurnInput): Promise<void> {
   });
 }
 
+export async function compactRuntimeThread(input: {
+  readonly threadId: ThreadId;
+  readonly cwd: string;
+  readonly interactionMode: AgentInteractionMode;
+  readonly modelSelection: ModelSelection;
+  readonly customInstructions?: string | undefined;
+}): Promise<void> {
+  const preparedPolicy = prepareRuntimeTurnPolicy({
+    interactionMode: input.interactionMode,
+    modelSelection: input.modelSelection,
+  });
+  await preparedPolicy.runtimeApi.compactThread({
+    threadId: input.threadId,
+    cwd: input.cwd,
+    ...(input.customInstructions !== undefined
+      ? { customInstructions: input.customInstructions }
+      : {}),
+    policy: await preparedPolicy.policy,
+  });
+}
+
 const hydratedRuntimeThreadIds = new Set<string>();
 const hydrateRuntimeThreadInFlight = new Map<string, Promise<void>>();
 

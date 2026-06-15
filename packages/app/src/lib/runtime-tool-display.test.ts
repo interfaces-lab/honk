@@ -13,8 +13,6 @@ function runtimeSubagentDisplay(
   return {
     kind: "subagent",
     mode: "single",
-    agentScope: "project",
-    projectAgentsDir: null,
     runs: [
       {
         subagentThreadId: "thread:child",
@@ -38,8 +36,6 @@ function parallelRuntimeSubagentDisplay(
   return {
     kind: "subagent",
     mode: "parallel",
-    agentScope: "project",
-    projectAgentsDir: null,
     runs: [
       {
         subagentThreadId: "thread:child-a",

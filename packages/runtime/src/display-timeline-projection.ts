@@ -993,8 +993,6 @@ function projectRuntimeToolDisplay(input: {
     return {
       kind: "subagent",
       mode: subagentDetails.mode,
-      agentScope: subagentDetails.agentScope,
-      projectAgentsDir: subagentDetails.projectAgentsDir,
       runs: subagentDetails.runs,
       activities: subagentDetails.activities,
     };

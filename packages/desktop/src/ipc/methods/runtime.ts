@@ -10,6 +10,7 @@ import {
   RuntimeListSkillsInput,
   RuntimeListSkillsResult,
   ThreadAgentRuntimeAbortInput,
+  ThreadAgentRuntimeCompactInput,
   ThreadAgentRuntimeHydrateInput,
   ThreadAgentRuntimeSetThreadFocusInput,
   ThreadAgentRuntimeSendTurnInput,
@@ -212,6 +213,21 @@ export const sendRuntimeTurn = makeIpcMethod({
       );
       yield* elog.debug("runtime turn send completed", { threadId: input.threadId, turnId });
       return turnId;
+    }),
+});
+
+export const compactRuntimeThread = makeIpcMethod({
+  channel: IpcChannels.RUNTIME_COMPACT_THREAD_CHANNEL,
+  payload: ThreadAgentRuntimeCompactInput,
+  result: Schema.Void,
+  handler: (input) =>
+    Effect.gen(function* () {
+      yield* elog.info("runtime thread compact started", { threadId: input.threadId });
+      const host = yield* requireRuntimeHost;
+      yield* Effect.promise(() => host.compactThread(input)).pipe(
+        Effect.tapError((error) => logRuntimeFailure("runtime thread compact failed", input, error)),
+      );
+      yield* elog.debug("runtime thread compact completed", { threadId: input.threadId });
     }),
 });
 

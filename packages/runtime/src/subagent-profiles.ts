@@ -1,21 +1,14 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import type { Model } from "@earendil-works/pi-ai";
 import {
-  AGENT_MODES,
-  AGENT_THINKING_LEVELS,
   type AgentMode,
   type AgentThinkingLevel,
-  type SubagentScope,
 } from "@honk/contracts";
 
 // A subagent profile is the resolved specialization a child runs with: which model and thinking
 // level, which tools it may use, what system prompt specializes it, how much of the host's resources
-// it inherits, and how deep it may itself fan out. Resolution order is builtin < user < project <
-// per-call overrides, mirroring pi-subagents (named .md agents) but resolved for honk's in-process
-// embedding rather than a spawned CLI.
+// it inherits, and how deep it may itself fan out. Resolution is intentionally limited to Honk-owned
+// built-ins plus per-call model/tool overrides.
 
 export interface SubagentResourceAccess {
   readonly extensions: boolean;
@@ -26,8 +19,6 @@ export interface SubagentResourceAccess {
 
 export interface ResolvedSubagentProfile {
   readonly name: string;
-  readonly description: string;
-  readonly source: "builtin" | "user" | "project" | "override";
   // Appended to the base pi system prompt (never replaces it, so tool/safety guidance survives).
   readonly systemPrompt: string | null;
   // Model id ("provider/id" or bare id) to resolve against the registry; null = inherit the parent.
@@ -67,8 +58,6 @@ const READONLY_TOOLS = ["read", "grep", "find", "ls", "bash"] as const;
 const BUILTIN_SUBAGENT_PROFILES: Record<string, ResolvedSubagentProfile> = {
   [DEFAULT_SUBAGENT_AGENT_NAME]: {
     name: DEFAULT_SUBAGENT_AGENT_NAME,
-    description: "General-purpose subagent that inherits the parent's tools and model.",
-    source: "builtin",
     systemPrompt: null,
     model: null,
     thinkingLevel: null,
@@ -79,8 +68,6 @@ const BUILTIN_SUBAGENT_PROFILES: Record<string, ResolvedSubagentProfile> = {
   },
   scout: {
     name: "scout",
-    description: "Fast codebase reconnaissance; read-only.",
-    source: "builtin",
     systemPrompt: SCOUT_PROMPT,
     model: null,
     thinkingLevel: "medium",
@@ -91,8 +78,6 @@ const BUILTIN_SUBAGENT_PROFILES: Record<string, ResolvedSubagentProfile> = {
   },
   oracle: {
     name: "oracle",
-    description: "Deep analysis, architecture, and debugging advisor; read-only.",
-    source: "builtin",
     systemPrompt: ORACLE_PROMPT,
     model: null,
     thinkingLevel: "xhigh",
@@ -103,164 +88,6 @@ const BUILTIN_SUBAGENT_PROFILES: Record<string, ResolvedSubagentProfile> = {
   },
 };
 
-export function builtinSubagentProfileNames(): readonly string[] {
-  return Object.keys(BUILTIN_SUBAGENT_PROFILES);
-}
-
-function asTrimmedString(value: unknown): string | null {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
-}
-
-function asBoolean(value: unknown, fallback: boolean): boolean {
-  return typeof value === "boolean" ? value : fallback;
-}
-
-function parseToolList(value: unknown): readonly string[] | null {
-  if (Array.isArray(value)) {
-    const tools = value
-      .map((entry) => asTrimmedString(entry))
-      .filter((t): t is string => t !== null);
-    return tools.length > 0 ? tools : null;
-  }
-  const text = asTrimmedString(value);
-  if (!text) {
-    return null;
-  }
-  const tools = text
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
-  return tools.length > 0 ? tools : null;
-}
-
-function normalizeThinkingLevel(value: unknown): AgentThinkingLevel | null {
-  const text = asTrimmedString(value);
-  return text && (AGENT_THINKING_LEVELS as readonly string[]).includes(text)
-    ? (text as AgentThinkingLevel)
-    : null;
-}
-
-function normalizeAgentMode(value: unknown): AgentMode {
-  const text = asTrimmedString(value);
-  return text && (AGENT_MODES as readonly string[]).includes(text) ? (text as AgentMode) : "smart";
-}
-
-function normalizeMaxDepth(value: unknown): number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : 0;
-}
-
-function profileFromAgentFile(
-  content: string,
-  source: "user" | "project",
-  fallbackName: string,
-): ResolvedSubagentProfile | null {
-  let parsed: { frontmatter: Record<string, unknown>; body: string };
-  try {
-    parsed = parseFrontmatter<Record<string, unknown>>(content);
-  } catch {
-    return null;
-  }
-  const fm = parsed.frontmatter;
-  const name = asTrimmedString(fm.name) ?? fallbackName;
-  const systemPrompt = parsed.body.trim().length > 0 ? parsed.body.trim() : null;
-  return {
-    name,
-    description: asTrimmedString(fm.description) ?? `${source} agent ${name}`,
-    source,
-    systemPrompt,
-    model: asTrimmedString(fm.model),
-    thinkingLevel: normalizeThinkingLevel(fm.thinkingLevel),
-    tools: parseToolList(fm.tools),
-    agentMode: normalizeAgentMode(fm.agentMode),
-    resourceAccess: {
-      extensions: asBoolean(fm.inheritExtensions, false),
-      skills: asBoolean(fm.inheritSkills, false),
-      promptTemplates: asBoolean(fm.inheritPromptTemplates, false),
-      themes: asBoolean(fm.inheritThemes, false),
-    },
-    maxSubagentDepth: normalizeMaxDepth(fm.maxSubagentDepth),
-  };
-}
-
-function loadAgentsFromDir(
-  dir: string,
-  source: "user" | "project",
-): Map<string, ResolvedSubagentProfile> {
-  const result = new Map<string, ResolvedSubagentProfile>();
-  let entries: string[];
-  try {
-    entries = readdirSync(dir);
-  } catch {
-    return result;
-  }
-  for (const entry of entries) {
-    if (!entry.endsWith(".md")) {
-      continue;
-    }
-    const filePath = join(dir, entry);
-    let content: string;
-    try {
-      content = readFileSync(filePath, "utf8");
-    } catch {
-      continue;
-    }
-    const fallbackName = entry.slice(0, -3);
-    const profile = profileFromAgentFile(content, source, fallbackName);
-    if (profile) {
-      result.set(profile.name, profile);
-    }
-  }
-  return result;
-}
-
-function userAgentsDir(agentDir: string): string {
-  return join(agentDir, "agents");
-}
-
-// Project agents live in the nearest `.honk/agents` directory at or above the working directory.
-function findProjectAgentsDir(cwd: string): string | null {
-  let current = cwd;
-  for (;;) {
-    const candidate = join(current, ".honk", "agents");
-    try {
-      if (statSync(candidate).isDirectory()) {
-        return candidate;
-      }
-    } catch {
-      // not here; keep walking up
-    }
-    const parent = dirname(current);
-    if (parent === current) {
-      return null;
-    }
-    current = parent;
-  }
-}
-
-function mergedProfiles(input: {
-  readonly scope: SubagentScope;
-  readonly cwd: string;
-  readonly agentDir: string;
-}): Map<string, ResolvedSubagentProfile> {
-  const merged = new Map<string, ResolvedSubagentProfile>(
-    Object.entries(BUILTIN_SUBAGENT_PROFILES),
-  );
-  if (input.scope === "user" || input.scope === "both") {
-    for (const [name, profile] of loadAgentsFromDir(userAgentsDir(input.agentDir), "user")) {
-      merged.set(name, profile);
-    }
-  }
-  if (input.scope === "project" || input.scope === "both") {
-    const projectDir = findProjectAgentsDir(input.cwd);
-    if (projectDir) {
-      for (const [name, profile] of loadAgentsFromDir(projectDir, "project")) {
-        merged.set(name, profile);
-      }
-    }
-  }
-  return merged;
-}
-
 function applyOverrides(
   profile: ResolvedSubagentProfile,
   overrides: SubagentProfileOverrides | undefined,
@@ -270,27 +97,20 @@ function applyOverrides(
   }
   const next: ResolvedSubagentProfile = {
     ...profile,
-    ...(overrides.model !== undefined ? { model: overrides.model, source: "override" } : {}),
-    ...(overrides.thinkingLevel !== undefined
-      ? { thinkingLevel: overrides.thinkingLevel, source: "override" }
-      : {}),
-    ...(overrides.tools !== undefined ? { tools: overrides.tools, source: "override" } : {}),
+    ...(overrides.model !== undefined ? { model: overrides.model } : {}),
+    ...(overrides.thinkingLevel !== undefined ? { thinkingLevel: overrides.thinkingLevel } : {}),
+    ...(overrides.tools !== undefined ? { tools: overrides.tools } : {}),
   };
   return next;
 }
 
 export function resolveSubagentProfile(input: {
   readonly name: string | null | undefined;
-  readonly scope: SubagentScope;
-  readonly cwd: string;
-  readonly agentDir: string;
   readonly overrides?: SubagentProfileOverrides;
 }): ResolvedSubagentProfile {
-  const requested = asTrimmedString(input.name) ?? DEFAULT_SUBAGENT_AGENT_NAME;
-  const merged = mergedProfiles({ scope: input.scope, cwd: input.cwd, agentDir: input.agentDir });
+  const requested = input.name?.trim() || DEFAULT_SUBAGENT_AGENT_NAME;
   const base =
-    merged.get(requested) ??
-    merged.get(DEFAULT_SUBAGENT_AGENT_NAME) ??
+    BUILTIN_SUBAGENT_PROFILES[requested] ??
     BUILTIN_SUBAGENT_PROFILES[DEFAULT_SUBAGENT_AGENT_NAME]!;
   return applyOverrides(base, input.overrides);
 }
@@ -301,7 +121,7 @@ export function resolveSubagentModel(
   registry: ModelRegistry | undefined,
   name: string | null,
 ): Model<string> | undefined {
-  const trimmed = asTrimmedString(name);
+  const trimmed = name?.trim();
   if (!trimmed || !registry) {
     return undefined;
   }
