@@ -23,7 +23,6 @@ import {
 } from "@earendil-works/pi-ai";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import {
-  CURSOR_COMPOSER_DEFAULT_FAST,
   CURSOR_COMPOSER_FAST_OPTION_ID,
   CURSOR_COMPOSER_MODEL_ID,
   CURSOR_COMPOSER_MODEL_NAME,
@@ -58,7 +57,7 @@ export function registerCursorComposerProvider(
     streamSimple: (model, context, streamOptions) =>
       streamCursorComposer(model, context, streamOptions, {
         cwd: options.cwd,
-        fastEnabled: options.fastEnabled ?? CURSOR_COMPOSER_DEFAULT_FAST,
+        fastEnabled: options.fastEnabled ?? false,
       }),
     models: [
       {

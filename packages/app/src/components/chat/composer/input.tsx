@@ -135,9 +135,9 @@ import {
   type AgentModeAvailability,
 } from "~/lib/agent-mode-options";
 import {
-  createCursorComposerAgentPolicyModelSelection,
+  cursorComposerFastEnabled,
+  cursorComposerPolicyModelSelection,
   CURSOR_COMPOSER_MODEL_NAME,
-  getCursorComposerFastEnabledFromPolicyModelSelection,
 } from "@honk/shared/cursor-composer";
 
 export type {
@@ -1579,10 +1579,8 @@ export const ComposerInput = memo(
       const thinkingLevel = AGENT_MODE_THINKING_LEVELS[agentMode];
       const modelSelection =
         agentMode === "composer"
-          ? createCursorComposerAgentPolicyModelSelection(
-              getCursorComposerFastEnabledFromPolicyModelSelection(
-                runtimePreferences.modelSelection,
-              ),
+          ? cursorComposerPolicyModelSelection(
+              cursorComposerFastEnabled(runtimePreferences.modelSelection),
             )
           : undefined;
       if (
@@ -1617,11 +1615,10 @@ export const ComposerInput = memo(
     };
 
     const handleComposerFastModeChange = (fastEnabled: boolean) => {
-      const modelSelection = createCursorComposerAgentPolicyModelSelection(fastEnabled);
+      const modelSelection = cursorComposerPolicyModelSelection(fastEnabled);
       if (
         runtimePreferences.agentMode === "composer" &&
-        getCursorComposerFastEnabledFromPolicyModelSelection(runtimePreferences.modelSelection) ===
-          fastEnabled
+        cursorComposerFastEnabled(runtimePreferences.modelSelection) === fastEnabled
       ) {
         scheduleComposerFocus();
         return;
@@ -2547,9 +2544,7 @@ export const ComposerInput = memo(
           }}
         />
       );
-    const composerFastModeEnabled = getCursorComposerFastEnabledFromPolicyModelSelection(
-      runtimePreferences.modelSelection,
-    );
+    const composerFastModeEnabled = cursorComposerFastEnabled(runtimePreferences.modelSelection);
     const composerAgentModeControl = showModeControls ? (
       <span className="inline-flex min-w-0 max-w-full shrink items-center gap-1 overflow-hidden">
         {isNewAgentComposer ? (

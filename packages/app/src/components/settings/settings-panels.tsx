@@ -88,7 +88,7 @@ import {
   type AgentModeAvailability,
 } from "~/lib/agent-mode-options";
 import {
-  createCursorComposerAgentPolicyModelSelection,
+  cursorComposerPolicyModelSelection,
   CURSOR_COMPOSER_MODEL_NAME,
 } from "@honk/shared/cursor-composer";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
@@ -1431,7 +1431,7 @@ export function AgentRuntimeSettingsSectionsView({
                   agentMode,
                   thinkingLevel: AGENT_MODE_THINKING_LEVELS[agentMode],
                   ...(agentMode === "composer"
-                    ? { modelSelection: createCursorComposerAgentPolicyModelSelection() }
+                    ? { modelSelection: cursorComposerPolicyModelSelection() }
                     : {}),
                 });
               }}

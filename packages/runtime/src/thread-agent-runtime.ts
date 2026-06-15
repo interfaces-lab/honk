@@ -55,10 +55,8 @@ import {
   collectClientMessageIdSidecars,
   projectRuntimeSessionTree,
 } from "./session-tree-projection";
-import {
-  registerCursorComposerProvider,
-} from "./cursor-composer-provider";
-import { getCursorComposerFastEnabledFromPolicyModelSelection } from "@honk/shared/cursor-composer";
+import { registerCursorComposerProvider } from "./cursor-composer-provider";
+import { cursorComposerFastEnabled } from "@honk/shared/cursor-composer";
 
 const DEFAULT_EXCLUDED_TOOL_NAMES: readonly string[] = [];
 const PI_DEFAULT_SYSTEM_PROMPT_IDENTITY =
@@ -205,9 +203,7 @@ export class ThreadAgentRuntime {
       ModelRegistry.create(authStorage, join(options.agentDir, "models.json"));
     registerCursorComposerProvider(modelRegistry, {
       cwd: options.cwd,
-      fastEnabled: getCursorComposerFastEnabledFromPolicyModelSelection(
-        options.policy.modelSelection,
-      ),
+      fastEnabled: cursorComposerFastEnabled(options.policy.modelSelection),
     });
     const interactionModeQueue = createInteractionModeQueue();
     const contextUsageSink = createBindableContextUsageSink();

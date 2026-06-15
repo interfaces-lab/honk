@@ -9,8 +9,8 @@ import {
   type ModelSelection,
 } from "@honk/contracts";
 import {
-  createCursorComposerAgentPolicyModelSelection,
-  isCursorComposerPolicyModelSelection,
+  cursorComposerFastEnabled,
+  cursorComposerPolicyModelSelection,
 } from "./cursor-composer";
 
 function thinkingLevelForAgentMode(agentMode: AgentPreferences["agentMode"]): AgentThinkingLevel {
@@ -58,14 +58,7 @@ function agentPolicyModelSelectionForPreferences(
   if (preferences.agentMode !== "composer") {
     return agentPolicyModelSelectionForPinnedModel(fallbackModelSelection);
   }
-  return isCursorComposerPolicyModelSelection(preferences.modelSelection)
-    ? {
-        ...preferences.modelSelection,
-        ...(preferences.modelSelection.options
-          ? { options: preferences.modelSelection.options.map((option) => ({ ...option })) }
-          : {}),
-      }
-    : createCursorComposerAgentPolicyModelSelection();
+  return cursorComposerPolicyModelSelection(cursorComposerFastEnabled(preferences.modelSelection));
 }
 
 function selectedModelThinkingLevel(input: {

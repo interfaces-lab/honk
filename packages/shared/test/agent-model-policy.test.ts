@@ -4,7 +4,7 @@ import {
   DEFAULT_AGENT_RESOURCE_PREFERENCES,
 } from "@honk/contracts";
 import { createAgentModelPolicy } from "../src/agent-model-policy";
-import { createCursorComposerAgentPolicyModelSelection } from "../src/cursor-composer";
+import { cursorComposerPolicyModelSelection } from "../src/cursor-composer";
 
 const preferences = {
   agentMode: "deep",
@@ -90,7 +90,7 @@ describe("createAgentModelPolicy", () => {
           ...preferences,
           agentMode: "composer",
           thinkingLevel: "xhigh",
-          modelSelection: createCursorComposerAgentPolicyModelSelection(true),
+          modelSelection: cursorComposerPolicyModelSelection(true),
         },
         interactionMode: "agent",
         modelSelection: codexModelSelection,
