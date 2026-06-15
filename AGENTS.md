@@ -57,6 +57,7 @@
 - Never use destructive commands: `git reset --hard`, `git checkout .`, `git clean -fd`, or `git stash`.
 - Before committing, inspect `git status` and stage explicit paths.
 - If rebasing conflicts in files you did not edit, abort and ask.
+- Commit message format (Pi-style): `{feat,fix,refactor,docs,test,chore,ci}[(app,desktop,runtime,server,contracts,honkkit)]: concise summary`. Use the primary affected package as scope; keep the subject informative and one line. No `Co-authored-by` trailers unless the user asks.
 
 ## Releases
 
