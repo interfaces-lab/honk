@@ -1903,6 +1903,57 @@ function isSameParentVisibleThread(previousThread: Thread, nextThread: Thread): 
   );
 }
 
+function isNeutralSessionStatus(status: ThreadSession["orchestrationStatus"] | null): boolean {
+  return status === null || status === "idle" || status === "ready";
+}
+
+function shouldPreserveLiveRuntimeSession(
+  previousSession: ThreadSession | null | undefined,
+  nextSession: ThreadSession | null | undefined,
+): previousSession is ThreadSession {
+  if (previousSession?.orchestrationStatus !== "running") {
+    return false;
+  }
+  if (!isNeutralSessionStatus(nextSession?.orchestrationStatus ?? null)) {
+    return false;
+  }
+  return (
+    nextSession === null ||
+    nextSession === undefined ||
+    previousSession.updatedAt >= nextSession.updatedAt
+  );
+}
+
+function preserveLiveRuntimeLatestTurn(
+  previous: ThreadTurnState | null | undefined,
+  next: ThreadTurnState,
+): ThreadTurnState {
+  if (!previous?.latestTurn) {
+    return next;
+  }
+  return {
+    latestTurn: previous.latestTurn,
+    pendingSourceProposedPlan:
+      previous.pendingSourceProposedPlan ?? next.pendingSourceProposedPlan,
+  };
+}
+
+function preserveLiveRuntimeThreadState(previousThread: Thread | undefined, nextThread: Thread) {
+  if (!shouldPreserveLiveRuntimeSession(previousThread?.session, nextThread.session)) {
+    return nextThread;
+  }
+  const nextTurnState = preserveLiveRuntimeLatestTurn(
+    previousThread ? toThreadTurnState(previousThread) : null,
+    toThreadTurnState(nextThread),
+  );
+  return {
+    ...nextThread,
+    session: previousThread.session,
+    latestTurn: nextTurnState.latestTurn,
+    pendingSourceProposedPlan: nextTurnState.pendingSourceProposedPlan,
+  };
+}
+
 function areSameChatMessages(
   previous: ReadonlyArray<ChatMessage>,
   next: ReadonlyArray<ChatMessage>,
@@ -2177,6 +2228,7 @@ function writeThreadState(
   }
   nextThread = reuseParentVisibleThreadSlices(previousThread, nextThread);
   nextThread = preserveParentUpdatedAtWhenOnlyHiddenDataChanged(previousThread, nextThread);
+  nextThread = preserveLiveRuntimeThreadState(previousThread, nextThread);
   const nextShell = toThreadShell(nextThread);
   const nextTurnState = toThreadTurnState(nextThread);
   const previousShell = state.threadShellById[nextThread.id];
@@ -2341,8 +2393,33 @@ function writeThreadShellState(
     turnState: ThreadTurnState;
     summary: SidebarThreadSummary;
   },
+  previous?: {
+    shell?: ThreadShell | undefined;
+    session?: ThreadSession | null | undefined;
+    turnState?: ThreadTurnState | undefined;
+    summary?: SidebarThreadSummary | undefined;
+  },
 ): EnvironmentState {
-  const previousShell = state.threadShellById[nextThread.shell.id];
+  const existingShell = state.threadShellById[nextThread.shell.id];
+  const existingSession = state.threadSessionById[nextThread.shell.id] ?? null;
+  const existingTurnState = state.threadTurnStateById[nextThread.shell.id];
+  const existingSummary = state.sidebarThreadSummaryById[nextThread.shell.id];
+  const previousShell = previous?.shell ?? existingShell;
+  const liveSession = previous?.session ?? existingSession;
+  const liveTurnState = previous?.turnState ?? existingTurnState;
+  if (shouldPreserveLiveRuntimeSession(liveSession, nextThread.session)) {
+    const turnState = preserveLiveRuntimeLatestTurn(liveTurnState, nextThread.turnState);
+    nextThread = {
+      ...nextThread,
+      session: liveSession,
+      turnState,
+      summary: {
+        ...nextThread.summary,
+        session: liveSession,
+        latestTurn: turnState.latestTurn,
+      },
+    };
+  }
 
   let nextState = ensureThreadRegistered(
     state,
@@ -2351,7 +2428,7 @@ function writeThreadShellState(
     previousShell?.projectId,
   );
 
-  if (!threadShellsEqual(previousShell, nextThread.shell)) {
+  if (!threadShellsEqual(existingShell, nextThread.shell)) {
     nextState = {
       ...nextState,
       threadShellById: {
@@ -2361,9 +2438,7 @@ function writeThreadShellState(
     };
   }
 
-  if (
-    !threadSessionsEqual(state.threadSessionById[nextThread.shell.id] ?? null, nextThread.session)
-  ) {
+  if (!threadSessionsEqual(existingSession, nextThread.session)) {
     nextState = {
       ...nextState,
       threadSessionById: {
@@ -2373,9 +2448,7 @@ function writeThreadShellState(
     };
   }
 
-  if (
-    !threadTurnStatesEqual(state.threadTurnStateById[nextThread.shell.id], nextThread.turnState)
-  ) {
+  if (!threadTurnStatesEqual(existingTurnState, nextThread.turnState)) {
     nextState = {
       ...nextState,
       threadTurnStateById: {
@@ -2387,7 +2460,7 @@ function writeThreadShellState(
 
   if (
     !sidebarThreadSummariesEqual(
-      state.sidebarThreadSummaryById[nextThread.shell.id],
+      existingSummary,
       nextThread.summary,
     )
   ) {
@@ -2802,7 +2875,12 @@ function applyShellSnapshotWithSource(
   };
 
   for (const thread of snapshot.threads) {
-    nextState = writeThreadShellState(nextState, mapThreadShell(thread, environmentId));
+    nextState = writeThreadShellState(nextState, mapThreadShell(thread, environmentId), {
+      shell: state.threadShellById[thread.id],
+      session: state.threadSessionById[thread.id] ?? null,
+      turnState: state.threadTurnStateById[thread.id],
+      summary: state.sidebarThreadSummaryById[thread.id],
+    });
   }
 
   if (source === "server" && previousSnapshotSource === "cache" && previousThreadIds.length > 0) {
@@ -3609,11 +3687,8 @@ function applyAgentRuntimeEventToEnvironment(
         const preservesTerminalState =
           latestTurn?.turnId === completedTurnId &&
           (latestTurn.state === "interrupted" || latestTurn.state === "error");
-        const piTurnEnded =
-          event.agentRuntime === "pi" &&
-          isIndexableRecord(event.data) &&
-          event.data.type === "turn_end";
-        const agentStillRunning = piTurnEnded && thread.session?.orchestrationStatus === "running";
+        const agentStillRunning =
+          event.agentRuntime === "pi" && thread.session?.orchestrationStatus === "running";
         const activeTurnId =
           agentStillRunning && thread.session?.activeTurnId !== completedTurnId
             ? thread.session?.activeTurnId

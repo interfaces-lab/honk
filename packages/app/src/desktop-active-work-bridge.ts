@@ -5,8 +5,7 @@ import type { AppState } from "./stores/thread-store";
 import type { SidebarThreadSummary } from "./types";
 
 export function hasActiveRunningTurn(summary: SidebarThreadSummary): boolean {
-  const session = summary.session;
-  return session?.orchestrationStatus === "running" && session.activeTurnId !== undefined;
+  return summary.session?.orchestrationStatus === "running";
 }
 
 let installed = false;
