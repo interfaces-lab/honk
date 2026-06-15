@@ -402,7 +402,6 @@ html:not([data-electron]) .agent-window {
   align-items: center;
   gap: 8px;
   color: var(--honk-fg-primary);
-  font-weight: 500;
 }
 
 .chat-title-tab-title {
@@ -618,7 +617,7 @@ html:not([data-electron]) .agent-window {
 
 .agent-window
   .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
-  .ui-tab-system-tab[data-workbench-dynamic-tab="true"] {
+  .ui-tab-system-tab[data-workbench-tab="true"] {
   align-items: center;
   box-sizing: border-box;
   flex: 0 0 auto;
@@ -631,13 +630,13 @@ html:not([data-electron]) .agent-window {
 
 .agent-window
   .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
-  .ui-tab-system-tab[data-workbench-dynamic-tab="true"][data-closable="true"] {
+  .ui-tab-system-tab[data-workbench-tab="true"][data-closable="true"] {
   padding-right: 18px;
 }
 
 .agent-window
   .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
-  .ui-tab-system-tab[data-workbench-dynamic-tab="true"]
+  .ui-tab-system-tab[data-workbench-tab="true"]
   .ui-tab-system-tab__content {
   width: auto;
   min-width: 0;
@@ -646,7 +645,7 @@ html:not([data-electron]) .agent-window {
 
 .agent-window
   .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
-  .ui-tab-system-tab[data-workbench-dynamic-tab="true"]
+  .ui-tab-system-tab[data-workbench-tab="true"]
   .ui-tab-system-tab__label {
   min-width: 0;
   overflow: hidden;
@@ -870,31 +869,6 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] .editor-panel-tab-roo
   .agent-window[data-shell-right-panel="true"][data-shell-right-intent="collapsed"]
   .agent-window-chat-header {
   padding-right: calc(0.75rem + var(--honk-shell-right-workbench-header-end-space));
-}
-
-.agent-window-chat-header [data-slot="button"],
-.agent-window-chat-header [data-slot="toggle"] {
-  min-height: var(--honk-titlebar-control-height, 22px);
-  height: var(--honk-titlebar-control-height, 22px);
-  min-width: var(--honk-titlebar-control-height, 22px);
-  border-color: transparent;
-  border-radius: var(--honk-radius-control, 6px);
-  background: transparent;
-  box-shadow: none;
-  color: var(--honk-fg-secondary);
-  font-size: var(--honk-sidebar-label-size);
-  line-height: var(--honk-sidebar-label-leading);
-}
-
-.agent-window-chat-header [data-slot="button"]::before {
-  display: none;
-}
-
-.agent-window-chat-header [data-slot="button"]:hover,
-.agent-window-chat-header [data-slot="toggle"]:hover,
-.agent-window-chat-header [data-slot="toggle"][data-pressed] {
-  background: var(--honk-bg-quaternary);
-  color: var(--honk-fg-primary);
 }
 
 .agent-window-chat-header [data-slot="separator"] {

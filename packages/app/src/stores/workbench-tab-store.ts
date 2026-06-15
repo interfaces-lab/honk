@@ -393,26 +393,11 @@ function upsertTab(
   return [...tabs.slice(0, clampedIndex), tab, ...tabs.slice(clampedIndex)];
 }
 
-function insertIndexAfterActiveTab(state: WorkbenchTabWorkspaceState): number {
-  const activeIndex = state.tabs.findIndex((tab) => tab.id === state.activeTabId);
-  return activeIndex >= 0 ? activeIndex + 1 : state.tabs.length;
-}
-
 function removeTab(
   tabs: readonly WorkbenchManagedTab[],
   tabId: string,
 ): readonly WorkbenchManagedTab[] {
   return tabs.filter((tab) => tab.id !== tabId);
-}
-
-function lastWorkbenchTabIndex(
-  tabs: readonly WorkbenchManagedTab[],
-  predicate: (tab: WorkbenchManagedTab) => boolean,
-): number {
-  for (let index = tabs.length - 1; index >= 0; index -= 1) {
-    if (predicate(tabs[index]!)) return index;
-  }
-  return -1;
 }
 
 function planTab(label: string): WorkbenchManagedTab {
@@ -450,8 +435,7 @@ function applyPlanRuntimeTabs(
     return removeTab(tabs, PLAN_TAB_ID);
   }
 
-  const changesIndex = tabs.findIndex((tab) => tab.id === CHANGES_TAB_ID);
-  return upsertTab(tabs, planTab(plan.label), changesIndex >= 0 ? changesIndex : 0);
+  return upsertTab(tabs, planTab(plan.label), tabs.length);
 }
 
 function applyTerminalRuntimeTabs(
@@ -472,18 +456,12 @@ function applyTerminalRuntimeTabs(
   const presentTerminalIds = new Set(
     result.filter((tab) => tab.kind === "terminal" && tab.terminalId).map((tab) => tab.terminalId!),
   );
+  let insertIndex = result.length;
 
   for (const session of terminal.sessions) {
     if (presentTerminalIds.has(session.id)) continue;
-    const lastTerminalIndex = lastWorkbenchTabIndex(result, (tab) => tab.kind === "terminal");
-    const changesIndex = result.findIndex((tab) => tab.id === CHANGES_TAB_ID);
-    const insertIndex =
-      lastTerminalIndex >= 0
-        ? lastTerminalIndex + 1
-        : changesIndex >= 0
-          ? changesIndex + 1
-          : result.length;
     result = upsertTab(result, terminalSessionTab(session, terminal.sessions.length), insertIndex);
+    insertIndex += 1;
     presentTerminalIds.add(session.id);
   }
 
@@ -509,25 +487,18 @@ function moveTabToIndex(
   tabId: string,
   targetIndex: number,
 ): readonly WorkbenchManagedTab[] {
-  const regularTabs = tabs.filter((tab) => !tab.stable);
-  const currentIndex = regularTabs.findIndex((tab) => tab.id === tabId);
+  const currentIndex = tabs.findIndex((tab) => tab.id === tabId);
   if (currentIndex < 0) return tabs;
 
-  const tab = regularTabs[currentIndex]!;
-  const withoutTab = regularTabs.filter((candidate) => candidate.id !== tabId);
+  const tab = tabs[currentIndex]!;
+  const withoutTab = tabs.filter((candidate) => candidate.id !== tabId);
   const clampedIndex = Math.min(Math.max(targetIndex, 0), withoutTab.length);
-  const movedRegularTabs = [
+
+  return [
     ...withoutTab.slice(0, clampedIndex),
     tab,
     ...withoutTab.slice(clampedIndex),
   ];
-  let regularIndex = 0;
-  return tabs.map((candidate) => {
-    if (candidate.stable) return candidate;
-    const moved = movedRegularTabs[regularIndex];
-    regularIndex += 1;
-    return moved ?? candidate;
-  });
 }
 
 function tabLabelFromPath(relativePath: string): string {
@@ -683,10 +654,9 @@ function updateTerminalTabsFromSessions(workspaceKey: string | null): void {
 
 function upsertPlanTab(workspaceKey: string | null, label: string): void {
   updateWorkspaceState(workspaceKey, (current) => {
-    const changesIndex = current.tabs.findIndex((tab) => tab.id === CHANGES_TAB_ID);
     return {
       ...current,
-      tabs: upsertTab(current.tabs, planTab(label), changesIndex >= 0 ? changesIndex : 0),
+      tabs: upsertTab(current.tabs, planTab(label), current.tabs.length),
     };
   });
 }
@@ -741,7 +711,6 @@ export const workbenchTabPersistenceActions = {
   },
   activateDev: (workspaceKey: string | null): void => {
     updateWorkspaceState(workspaceKey, (current) => {
-      const changesIndex = current.tabs.findIndex((tab) => tab.id === CHANGES_TAB_ID);
       return {
         ...current,
         tabs: upsertTab(
@@ -753,7 +722,7 @@ export const workbenchTabPersistenceActions = {
             iconKey: "dev",
             closable: true,
           },
-          changesIndex >= 0 ? changesIndex + 1 : 0,
+          current.tabs.length,
         ),
       };
     });
@@ -776,7 +745,7 @@ export const workbenchTabPersistenceActions = {
       tabs: upsertTab(
         current.tabs,
         terminalSessionTab(session, terminal.sessions.length),
-        insertIndexAfterActiveTab(current),
+        current.tabs.length,
       ),
     }));
     activateManagedTab(workspaceKey, terminalTabId(terminalId));
@@ -835,7 +804,7 @@ export const workbenchTabPersistenceActions = {
           ...(url ? { browserUrl: url } : {}),
           ...(url ? { browserFaviconUrl: browserFaviconUrlFromUrl(url) } : {}),
         },
-        insertIndexAfterActiveTab(current),
+        current.tabs.length,
       ),
     }));
     activateManagedTab(workspaceKey, tabId);
@@ -856,7 +825,7 @@ export const workbenchTabPersistenceActions = {
           closable: true,
           filePath: trimmedPath,
         },
-        insertIndexAfterActiveTab(current),
+        current.tabs.length,
       ),
     }));
     activateManagedTab(workspaceKey, tabId);

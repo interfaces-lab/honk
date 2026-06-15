@@ -5,6 +5,7 @@ import * as monaco from "monaco-editor";
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -20,7 +21,10 @@ import {
   writeProjectFile,
 } from "~/lib/project-react-query";
 import { refreshGitStatus } from "~/lib/git-status-state";
-import { resetProjectModel, type ProjectModelEntry } from "~/lib/monaco/project-models";
+import {
+  resetProjectModel,
+  type ProjectModelKey,
+} from "~/lib/monaco/project-models";
 import { formatProjectErrorDescription } from "~/lib/project-error-description";
 import { useServerKeybindings } from "~/rpc/server-state";
 import { useEditorWordWrap } from "~/stores/workspace-editor-store";
@@ -29,7 +33,10 @@ import {
   ProjectEditorSelectionWidget,
   type EditorSelectionToChatPayload,
 } from "./project-editor-selection-widget";
-import { ProjectMonacoEditor } from "./project-monaco-editor";
+import {
+  ProjectMonacoEditor,
+  type ProjectMonacoModelEntry,
+} from "./project-monaco-editor";
 import { SourcePreview } from "./source-preview";
 
 function isProjectWriteConflictError(error: unknown): boolean {
@@ -47,15 +54,11 @@ function isBinaryReadError(error: unknown): boolean {
   );
 }
 
-function LoadingFileEditor() {
+function sameProjectModelKey(left: ProjectModelKey, right: ProjectModelKey): boolean {
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="space-y-2 bg-(--honk-workbench-editor-surface-background) p-3">
-        <div className="h-3 w-11/12 animate-pulse rounded bg-muted-foreground/10" />
-        <div className="h-3 w-7/12 animate-pulse rounded bg-muted-foreground/10" />
-        <div className="h-3 w-10/12 animate-pulse rounded bg-muted-foreground/10" />
-      </div>
-    </div>
+    left.environmentId === right.environmentId &&
+    left.cwd === right.cwd &&
+    left.relativePath === right.relativePath
   );
 }
 
@@ -93,7 +96,7 @@ export const ProjectFileEditorShell = forwardRef<
   const keybindings = useServerKeybindings();
   const composerHandle = useComposerHandleContext();
   const wordWrap = useEditorWordWrap();
-  const modelEntryRef = useRef<ProjectModelEntry | null>(null);
+  const modelEntryRef = useRef<ProjectMonacoModelEntry | null>(null);
   const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [conflict, setConflict] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -105,14 +108,29 @@ export const ProjectFileEditorShell = forwardRef<
       enabled: canReadFile,
     }),
   );
+  const editableFileData = fileQuery.data?.truncated === false ? fileQuery.data : null;
+
+  useEffect(() => {
+    setConflict(false);
+  }, [props.cwd, props.environmentId, props.relativePath]);
 
   const save = useCallback(
     async (options?: { overwrite?: boolean }) => {
       const cwd = props.cwd;
       const environmentId = props.environmentId;
-      const entry = modelEntryRef.current;
-      if (!cwd || !environmentId || !entry || saving) return;
+      const modelEntry = modelEntryRef.current;
+      const key = cwd && environmentId ? { environmentId, cwd, relativePath: props.relativePath } : null;
+      if (
+        !key ||
+        !editableFileData ||
+        !modelEntry ||
+        !sameProjectModelKey(modelEntry.key, key) ||
+        saving
+      ) {
+        return;
+      }
 
+      const entry = modelEntry.entry;
       const contents = entry.model.getValue();
       setSaving(true);
       try {
@@ -154,16 +172,20 @@ export const ProjectFileEditorShell = forwardRef<
         setSaving(false);
       }
     },
-    [props, queryClient, saving],
+    [editableFileData, props, queryClient, saving],
   );
 
   const reload = useCallback(async () => {
     const result = await fileQuery.refetch();
     const data = result.data;
-    const entry = modelEntryRef.current;
-    if (!data || !entry) return;
-    resetProjectModel(entry, data.contents, data.mtimeMs, data.sizeBytes);
-    props.onDirtyChange(entry.dirty);
+    const modelEntry = modelEntryRef.current;
+    const key =
+      props.cwd && props.environmentId
+        ? { environmentId: props.environmentId, cwd: props.cwd, relativePath: props.relativePath }
+        : null;
+    if (!data || !key || !modelEntry || !sameProjectModelKey(modelEntry.key, key)) return;
+    resetProjectModel(modelEntry.entry, data.contents, data.mtimeMs, data.sizeBytes);
+    props.onDirtyChange(modelEntry.entry.dirty);
     setConflict(false);
   }, [fileQuery, props]);
 
@@ -210,10 +232,6 @@ export const ProjectFileEditorShell = forwardRef<
     void save();
   };
 
-  if (canReadFile && fileQuery.isPending) {
-    return <LoadingFileEditor />;
-  }
-
   if (fileQuery.isError && props.cwd && props.environmentId && isBinaryReadError(fileQuery.error)) {
     return (
       <>
@@ -230,11 +248,11 @@ export const ProjectFileEditorShell = forwardRef<
     );
   }
 
-  if (fileQuery.isError || !fileQuery.data || !props.cwd || !props.environmentId) {
+  if (fileQuery.isError || !props.cwd || !props.environmentId) {
     return <UnableToReadFile error={fileQuery.error} />;
   }
 
-  if (fileQuery.data.truncated) {
+  if (fileQuery.data?.truncated === true) {
     return (
       <>
         <div className="shrink-0 border-b border-honk-border/30 px-3 py-1.5 text-detail text-muted-foreground/60">
@@ -250,7 +268,7 @@ export const ProjectFileEditorShell = forwardRef<
     );
   }
 
-  const fileData: ProjectReadFileResult = fileQuery.data;
+  const fileData: ProjectReadFileResult | null = fileQuery.data ?? null;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col" onKeyDownCapture={handleKeyDownCapture}>
@@ -276,13 +294,16 @@ export const ProjectFileEditorShell = forwardRef<
         relativePath={props.relativePath}
         fileData={fileData}
         wordWrap={wordWrap}
-        onDirtyChange={(dirty, entry) => {
-          modelEntryRef.current = entry;
+        onDirtyChange={(dirty, modelEntry) => {
+          modelEntryRef.current = modelEntry;
           props.onDirtyChange(dirty);
         }}
-        onSaveRequest={(entry) => {
-          modelEntryRef.current = entry;
+        onSaveRequest={(modelEntry) => {
+          modelEntryRef.current = modelEntry;
           void save();
+        }}
+        onModelEntryChange={(modelEntry) => {
+          modelEntryRef.current = modelEntry;
         }}
         onEditorReady={setEditor}
       />

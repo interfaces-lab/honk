@@ -6,7 +6,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { cn } from "./utils";
 
 const workbenchChromeRowVariants = cva(
-  "font-honk flex shrink-0 flex-nowrap select-none text-honk-chrome font-medium text-honk-fg-secondary",
+  "font-honk flex shrink-0 flex-nowrap select-none text-honk-chrome font-normal text-honk-fg-secondary",
   {
     variants: {
       variant: {
@@ -57,7 +57,7 @@ const workbenchChromeActionGroupVariants = cva(
   },
 );
 const workbenchChromeTextControlVariants = cva(
-  "no-drag inline-flex h-(--honk-workbench-tab-height) min-w-0 select-none items-center justify-start gap-(--honk-workbench-text-control-gap) overflow-hidden rounded-honk-control border-0 bg-transparent px-(--honk-workbench-text-control-padding-inline) text-honk-tab font-medium shadow-none outline-hidden before:hidden transition-colors focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset",
+  "no-drag inline-flex h-(--honk-workbench-tab-height) min-w-0 select-none items-center justify-start gap-(--honk-workbench-text-control-gap) overflow-hidden rounded-honk-control border-0 bg-transparent px-(--honk-workbench-text-control-padding-inline) text-honk-tab font-normal shadow-none outline-hidden before:hidden transition-colors focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset",
   {
     variants: {
       tone: {

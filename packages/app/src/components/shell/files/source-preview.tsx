@@ -48,15 +48,7 @@ export function SourcePreview(props: {
   }
 
   if (canReadFile && fileQuery.isPending) {
-    return (
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="space-y-2 bg-(--honk-workbench-editor-surface-background) p-3">
-          <div className="h-3 w-11/12 animate-pulse rounded bg-muted-foreground/10" />
-          <div className="h-3 w-7/12 animate-pulse rounded bg-muted-foreground/10" />
-          <div className="h-3 w-10/12 animate-pulse rounded bg-muted-foreground/10" />
-        </div>
-      </div>
-    );
+    return <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-(--honk-workbench-editor-surface-background)" />;
   }
 
   if (fileQuery.isError || !fileQuery.data) {

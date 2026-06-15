@@ -446,6 +446,7 @@ function runtimeLifecycleAfterEvent(
     case "turn.started":
       return "active";
     case "agent.completed":
+    case "turn.completed":
     case "turn.interrupted":
     case "runtime.error":
       return "terminal";
@@ -468,6 +469,7 @@ function runtimePresentationActiveAfterEvent(
     case "extension-ui.requested":
       return true;
     case "agent.completed":
+    case "turn.completed":
     case "turn.interrupted":
     case "runtime.error":
       // The host emits the raw runtime event before the coalesced display timeline. Keep

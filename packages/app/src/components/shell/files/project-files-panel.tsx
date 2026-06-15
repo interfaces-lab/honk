@@ -2,7 +2,6 @@
 
 import type { EditorId, EnvironmentId } from "@honk/contracts";
 import { normalizeSearchQuery } from "@honk/shared/search-ranking";
-import { useQuery } from "@tanstack/react-query";
 import {
   Command,
   CommandCollection,
@@ -15,7 +14,8 @@ import {
   CommandList,
   CommandPanel,
 } from "@honk/honkkit/command";
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   shellPanelsActions,
@@ -31,7 +31,10 @@ import { useRightWorkbenchPanelRuntime } from "../shell/app";
 import { RightWorkbenchLayout } from "../shell/right-workbench-layout";
 import { EmptyFilePreview } from "./empty-file-preview";
 import { FileTreeFileIcon, FileTreeIconSprite } from "../../tree";
-import { projectSearchEntriesQueryOptions } from "~/lib/project-react-query";
+import {
+  projectReadFileQueryOptions,
+  projectSearchEntriesQueryOptions,
+} from "~/lib/project-react-query";
 import {
   useWorkspaceEditorFileState,
   workspaceEditorActions,
@@ -78,6 +81,7 @@ function ProjectFilesPanelContent(props: {
   const [dirtyByPath, setDirtyByPath] = useState<Record<string, boolean>>({});
   const fileTreeRef = useRef<ProjectFileTreeHandle | null>(null);
   const editorShellRef = useRef<ProjectFileEditorShellHandle | null>(null);
+  const queryClient = useQueryClient();
   const runtime = useRightWorkbenchPanelRuntime();
   const isFilesPanelActive = runtime.open && runtime.activeTab === "files";
   const fileRail = useSecondaryRail(props.workspaceKey, "files");
@@ -100,27 +104,62 @@ function ProjectFilesPanelContent(props: {
     shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", true);
   }, [fileRailInitialized, isFilesPanelActive, props.workspaceKey]);
 
-  const openEditorPath = (relativePath: string) => {
-    workbenchTabPersistenceActions.createFile(props.workspaceKey, relativePath);
-  };
+  const prefetchEditorPath = useCallback(
+    (relativePath: string) => {
+      if (!props.cwd || !props.environmentId) return;
+      void queryClient.prefetchQuery(
+        projectReadFileQueryOptions({
+          cwd: props.cwd,
+          environmentId: props.environmentId,
+          relativePath,
+        }),
+      );
+    },
+    [props.cwd, props.environmentId, queryClient],
+  );
 
-  const navigateEditorHistory = (delta: -1 | 1) => {
-    workspaceEditorActions.navigateFileHistory(props.workspaceKey, delta);
-  };
+  const openEditorPath = useCallback(
+    (relativePath: string) => {
+      prefetchEditorPath(relativePath);
+      workbenchTabPersistenceActions.createFile(props.workspaceKey, relativePath);
+    },
+    [prefetchEditorPath, props.workspaceKey],
+  );
 
-  const tree = (
-    <ProjectFileTree
-      ref={fileTreeRef}
-      cwd={props.cwd}
-      workspaceKey={props.workspaceKey}
-      environmentId={props.environmentId}
-      availableEditors={props.availableEditors}
-      onOpenFile={openEditorPath}
-      onFilePathsChange={setLoadedFilePaths}
-      selectedPath={selectedPath}
-      active={fileRailOpen || openFileDialogOpen}
-      className="min-h-36 flex-1 border-b-0 bg-(--honk-workbench-panel-background)"
-    />
+  const navigateEditorHistory = useCallback(
+    (delta: -1 | 1) => {
+      workspaceEditorActions.navigateFileHistory(props.workspaceKey, delta);
+    },
+    [props.workspaceKey],
+  );
+
+  useEffect(() => {
+    fileTreeRef.current?.selectPath(selectedPath);
+  }, [selectedPath]);
+
+  const tree = useMemo(
+    () => (
+      <ProjectFileTree
+        ref={fileTreeRef}
+        cwd={props.cwd}
+        workspaceKey={props.workspaceKey}
+        environmentId={props.environmentId}
+        availableEditors={props.availableEditors}
+        onOpenFile={openEditorPath}
+        onFilePathsChange={setLoadedFilePaths}
+        active={fileRailOpen || openFileDialogOpen}
+        className="min-h-36 flex-1 border-b-0 bg-(--honk-workbench-panel-background)"
+      />
+    ),
+    [
+      props.cwd,
+      props.workspaceKey,
+      props.environmentId,
+      props.availableEditors,
+      openEditorPath,
+      fileRailOpen,
+      openFileDialogOpen,
+    ],
   );
 
   return (
@@ -185,7 +224,6 @@ function ProjectFilesPanelContent(props: {
               />
             ) : selectedPath ? (
               <ProjectFileEditorShell
-                key={selectedPath}
                 ref={editorShellRef}
                 cwd={props.cwd}
                 environmentId={props.environmentId}

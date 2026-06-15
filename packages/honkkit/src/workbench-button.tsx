@@ -42,7 +42,7 @@ type WorkbenchIconButtonChrome = NonNullable<
 
 const workbenchTextButtonVariants = cva(
   cn(
-    "no-drag box-border inline-flex h-(--honk-workbench-action-size) min-w-0 shrink-0 select-none items-center justify-center gap-(--honk-workbench-text-control-gap) truncate rounded-honk-control border-0 px-(--honk-workbench-text-control-padding-inline) text-honk-tab font-medium outline-hidden before:hidden transition-[background-color,color] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset disabled:pointer-events-none disabled:text-honk-fg-quaternary/45 [&_svg]:block",
+    "no-drag box-border inline-flex h-(--honk-workbench-action-size) min-w-0 shrink-0 select-none items-center justify-center gap-(--honk-workbench-text-control-gap) truncate rounded-honk-control border-0 px-(--honk-workbench-text-control-padding-inline) text-honk-tab font-normal outline-hidden before:hidden transition-[background-color,color] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset disabled:pointer-events-none disabled:text-honk-fg-quaternary/45 [&_svg]:block",
     controlTransitionVariants(),
   ),
   {

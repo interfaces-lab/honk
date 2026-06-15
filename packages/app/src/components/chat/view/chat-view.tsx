@@ -829,7 +829,8 @@ export default function ChatView(props: ChatViewProps) {
     activeThread?.session?.orchestrationStatus === "starting" ||
     activeThread?.session?.orchestrationStatus === "running";
   const activeRunningTurnId = orchestrationTurnActive
-    ? (activeThread?.session?.activeTurnId ?? activeLatestTurn?.turnId ?? null)
+    ? (activeThread?.session?.activeTurnId ??
+      (!latestTurnSettled ? (activeLatestTurn?.turnId ?? null) : null))
     : null;
   const derivedWorkLogEntries = useMemo(
     () =>
@@ -931,10 +932,9 @@ export default function ChatView(props: ChatViewProps) {
     [activeRuntimeDisplayTimeline],
   );
   const activeRuntimeAgentRunActive = activeRuntimeActivity.lifecycle === "active";
-  const runtimeSurfaceImpliesTurnRunning =
-    activeRuntimeAgentRunActive ||
-    activeRuntimeActivity.presentationActive ||
-    runtimeTimelineHasActiveWork;
+  const runtimeTurnImpliesTurnRunning = activeRuntimeAgentRunActive || runtimeTimelineHasActiveWork;
+  const runtimeSurfaceImpliesTimelineActive =
+    runtimeTurnImpliesTurnRunning || activeRuntimeActivity.presentationActive;
   const waitingForRuntimeFirstResponse =
     activeThreadIsRuntimeOwned &&
     activeRuntimeDisplayTimeline !== null &&
@@ -942,8 +942,11 @@ export default function ChatView(props: ChatViewProps) {
     !runtimeTimelineHasResponse;
   const isCompactingActive = activeThreadId !== null && compactingThreadId === activeThreadId;
   const isTurnRunning =
-    activeRunningTurnId !== null || runtimeSurfaceImpliesTurnRunning || isCompactingActive;
-  const isWorking = isTurnRunning || isSendBusy || isConnecting || waitingForRuntimeFirstResponse;
+    activeRunningTurnId !== null || runtimeTurnImpliesTurnRunning || isCompactingActive;
+  const isTimelineSurfaceActive =
+    activeRunningTurnId !== null || runtimeSurfaceImpliesTimelineActive || isCompactingActive;
+  const isWorking =
+    isTimelineSurfaceActive || isSendBusy || isConnecting || waitingForRuntimeFirstResponse;
   const {
     queuedComposerItems,
     editingQueuedComposerItemId,
@@ -995,7 +998,9 @@ export default function ChatView(props: ChatViewProps) {
   const runtimeTimelineImpliesTurnActive =
     activeRuntimeDisplayTimeline !== null && !latestTurnSettled;
   const timelineTurnActive =
-    isTurnRunning || visibleThreadSendIntents.length > 0 || runtimeTimelineImpliesTurnActive;
+    isTimelineSurfaceActive ||
+    visibleThreadSendIntents.length > 0 ||
+    runtimeTimelineImpliesTurnActive;
   const activeTimelineTailLeaseTurnKey =
     activeRuntimeActivity.lifecycle === "active"
       ? (activeRuntimeActivity.latestTurnId ?? "runtime-run-pending")
@@ -1883,6 +1888,10 @@ export default function ChatView(props: ChatViewProps) {
       });
       serverTurnStartSucceeded = turnResult.serverTurnStartSucceeded;
       runtimeSendSucceeded = turnResult.runtimeSendSucceeded;
+      if (localTurnStartAnnounced && !serverTurnStartSucceeded) {
+        clearUnconfirmedLocalTurnStart(environmentId, threadIdForSend, messageIdForSend);
+        localTurnStartAnnounced = false;
+      }
       if (turnResult.serverPersistenceError) {
         const detail =
           turnResult.serverPersistenceError instanceof Error
@@ -2274,6 +2283,10 @@ export default function ChatView(props: ChatViewProps) {
 
       serverTurnStartSucceeded = turnResult.serverTurnStartSucceeded;
       runtimeSendSucceeded = turnResult.runtimeSendSucceeded;
+      if (localTurnStartAnnounced && !serverTurnStartSucceeded) {
+        clearUnconfirmedLocalTurnStart(environmentId, threadIdForSend, messageIdForSend);
+        localTurnStartAnnounced = false;
+      }
       if (turnResult.serverPersistenceError) {
         serverPersistenceError = turnResult.serverPersistenceError;
       }
@@ -2560,7 +2573,7 @@ export default function ChatView(props: ChatViewProps) {
       useAgentRuntimeStore.getState(),
       runtimeThreadId,
     );
-    const runtimeTurnId = runtimeSurfaceImpliesTurnRunning
+    const runtimeTurnId = runtimeTurnImpliesTurnRunning
       ? (runtimeDisplayTimelineActiveTurnId(runtimeDisplayTimeline) ??
         runtimeActivity.latestTurnId)
       : null;
@@ -2825,6 +2838,10 @@ export default function ChatView(props: ChatViewProps) {
       });
       serverTurnStartSucceeded = turnResult.serverTurnStartSucceeded;
       runtimeSendSucceeded = turnResult.runtimeSendSucceeded;
+      if (localTurnStartAnnounced && !serverTurnStartSucceeded) {
+        clearUnconfirmedLocalTurnStart(environmentId, threadIdForSend, messageIdForSend);
+        localTurnStartAnnounced = false;
+      }
       if (turnResult.serverPersistenceError) {
         const detail =
           turnResult.serverPersistenceError instanceof Error
@@ -3155,7 +3172,7 @@ export default function ChatView(props: ChatViewProps) {
                   key={activeTimelineCacheKey}
                   isWorking={isWorking}
                   isTurnActive={timelineTurnActive}
-                  isStreaming={isTurnRunning}
+                  isStreaming={isTimelineSurfaceActive}
                   editUserMessagesDisabled={isWorking}
                   bottomClearancePx={DOCKED_COMPOSER_TIMELINE_RESERVE_PX}
                   timelineControllerRef={messagesTimelineControllerRef}

@@ -92,12 +92,6 @@ const TERMINAL_ENV_BLOCKLIST = new Set([
   "ELECTRON_RUN_AS_NODE",
   "TERM",
   "COLORTERM",
-  // SSH session markers inherited from however Honk was launched make prompt
-  // tools (starship username module, etc.) render the remote-session prompt
-  // in what is a purely local embedded terminal.
-  "SSH_CONNECTION",
-  "SSH_CLIENT",
-  "SSH_TTY",
 ]);
 
 const TERMINAL_LOGIN_SHELL_CLEAR_WHEN_ABSENT = new Set([

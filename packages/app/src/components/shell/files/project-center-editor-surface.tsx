@@ -93,7 +93,6 @@ export function ProjectCenterEditorSurface(props: {
         }}
       />
       <ProjectFileEditorShell
-        key={selectedPath}
         ref={editorShellRef}
         cwd={props.cwd}
         environmentId={props.environmentId}

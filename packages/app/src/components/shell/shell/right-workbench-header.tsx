@@ -30,7 +30,6 @@ import {
 } from "@honk/honkkit/menu";
 import {
   WorkbenchIconButton,
-  WorkbenchTabIconContent,
   workbenchIconButtonVariants,
 } from "@honk/honkkit/workbench-button";
 import { WorkbenchChromeDivider } from "@honk/honkkit/workbench-chrome-row";
@@ -93,12 +92,12 @@ function readDraggedTabId(event: DragEvent<HTMLElement>): string | null {
   return plain.startsWith("workbench-tab:") ? plain.slice("workbench-tab:".length) : null;
 }
 
-function dynamicTabElements(viewport: HTMLElement): HTMLElement[] {
-  return Array.from(viewport.querySelectorAll<HTMLElement>("[data-workbench-dynamic-tab='true']"));
+function tabElements(viewport: HTMLElement): HTMLElement[] {
+  return Array.from(viewport.querySelectorAll<HTMLElement>("[data-workbench-tab='true']"));
 }
 
-function dynamicTabElementById(viewport: HTMLElement, tabId: string): HTMLElement | null {
-  return dynamicTabElements(viewport).find((element) => element.dataset.tabId === tabId) ?? null;
+function tabElementById(viewport: HTMLElement, tabId: string): HTMLElement | null {
+  return tabElements(viewport).find((element) => element.dataset.tabId === tabId) ?? null;
 }
 
 function scrollMaskStateFromElement(element: HTMLElement | null): ScrollMaskState {
@@ -122,7 +121,7 @@ function areScrollMaskStatesEqual(left: ScrollMaskState, right: ScrollMaskState)
 }
 
 function tabDropTargetFromPoint(viewport: HTMLElement, clientX: number): TabDropTarget {
-  const tabs = dynamicTabElements(viewport);
+  const tabs = tabElements(viewport);
   const insertIndex = tabs.findIndex((element) => {
     const rect = element.getBoundingClientRect();
     return clientX < rect.left + rect.width / 2;
@@ -139,43 +138,7 @@ function tabDropTargetFromPoint(viewport: HTMLElement, clientX: number): TabDrop
   return { insertIndex: index, left };
 }
 
-function StableTabButton(props: {
-  active: boolean;
-  onActivate: () => void;
-  tab: WorkbenchTabMeta;
-}) {
-  const Icon = props.tab.icon;
-  const badge = props.tab.kind === "git" && "badge" in props.tab ? null : null;
-
-  return (
-    <button
-      type="button"
-      aria-current={props.active ? "page" : undefined}
-      aria-label={props.tab.label}
-      aria-selected={props.active}
-      className={cn(
-        workbenchIconButtonVariants({
-          active: props.active,
-          chrome: "tool",
-          tabSystem: true,
-        }),
-        "p-0",
-      )}
-      data-active={props.active ? "true" : "false"}
-      data-shell-no-drag=""
-      data-stable=""
-      onClick={props.onActivate}
-      role="tab"
-      title={props.tab.label}
-    >
-      <WorkbenchTabIconContent badge={badge}>
-        <Icon aria-hidden />
-      </WorkbenchTabIconContent>
-    </button>
-  );
-}
-
-function DynamicTabPill(props: {
+function WorkbenchTabPill(props: {
   active: boolean;
   dragging: boolean;
   onDragEnd: () => void;
@@ -218,8 +181,9 @@ function DynamicTabPill(props: {
       data-closable={props.tab.closable ? "true" : undefined}
       data-dragging={props.dragging ? "true" : undefined}
       data-shell-no-drag=""
+      data-stable={props.tab.stable ? "" : undefined}
       data-tab-id={props.tab.id}
-      data-workbench-dynamic-tab="true"
+      data-workbench-tab="true"
       draggable
       onAuxClick={(event) => {
         if (event.button !== 1 || !props.tab.closable) return;
@@ -298,8 +262,6 @@ function WorkbenchTabClusters(props: {
     useState<ScrollMaskState>(DEFAULT_SCROLL_MASK_STATE);
   const activeMeta =
     props.tabs.find((tab) => tab.id === props.activeTabId) ?? props.tabs[0] ?? null;
-  const stableTabs = props.tabs.filter((tab) => tab.stable);
-  const dynamicTabs = props.tabs.filter((tab) => !tab.stable);
 
   const setNextDropTarget = useCallback((nextTarget: TabDropTarget | null) => {
     setDropTarget((current) =>
@@ -314,7 +276,7 @@ function WorkbenchTabClusters(props: {
     setScrollMaskState((current) => (areScrollMaskStatesEqual(current, next) ? current : next));
   }, []);
 
-  const onDynamicDragStart = useCallback((event: DragEvent<HTMLElement>, tabId: string) => {
+  const onTabDragStart = useCallback((event: DragEvent<HTMLElement>, tabId: string) => {
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest("[data-no-drag]")) {
       event.preventDefault();
@@ -337,7 +299,7 @@ function WorkbenchTabClusters(props: {
     (event: DragEvent<HTMLDivElement>) => {
       const viewport = viewportRef.current;
       const tabId = draggingTabId ?? readDraggedTabId(event);
-      if (!viewport || !tabId || !dynamicTabs.some((tab) => tab.id === tabId)) {
+      if (!viewport || !tabId || !props.tabs.some((tab) => tab.id === tabId)) {
         setNextDropTarget(null);
         return;
       }
@@ -346,7 +308,7 @@ function WorkbenchTabClusters(props: {
       event.dataTransfer.dropEffect = "move";
       setNextDropTarget(tabDropTargetFromPoint(viewport, event.clientX));
     },
-    [draggingTabId, dynamicTabs, setNextDropTarget],
+    [draggingTabId, props.tabs, setNextDropTarget],
   );
 
   const onScrollableDrop = useCallback(
@@ -357,7 +319,7 @@ function WorkbenchTabClusters(props: {
         resetDragState();
         return;
       }
-      const currentIndex = dynamicTabs.findIndex((tab) => tab.id === tabId);
+      const currentIndex = props.tabs.findIndex((tab) => tab.id === tabId);
       if (currentIndex < 0) {
         resetDragState();
         return;
@@ -373,7 +335,7 @@ function WorkbenchTabClusters(props: {
       }
       resetDragState();
     },
-    [draggingTabId, dropTarget, dynamicTabs, props.onMoveTab, resetDragState],
+    [draggingTabId, dropTarget, props.tabs, props.onMoveTab, resetDragState],
   );
 
   const onScrollableDragLeave = useCallback((event: DragEvent<HTMLDivElement>) => {
@@ -386,34 +348,21 @@ function WorkbenchTabClusters(props: {
     if (draggingTabId) return;
     const viewport = viewportRef.current;
     if (!viewport) return;
-    const activeElement = dynamicTabElementById(viewport, props.activeTabId);
+    const activeElement = tabElementById(viewport, props.activeTabId);
     activeElement?.scrollIntoView({ behavior: "instant", block: "nearest", inline: "nearest" });
     syncScrollMaskState();
-  }, [draggingTabId, props.activeTabId, dynamicTabs.length, syncScrollMaskState]);
+  }, [draggingTabId, props.activeTabId, props.tabs.length, syncScrollMaskState]);
 
   useLayoutSyncEffect(() => {
     syncScrollMaskState();
-  }, [dynamicTabs.length, stableTabs.length, syncScrollMaskState]);
+  }, [props.tabs.length, syncScrollMaskState]);
 
   return (
     <div
       role="tablist"
       aria-label="Workbench tabs"
       className="ui-tab-system-tabs flex h-full min-w-0 flex-1 select-none items-center self-stretch"
-      data-has-stable={stableTabs.length > 0 ? "" : undefined}
     >
-      {stableTabs.length > 0 ? (
-        <div className="ui-tab-system-tabs__section flex h-full min-w-0 shrink-0 items-center ps-2">
-          {stableTabs.map((tab) => (
-            <StableTabButton
-              key={tab.id}
-              tab={tab}
-              active={tab.id === props.activeTabId}
-              onActivate={() => props.onActivateTab(tab.id)}
-            />
-          ))}
-        </div>
-      ) : null}
       <div
         ref={scrollableRef}
         className="ui-tab-system-tabs__scrollable relative h-full min-w-0 flex-1 scrollbar-none overflow-x-auto overflow-y-hidden"
@@ -427,10 +376,10 @@ function WorkbenchTabClusters(props: {
       >
         <div
           ref={viewportRef}
-          className="ui-tab-system-tabs__viewport relative flex h-full w-max min-w-full items-center"
+          className="ui-tab-system-tabs__viewport relative flex h-full w-max min-w-full items-center ps-2"
         >
-          {dynamicTabs.map((tab) => (
-            <DynamicTabPill
+          {props.tabs.map((tab) => (
+            <WorkbenchTabPill
               key={tab.id}
               tab={tab}
               active={tab.id === props.activeTabId}
@@ -438,7 +387,7 @@ function WorkbenchTabClusters(props: {
               onActivate={() => props.onActivateTab(tab.id)}
               onClose={() => props.onCloseTab(tab.id)}
               onDragEnd={resetDragState}
-              onDragStart={onDynamicDragStart}
+              onDragStart={onTabDragStart}
             />
           ))}
           <div
@@ -541,8 +490,8 @@ function FullscreenChatTitle(props: { title: string | null }) {
         data-shell-no-drag=""
         data-shell-fullscreen-chat-title=""
       >
-        <span className="chat-title-tab-trigger">
-          <span className="chat-title-tab-title">{title}</span>
+        <span className="chat-title-tab-trigger px-(--honk-spacing-2)">
+          <span className="chat-title-tab-title text-honk-tab text-honk-fg-primary">{title}</span>
         </span>
       </span>
       <WorkbenchChromeDivider data-shell-fullscreen-chat-divider="" />

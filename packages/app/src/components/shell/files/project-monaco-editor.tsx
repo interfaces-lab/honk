@@ -1,6 +1,7 @@
 import type { EnvironmentId, ProjectReadFileResult } from "@honk/contracts";
+import { getFiletypeFromFileName } from "@pierre/diffs";
 import * as monaco from "monaco-editor";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
 import { useTheme } from "~/hooks/use-theme";
 import {
@@ -8,6 +9,7 @@ import {
   releaseProjectModel,
   resetProjectModel,
   type ProjectModelEntry,
+  type ProjectModelKey,
 } from "~/lib/monaco/project-models";
 import { defineHonkMonacoThemes, resolveMonacoThemeName } from "~/lib/monaco/theme";
 import { setupMonacoEnvironment } from "~/lib/monaco/workers";
@@ -33,50 +35,65 @@ function editorFontOptions(): Pick<
   };
 }
 
+function sameProjectModelKey(left: ProjectModelKey, right: ProjectModelKey): boolean {
+  return (
+    left.environmentId === right.environmentId &&
+    left.cwd === right.cwd &&
+    left.relativePath === right.relativePath
+  );
+}
+
+export type ProjectMonacoModelEntry = {
+  readonly key: ProjectModelKey;
+  readonly entry: ProjectModelEntry;
+};
+
 export function ProjectMonacoEditor(props: {
   cwd: string;
   environmentId: EnvironmentId;
   relativePath: string;
-  fileData: ProjectReadFileResult;
+  fileData: ProjectReadFileResult | null;
   wordWrap: boolean;
-  onDirtyChange: (dirty: boolean, entry: ProjectModelEntry) => void;
-  onSaveRequest: (entry: ProjectModelEntry) => void;
-  onEditorReady?: (editor: monaco.editor.IStandaloneCodeEditor) => void;
+  onDirtyChange: (dirty: boolean, modelEntry: ProjectMonacoModelEntry) => void;
+  onSaveRequest: (modelEntry: ProjectMonacoModelEntry) => void;
+  onModelEntryChange?: (modelEntry: ProjectMonacoModelEntry | null) => void;
+  onEditorReady?: (editor: monaco.editor.IStandaloneCodeEditor | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const modelEntryRef = useRef<ProjectModelEntry | null>(null);
+  const modelKeyRef = useRef<ProjectModelKey | null>(null);
+  const contentDisposableRef = useRef<monaco.IDisposable | null>(null);
   const onDirtyChangeRef = useRef(props.onDirtyChange);
+  const onModelEntryChangeRef = useRef(props.onModelEntryChange);
   const onEditorReadyRef = useRef(props.onEditorReady);
-  const fileDataRef = useRef(props.fileData);
   const wordWrapRef = useRef(props.wordWrap);
   const { resolvedTheme } = useTheme();
 
   onDirtyChangeRef.current = props.onDirtyChange;
+  onModelEntryChangeRef.current = props.onModelEntryChange;
   onEditorReadyRef.current = props.onEditorReady;
-  fileDataRef.current = props.fileData;
   wordWrapRef.current = props.wordWrap;
 
-  useEffect(() => {
+  const releaseCurrentModel = () => {
+    contentDisposableRef.current?.dispose();
+    contentDisposableRef.current = null;
+    editorRef.current?.setModel(null);
+    const key = modelKeyRef.current;
+    modelEntryRef.current = null;
+    modelKeyRef.current = null;
+    onModelEntryChangeRef.current?.(null);
+    if (key) {
+      releaseProjectModel(key);
+    }
+  };
+
+  useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const key = {
-      environmentId: props.environmentId,
-      cwd: props.cwd,
-      relativePath: props.relativePath,
-    };
-    const fileData = fileDataRef.current;
-    const entry = acquireProjectModel(monaco, key, {
-      contents: fileData.contents,
-      languageId: fileData.syntax.languageId,
-      mtimeMs: fileData.mtimeMs,
-      sizeBytes: fileData.sizeBytes,
-    });
-    modelEntryRef.current = entry;
-
     const editor = monaco.editor.create(container, {
-      model: entry.model,
+      model: null,
       automaticLayout: true,
       minimap: { enabled: false },
       lineNumbers: "on",
@@ -87,51 +104,88 @@ export function ProjectMonacoEditor(props: {
       scrollBeyondLastLine: false,
       renderWhitespace: "selection",
       wordWrap: wordWrapRef.current ? "on" : "off",
+      readOnly: props.fileData === null,
       padding: { top: 12, bottom: 24 },
       theme: resolveMonacoThemeName(resolvedTheme),
       ...editorFontOptions(),
     });
     editorRef.current = editor;
     onEditorReadyRef.current?.(editor);
-    onDirtyChangeRef.current(entry.dirty, entry);
-
-    const contentDisposable = entry.model.onDidChangeContent(() => {
-      onDirtyChangeRef.current(entry.dirty, entry);
-    });
     const unsubscribeAppearance = subscribeAppearanceSettings(() => {
       editor.updateOptions(editorFontOptions());
     });
 
     return () => {
       unsubscribeAppearance();
-      contentDisposable.dispose();
+      releaseCurrentModel();
       editor.dispose();
       editorRef.current = null;
-      modelEntryRef.current = null;
-      releaseProjectModel(key);
+      onEditorReadyRef.current?.(null);
     };
-  }, [props.cwd, props.environmentId, props.relativePath]);
+  }, []);
 
-  // Fresh reads sync into the live model without recreating the editor; a
-  // dirty model keeps the user's unsaved edits (the conflict banner handles
-  // divergence explicitly).
-  useEffect(() => {
-    const entry = modelEntryRef.current;
-    if (!entry || entry.dirty) return;
-    if (
-      props.fileData.contents === entry.lastSavedContents &&
-      props.fileData.mtimeMs === entry.lastReadMtimeMs
-    ) {
+  useLayoutEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const fileData = props.fileData;
+    if (!fileData) {
+      releaseCurrentModel();
+      editor.updateOptions({ readOnly: true });
       return;
     }
-    resetProjectModel(
-      entry,
-      props.fileData.contents,
-      props.fileData.mtimeMs,
-      props.fileData.sizeBytes,
-    );
-    onDirtyChangeRef.current(entry.dirty, entry);
-  }, [props.fileData.contents, props.fileData.mtimeMs, props.fileData.sizeBytes]);
+
+    const key = {
+      environmentId: props.environmentId,
+      cwd: props.cwd,
+      relativePath: props.relativePath,
+    };
+    const languageId = fileData.syntax.languageId ?? getFiletypeFromFileName(props.relativePath);
+    const currentKey = modelKeyRef.current;
+    let entry = modelEntryRef.current;
+    if (!entry || !currentKey || !sameProjectModelKey(currentKey, key)) {
+      releaseCurrentModel();
+      entry = acquireProjectModel(monaco, key, {
+        contents: fileData.contents,
+        languageId,
+        mtimeMs: fileData.mtimeMs,
+        sizeBytes: fileData.sizeBytes,
+      });
+      modelEntryRef.current = entry;
+      modelKeyRef.current = key;
+      editor.setModel(entry.model);
+      contentDisposableRef.current = entry.model.onDidChangeContent(() => {
+        onDirtyChangeRef.current(entry.dirty, { key, entry });
+      });
+    }
+
+    monaco.editor.setModelLanguage(entry.model, languageId);
+    editor.updateOptions({ readOnly: false });
+    const activeModelEntry = { key, entry };
+    onModelEntryChangeRef.current?.(activeModelEntry);
+    if (entry.dirty) {
+      onDirtyChangeRef.current(entry.dirty, activeModelEntry);
+      return;
+    }
+    if (
+      fileData.contents === entry.lastSavedContents &&
+      fileData.mtimeMs === entry.lastReadMtimeMs &&
+      fileData.sizeBytes === entry.lastReadSizeBytes
+    ) {
+      onDirtyChangeRef.current(entry.dirty, activeModelEntry);
+      return;
+    }
+    resetProjectModel(entry, fileData.contents, fileData.mtimeMs, fileData.sizeBytes);
+    onDirtyChangeRef.current(entry.dirty, activeModelEntry);
+  }, [
+    props.cwd,
+    props.environmentId,
+    props.relativePath,
+    props.fileData?.contents,
+    props.fileData?.mtimeMs,
+    props.fileData?.sizeBytes,
+    props.fileData?.syntax.languageId,
+  ]);
 
   useEffect(() => {
     editorRef.current?.updateOptions({ wordWrap: props.wordWrap ? "on" : "off" });

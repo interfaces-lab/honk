@@ -8,6 +8,7 @@ import {
   OrchestrationMessage,
   OrchestrationSession,
   OrchestrationThread,
+  repairThreadEntryTree,
   resolveLeafIdAfterThreadMessage,
 } from "@honk/contracts";
 import { Effect, Schema } from "effect";
@@ -400,19 +401,23 @@ export function projectEvent(
         const entries = existingEntry
           ? threadEntries.map((entry) => (entry.id === entryId ? nextEntry : entry))
           : [...threadEntries, nextEntry];
+        const repairedTree = repairThreadEntryTree({
+          entries,
+          leafId: resolveLeafIdAfterThreadMessage({
+            leafId: thread.leafId,
+            entryId,
+            parentEntryId: payload.parentEntryId,
+            role: payload.role,
+          }),
+        });
 
         return {
           ...nextBase,
           threads: updateThread(nextBase.threads, payload.threadId, {
             messages,
             latestTurn: latestTurnAfterAssistantMessage(thread, payload),
-            leafId: resolveLeafIdAfterThreadMessage({
-              leafId: thread.leafId,
-              entryId,
-              parentEntryId: payload.parentEntryId,
-              role: payload.role,
-            }),
-            entries,
+            leafId: repairedTree.leafId,
+            entries: [...repairedTree.entries],
             updatedAt: event.occurredAt,
           }),
         };

@@ -10,6 +10,7 @@ import {
   OrchestrationThreadActivity,
   type OrchestrationThreadEntry,
   type OrchestrationThreadShell,
+  repairThreadEntryTree,
 } from "@honk/contracts";
 import { Effect, Layer, Option, Schema } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
@@ -58,6 +59,38 @@ import {
 } from "./ThreadProjection.service.ts";
 
 type ProjectionThreadActivityRow = typeof ProjectionThreadActivityDbRowSchema.Type;
+type ProjectionThreadEntryRow = typeof ProjectionThreadEntryDbRowSchema.Type;
+
+function mapProjectionThreadEntries(
+  rows: ReadonlyArray<ProjectionThreadEntryRow>,
+): OrchestrationThreadEntry[] {
+  return rows.map((row) => ({
+    id: row.entryId,
+    threadId: row.threadId,
+    parentEntryId: row.parentEntryId,
+    kind: row.kind,
+    messageId: row.messageId,
+    turnId: row.turnId,
+    createdAt: row.createdAt,
+  }));
+}
+
+function repairProjectedThreadTree(input: {
+  readonly leafId: OrchestrationThread["leafId"];
+  readonly entries: readonly OrchestrationThreadEntry[];
+}): {
+  readonly leafId: OrchestrationThread["leafId"];
+  readonly entries: OrchestrationThreadEntry[];
+} {
+  const repaired = repairThreadEntryTree({
+    entries: input.entries,
+    leafId: input.leafId,
+  });
+  return {
+    leafId: repaired.leafId,
+    entries: [...repaired.entries],
+  };
+}
 
 function decodeProjectionThreadActivity(
   row: ProjectionThreadActivityRow,
@@ -733,27 +766,33 @@ const makeThreadProjection = Effect.gen(function* () {
                 deletedAt: row.deletedAt,
               }));
 
-              const threads: ReadonlyArray<OrchestrationThread> = threadRows.map((row) => ({
-                id: row.threadId,
-                projectId: row.projectId,
-                title: row.title,
-                modelSelection: row.modelSelection,
-                runtimeMode: row.runtimeMode,
-                interactionMode: row.interactionMode,
-                branch: row.branch,
-                worktreePath: row.worktreePath,
-                latestTurn: latestTurnByThread.get(row.threadId) ?? null,
-                createdAt: row.createdAt,
-                updatedAt: row.updatedAt,
-                archivedAt: row.archivedAt,
-                deletedAt: row.deletedAt,
-                messages: messagesByThread.get(row.threadId) ?? [],
-                leafId: row.leafId,
-                entries: entriesByThread.get(row.threadId) ?? [],
-                proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
-                activities: activitiesByThread.get(row.threadId) ?? [],
-                session: sessionsByThread.get(row.threadId) ?? null,
-              }));
+              const threads: ReadonlyArray<OrchestrationThread> = threadRows.map((row) => {
+                const repairedTree = repairProjectedThreadTree({
+                  leafId: row.leafId,
+                  entries: entriesByThread.get(row.threadId) ?? [],
+                });
+                return {
+                  id: row.threadId,
+                  projectId: row.projectId,
+                  title: row.title,
+                  modelSelection: row.modelSelection,
+                  runtimeMode: row.runtimeMode,
+                  interactionMode: row.interactionMode,
+                  branch: row.branch,
+                  worktreePath: row.worktreePath,
+                  latestTurn: latestTurnByThread.get(row.threadId) ?? null,
+                  createdAt: row.createdAt,
+                  updatedAt: row.updatedAt,
+                  archivedAt: row.archivedAt,
+                  deletedAt: row.deletedAt,
+                  messages: messagesByThread.get(row.threadId) ?? [],
+                  leafId: repairedTree.leafId,
+                  entries: repairedTree.entries,
+                  proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
+                  activities: activitiesByThread.get(row.threadId) ?? [],
+                  session: sessionsByThread.get(row.threadId) ?? null,
+                };
+              });
 
               const snapshot = {
                 snapshotSequence: computeSnapshotSequence(stateRows),
@@ -1121,6 +1160,11 @@ const makeThreadProjection = Effect.gen(function* () {
         return Option.none<OrchestrationThread>();
       }
 
+      const repairedTree = repairProjectedThreadTree({
+        leafId: threadRow.value.leafId,
+        entries: mapProjectionThreadEntries(entryRows),
+      });
+
       return Option.some(
         yield* decodeThread({
           id: threadRow.value.threadId,
@@ -1152,16 +1196,8 @@ const makeThreadProjection = Effect.gen(function* () {
             }
             return message;
           }),
-          leafId: threadRow.value.leafId,
-          entries: entryRows.map((row) => ({
-            id: row.entryId,
-            threadId: row.threadId,
-            parentEntryId: row.parentEntryId,
-            kind: row.kind,
-            messageId: row.messageId,
-            turnId: row.turnId,
-            createdAt: row.createdAt,
-          })),
+          leafId: repairedTree.leafId,
+          entries: repairedTree.entries,
           proposedPlans: proposedPlanRows.map((row) => ({
             id: row.planId,
             turnId: row.turnId,

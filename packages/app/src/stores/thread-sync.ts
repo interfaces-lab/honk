@@ -32,6 +32,7 @@ import {
   MessageId,
   RuntimeItemId,
   RuntimeTaskId,
+  repairThreadEntryTree,
   resolveLeafIdAfterThreadMessage,
   runtimeSessionEntryMessageId,
   threadEntryIdForMessageId,
@@ -2216,6 +2217,18 @@ function writeThreadState(
   nextThread: Thread,
   previousThread?: Thread,
 ): EnvironmentState {
+  const repairedTree = repairThreadEntryTree({
+    entries: nextThread.entries,
+    leafId: nextThread.leafId,
+    repairMissingParents: false,
+  });
+  if (repairedTree.repaired) {
+    nextThread = {
+      ...nextThread,
+      leafId: repairedTree.leafId,
+      entries: [...repairedTree.entries],
+    };
+  }
   const { parentActivities } = splitSubagentActivities(nextThread.activities);
   if (parentActivities !== nextThread.activities) {
     nextThread = {

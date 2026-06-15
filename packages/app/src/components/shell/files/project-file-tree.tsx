@@ -24,8 +24,10 @@ import {
   type CSSProperties,
   type Dispatch,
   forwardRef,
+  memo,
   type RefObject,
   type SetStateAction,
+  useCallback,
   useImperativeHandle,
   useEffect,
   useLayoutEffect,
@@ -371,9 +373,43 @@ async function loadProjectDirectory(input: {
 export type ProjectFileTreeHandle = {
   refresh: () => void;
   revealPath: (relativePath: string) => void;
+  selectPath: (relativePath: string | null) => void;
 };
 
-export const ProjectFileTree = forwardRef<
+function syncProjectFileTreeSelection(input: {
+  externalSelectedPath: string | null;
+  filePathSetRef: RefObject<Set<string> | null>;
+  lastOpenedPathRef: RefObject<string | null>;
+  model: ProjectTreeModel;
+  suppressSelectionOpenRef: RefObject<string | null>;
+}): void {
+  const filePathSet = input.filePathSetRef.current;
+  if (!input.externalSelectedPath) {
+    for (const selectedPath of input.model.getSelectedPaths()) {
+      input.model.getItem(selectedPath)?.deselect();
+    }
+    input.lastOpenedPathRef.current = null;
+    return;
+  }
+  if (
+    filePathSet?.has(input.externalSelectedPath) !== true ||
+    normalizeTreePath(input.model.getSelectedPaths()[0] ?? "") === input.externalSelectedPath
+  ) {
+    return;
+  }
+  const selectedItem = input.model.getItem(input.externalSelectedPath);
+  if (!selectedItem) {
+    return;
+  }
+  input.suppressSelectionOpenRef.current = input.externalSelectedPath;
+  for (const selectedPath of input.model.getSelectedPaths()) {
+    input.model.getItem(selectedPath)?.deselect();
+  }
+  selectedItem.select();
+  input.model.focusPath(input.externalSelectedPath);
+}
+
+const ProjectFileTreeComponent = forwardRef<
   ProjectFileTreeHandle,
   {
     cwd: string | null;
@@ -382,7 +418,6 @@ export const ProjectFileTree = forwardRef<
     availableEditors: readonly EditorId[];
     onOpenFile?: (relativePath: string) => void;
     onFilePathsChange?: (relativePaths: readonly string[]) => void;
-    selectedPath?: string | null;
     className?: string;
     active?: boolean;
   }
@@ -400,6 +435,7 @@ export const ProjectFileTree = forwardRef<
   if (loadingDirectoriesRef.current === null) {
     loadingDirectoriesRef.current = new Set();
   }
+  const externalSelectedPathRef = useRef<string | null>(null);
   const lastOpenedPathRef = useRef<string | null>(null);
   const suppressSelectionOpenRef = useRef<string | null>(null);
   const { resolvedTheme } = useTheme();
@@ -520,11 +556,29 @@ export const ProjectFileTree = forwardRef<
     },
   });
 
-  const externalSelectedPath = props.selectedPath ? normalizeTreePath(props.selectedPath) : null;
+  const selectPath = useCallback(
+    (relativePath: string | null) => {
+      const externalSelectedPath = relativePath ? normalizeTreePath(relativePath) : null;
+      externalSelectedPathRef.current = externalSelectedPath;
+      syncProjectFileTreeSelection({
+        externalSelectedPath,
+        filePathSetRef,
+        lastOpenedPathRef,
+        model,
+        suppressSelectionOpenRef,
+      });
+    },
+    [filePathSetRef, lastOpenedPathRef, model, suppressSelectionOpenRef],
+  );
+
+  const syncStoredSelectedPath = useCallback(() => {
+    selectPath(externalSelectedPathRef.current);
+  }, [selectPath]);
 
   useImperativeHandle(
     ref,
     () => ({
+      selectPath,
       refresh: () => {
         loadedDirectoriesRef.current?.clear();
         loadingDirectoriesRef.current?.clear();
@@ -566,7 +620,7 @@ export const ProjectFileTree = forwardRef<
         model.focusPath(normalizedPath);
       },
     }),
-    [canQuery, model, props.cwd, props.environmentId, queryClient],
+    [canQuery, model, props.cwd, props.environmentId, queryClient, selectPath],
   );
 
   return (
@@ -581,7 +635,11 @@ export const ProjectFileTree = forwardRef<
         {...(props.onFilePathsChange ? { onFilePathsChange: props.onFilePathsChange } : {})}
         treePaths={treePaths}
       />
-      <ProjectFileTreePathsSync model={model} treePaths={treePaths} />
+      <ProjectFileTreePathsSync
+        model={model}
+        onPathsSynced={syncStoredSelectedPath}
+        treePaths={treePaths}
+      />
       {canLoad ? (
         <ProjectFileTreeInitialLoadSync
           active={canQuery}
@@ -610,13 +668,6 @@ export const ProjectFileTree = forwardRef<
           treePaths={treePaths}
         />
       ) : null}
-      <ProjectFileTreeSelectionSync
-        externalSelectedPath={externalSelectedPath}
-        filePathSetRef={filePathSetRef}
-        lastOpenedPathRef={lastOpenedPathRef}
-        model={model}
-        suppressSelectionOpenRef={suppressSelectionOpenRef}
-      />
       <div className="min-h-0 flex-1 overflow-hidden">
         {canRenderTree ? (
           <Tree
@@ -681,6 +732,8 @@ export const ProjectFileTree = forwardRef<
   );
 });
 
+export const ProjectFileTree = memo(ProjectFileTreeComponent);
+
 function ProjectFileTreePathSetSync({
   filePathSetRef,
   onFilePathsChange,
@@ -710,9 +763,11 @@ function ProjectFileTreePathSetSync({
 
 function ProjectFileTreePathsSync({
   model,
+  onPathsSynced,
   treePaths,
 }: {
   model: ProjectTreeModel;
+  onPathsSynced: () => void;
   treePaths: readonly string[];
 }) {
   useEffect(() => {
@@ -721,7 +776,8 @@ function ProjectFileTreePathsSync({
       initialExpandedPaths: expandedPaths,
       preparedInput: prepareFileTreeInput(treePaths),
     });
-  }, [model, treePaths]);
+    onPathsSynced();
+  }, [model, onPathsSynced, treePaths]);
 
   return null;
 }
@@ -839,49 +895,6 @@ function ProjectFileTreeExpandedDirectoryLoader({
     setTreePaths,
     treePaths,
   ]);
-
-  return null;
-}
-
-function ProjectFileTreeSelectionSync({
-  externalSelectedPath,
-  filePathSetRef,
-  lastOpenedPathRef,
-  model,
-  suppressSelectionOpenRef,
-}: {
-  externalSelectedPath: string | null;
-  filePathSetRef: RefObject<Set<string> | null>;
-  lastOpenedPathRef: RefObject<string | null>;
-  model: ProjectTreeModel;
-  suppressSelectionOpenRef: RefObject<string | null>;
-}) {
-  useEffect(() => {
-    const filePathSet = filePathSetRef.current;
-    if (!externalSelectedPath) {
-      for (const selectedPath of model.getSelectedPaths()) {
-        model.getItem(selectedPath)?.deselect();
-      }
-      lastOpenedPathRef.current = null;
-      return;
-    }
-    if (
-      filePathSet?.has(externalSelectedPath) !== true ||
-      normalizeTreePath(model.getSelectedPaths()[0] ?? "") === externalSelectedPath
-    ) {
-      return;
-    }
-    const selectedItem = model.getItem(externalSelectedPath);
-    if (!selectedItem) {
-      return;
-    }
-    suppressSelectionOpenRef.current = externalSelectedPath;
-    for (const selectedPath of model.getSelectedPaths()) {
-      model.getItem(selectedPath)?.deselect();
-    }
-    selectedItem.select();
-    model.focusPath(externalSelectedPath);
-  }, [externalSelectedPath, filePathSetRef, lastOpenedPathRef, model, suppressSelectionOpenRef]);
 
   return null;
 }

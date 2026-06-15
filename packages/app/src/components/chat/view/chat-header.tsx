@@ -35,7 +35,7 @@ export function ChatHeader({ activeThreadTitle, actions }: ChatHeaderProps) {
               variant="ghost"
               size="sm"
               aria-label={`Chat title. Right-click for more actions. ${title}`}
-              className="no-drag h-(--honk-workbench-tab-height) min-w-0 shrink justify-start rounded-sm px-0 py-0 text-left text-body font-medium text-honk-icon-primary shadow-none before:hidden hover:bg-transparent hover:text-honk-icon-primary data-pressed:bg-transparent"
+              className="no-drag h-(--honk-workbench-tab-height) min-w-0 shrink justify-start rounded-sm px-0 py-0 text-left text-honk-tab font-normal text-honk-fg-primary shadow-none before:hidden hover:bg-transparent hover:text-honk-fg-primary data-pressed:bg-transparent"
               data-shell-no-drag=""
               title={title}
             >

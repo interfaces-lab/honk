@@ -91,6 +91,12 @@ export type FlattenThreadEntryTreeResult<
   readonly activePathEntryIds: ReadonlySet<ThreadEntryId>;
 };
 
+export type RepairedThreadEntryTree<TEntry extends ThreadTreeOrderableEntry> = {
+  readonly entries: readonly TEntry[];
+  readonly leafId: ThreadEntryId | null;
+  readonly repaired: boolean;
+};
+
 export function threadEntryIdForMessageId(messageId: MessageId): ThreadEntryId {
   return ThreadEntryId.make(`message:${messageId}`);
 }
@@ -179,6 +185,79 @@ export function getThreadBranch<TEntry extends ThreadTreeEntryPathEntry>(input: 
     return null;
   }
   return resolveThreadEntryPath({ entries: input.entries, entryId: input.leafId });
+}
+
+function isValidThreadLeaf<TEntry extends ThreadTreeEntryPathEntry>(input: {
+  readonly entries: readonly TEntry[];
+  readonly entryId: ThreadEntryId;
+  readonly navigableOnly: boolean;
+}): boolean {
+  return resolveThreadEntryPath({
+    entries: input.entries,
+    entryId: input.entryId,
+    navigableOnly: input.navigableOnly,
+  }).ok;
+}
+
+function fallbackThreadLeafId<TEntry extends ThreadTreeOrderableEntry>(input: {
+  readonly entries: readonly TEntry[];
+  readonly navigableOnly: boolean;
+}): ThreadEntryId | null {
+  const candidates = input.entries.filter(
+    (entry) =>
+      (!input.navigableOnly || isNavigableThreadEntry(entry)) &&
+      isValidThreadLeaf({
+        entries: input.entries,
+        entryId: entry.id,
+        navigableOnly: input.navigableOnly,
+      }),
+  );
+  return candidates.toSorted(compareThreadTreeEntries).at(-1)?.id ?? null;
+}
+
+export function repairThreadEntryTree<TEntry extends ThreadTreeOrderableEntry>(input: {
+  readonly entries: readonly TEntry[];
+  readonly leafId: ThreadEntryId | null;
+  readonly navigableOnly?: boolean;
+  readonly repairMissingParents?: boolean;
+}): RepairedThreadEntryTree<TEntry> {
+  const entryIds = new Set(input.entries.map((entry) => entry.id));
+  const repairMissingParents = input.repairMissingParents ?? true;
+  let repaired = false;
+  const entries = input.entries.map((entry) => {
+    const parentEntryId = entry.parentEntryId;
+    if (
+      parentEntryId === null ||
+      (parentEntryId !== entry.id && (!repairMissingParents || entryIds.has(parentEntryId)))
+    ) {
+      return entry;
+    }
+    repaired = true;
+    return {
+      ...entry,
+      parentEntryId: null,
+    };
+  });
+  const navigableOnly = input.navigableOnly ?? true;
+  const leafId =
+    input.leafId !== null &&
+    isValidThreadLeaf({
+      entries,
+      entryId: input.leafId,
+      navigableOnly,
+    })
+      ? input.leafId
+      : fallbackThreadLeafId({ entries, navigableOnly });
+
+  if (leafId !== input.leafId) {
+    repaired = true;
+  }
+
+  return {
+    entries: repaired ? entries : input.entries,
+    leafId,
+    repaired,
+  };
 }
 
 export function resolveThreadBranchPathFacts<TEntry extends ThreadTreeEntry>(input: {
