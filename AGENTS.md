@@ -34,7 +34,7 @@
 
 ## HonkKit (design system)
 
-- **HonkKit** is Honk's design system. Primitives live in `@honk/honkkit/*`; tokens in `@honk/honkkit/styles.css` and app Tailwind theme exports in `packages/app/src/index.css`.
+- **HonkKit** is Honk's design system. Primitives live in `@honk/honkkit/`*; tokens in `@honk/honkkit/styles.css` and app Tailwind theme exports in `packages/app/src/index.css`.
 - Browse and tweak components in dev at `/dev/honkkit` (Cmd+K → "Open HonkKit"). DialKit panel adjusts the active preview.
 - Prefer existing HonkKit primitives over one-off markup. Product UI mostly uses typography utilities (`text-body`, `text-detail`, `text-caption`) on native elements; `<Text>` from `@honk/honkkit/text` is for settings and structured copy.
 - Stack: Base UI headless + CVA variants + Tailwind v4. Icons: `central-icons` only.
@@ -57,7 +57,7 @@
 - Never use destructive commands: `git reset --hard`, `git checkout .`, `git clean -fd`, or `git stash`.
 - Before committing, inspect `git status` and stage explicit paths.
 - If rebasing conflicts in files you did not edit, abort and ask.
-- Commit message format (Pi-style): `{feat,fix,refactor,docs,test,chore,ci}[(app,desktop,runtime,server,contracts,honkkit)]: concise summary`. Use the primary affected package as scope; keep the subject informative and one line. No `Co-authored-by` trailers unless the user asks.
+- Commit message format: `{feat,fix,refactor,docs,test,chore,ci}[(app,desktop,runtime,server,contracts,honkkit)]: concise summary`. Use the primary affected package as scope; keep the subject informative and one line. No `Co-authored-by` trailers unless the user asks.
 
 ## Releases
 
@@ -91,7 +91,7 @@ Use agent-browser for web automation. Run agent-browser --help for all commands.
 
 Core workflow:
 
-agent-browser open <url> - Navigate to page
+agent-browser open  - Navigate to page
 agent-browser snapshot -i - Get interactive elements with refs (@e1, @e2)
 agent-browser click @e1 / fill @e2 "text" - Interact using refs
 Re-snapshot after page changes
