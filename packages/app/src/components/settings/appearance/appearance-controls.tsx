@@ -1,8 +1,7 @@
 import { Button } from "@honk/honkkit/button";
 import { Input } from "@honk/honkkit/input";
 import { Text } from "@honk/honkkit/text";
-import { useThrottler } from "@tanstack/react-pacer";
-import { type CSSProperties, type KeyboardEvent, useRef, useState } from "react";
+import { type CSSProperties, type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 import { DEFAULT_APPEARANCE_TINT_HUE } from "../../../lib/appearance-colors";
 import { appearanceSettingsActions } from "../../../stores/appearance-store";
@@ -24,6 +23,8 @@ function SettingsSlider(props: {
   const thumbHue = props.tintHue ?? DEFAULT_APPEARANCE_TINT_HUE;
   const thumbSaturation = props.variant === "hue" && tintIntensity <= 0 ? 0 : tintIntensity;
   const swatchColor = `hsl(${thumbHue} ${thumbSaturation}% 50%)`;
+  const swatchBackground =
+    props.variant === "hue" && tintIntensity <= 0 ? "var(--honk-stroke-tertiary)" : swatchColor;
   const sliderClassName =
     props.variant === "hue"
       ? "honk-appearance-hue-slider"
@@ -55,7 +56,7 @@ function SettingsSlider(props: {
           <span
             aria-hidden
             className="size-5 rounded-full shadow-honk-swatch-inset"
-            style={{ backgroundColor: swatchColor }}
+            style={{ backgroundColor: swatchBackground }}
           />
         ) : (
           <Text size="xs" tone="tertiary" className="w-full text-right tabular-nums">
@@ -118,8 +119,6 @@ export function NumberStepper(props: {
   );
 }
 
-const APPEARANCE_TINT_COMMIT_WAIT_MS = 32;
-
 export function AppearanceTintSlider(props: {
   label: string;
   value: number;
@@ -132,10 +131,11 @@ export function AppearanceTintSlider(props: {
   showSwatch?: boolean;
   suffix?: string;
 }) {
-  const commitValue = useThrottler(props.onChange, {
-    wait: APPEARANCE_TINT_COMMIT_WAIT_MS,
-    onUnmount: (throttler) => throttler.flush(),
-  });
+  const [localValue, setLocalValue] = useState(props.value);
+
+  useEffect(() => {
+    setLocalValue(props.value);
+  }, [props.value]);
 
   return (
     <SettingsSlider
@@ -144,11 +144,14 @@ export function AppearanceTintSlider(props: {
       min={props.min}
       tintHue={props.tintHue}
       tintSaturation={props.tintSaturation}
-      value={props.value}
+      value={localValue}
       variant={props.variant}
       {...(props.showSwatch === undefined ? {} : { showSwatch: props.showSwatch })}
       {...(props.suffix === undefined ? {} : { suffix: props.suffix })}
-      onChange={(value) => commitValue.maybeExecute(value)}
+      onChange={(value) => {
+        setLocalValue(value);
+        props.onChange(value);
+      }}
     />
   );
 }

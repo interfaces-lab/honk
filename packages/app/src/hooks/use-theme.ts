@@ -1,7 +1,10 @@
 import { useSyncExternalStore } from "react";
 
 import { isElectron } from "../env";
-import { applyAppearanceBoot } from "../lib/appearance-settings";
+import {
+  APPEARANCE_SETTINGS_CHANGED,
+  applyAppearanceBoot,
+} from "../lib/appearance-settings";
 
 type Theme = "light" | "dark" | "system";
 type ThemeSnapshot = {
@@ -173,6 +176,12 @@ function syncDesktopBackgroundColor(color: string) {
 // Apply immediately on module load to prevent flash
 if (typeof document !== "undefined" && hasThemeStorage()) {
   applyTheme(readStoredTheme());
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener(APPEARANCE_SETTINGS_CHANGED, () => {
+    syncBrowserChromeTheme();
+  });
 }
 
 export function applyStoredTheme(suppressTransitions = false) {

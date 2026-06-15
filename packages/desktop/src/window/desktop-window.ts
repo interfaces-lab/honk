@@ -95,7 +95,7 @@ function getIconOption(
 }
 
 function getInitialWindowBackgroundColor(shouldUseDarkColors: boolean): string {
-  return shouldUseDarkColors ? "#161616" : "#ffffff";
+  return shouldUseDarkColors ? "#1F1F1F" : "#ffffff";
 }
 
 function getMacGlassWindowBackgroundColor(shouldUseDarkColors: boolean): string {

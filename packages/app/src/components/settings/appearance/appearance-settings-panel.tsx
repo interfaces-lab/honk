@@ -7,6 +7,7 @@ import { APP_STAGE_LABEL } from "~/app/branding";
 
 import { useSettings, useUpdateSettings } from "../../../hooks/use-settings";
 import { useTheme } from "../../../hooks/use-theme";
+import { previewTintHue, previewTintSaturation } from "../../../lib/appearance-settings";
 import { cn, isMacPlatform } from "../../../lib/utils";
 import {
   appearanceSettingsActions,
@@ -172,7 +173,7 @@ export function AppearanceSettingsPanel() {
               tintSaturation={appearance.saturation}
               value={appearance.hue}
               variant="hue"
-              onChange={appearanceSettingsActions.setTintHue}
+              onChange={(value) => previewTintHue(value, appearance.saturation)}
             />
           }
         />
@@ -189,7 +190,7 @@ export function AppearanceSettingsPanel() {
               tintSaturation={appearance.saturation}
               value={appearance.saturation}
               variant="intensity"
-              onChange={appearanceSettingsActions.setTintSaturation}
+              onChange={(value) => previewTintSaturation(appearance.hue, value)}
             />
           }
         />

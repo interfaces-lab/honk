@@ -54,8 +54,8 @@ const APPEARANCE_BASE_TOKEN_NAMES: readonly AppearanceBaseTokenName[] = [
 
 const APPEARANCE_TINT_STYLE_ID = "honk-custom-tint-tokens";
 
-export const DEFAULT_APPEARANCE_TINT_HUE = 261;
-export const DEFAULT_APPEARANCE_TINT_INTENSITY = 20;
+export const DEFAULT_APPEARANCE_TINT_HUE = 210;
+export const DEFAULT_APPEARANCE_TINT_INTENSITY = 0;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));

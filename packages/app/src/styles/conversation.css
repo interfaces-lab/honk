@@ -486,12 +486,6 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-queued-composer
   visibility: visible;
 }
 
-body.honk-reduce-transparency[data-honk-glass-mode="true"] .honk-shell-sidebar,
-body.honk-reduce-transparency[data-honk-glass-mode="true"] .honk-shell-surface {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
 body.honk-reduce-transparency[data-honk-glass-mode="true"]
   [data-composer-command-menu-root]
   [data-variant="surface"],

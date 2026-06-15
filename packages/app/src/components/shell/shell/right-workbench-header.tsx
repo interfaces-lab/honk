@@ -397,11 +397,11 @@ function WorkbenchTabClusters(props: {
     <div
       role="tablist"
       aria-label="Workbench tabs"
-      className="ui-tab-system-tabs no-drag flex h-full min-w-0 flex-1 select-none items-center self-stretch"
+      className="ui-tab-system-tabs flex h-full min-w-0 flex-1 select-none items-center self-stretch"
       data-has-stable={stableTabs.length > 0 ? "" : undefined}
     >
       {stableTabs.length > 0 ? (
-        <div className="ui-tab-system-tabs__section flex h-full min-w-0 shrink-0 items-center overflow-hidden">
+        <div className="ui-tab-system-tabs__section flex h-full min-w-0 shrink-0 items-center ps-2">
           {stableTabs.map((tab) => (
             <StableTabButton
               key={tab.id}

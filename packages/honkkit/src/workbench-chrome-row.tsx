@@ -12,7 +12,7 @@ const workbenchChromeRowVariants = cva(
       variant: {
         panel:
           "no-drag honk-workbench-panel-title-row w-full min-w-0 flex-row items-center justify-between gap-(--honk-workbench-chrome-action-gap)",
-        tool: "pointer-events-none ui-tab-system honk-workbench-tool-island relative z-20 box-border flex h-(--honk-workbench-chrome-row-height) min-h-(--honk-workbench-chrome-row-height) max-h-(--honk-workbench-chrome-row-height) w-full min-w-0 flex-none flex-row select-none items-center gap-0 overflow-hidden border-0 px-0 [--tab-system-bar-background:transparent] [--tab-system-height:var(--honk-workbench-chrome-row-height)] editor-panel-tab-root editor-panel-tab-root--simple-tabs",
+        tool: "drag-region ui-tab-system honk-workbench-tool-island relative z-20 box-border flex h-(--honk-workbench-chrome-row-height) min-h-(--honk-workbench-chrome-row-height) max-h-(--honk-workbench-chrome-row-height) w-full min-w-0 flex-none flex-row select-none items-center gap-0 overflow-hidden border-0 px-0 [--tab-system-bar-background:transparent] [--tab-system-height:var(--honk-workbench-chrome-row-height)] editor-panel-tab-root editor-panel-tab-root--simple-tabs",
       },
     },
   },
@@ -29,7 +29,7 @@ const workbenchChromeRowContentVariants = cva(
       },
       variant: {
         panel: "",
-        tool: "editor-panel-tab-bar-tab-cluster pointer-events-auto box-border h-full self-stretch py-(--honk-workbench-tab-container-padding)",
+        tool: "editor-panel-tab-bar-tab-cluster box-border h-full self-stretch py-(--honk-workbench-tab-container-padding)",
       },
     },
   },
@@ -110,7 +110,7 @@ function WorkbenchChromeRow(props: {
         <div
           className={
             props.variant === "tool"
-              ? "editor-panel-tab-bar-trailing-section no-drag pointer-events-auto box-border flex h-full shrink-0 items-center gap-0 px-2 py-1"
+              ? "editor-panel-tab-bar-trailing-section no-drag box-border flex h-full shrink-0 items-center gap-0 px-2 py-1"
               : "flex shrink-0 items-center self-center"
           }
           data-slot={
@@ -188,7 +188,7 @@ function WorkbenchChromeSpacer({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "editor-panel-tab-bar-spacer drag-region pointer-events-auto min-h-(--honk-workbench-tab-height) min-w-0 flex-1 self-stretch",
+        "editor-panel-tab-bar-spacer min-h-(--honk-workbench-tab-height) min-w-0 flex-1 self-stretch",
         className,
       )}
       data-slot="workbench-chrome-spacer"

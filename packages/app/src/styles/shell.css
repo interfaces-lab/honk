@@ -60,13 +60,11 @@
   );
 }
 
-/* Translucent panels: backdrop-filter + isolation */
+/* Translucent panels: color-mix vibrancy only (no shell frost) */
 .honk-shell-sidebar,
 .honk-shell-surface {
   isolation: isolate;
   box-shadow: none;
-  backdrop-filter: blur(var(--honk-shell-blur)) saturate(var(--honk-shell-saturate));
-  -webkit-backdrop-filter: blur(var(--honk-shell-blur)) saturate(var(--honk-shell-saturate));
 }
 
 .honk-shell-sidebar {
@@ -79,14 +77,11 @@
 }
 
 body.honk-reduce-transparency[data-honk-glass-mode="true"] .honk-shell-sidebar {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  background: var(--honk-color-sidebar-opaque);
+  background: var(--honk-base-sidebar);
 }
 
 body.honk-reduce-transparency[data-honk-glass-mode="true"] .honk-shell-surface {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  background: var(--honk-base-chrome);
 }
 
 body {
@@ -97,13 +92,18 @@ body {
   );
 }
 
-html[data-electron] body[data-honk-glass-mode="true"]:not(.honk-reduce-transparency) {
+html[data-electron] body[data-honk-glass-mode="true"] {
   background: transparent;
   background-image: none;
 }
 
 body.honk-reduce-transparency {
-  background: var(--honk-color-chat-opaque);
+  background: var(--honk-base-chrome);
+  background-image: none;
+}
+
+html[data-electron] body.honk-reduce-transparency[data-honk-glass-mode="true"] {
+  background: var(--honk-base-chrome);
   background-image: none;
 }
 
@@ -239,7 +239,7 @@ body.honk-reduce-transparency {
   --honk-shell-center-surface-background: var(--honk-workbench-editor-surface-background);
 }
 
-body[data-honk-glass-mode="true"]:not(.honk-reduce-transparency) .agent-window {
+body[data-honk-glass-mode="true"] .agent-window {
   background: var(--honk-glass-surface-background);
 }
 
@@ -440,13 +440,11 @@ html:not([data-electron]) .agent-window {
 .honk-shell-titlebar-left-controls {
   left: var(--honk-electron-traffic-inset);
   top: var(--honk-shell-titlebar-control-y);
-  z-index: 40;
 }
 
 .honk-shell-titlebar-right-toggle {
   right: var(--honk-shell-titlebar-gutter);
   top: var(--honk-shell-titlebar-control-y);
-  z-index: 40;
 }
 
 .honk-workbench-titlebar-end-space {
@@ -457,6 +455,27 @@ html:not([data-electron]) .agent-window {
 
 .honk-shell-titlebar-controls {
   z-index: 50;
+}
+
+/* Cursor .titlebar-drag-region: full-width drag band; controls opt out via .no-drag */
+.honk-shell-titlebar-drag-region {
+  z-index: 0;
+}
+
+.honk-shell-titlebar-left-controls,
+.honk-shell-titlebar-right-toggle {
+  z-index: 1;
+}
+
+/* Cursor content-pane-top-bar / no-titlebar tabs-container: row drags, tabs opt out */
+[data-shell-platform="electron"]
+  .honk-workbench-tool-island.editor-panel-tab-root.drag-region
+  .ui-tab-system-tabs {
+  -webkit-app-region: drag;
+}
+
+[data-shell-platform="electron"] .agent-window-chat-header.drag-region {
+  -webkit-app-region: drag;
 }
 
 [data-shell-overlay-backdrop] {
@@ -777,7 +796,7 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] .editor-panel-tab-roo
 .honk-shell-sidebar[data-resizing="true"] {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
-  background: var(--honk-color-sidebar-opaque);
+  background: var(--honk-base-sidebar);
 }
 
 .editor-panel-container {

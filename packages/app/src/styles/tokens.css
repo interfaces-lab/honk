@@ -9,8 +9,8 @@
   --honk-font-smoothing-webkit: antialiased;
   --honk-font-smoothing-moz: grayscale;
   /* Defaults copied from local glass.theme tint preferences. */
-  --honk-user-hue: 261;
-  --honk-intensity: 20;
+  --honk-user-hue: 210;
+  --honk-intensity: 0;
   /* Typography scale relative to user preference. */
   --honk-text-caption: calc(var(--honk-ui-font-size-user, 13px) - 3px);
   --honk-text-detail: calc(var(--honk-ui-font-size-user, 13px) - 2px);
@@ -254,16 +254,14 @@ html {
   --honk-interactive-surface: var(--honk-base-chrome);
   --honk-chat-surface-background: var(--honk-color-chat);
   --honk-pane-surface-background: color-mix(in srgb, var(--honk-color-editor-opaque) 96%, #fff);
-  /* Composer chrome and human bubbles use separate neutral lanes. */
   --honk-input-surface-opaque: var(--input);
   --honk-input-surface: var(--honk-input-surface-opaque);
-  --honk-composer-surface-background: var(--honk-pane-surface-background);
-  --honk-composer-surface-opaque-background: color-mix(
-    in srgb,
-    var(--honk-color-editor-opaque) 96%,
-    #fff
-  );
-  --honk-message-bubble-background: var(--honk-input-surface);
+  /* Cursor parity: glass-chat-bubble-background -> cursor-bg-elevated (opaque), not bg-secondary wash. */
+  --honk-bubble-surface-background: var(--honk-bg-elevated);
+  --honk-bubble-surface-opaque-background: var(--honk-pane-surface-background);
+  --honk-message-bubble-background: var(--honk-bubble-surface-background);
+  --honk-composer-surface-background: var(--honk-bubble-surface-background);
+  --honk-composer-surface-opaque-background: var(--honk-bubble-surface-opaque-background);
   --honk-shadow-secondary: color-mix(in srgb, var(--honk-shadow-primary) 60%, transparent);
   --honk-shadow-tertiary: color-mix(in srgb, var(--honk-shadow-primary) 30%, transparent);
   --honk-shadow-workbench: 0 0 8px 2px
@@ -408,7 +406,7 @@ html {
   --honk-glass-blur-floating: 16px;
   --honk-glass-blur-bubble: 10px;
   --honk-shell-blur: var(--honk-glass-blur-surface);
-  --honk-shell-saturate: 160%;
+  --honk-shell-saturate: 100%;
   --honk-shell-sidebar-bg: var(--honk-color-sidebar);
   --honk-shell-surface-bg: var(--honk-color-surface);
   --honk-radius-full: 9999px;
@@ -465,7 +463,6 @@ html {
 }
 
 [data-component="root"] {
-  --honk-message-bubble-background: var(--honk-input-surface);
   --honk-composer-queue-edit-banner-background: color-mix(
     in srgb,
     var(--honk-composer-surface-background) 88%,
@@ -523,11 +520,17 @@ body[data-honk-glass-mode="true"] [data-component="root"] {
   --honk-color-sidebar: var(--honk-sidebar-surface-background);
   --honk-color-chat: var(--honk-chat-surface-background);
   --honk-workbench-editor-surface-background: var(--honk-vibrancy-off-editor-surface-background);
-  --honk-message-bubble-background: var(--honk-input-surface);
   background: var(--honk-glass-surface-background);
 }
 
 body[data-honk-glass-mode="true"] {
+  /* Opaque aliases must live on body so tinted --honk-base-* overrides apply. */
+  --honk-color-sidebar-opaque: var(--honk-base-sidebar);
+  --honk-color-chat-opaque: var(--honk-base-chrome);
+  --honk-color-editor-opaque: var(--honk-base-editor);
+  --honk-color-surface-opaque: var(--honk-base-editor);
+  --honk-color-elevated-opaque: var(--honk-base-editor);
+  --honk-color-menubar-opaque: var(--honk-base-editor);
   --honk-command-palette-surface-background: var(--honk-base-chrome);
 }
 
@@ -540,7 +543,6 @@ body.honk-os-vibrancy-on[data-honk-glass-mode="true"] [data-component="root"] {
   --honk-color-sidebar: var(--honk-sidebar-surface-background);
   --honk-color-chat: var(--honk-chat-surface-background);
   --honk-workbench-editor-surface-background: var(--honk-vibrancy-on-editor-surface-background);
-  --honk-message-bubble-background: var(--honk-input-surface);
 }
 
 body.honk-os-vibrancy-on[data-honk-glass-mode="true"] {
@@ -553,33 +555,35 @@ body.honk-os-vibrancy-on[data-honk-glass-mode="true"] {
 
 @supports (color: color-mix(in lab, red, red)) {
   html.dark [data-component="root"] {
-    --honk-message-bubble-background: color-mix(
-      in srgb,
-      var(--honk-input-surface-opaque) 96%,
-      #fff
-    );
+    --honk-bubble-surface-background: color-mix(in srgb, var(--honk-bg-elevated) 96%, #fff);
+    --honk-message-bubble-background: var(--honk-bubble-surface-background);
+    --honk-composer-surface-background: var(--honk-bubble-surface-background);
   }
 }
 
 body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-component="root"] {
-  --honk-glass-surface-background: var(--honk-color-editor-opaque);
-  --honk-color-sidebar: var(--honk-color-sidebar-opaque);
-  --honk-color-chat: var(--honk-color-chat-opaque);
-  --honk-color-editor: var(--honk-color-editor-opaque);
-  --honk-color-surface: var(--honk-color-surface-opaque);
-  --honk-color-elevated: var(--honk-color-elevated-opaque);
-  --honk-color-menubar: var(--honk-color-menubar-opaque);
+  --honk-glass-surface-background: var(--honk-base-editor);
+  --honk-color-sidebar: var(--honk-base-sidebar);
+  --honk-color-chat: var(--honk-base-chrome);
+  --honk-color-editor: var(--honk-base-editor);
+  --honk-color-surface: var(--honk-base-editor);
+  --honk-color-elevated: var(--honk-base-editor);
+  --honk-color-menubar: var(--honk-base-editor);
+  --honk-bubble-surface-opaque-background: color-mix(
+    in srgb,
+    var(--honk-base-editor) 96%,
+    #fff
+  );
+  --honk-composer-surface-opaque-background: var(--honk-bubble-surface-opaque-background);
   --honk-composer-surface-background: var(--honk-composer-surface-opaque-background);
-  --honk-message-bubble-background: var(--honk-input-surface-opaque);
-  --honk-workbench-editor-surface-background: var(--honk-color-chat-opaque);
-  --honk-workbench-surface-background: var(--honk-color-surface-opaque);
-  --honk-bg-elevated: var(--honk-color-elevated-opaque);
-  --honk-shell-blur: 0px;
-  --honk-shell-saturate: 100%;
-  --honk-shell-sidebar-bg: var(--honk-color-sidebar-opaque);
-  --honk-shell-surface-bg: var(--honk-color-chat-opaque);
-  --honk-sidebar-surface-background: var(--honk-color-sidebar-opaque);
-  --honk-chat-surface-background: var(--honk-color-chat-opaque);
+  --honk-message-bubble-background: var(--honk-composer-surface-opaque-background);
+  --honk-workbench-editor-surface-background: var(--honk-base-chrome);
+  --honk-workbench-surface-background: var(--honk-base-editor);
+  --honk-bg-elevated: var(--honk-base-editor);
+  --honk-shell-sidebar-bg: var(--honk-base-sidebar);
+  --honk-shell-surface-bg: var(--honk-base-chrome);
+  --honk-sidebar-surface-background: var(--honk-base-sidebar);
+  --honk-chat-surface-background: var(--honk-base-chrome);
   --honk-composer-blur: 0px;
   --honk-bg-secondary: color-mix(in srgb, var(--foreground) 14%, transparent);
   --honk-bg-secondary-wash: var(--honk-bg-secondary);
@@ -589,5 +593,5 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-component="root
 }
 
 body.honk-reduce-transparency[data-honk-glass-mode="true"] {
-  --honk-command-palette-surface-background: var(--honk-color-chat-opaque);
+  --honk-command-palette-surface-background: var(--honk-base-chrome);
 }

@@ -140,7 +140,11 @@ import {
   readWorkbenchTerminalApi,
   workbenchTerminalThreadId,
 } from "~/components/shell/terminal/workbench-terminal";
-import { ComposerInput, type ComposerInputHandle } from "../composer/input";
+import {
+  ComposerInput,
+  type ComposerInputHandle,
+  type ComposerInteractionModeFocusMode,
+} from "../composer/input";
 import { useSubagentTrayStore } from "../../../stores/subagent-tray-store";
 import { ExpandedImageDialog } from "../message/expanded-image-dialog";
 import { PullRequestThreadDialog } from "../../pull-request-thread-dialog";
@@ -199,7 +203,6 @@ import {
 import {
   type ComposerSendSnapshot,
   assertActiveThread,
-  nextComposerInteractionMode,
 } from "./chat-view.logic";
 import {
   containsThreadEntry,
@@ -1201,12 +1204,16 @@ export default function ChatView(props: ChatViewProps) {
     null;
   const hasReachedSplitLimit =
     (activeTerminalGroup?.terminalIds.length ?? 0) >= MAX_TERMINALS_PER_GROUP;
-  const focusComposer = () => {
+  const focusComposer = (mode: ComposerInteractionModeFocusMode = "end") => {
+    if (mode === "preserve") {
+      composerRef.current?.focus();
+      return;
+    }
     composerRef.current?.focusAtEnd();
   };
-  const scheduleComposerFocus = () => {
+  const scheduleComposerFocus = (mode?: ComposerInteractionModeFocusMode) => {
     window.requestAnimationFrame(() => {
-      focusComposer();
+      focusComposer(mode);
     });
   };
   const setTerminalOpen = (open: boolean) => {
@@ -1437,16 +1444,13 @@ export default function ChatView(props: ChatViewProps) {
     }
   };
 
-  const handleInteractionModeChange = (mode: AgentInteractionMode) => {
+  const handleInteractionModeChange = (
+    mode: AgentInteractionMode,
+    focusMode: ComposerInteractionModeFocusMode = "end",
+  ) => {
     if (mode === interactionMode) return;
     setComposerDraftInteractionMode(composerDraftTarget, mode);
-    if (isLocalDraftThread) {
-      setDraftThreadContext(composerDraftTarget, { interactionMode: mode });
-    }
-    scheduleComposerFocus();
-  };
-  const toggleInteractionMode = () => {
-    handleInteractionModeChange(nextComposerInteractionMode(interactionMode));
+    scheduleComposerFocus(focusMode);
   };
   const persistThreadSettingsForNextTurn = async (input: {
     threadId: ThreadId;
@@ -2979,7 +2983,7 @@ export default function ChatView(props: ChatViewProps) {
       {isHeroComposer ? null : (
         <header
           className={cn(
-            "agent-window-chat-header pointer-events-none box-border flex h-(--honk-workbench-chrome-row-height) select-none items-center px-(--honk-workbench-chrome-padding-inline)",
+            "agent-window-chat-header drag-region box-border flex h-(--honk-workbench-chrome-row-height) select-none items-center px-(--honk-workbench-chrome-padding-inline)",
             isElectron &&
               reserveTitleBarControlInset &&
               "wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
@@ -3162,7 +3166,6 @@ export default function ChatView(props: ChatViewProps) {
               onSendQueuedComposerItemNow={handleSendQueuedComposerItemNow}
               onReorderQueuedComposerItem={handleReorderQueuedComposerItem}
               onQueuedComposerItemsExpandedChange={handleQueuedComposerItemsExpandedChange}
-              toggleInteractionMode={toggleInteractionMode}
               handleInteractionModeChange={handleInteractionModeChange}
               setThreadError={setThreadError}
               onExpandImage={onExpandTimelineImage}

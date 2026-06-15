@@ -51,8 +51,8 @@
   --color-honk-editor: var(--honk-color-editor);
   --color-honk-surface: var(--honk-color-surface);
   --color-honk-elevated: var(--honk-color-elevated);
-  --color-honk-bubble: var(--honk-input-surface);
-  --color-honk-bubble-opaque: var(--honk-input-surface-opaque);
+  --color-honk-bubble: var(--honk-message-bubble-background);
+  --color-honk-bubble-opaque: var(--honk-composer-surface-opaque-background);
   --color-honk-menubar: var(--honk-color-menubar);
   --color-honk-border: var(--honk-color-border);
   --color-honk-stroke: var(--honk-color-stroke);
@@ -320,7 +320,7 @@
     --honk-button-cursor: pointer;
     background-color: var(--app-background);
   }
-  html[data-electron]:has(body[data-honk-glass-mode="true"]:not(.honk-reduce-transparency)) {
+  html[data-electron]:has(body[data-honk-glass-mode="true"]) {
     background-color: transparent;
   }
   body {
@@ -413,7 +413,6 @@ code {
 .drag-region a,
 .drag-region [role="button"],
 .drag-region [role="tab"],
-.drag-region [role="tablist"],
 .drag-region [data-slot="tabs-list"],
 .drag-region [data-slot="tabs-tab"] {
   -webkit-app-region: no-drag;

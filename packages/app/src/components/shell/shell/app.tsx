@@ -676,6 +676,7 @@ const ShellHeaderControls = memo(function ShellHeaderControls(props: {
 
   return (
     <div className="honk-shell-titlebar-controls pointer-events-none absolute top-0 right-0 left-0 z-(--z-index-shell-titlebar-controls) box-border flex h-(--honk-header-height) min-w-0 items-center">
+      <div className="honk-shell-titlebar-drag-region drag-region pointer-events-auto absolute inset-0" aria-hidden />
       <div className="honk-shell-titlebar-left-controls pointer-events-auto no-drag absolute flex h-(--honk-titlebar-control-height) shrink-0 items-center gap-0.5">
         <ShellLeftToggleButton />
         <button

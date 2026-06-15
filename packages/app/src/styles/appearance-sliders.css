@@ -23,7 +23,7 @@
 .honk-appearance-intensity-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   background: hsl(
-    var(--honk-appearance-slider-hue, 261) var(--honk-appearance-slider-sat, 20%)
+    var(--honk-appearance-slider-hue, 210) var(--honk-appearance-slider-sat, 0%)
       var(--honk-appearance-slider-light, 50%)
   );
   border: 2px solid var(--card, hsl(0 0% 100%));
@@ -45,7 +45,7 @@
 .honk-appearance-intensity-slider::-moz-range-thumb {
   appearance: none;
   background: hsl(
-    var(--honk-appearance-slider-hue, 261) var(--honk-appearance-slider-sat, 20%)
+    var(--honk-appearance-slider-hue, 210) var(--honk-appearance-slider-sat, 0%)
       var(--honk-appearance-slider-light, 50%)
   );
   border: 2px solid var(--card, hsl(0 0% 100%));
