@@ -1,4 +1,6 @@
 import {
+  type AgentInteractionMode,
+  type ComposerModeKeybindingCommand,
   type KeybindingCommand,
   type KeybindingShortcut,
   type KeybindingWhenNode,
@@ -291,6 +293,38 @@ export function threadTraversalDirectionFromCommand(
   if (command === "thread.previous") return "previous";
   if (command === "thread.next") return "next";
   return null;
+}
+
+export function interactionModeFromKeybindingCommand(
+  command: KeybindingCommand | string | null,
+): AgentInteractionMode | null {
+  switch (command) {
+    case "composer.mode.agent":
+      return "agent";
+    case "composer.mode.ask":
+      return "ask";
+    case "composer.mode.plan":
+      return "plan";
+    case "composer.mode.debug":
+      return "debug";
+    default:
+      return null;
+  }
+}
+
+export function keybindingCommandForInteractionMode(
+  mode: AgentInteractionMode,
+): ComposerModeKeybindingCommand {
+  switch (mode) {
+    case "agent":
+      return "composer.mode.agent";
+    case "ask":
+      return "composer.mode.ask";
+    case "plan":
+      return "composer.mode.plan";
+    case "debug":
+      return "composer.mode.debug";
+  }
 }
 
 export function shouldShowThreadJumpHints(

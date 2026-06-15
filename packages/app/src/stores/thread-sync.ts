@@ -1126,6 +1126,7 @@ function isExtensionUiRequestKind(value: unknown): value is DesktopExtensionUiRe
     case "confirm":
     case "input":
     case "editor":
+    case "question":
     case "custom":
       return true;
     default:
@@ -1156,6 +1157,9 @@ function buildExtensionUiRequestedActivity(
       detail,
       placeholder: request.placeholder ?? null,
       options: request.options ? [...request.options] : null,
+      ...(request.questions
+        ? { questions: request.questions.map((question) => ({ ...question })) }
+        : {}),
     },
   };
 }

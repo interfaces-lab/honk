@@ -48,6 +48,7 @@ import { createDesktopExtensionUi, type DesktopExtensionUiController } from "./e
 import { makeRuntimeEventId, makeRuntimeSessionId, makeTurnId } from "./ids";
 import { projectPiAgentSessionEvent } from "./event-projection";
 import { extractMessageText } from "./message-text";
+import { DEBUG_LOGS_TOOL_NAME } from "./debug-logs-extension";
 import { CREATE_PLAN_TOOL_NAME, extractCreatePlanToolResultMarkdown } from "./plan-extension";
 import {
   CLIENT_MESSAGE_ID_SIDECAR_TYPE,
@@ -185,20 +186,7 @@ export class ThreadAgentRuntime {
       );
     });
     this.unsubscribeSessionEvents = sessionResult.session.subscribe((event) => {
-      this.bindPendingPromptClientMessages();
-      const turnId = this.preparePiEventTurnId(event);
-      const runtimeEvent = this.withSourceProposedPlanData(
-        projectPiAgentSessionEvent(event, {
-          threadId: this.threadId,
-          runtimeSessionId: this.runtimeSessionId,
-          ...(turnId ? { turnId } : {}),
-          sequence: this.nextEventSequence(),
-        }),
-        turnId,
-      );
-      this.emit(runtimeEvent);
-      this.emitCreatePlanEvent(event, turnId);
-      this.finishPiEventTurn(event, turnId);
+      this.handlePiSessionEvent(event);
     });
   }
 
@@ -398,6 +386,11 @@ export class ThreadAgentRuntime {
     this.sourceProposedPlanByTurnId.set(turnId, options.sourceProposedPlan);
     this.emit(this.createPromptUserMessageEvent(text, turnId, clientMessageId));
     const interactionMode = this.interactionModeQueue.enqueue(options.interactionMode);
+    const baselineActiveToolNames = this.session.getActiveToolNames();
+    const modeToolProfileApplied = applyInteractionModeToolProfile(
+      this.session,
+      options.interactionMode,
+    );
     try {
       const piImages = toPiImageContent(images);
       const promptOptions: PromptOptions = {
@@ -450,6 +443,9 @@ export class ThreadAgentRuntime {
         .finally(() => {
           this.removePendingPromptClientMessage(pendingClientMessage);
           this.interactionModeQueue.remove(interactionMode);
+          if (modeToolProfileApplied) {
+            this.session.setActiveToolsByName(baselineActiveToolNames);
+          }
           this.sourceProposedPlanByTurnId.delete(turnId);
           this.proposedPlanTurnIds.delete(turnId);
           if (this.pendingFirstTurnId === turnId) {
@@ -466,6 +462,9 @@ export class ThreadAgentRuntime {
     } catch (error) {
       this.removePendingPromptClientMessage(pendingClientMessage);
       this.interactionModeQueue.remove(interactionMode);
+      if (modeToolProfileApplied) {
+        this.session.setActiveToolsByName(baselineActiveToolNames);
+      }
       this.sourceProposedPlanByTurnId.delete(turnId);
       this.proposedPlanTurnIds.delete(turnId);
       if (this.pendingFirstTurnId === turnId) {
@@ -529,6 +528,36 @@ export class ThreadAgentRuntime {
   private nextEventSequence(): number {
     this.eventSequence += 1;
     return this.eventSequence;
+  }
+
+  private handlePiSessionEvent(event: AgentSessionEvent): void {
+    // Pi awaits session subscribers before it can emit later lifecycle events and clear
+    // `isStreaming`. Honk projection/listener failures are integration failures; they must not
+    // poison Pi's canonical run lifecycle.
+    let turnId: TurnId | undefined;
+    try {
+      this.bindPendingPromptClientMessages();
+      turnId = this.preparePiEventTurnId(event);
+      const runtimeEvent = this.withSourceProposedPlanData(
+        projectPiAgentSessionEvent(event, {
+          threadId: this.threadId,
+          runtimeSessionId: this.runtimeSessionId,
+          ...(turnId ? { turnId } : {}),
+          sequence: this.nextEventSequence(),
+        }),
+        turnId,
+      );
+      this.emit(runtimeEvent);
+      this.emitCreatePlanEvent(event, turnId);
+    } catch (error) {
+      warnRuntimeBridgeError(`processing Pi session event ${event.type}`, error);
+    } finally {
+      try {
+        this.finishPiEventTurn(event, turnId);
+      } catch (error) {
+        warnRuntimeBridgeError(`finishing Pi session event ${event.type}`, error);
+      }
+    }
   }
 
   private prepareRevisionBranch(replacesClientMessageId: MessageId): void {
@@ -831,9 +860,24 @@ export class ThreadAgentRuntime {
 
   private emit(event: AgentRuntimeEvent): void {
     for (const listener of this.listeners) {
-      listener(event);
+      try {
+        listener(event);
+      } catch (error) {
+        warnRuntimeBridgeError(`emitting runtime event ${event.type}`, error);
+      }
     }
   }
+}
+
+function warnRuntimeBridgeError(context: string, error: unknown): void {
+  console.warn(`[runtime] Failed while ${context}: ${formatUnknownError(error)}`);
+}
+
+function formatUnknownError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.stack ?? error.message;
+  }
+  return String(error);
 }
 
 function mergeExcludedToolNames(excludeTools: readonly string[] | undefined): string[] {
@@ -977,6 +1021,58 @@ function createInteractionModeExtension(queue: InteractionModeQueue): ExtensionF
   };
 }
 
+interface InteractionModeToolSession {
+  getActiveToolNames(): string[];
+  setActiveToolsByName(toolNames: string[]): void;
+}
+
+const READ_ONLY_MODE_TOOLS = ["read", "grep", "find", "ls", "ask_question"] as const;
+const DEBUG_MODE_TOOLS = [
+  "read",
+  "grep",
+  "find",
+  "ls",
+  "bash",
+  "edit",
+  "write",
+  "ask_question",
+  DEBUG_LOGS_TOOL_NAME,
+] as const;
+const PLAN_MODE_TOOLS = [
+  "read",
+  "grep",
+  "find",
+  "ls",
+  "bash",
+  "ask_question",
+  CREATE_PLAN_TOOL_NAME,
+] as const;
+
+function applyInteractionModeToolProfile(
+  session: InteractionModeToolSession,
+  mode: AgentInteractionMode,
+): boolean {
+  const profile = interactionModeToolProfile(mode);
+  if (!profile) {
+    return false;
+  }
+  session.setActiveToolsByName([...profile]);
+  return true;
+}
+
+function interactionModeToolProfile(mode: AgentInteractionMode): readonly string[] | null {
+  switch (mode) {
+    case "ask":
+      return READ_ONLY_MODE_TOOLS;
+    case "debug":
+      return DEBUG_MODE_TOOLS;
+    case "plan":
+      return PLAN_MODE_TOOLS;
+    case "agent":
+      return null;
+  }
+}
+
 function interactionModeGuidance(mode: AgentInteractionMode): string | undefined {
   switch (mode) {
     case "agent":
@@ -985,6 +1081,7 @@ function interactionModeGuidance(mode: AgentInteractionMode): string | undefined
       return [
         "## Honk Interaction Mode: Ask",
         "Answer the user directly. Do not change files, run mutating shell commands, create commits, or perform long-running actions.",
+        "Only read-only tools are enabled in this mode: read, grep, find, ls, and ask_question.",
         "Use read-only inspection only when it is needed to answer accurately.",
       ].join("\n");
     case "plan":
@@ -993,7 +1090,9 @@ function interactionModeGuidance(mode: AgentInteractionMode): string | undefined
         "Produce a concrete implementation plan through Honk's built-in Pi planning surface.",
         "Research the codebase to find relevant files and review relevant docs before planning.",
         "Ask clarifying questions when requirements are ambiguous or the plan depends on missing decisions.",
+        "If the user gives feedback while still in plan mode, keep iterating the plan rather than starting implementation.",
         "Use the create_plan tool as the final action once the plan is ready for review.",
+        "When refining a previous plan, call create_plan again with the updated complete plan.",
         "The create_plan payload should include a short name, overview, actionable todos, isProject, optional phases, and a complete Markdown plan.",
         "The Markdown plan should include diagnosis, implementation steps with file paths or code references, verification, risks, and non-goals.",
         "Stop after creating the plan so the user can review, edit, or approve it before implementation.",
@@ -1002,8 +1101,12 @@ function interactionModeGuidance(mode: AgentInteractionMode): string | undefined
     case "debug":
       return [
         "## Honk Interaction Mode: Debug",
-        "Diagnose the issue first and report evidence, likely cause, and next steps.",
-        "Prefer read-only inspection and safe diagnostic commands. Do not change files until the cause is clear and the user asks for a fix.",
+        "Systematically diagnose and fix bugs using runtime evidence.",
+        "Start by identifying reproduction steps, expected behavior, actual behavior, and the smallest relevant code paths.",
+        "Use debug_logs with action:path to get the log file path before running instrumented or reproduction commands, append command output to that file, then use debug_logs with action:read to inspect the latest traces.",
+        "Use debug_logs with action:clear before a fresh reproduction when previous logs would pollute the diagnosis.",
+        "Prefer narrow diagnostic commands and explain the evidence before editing.",
+        "When the cause is clear, make the smallest fix and verify it. If temporary instrumentation was added, remove it before finishing.",
       ].join("\n");
     default:
       return undefined;

@@ -1354,6 +1354,7 @@ function asDesktopExtensionUiRequestKind(value: unknown): DesktopExtensionUiRequ
     case "confirm":
     case "input":
     case "editor":
+    case "question":
     case "custom":
       return value;
     default:

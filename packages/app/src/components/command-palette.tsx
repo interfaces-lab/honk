@@ -10,6 +10,7 @@ import {
   IconChevronRightMedium,
   IconAgent,
   IconBug,
+  IconBubbleQuestion,
   IconClipboard,
   IconFolder1,
   IconFolderAddRight,
@@ -19,6 +20,7 @@ import {
   IconSettingsGear2,
   IconSettingsSliderHor,
   IconThread,
+  IconTodos,
 } from "central-icons";
 import { useDeferredValue, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -78,9 +80,11 @@ import {
 } from "../rpc/server-state";
 import {
   COMMAND_PALETTE_FALLBACK_KEYBINDINGS,
+  keybindingCommandForInteractionMode,
   resolveShortcutCommand,
   shortcutLabelForCommand,
 } from "../keybindings";
+import { setFocusedComposerInteractionMode } from "./chat/composer/interaction-mode-target";
 import {
   Command,
   CommandCollection,
@@ -789,6 +793,57 @@ function OpenCommandPaletteDialog() {
       openAddProjectFlow();
     },
   });
+
+  actionItems.push(
+    {
+      kind: "action",
+      value: "action:composer-mode-agent",
+      searchTerms: ["agent mode", "build mode", "composer mode"],
+      title: "Agent Mode",
+      description: "Plan, search, edit, and run commands",
+      icon: <IconAgent className="size-4 text-honk-icon-tertiary" />,
+      shortcutCommand: keybindingCommandForInteractionMode("agent"),
+      run: async () => {
+        setFocusedComposerInteractionMode("agent", { focusMode: "preserve" });
+      },
+    },
+    {
+      kind: "action",
+      value: "action:composer-mode-ask",
+      searchTerms: ["ask mode", "chat mode", "read only", "composer mode"],
+      title: "Ask Mode",
+      description: "Ask questions without making changes",
+      icon: <IconBubbleQuestion className="size-4 text-honk-icon-tertiary" />,
+      shortcutCommand: keybindingCommandForInteractionMode("ask"),
+      run: async () => {
+        setFocusedComposerInteractionMode("ask", { focusMode: "preserve" });
+      },
+    },
+    {
+      kind: "action",
+      value: "action:composer-mode-plan",
+      searchTerms: ["plan mode", "planning", "composer mode"],
+      title: "Plan Mode",
+      description: "Create a proposed implementation plan",
+      icon: <IconTodos className="size-4 text-honk-icon-tertiary" />,
+      shortcutCommand: keybindingCommandForInteractionMode("plan"),
+      run: async () => {
+        setFocusedComposerInteractionMode("plan", { focusMode: "preserve" });
+      },
+    },
+    {
+      kind: "action",
+      value: "action:composer-mode-debug",
+      searchTerms: ["debug mode", "bug", "diagnostics", "composer mode"],
+      title: "Debug Mode",
+      description: "Gather diagnostics and runtime traces",
+      icon: <IconBug className="size-4 text-honk-icon-tertiary" />,
+      shortcutCommand: keybindingCommandForInteractionMode("debug"),
+      run: async () => {
+        setFocusedComposerInteractionMode("debug", { focusMode: "preserve" });
+      },
+    },
+  );
 
   if (currentProjectCwd) {
     actionItems.push({

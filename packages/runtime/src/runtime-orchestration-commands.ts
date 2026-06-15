@@ -37,6 +37,11 @@ const commandLifecycleSummaries: ReadonlySet<string> = new Set([
   "Ran command",
   "Command failed",
 ]);
+const metadataOnlyToolActivitySummaries: ReadonlySet<string> = new Set([
+  ...commandLifecycleSummaries,
+  "Tool completed",
+  "Tool failed",
+]);
 
 export interface RuntimeOrchestrationCommandContext {
   readonly resolveTurnUserEntryId?: (threadId: ThreadId, turnId: TurnId) => ThreadEntryId | null;
@@ -62,22 +67,43 @@ function isLegacyCommandActivitySummary(value: unknown): boolean {
   return summary !== null && legacyCommandActivitySummaryByText[summary] !== undefined;
 }
 
-function isCommandLifecycleSummary(value: unknown): boolean {
-  const summary = asTrimmedString(value);
-  return summary !== null && commandLifecycleSummaries.has(summary);
-}
-
 function runtimeToolNameForActivity(input: {
   readonly rawToolName: string;
   readonly eventSummary: unknown;
 }): string {
-  if (
-    isLegacyCommandActivitySummary(input.eventSummary) ||
-    (input.rawToolName === "tool" && isCommandLifecycleSummary(input.eventSummary))
-  ) {
+  if (isLegacyCommandActivitySummary(input.eventSummary)) {
     return "bash";
   }
   return input.rawToolName;
+}
+
+function hasRenderableToolEventData(
+  record: Record<string, unknown>,
+  subagentParentItem: Record<string, unknown> | null,
+): boolean {
+  return (
+    record.args !== undefined ||
+    record.result !== undefined ||
+    record.partialResult !== undefined ||
+    record.output !== undefined ||
+    record.command !== undefined ||
+    subagentParentItem !== null
+  );
+}
+
+function shouldOmitMetadataOnlyToolCompletedActivity(input: {
+  readonly record: Record<string, unknown>;
+  readonly summary: string;
+  readonly subagentActivities: ReadonlyArray<OrchestrationThreadActivity>;
+  readonly subagentParentItem: Record<string, unknown> | null;
+}): boolean {
+  if (input.subagentActivities.length > 0) {
+    return false;
+  }
+  if (hasRenderableToolEventData(input.record, input.subagentParentItem)) {
+    return false;
+  }
+  return metadataOnlyToolActivitySummaries.has(input.summary);
 }
 
 function runtimeToolActivitySummary(input: {
@@ -273,6 +299,16 @@ export function runtimeToolCompletedActivities(
     toolName === "subagent"
       ? compactSubagentParentItem(record, isError ? "failed" : "completed")
       : null;
+  if (
+    shouldOmitMetadataOnlyToolCompletedActivity({
+      record,
+      summary: summary.summary,
+      subagentActivities,
+      subagentParentItem,
+    })
+  ) {
+    return [];
+  }
   const activity: OrchestrationThreadActivity = {
     id: EventId.make(`runtime-activity:${event.id}`),
     tone: isError ? ("error" as const) : ("tool" as const),

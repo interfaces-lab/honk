@@ -1466,11 +1466,17 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
           const updatedAt = new Date().toISOString();
           set((state) => {
             const existing = state.draftsByThreadKey[threadKey];
-            if (!existing && nextInteractionMode === null) {
+            const existingDraftThread = state.draftThreadsByThreadKey[threadKey];
+            if (!existing && !existingDraftThread && nextInteractionMode === null) {
               return state;
             }
             const base = existing ?? createEmptyThreadDraft();
-            if (base.interactionMode === nextInteractionMode) {
+            const nextDraftThreadInteractionMode =
+              nextInteractionMode ?? DEFAULT_INTERACTION_MODE;
+            const draftThreadModeChanged =
+              existingDraftThread !== undefined &&
+              existingDraftThread.interactionMode !== nextDraftThreadInteractionMode;
+            if (base.interactionMode === nextInteractionMode && !draftThreadModeChanged) {
               return state;
             }
             const nextDraft: ComposerThreadDraftState = {
@@ -1483,9 +1489,19 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
             } else {
               nextDraftsByThreadKey[threadKey] = nextDraft;
             }
+            const nextDraftThreadsByThreadKey = draftThreadModeChanged
+              ? {
+                  ...state.draftThreadsByThreadKey,
+                  [threadKey]: {
+                    ...existingDraftThread,
+                    interactionMode: nextDraftThreadInteractionMode,
+                    updatedAt,
+                  },
+                }
+              : touchDraftThreadUpdatedAt(state, threadKey, updatedAt);
             return {
               draftsByThreadKey: nextDraftsByThreadKey,
-              draftThreadsByThreadKey: touchDraftThreadUpdatedAt(state, threadKey, updatedAt),
+              draftThreadsByThreadKey: nextDraftThreadsByThreadKey,
             };
           });
         },

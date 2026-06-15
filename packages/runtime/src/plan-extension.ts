@@ -162,6 +162,7 @@ export const createPlanExtension: ExtensionFactory = (pi) => {
       promptSnippet: "Create a proposed implementation plan for review.",
       promptGuidelines: [
         "Use create_plan as the final action in plan mode once the plan is ready for review.",
+        "When the user provides feedback in plan mode, refine the existing plan and call create_plan again with the updated complete plan.",
         "Before calling create_plan, inspect the relevant code and ask clarifying questions if requirements are ambiguous.",
         "Do not modify files, run mutating commands, create commits, or implement the plan before calling create_plan.",
         "Put the complete Markdown plan in the plan field; include concrete files, implementation steps, verification, risks, and non-goals.",

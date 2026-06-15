@@ -57,6 +57,7 @@ export interface ComposerPromptEditorProps {
   className?: string | undefined;
   hotkeyTargetRef?: RefObject<HTMLDivElement | null>;
   caretAnchorRef?: RefObject<HTMLSpanElement | null>;
+  commandMenuAnchorExpandedOffset?: number | null;
   commandMenuOpen?: boolean;
   onMeasuredMultilineChange?: (multiline: boolean) => void;
   onChange: (

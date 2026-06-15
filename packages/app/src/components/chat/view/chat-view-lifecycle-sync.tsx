@@ -16,7 +16,12 @@ import { retainThreadDetailSubscription } from "../../../environments/runtime/se
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { isTerminalFocused } from "../../../lib/terminal-focus";
 import { projectScriptIdFromCommand } from "~/lib/project-scripts";
-import { resolveShortcutCommand } from "../../../keybindings";
+import { interactionModeFromKeybindingCommand, resolveShortcutCommand } from "../../../keybindings";
+import {
+  cycleFocusedComposerInteractionMode,
+  hasFocusedComposerInteractionModeTarget,
+  setFocusedComposerInteractionMode,
+} from "../composer/interaction-mode-target";
 import { useCommandPaletteStore } from "../../../stores/ui/command-palette-store";
 import type { ChatMessage, ThreadSendIntent } from "../../../types";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
@@ -510,6 +515,7 @@ export function ChatViewKeyboardShortcutsSync({
         return;
       }
       const shortcutContext = {
+        composerFocus: hasFocusedComposerInteractionModeTarget(),
         terminalFocus: isTerminalFocused(),
         terminalOpen,
       };
@@ -518,6 +524,21 @@ export function ChatViewKeyboardShortcutsSync({
         context: shortcutContext,
       });
       if (!command) return;
+
+      if (command === "composer.cycleInteractionMode") {
+        event.preventDefault();
+        event.stopPropagation();
+        cycleFocusedComposerInteractionMode({ focusMode: "preserve" });
+        return;
+      }
+
+      const interactionModeCommand = interactionModeFromKeybindingCommand(command);
+      if (interactionModeCommand) {
+        event.preventDefault();
+        event.stopPropagation();
+        setFocusedComposerInteractionMode(interactionModeCommand, { focusMode: "preserve" });
+        return;
+      }
 
       if (command === "terminal.toggle") {
         event.preventDefault();

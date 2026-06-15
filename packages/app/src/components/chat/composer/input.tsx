@@ -89,14 +89,29 @@ import { cn } from "~/lib/utils";
 import { cva } from "class-variance-authority";
 import type { QueuedComposerItem } from "../../../stores/chat-send-queue";
 import { useComposerKeyboard } from "./use-composer-keyboard";
-import { resolveShortcutCommand, shortcutLabelForCommand } from "~/keybindings";
+import { useComposerFocusOnType } from "./focus-on-type";
+import {
+  interactionModeFromKeybindingCommand,
+  resolveShortcutCommand,
+  shortcutLabelForCommand,
+} from "~/keybindings";
 import { useComposerImageAttachments } from "./attachments/use-image-attachments";
 import { ComposerImageAttachmentStrip } from "./attachments/image-attachment-strip";
 import {
   type ComposerFooterPendingAction,
   type ComposerInputHandle,
   type ComposerInputProps,
+  type ComposerInteractionModeFocusMode,
 } from "./input-contract";
+import {
+  createComposerModeSuggestionUsage,
+  markComposerModeSuggestionUsed,
+  nextComposerInteractionMode,
+  normalizeComposerModeSuggestionUsage,
+  suggestedComposerInteractionMode,
+  type ComposerModeSuggestionUsage,
+} from "./interaction-modes";
+import { registerComposerInteractionModeTarget } from "./interaction-mode-target";
 import { QueuedComposerEditBanner, QueuedComposerItemsPanel } from "./queue/queued-items-panel";
 import { SubagentTrayStack } from "./subagents/subagent-tray";
 import { shouldShowSubagentTrayForComposer } from "./subagents/subagent-tray-visibility";
@@ -118,7 +133,11 @@ import {
   type AgentModeAvailability,
 } from "~/lib/agent-mode-options";
 
-export type { ComposerInputHandle, ComposerInputProps } from "./input-contract";
+export type {
+  ComposerInputHandle,
+  ComposerInputProps,
+  ComposerInteractionModeFocusMode,
+} from "./input-contract";
 
 const composerEditorClass = cva(
   "block w-full min-w-0 overflow-y-auto whitespace-pre-wrap wrap-break-word bg-transparent text-honk-fg-secondary outline-hidden",
@@ -244,6 +263,33 @@ function ComposerInteractionModeChip(props: {
       >
         <IconCrossSmall />
       </span>
+    </Button>
+  );
+}
+
+function ComposerInteractionModeSuggestionButton(props: {
+  mode: ActiveComposerInteractionMode;
+  shortcutLabel: string | null;
+  onSelect: () => void;
+}) {
+  const suggestion = getInteractionModeChipConfig(props.mode);
+  const SuggestionIcon = suggestion.Icon;
+  const shortcutTitle = props.shortcutLabel ? ` (${props.shortcutLabel})` : "";
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="h-6 max-w-full shrink rounded-full px-2 text-detail font-medium text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary [&_svg]:size-3 [&_svg]:shrink-0"
+      title={`Try ${suggestion.label} Mode${shortcutTitle}`}
+      onClick={props.onSelect}
+    >
+      <SuggestionIcon aria-hidden />
+      <span className="min-w-0 truncate">Try {suggestion.label} Mode</span>
+      {props.shortcutLabel ? (
+        <span className="shrink-0 text-caption text-honk-fg-tertiary">{props.shortcutLabel}</span>
+      ) : null}
     </Button>
   );
 }
@@ -470,7 +516,11 @@ function ComposerAgentModePicker(props: {
                 }}
                 onClick={(event) => {
                   if (!modeUnavailable && isAgentModeEditTarget(event.target)) {
-                    setOpenSubmenu({ mode, kind: "effort" });
+                    setOpenSubmenu((current) =>
+                      current?.mode === mode && current.kind === "effort"
+                        ? { mode, kind: "details" }
+                        : { mode, kind: "effort" },
+                    );
                   }
                 }}
               >
@@ -792,16 +842,16 @@ function ComposerMenuAnchorObserverSync({
       return;
     }
 
-    // Cursor observes the fake caret's style attribute and refreshes Floating
-    // UI when it moves. The anchor reads live DOM rects; this revision bump
-    // repositions the popover without caching stale coordinates in React.
+    // Cursor observes the fake menu-anchor span's style attribute and refreshes
+    // Floating UI when it moves. The anchor reads live DOM rects; this revision
+    // bump repositions the popover without caching stale coordinates in React.
     const observer = new MutationObserver(() => {
       setComposerMenuAnchorRevision((value) => value + 1);
     });
-    // The caret span lives in the prompt editor's subtree and can attach after
+    // The anchor span lives in the prompt editor's subtree and can attach after
     // this sync mounts (editor remount with the menu opening in the same
     // commit). Retry on animation frames until it exists, then bump once so
-    // the popover snaps from the 0,0 fallback rect to the real caret.
+    // the popover snaps from the 0,0 fallback rect to the real trigger origin.
     let frameId: number | null = null;
     const attach = () => {
       frameId = null;
@@ -1123,6 +1173,7 @@ function ComposerFooter(props: {
   };
   agentModeControl: ReactNode;
   interactionModeChip: ReactNode;
+  interactionModeSuggestion: ReactNode;
   attachmentAction?: ReactNode | undefined;
   secondaryAction?: ReactNode | undefined;
   onAdvancePendingQuestion: () => void;
@@ -1169,6 +1220,9 @@ function ComposerFooter(props: {
         ) : null}
         {props.interactionModeChip ? (
           <span className="inline-flex shrink-0">{props.interactionModeChip}</span>
+        ) : null}
+        {props.interactionModeSuggestion ? (
+          <span className="inline-flex min-w-0 shrink">{props.interactionModeSuggestion}</span>
         ) : null}
       </div>
 
@@ -1267,7 +1321,6 @@ export const ComposerInput = memo(
       onSendQueuedComposerItemNow,
       onReorderQueuedComposerItem,
       onQueuedComposerItemsExpandedChange,
-      toggleInteractionMode,
       handleInteractionModeChange,
       setThreadError,
       onExpandImage,
@@ -1404,6 +1457,9 @@ export const ComposerInput = memo(
     const composerDraftTargetKeyRef = useRef(composerDraftTargetKeyValue);
     const lastSyncedDraftTargetKeyRef = useRef(composerDraftTargetKeyValue);
     const lastForceSyncGenerationRef = useRef(composerInputModel.forceSyncGeneration);
+    const modeSuggestionUsageRef = useRef<ComposerModeSuggestionUsage>(
+      createComposerModeSuggestionUsage(draftPrompt),
+    );
     composerDraftTargetRef.current = composerDraftTarget;
     composerDraftTargetKeyRef.current = composerDraftTargetKeyValue;
 
@@ -1501,20 +1557,96 @@ export const ComposerInput = memo(
       );
     };
 
+    const syncModeSuggestionUsageForPrompt = (prompt: string) => {
+      modeSuggestionUsageRef.current = normalizeComposerModeSuggestionUsage(
+        modeSuggestionUsageRef.current,
+        prompt,
+      );
+      return modeSuggestionUsageRef.current;
+    };
+
+    const readInteractionModeSuggestion = (prompt: string): ActiveComposerInteractionMode | null => {
+      const usage = syncModeSuggestionUsageForPrompt(prompt);
+      return suggestedComposerInteractionMode({ interactionMode, prompt, usage });
+    };
+
+    const consumeInteractionModeSuggestion = (): ActiveComposerInteractionMode | null => {
+      const suggestion = readInteractionModeSuggestion(promptRef.current);
+      if (!suggestion) {
+        return null;
+      }
+      modeSuggestionUsageRef.current = markComposerModeSuggestionUsed(
+        modeSuggestionUsageRef.current,
+        suggestion,
+      );
+      return suggestion;
+    };
+
+    const cycleInteractionMode = (
+      focusMode: ComposerInteractionModeFocusMode = "preserve",
+    ) => {
+      const suggestedMode = consumeInteractionModeSuggestion();
+      handleInteractionModeChange(
+        suggestedMode ?? nextComposerInteractionMode(interactionMode),
+        focusMode,
+      );
+    };
+
     useComposerKeyboard({
       enabled: showModeControls,
       keybindings,
       terminalOpen,
       targetRef: composerEditorHotkeyRef,
-      onToggleInteractionMode: toggleInteractionMode,
+      onToggleInteractionMode: cycleInteractionMode,
     });
     const interactionModeShortcutLabel = shortcutLabelForCommand(
       keybindings,
       "composer.cycleInteractionMode",
       {
-        context: { terminalFocus: false, terminalOpen },
+        context: { terminalFocus: false, terminalOpen, composerFocus: true },
       },
     );
+
+    useLayoutSyncEffect(() => {
+      if (!showModeControls) {
+        return;
+      }
+
+      return registerComposerInteractionModeTarget({
+        id: composerDraftTargetKeyValue,
+        isFocused: () => {
+          const activeElement = document.activeElement;
+          return activeElement instanceof Node && composerFormRef.current?.contains(activeElement)
+            ? true
+            : false;
+        },
+        focus: (focusMode = "preserve") => {
+          if (focusMode === "preserve") {
+            composerEditorRef.current?.focus();
+            return;
+          }
+          composerEditorRef.current?.focusAtEnd();
+        },
+        setInteractionMode: (mode, focusMode = "preserve") => {
+          if (mode === interactionMode) {
+            if (focusMode === "preserve") {
+              composerEditorRef.current?.focus();
+            } else {
+              composerEditorRef.current?.focusAtEnd();
+            }
+            return;
+          }
+          handleInteractionModeChange(mode, focusMode);
+        },
+        cycleInteractionMode,
+      });
+    }, [
+      composerDraftTargetKeyValue,
+      cycleInteractionMode,
+      handleInteractionModeChange,
+      interactionMode,
+      showModeControls,
+    ]);
 
     const resolveComposerTrigger = (
       text: string,
@@ -1615,6 +1747,10 @@ export const ComposerInput = memo(
     });
 
     const isComposerApprovalState = activePendingApproval !== null;
+    useComposerFocusOnType({
+      enabled: !isInlineEditComposer && !isConnecting && !isComposerApprovalState,
+      promptInputRef: composerEditorRef,
+    });
     const activePendingUserInput = pendingUserInputs[0] ?? null;
     const hasQueuedComposerItems = queuedComposerItems.length > 0;
     const queuedComposerActionsBusy = isConnecting || isSendBusy || isTurnRunning;
@@ -1632,6 +1768,7 @@ export const ComposerInput = memo(
         if (nextPrompt === promptRef.current) {
           return;
         }
+        syncModeSuggestionUsageForPrompt(nextPrompt);
         const nextCursor = collapseExpandedComposerCursor(nextPrompt, nextPrompt.length);
         promptRef.current = nextPrompt;
         setLivePrompt((current) => (current === nextPrompt ? current : nextPrompt));
@@ -1656,6 +1793,7 @@ export const ComposerInput = memo(
       if (storePrompt === promptRef.current && !forceSyncChanged) {
         return;
       }
+      syncModeSuggestionUsageForPrompt(storePrompt);
       const nextCursor = collapseExpandedComposerCursor(storePrompt, storePrompt.length);
       promptRef.current = storePrompt;
       setLivePrompt((current) => (current === storePrompt ? current : storePrompt));
@@ -1814,6 +1952,7 @@ export const ComposerInput = memo(
       cursorAdjacentToMention: boolean,
     ) => {
       const previousPrompt = promptRef.current;
+      syncModeSuggestionUsageForPrompt(nextPrompt);
       dismissedComposerTriggerRef.current = mapComposerTriggerDismissalThroughPromptChange(
         dismissedComposerTriggerRef.current,
         previousPrompt,
@@ -2153,16 +2292,16 @@ export const ComposerInput = memo(
         return true;
       }
 
-      if (key === "Tab" && event.shiftKey) {
-        toggleInteractionMode();
-        return true;
-      }
-
       const command = resolveShortcutCommand(event, keybindings, {
         context: { terminalOpen, composerFocus: true },
       });
       if (command === "composer.cycleInteractionMode") {
-        toggleInteractionMode();
+        cycleInteractionMode("preserve");
+        return true;
+      }
+      const interactionModeCommand = interactionModeFromKeybindingCommand(command);
+      if (interactionModeCommand) {
+        handleInteractionModeChange(interactionModeCommand, "preserve");
         return true;
       }
 
@@ -2214,6 +2353,9 @@ export const ComposerInput = memo(
     useImperativeHandle(
       ref,
       () => ({
+        focus: () => {
+          composerEditorRef.current?.focus();
+        },
         focusAtEnd: () => {
           composerEditorRef.current?.focusAtEnd();
         },
@@ -2292,12 +2434,37 @@ export const ComposerInput = memo(
     const showQueuedComposerPanel = showQueuedComposerItems && !isInlineEditComposer;
     const activeComposerInteractionMode: ActiveComposerInteractionMode | null =
       showModeControls && interactionMode !== "agent" ? interactionMode : null;
+    const activeModeSuggestionUsage =
+      modeSuggestionUsageRef.current.prompt === livePrompt
+        ? modeSuggestionUsageRef.current
+        : createComposerModeSuggestionUsage(livePrompt);
+    const activeInteractionModeSuggestion = showModeControls
+      ? suggestedComposerInteractionMode({
+          interactionMode,
+          prompt: livePrompt,
+          usage: activeModeSuggestionUsage,
+        })
+      : null;
     const composerInteractionModeChip =
       activeComposerInteractionMode === null ? null : (
         <ComposerInteractionModeChip
           mode={activeComposerInteractionMode}
           shortcutLabel={interactionModeShortcutLabel}
           onClear={() => handleInteractionModeChange("agent")}
+        />
+      );
+    const composerInteractionModeSuggestion =
+      activeInteractionModeSuggestion === null ? null : (
+        <ComposerInteractionModeSuggestionButton
+          mode={activeInteractionModeSuggestion}
+          shortcutLabel={interactionModeShortcutLabel}
+          onSelect={() => {
+            const suggestedMode = consumeInteractionModeSuggestion();
+            if (!suggestedMode) {
+              return;
+            }
+            handleInteractionModeChange(suggestedMode, "preserve");
+          }}
         />
       );
     const composerAgentModeControl = showModeControls ? (
@@ -2477,6 +2644,7 @@ export const ComposerInput = memo(
                   syncRevision={editorSyncState.syncRevision}
                   forceSyncGeneration={composerInputModel.forceSyncGeneration}
                   caretAnchorRef={composerMenuAnchorRef}
+                  commandMenuAnchorExpandedOffset={composerTrigger?.rangeStart ?? null}
                   commandMenuOpen={composerMenuOpen && !isComposerApprovalState}
                   onMeasuredMultilineChange={handleMeasuredComposerMultilineChange}
                   onChange={onPromptChange}
@@ -2533,6 +2701,7 @@ export const ComposerInput = memo(
                   isDockComposerExpanded={isDockComposerExpanded}
                   agentModeControl={composerAgentModeControl}
                   interactionModeChip={composerInteractionModeChip}
+                  interactionModeSuggestion={composerInteractionModeSuggestion}
                   attachmentAction={isDockComposerSingleLine ? null : composerAttachmentButton}
                   secondaryAction={footerSecondaryAction}
                   primaryActionState={{

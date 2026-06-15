@@ -387,8 +387,34 @@ function arePendingExtensionUiRequestsEqualAtIndex(
     left.placeholder === right.placeholder &&
     left.timeout === right.timeout &&
     left.createdAt === right.createdAt &&
-    areSameStrings(left.options ?? [], right.options ?? [])
+    areSameStrings(left.options ?? [], right.options ?? []) &&
+    areSameExtensionUiQuestions(left.questions ?? [], right.questions ?? [])
   );
+}
+
+function areSameExtensionUiQuestions(
+  left: NonNullable<DesktopExtensionUiRequest["questions"]>,
+  right: NonNullable<DesktopExtensionUiRequest["questions"]>,
+): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((leftQuestion, index) => {
+    const rightQuestion = right[index];
+    if (!rightQuestion) return false;
+    return (
+      leftQuestion.id === rightQuestion.id &&
+      leftQuestion.text === rightQuestion.text &&
+      leftQuestion.allowMultiple === rightQuestion.allowMultiple &&
+      leftQuestion.options.length === rightQuestion.options.length &&
+      leftQuestion.options.every((leftOption, optionIndex) => {
+        const rightOption = rightQuestion.options[optionIndex];
+        return (
+          rightOption !== undefined &&
+          leftOption.id === rightOption.id &&
+          leftOption.label === rightOption.label
+        );
+      })
+    );
+  });
 }
 
 function areSameStrings(left: ReadonlyArray<string>, right: ReadonlyArray<string>): boolean {

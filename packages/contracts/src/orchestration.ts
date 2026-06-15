@@ -305,9 +305,22 @@ export const ExtensionUiActivityRequestKind = Schema.Literals([
   "confirm",
   "input",
   "editor",
+  "question",
   "custom",
 ]);
 export type ExtensionUiActivityRequestKind = typeof ExtensionUiActivityRequestKind.Type;
+
+const ExtensionUiQuestionOptionActivityPayload = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  label: TrimmedNonEmptyString,
+});
+
+const ExtensionUiQuestionActivityPayload = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  text: TrimmedNonEmptyString,
+  options: Schema.Array(ExtensionUiQuestionOptionActivityPayload),
+  allowMultiple: Schema.Boolean,
+});
 
 const ExtensionUiRequestedActivityPayload = Schema.Struct({
   requestId: TrimmedNonEmptyString,
@@ -316,6 +329,7 @@ const ExtensionUiRequestedActivityPayload = Schema.Struct({
   detail: Schema.NullOr(Schema.String),
   placeholder: Schema.NullOr(Schema.String),
   options: Schema.NullOr(Schema.Array(Schema.String)),
+  questions: Schema.optional(Schema.Array(ExtensionUiQuestionActivityPayload)),
 });
 
 const ExtensionUiResolvedActivityPayload = Schema.Struct({

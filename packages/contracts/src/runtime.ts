@@ -474,9 +474,24 @@ export const DesktopExtensionUiRequestKind = Schema.Literals([
   "confirm",
   "input",
   "editor",
+  "question",
   "custom",
 ]);
 export type DesktopExtensionUiRequestKind = typeof DesktopExtensionUiRequestKind.Type;
+
+export const DesktopExtensionUiQuestionOption = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  label: TrimmedNonEmptyString,
+});
+export type DesktopExtensionUiQuestionOption = typeof DesktopExtensionUiQuestionOption.Type;
+
+export const DesktopExtensionUiQuestion = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  text: TrimmedNonEmptyString,
+  options: Schema.Array(DesktopExtensionUiQuestionOption),
+  allowMultiple: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+});
+export type DesktopExtensionUiQuestion = typeof DesktopExtensionUiQuestion.Type;
 
 export const DesktopExtensionUiRequest = Schema.Struct({
   id: TrimmedNonEmptyString,
@@ -487,6 +502,7 @@ export const DesktopExtensionUiRequest = Schema.Struct({
   message: Schema.optional(Schema.String),
   placeholder: Schema.optional(Schema.String),
   options: Schema.optional(Schema.Array(Schema.String)),
+  questions: Schema.optional(Schema.Array(DesktopExtensionUiQuestion)),
   timeout: Schema.optional(NonNegativeInt),
   createdAt: IsoDateTime,
 });

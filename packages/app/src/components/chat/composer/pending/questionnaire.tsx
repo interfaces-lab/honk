@@ -57,10 +57,14 @@ export function QuestionnaireQuestionLabel(props: {
   );
 }
 
-export function QuestionnaireOptions(props: { children: ReactNode; label: string }) {
+export function QuestionnaireOptions(props: {
+  children: ReactNode;
+  label: string;
+  multiSelect?: boolean;
+}) {
   return (
     <div
-      role="radiogroup"
+      role={props.multiSelect ? "group" : "radiogroup"}
       aria-label={props.label}
       className="-ml-1 mt-1 flex flex-col overflow-hidden"
     >
@@ -133,6 +137,7 @@ export function QuestionnaireFreeformRow(props: {
   value: string;
   placeholder: string;
   disabled: boolean;
+  autoFocus?: boolean;
   onChange: (value: string) => void;
   onSubmit: () => void;
 }) {
@@ -146,7 +151,7 @@ export function QuestionnaireFreeformRow(props: {
         value={props.value}
         placeholder={props.placeholder}
         disabled={props.disabled}
-        autoFocus
+        autoFocus={props.autoFocus ?? true}
         onChange={(event) => props.onChange(event.target.value)}
         onKeyDown={(event) => {
           if (event.key !== "Enter" || event.shiftKey || props.disabled) return;

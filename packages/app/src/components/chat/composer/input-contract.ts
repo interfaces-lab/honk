@@ -31,6 +31,7 @@ export type ComposerMenuPlacement =
   | "bottom-end";
 
 export interface ComposerInputHandle {
+  focus: () => void;
   focusAtEnd: () => void;
   focusAt: (cursor: number) => void;
   readSnapshot: () => {
@@ -57,6 +58,8 @@ export interface ComposerInputHandle {
 export type ComposerInputVariant = "expanded" | "compact";
 
 export type ComposerInputLayout = "new-agent" | "thread" | "inline-edit";
+
+export type ComposerInteractionModeFocusMode = "end" | "preserve";
 
 export interface ComposerInputProps {
   variant?: ComposerInputVariant;
@@ -150,8 +153,10 @@ export interface ComposerInputProps {
     | ((itemId: MessageId, targetItemId: MessageId | null, insertAfter: boolean) => void)
     | undefined;
   onQueuedComposerItemsExpandedChange?: ((expanded: boolean) => void) | undefined;
-  toggleInteractionMode: () => void;
-  handleInteractionModeChange: (mode: AgentInteractionMode) => void;
+  handleInteractionModeChange: (
+    mode: AgentInteractionMode,
+    focusMode?: ComposerInteractionModeFocusMode,
+  ) => void;
 
   setThreadError: (threadId: ThreadId | null, error: string | null) => void;
   onExpandImage: (preview: ExpandedImagePreview) => void;

@@ -138,7 +138,7 @@ describe("runtime orchestration commands", () => {
     ]);
   });
 
-  it("canonicalizes legacy generic bash tool completions", () => {
+  it("omits metadata-only legacy generic bash tool completions", () => {
     const event: AgentRuntimeEvent = {
       id: EventId.make("runtime-event:legacy-bash-tool"),
       agentRuntime: "pi",
@@ -155,6 +155,27 @@ describe("runtime orchestration commands", () => {
       },
     };
 
+    expect(runtimeToolCompletedActivityCommands(event)).toEqual([]);
+  });
+
+  it("canonicalizes legacy generic bash completions with payload data", () => {
+    const event: AgentRuntimeEvent = {
+      id: EventId.make("runtime-event:legacy-bash-with-result"),
+      agentRuntime: "pi",
+      threadId,
+      runtimeSessionId,
+      turnId,
+      type: "tool.completed",
+      summary: "Completed bash",
+      createdAt,
+      data: {
+        toolName: "tool",
+        toolCallId: "toolu-legacy-bash-result",
+        isError: false,
+        result: { output: "ok" },
+      },
+    };
+
     expect(runtimeToolCompletedActivityCommands(event)).toEqual([
       expect.objectContaining({
         activity: expect.objectContaining({
@@ -164,6 +185,7 @@ describe("runtime orchestration commands", () => {
             title: "command",
             data: expect.objectContaining({
               toolName: "bash",
+              result: { output: "ok" },
             }),
           }),
         }),

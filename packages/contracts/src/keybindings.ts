@@ -27,6 +27,14 @@ export const THREAD_KEYBINDING_COMMANDS = [
 ] as const;
 export type ThreadKeybindingCommand = (typeof THREAD_KEYBINDING_COMMANDS)[number];
 
+export const COMPOSER_MODE_KEYBINDING_COMMANDS = [
+  "composer.mode.agent",
+  "composer.mode.ask",
+  "composer.mode.plan",
+  "composer.mode.debug",
+] as const;
+export type ComposerModeKeybindingCommand = (typeof COMPOSER_MODE_KEYBINDING_COMMANDS)[number];
+
 const STATIC_KEYBINDING_COMMANDS = [
   "terminal.toggle",
   "terminal.split",
@@ -35,6 +43,7 @@ const STATIC_KEYBINDING_COMMANDS = [
   "threadTree.toggle",
   "commandPalette.toggle",
   "composer.cycleInteractionMode",
+  ...COMPOSER_MODE_KEYBINDING_COMMANDS,
   "composer.send",
   "composer.interrupt",
   "chat.new",

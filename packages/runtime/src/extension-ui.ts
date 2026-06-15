@@ -1,7 +1,25 @@
 import type { ExtensionUIContext, ExtensionUIDialogOptions } from "@earendil-works/pi-coding-agent";
 import { readDefaultPiTheme } from "./pi-default-theme";
 
-export type DesktopExtensionUiRequestKind = "select" | "confirm" | "input" | "editor" | "custom";
+export type DesktopExtensionUiRequestKind =
+  | "select"
+  | "confirm"
+  | "input"
+  | "editor"
+  | "question"
+  | "custom";
+
+export interface DesktopExtensionUiQuestionOption {
+  readonly id: string;
+  readonly label: string;
+}
+
+export interface DesktopExtensionUiQuestion {
+  readonly id: string;
+  readonly text: string;
+  readonly options: readonly DesktopExtensionUiQuestionOption[];
+  readonly allowMultiple: boolean;
+}
 
 export interface DesktopExtensionUiRequest {
   readonly id: string;
@@ -10,8 +28,20 @@ export interface DesktopExtensionUiRequest {
   readonly message?: string;
   readonly placeholder?: string;
   readonly options?: readonly string[];
+  readonly questions?: readonly DesktopExtensionUiQuestion[];
   readonly timeout?: number;
   readonly createdAt: string;
+}
+
+export interface DesktopExtensionUiQuestionAnswer {
+  readonly questionId: string;
+  readonly selectedOptionIds: readonly string[];
+  readonly freeformText?: string;
+}
+
+export interface DesktopExtensionUiQuestionResult {
+  readonly answers: readonly DesktopExtensionUiQuestionAnswer[];
+  readonly cancelled: boolean;
 }
 
 interface PendingRequest {
@@ -28,6 +58,39 @@ function newRequestId(): string {
   );
 }
 
+function parseQuestionResult(value: unknown): DesktopExtensionUiQuestionResult {
+  if (!value || typeof value !== "object") {
+    return { answers: [], cancelled: true };
+  }
+  const record = value as Record<string, unknown>;
+  const rawAnswers = Array.isArray(record.answers) ? record.answers : [];
+  const answers = rawAnswers
+    .map((entry): DesktopExtensionUiQuestionAnswer | null => {
+      if (!entry || typeof entry !== "object") return null;
+      const answerRecord = entry as Record<string, unknown>;
+      if (typeof answerRecord.questionId !== "string") return null;
+      const selectedOptionIds = Array.isArray(answerRecord.selectedOptionIds)
+        ? answerRecord.selectedOptionIds.filter((item): item is string => typeof item === "string")
+        : [];
+      const freeformText =
+        typeof answerRecord.freeformText === "string" && answerRecord.freeformText.trim().length > 0
+          ? answerRecord.freeformText.trim()
+          : undefined;
+      if (selectedOptionIds.length === 0 && !freeformText) return null;
+      return {
+        questionId: answerRecord.questionId,
+        selectedOptionIds,
+        ...(freeformText ? { freeformText } : {}),
+      };
+    })
+    .filter((answer): answer is DesktopExtensionUiQuestionAnswer => answer !== null);
+
+  return {
+    answers,
+    cancelled: record.cancelled === true,
+  };
+}
+
 export class DesktopExtensionUiController {
   private readonly pending = new Map<string, PendingRequest>();
   private readonly requestLog: DesktopExtensionUiRequest[] = [];
@@ -42,7 +105,21 @@ export class DesktopExtensionUiController {
   private readonly handleCustom: ExtensionUIContext["custom"] = <T>() =>
     Promise.resolve(undefined as T);
 
-  readonly context: ExtensionUIContext = {
+  readonly context: ExtensionUIContext & {
+    askQuestion: (
+      title: string,
+      questions: readonly DesktopExtensionUiQuestion[],
+      opts?: ExtensionUIDialogOptions,
+    ) => Promise<DesktopExtensionUiQuestionResult>;
+  } = {
+    askQuestion: (title, questions, opts) =>
+      this.enqueueRequest(
+        "question",
+        { title, questions },
+        opts,
+        { answers: [], cancelled: true },
+        parseQuestionResult,
+      ),
     select: (title, options, opts) =>
       this.enqueueRequest("select", { title, options }, opts, undefined, (value) =>
         typeof value === "string" ? value : undefined,
@@ -172,6 +249,7 @@ export class DesktopExtensionUiController {
       readonly message?: string;
       readonly placeholder?: string;
       readonly options?: readonly string[];
+      readonly questions?: readonly DesktopExtensionUiQuestion[];
     },
     opts: ExtensionUIDialogOptions | undefined,
     defaultValue: TResult,
@@ -191,6 +269,7 @@ export class DesktopExtensionUiController {
       ...(input.message ? { message: input.message } : {}),
       ...(input.placeholder ? { placeholder: input.placeholder } : {}),
       ...(input.options ? { options: input.options } : {}),
+      ...(input.questions ? { questions: input.questions } : {}),
       ...(opts?.timeout ? { timeout: opts.timeout } : {}),
       createdAt: new Date().toISOString(),
     };

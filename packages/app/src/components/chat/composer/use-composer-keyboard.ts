@@ -38,7 +38,7 @@ export function useComposerKeyboard(input: {
   onToggleInteractionMode: () => void;
 }): void {
   const shortcut = shortcutForCommand(input.keybindings, "composer.cycleInteractionMode", {
-    context: { terminalOpen: input.terminalOpen },
+    context: { terminalOpen: input.terminalOpen, composerFocus: true },
   });
   const cycleInteractionModeHotkey = shortcut ? keybindingShortcutToHotkey(shortcut) : null;
 

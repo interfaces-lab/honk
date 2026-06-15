@@ -7,22 +7,13 @@ import type {
 } from "@honk/contracts";
 
 import type { WorkLogEntry, WorkLogSubagent } from "../../../session-logic";
-import { DEFAULT_INTERACTION_MODE, type Thread } from "../../../types";
+import type { Thread } from "../../../types";
 import type { ComposerSubmitContext } from "../composer-submit";
 import type { DraftId as ComposerDraftId } from "../../../stores/chat-drafts";
-
-export const COMPOSER_INTERACTION_MODE_CYCLE = [
-  "agent",
-  "plan",
-  "ask",
-  "debug",
-] as const satisfies readonly AgentInteractionMode[];
-
-export function nextComposerInteractionMode(mode: AgentInteractionMode): AgentInteractionMode {
-  const index = COMPOSER_INTERACTION_MODE_CYCLE.indexOf(mode);
-  const nextIndex = index < 0 ? 0 : (index + 1) % COMPOSER_INTERACTION_MODE_CYCLE.length;
-  return COMPOSER_INTERACTION_MODE_CYCLE[nextIndex] ?? DEFAULT_INTERACTION_MODE;
-}
+export {
+  COMPOSER_INTERACTION_MODE_CYCLE,
+  nextComposerInteractionMode,
+} from "../composer/interaction-modes";
 
 export function workLogEntrySubagents(entry: WorkLogEntry): ReadonlyArray<WorkLogSubagent> {
   return entry.subagents ?? [];

@@ -49,6 +49,7 @@ import Migration0035 from "./migrations/035_DropProviderSessionSchemaResidue.ts"
 import Migration0036 from "./migrations/036_NormalizeSubagentActivityPayloadThreadIds.ts";
 import Migration0037 from "./migrations/037_BackfillProjectionThreadLatestTurnId.ts";
 import Migration0038 from "./migrations/038_NormalizeBashActivityLabels.ts";
+import Migration0039 from "./migrations/039_PruneMetadataOnlyCommandActivities.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -97,6 +98,7 @@ export const migrationEntries = [
   [36, "NormalizeSubagentActivityPayloadThreadIds", Migration0036],
   [37, "BackfillProjectionThreadLatestTurnId", Migration0037],
   [38, "NormalizeBashActivityLabels", Migration0038],
+  [39, "PruneMetadataOnlyCommandActivities", Migration0039],
 ] as const;
 
 export const makeMigrationLoader = (throughId?: number) =>

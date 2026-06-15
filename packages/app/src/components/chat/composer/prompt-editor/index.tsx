@@ -11,6 +11,9 @@ import {
   $createParagraphNode,
   $createRangeSelection,
   $createTextNode,
+  $getDOMSlot,
+  $getDOMTextNode,
+  $getNodeByKey,
   $getRoot,
   $getSelection,
   $isElementNode,
@@ -1006,14 +1009,117 @@ function caretRectFromDomSelection(editorRoot: HTMLElement): DOMRect | null {
     : rect;
 }
 
-// Mirrors Cursor's caret-tracked menu anchor: a real 1x1 span whose position is
-// rewritten from the live DOM selection. Floating UI reads the live DOM rect via
-// MutationObserver-driven updates, not React state per keystroke.
+type DomRangePoint = { node: Node; offset: number };
+
+function childIndex(parent: Node, child: Node): number | null {
+  for (let index = 0; index < parent.childNodes.length; index += 1) {
+    if (parent.childNodes[index] === child) {
+      return index;
+    }
+  }
+  return null;
+}
+
+function domPointForLexicalPoint(
+  editor: LexicalEditor,
+  point: LexicalSelectionPoint,
+): DomRangePoint | null {
+  const lexicalNode = $getNodeByKey<LexicalNode>(point.key);
+  if (!lexicalNode) {
+    return null;
+  }
+
+  const keyedElement = editor.getElementByKey(lexicalNode.getKey());
+  if (!keyedElement) {
+    return null;
+  }
+
+  if ($isElementNode(lexicalNode)) {
+    const slot = $getDOMSlot(lexicalNode, keyedElement, editor);
+    const offset = Math.max(
+      0,
+      Math.min(point.offset + slot.getFirstChildOffset(), slot.element.childNodes.length),
+    );
+    return { node: slot.element, offset };
+  }
+
+  if ($isTextNode(lexicalNode)) {
+    const textNode = $getDOMTextNode(lexicalNode, keyedElement, editor);
+    if (!textNode) {
+      return null;
+    }
+    return {
+      node: textNode,
+      offset: Math.max(0, Math.min(point.offset, textNode.data.length)),
+    };
+  }
+
+  const parent = keyedElement.parentNode;
+  if (!parent) {
+    return null;
+  }
+  const index = childIndex(parent, keyedElement);
+  if (index === null) {
+    return null;
+  }
+  return { node: parent, offset: index + (point.offset > 0 ? 1 : 0) };
+}
+
+function triggerStartRectFromTextOffset(editor: LexicalEditor, offset: number): DOMRect | null {
+  const points = editor.getEditorState().read(
+    () => ({
+      start: domPointForLexicalPoint(editor, pointAtTextOffset(offset, "expanded")),
+      end: domPointForLexicalPoint(editor, pointAtTextOffset(offset + 1, "expanded")),
+    }),
+    { editor },
+  );
+
+  if (!points.start || !points.end) {
+    return null;
+  }
+
+  const range = document.createRange();
+  try {
+    range.setStart(points.start.node, points.start.offset);
+    range.setEnd(points.end.node, points.end.offset);
+  } catch {
+    return null;
+  }
+  if (range.collapsed) {
+    return null;
+  }
+
+  const rect = range.getClientRects()[0] ?? range.getBoundingClientRect();
+  return rect.width === 0 && rect.height === 0
+    ? null
+    : new DOMRect(rect.left, rect.top, 1, rect.height);
+}
+
+function commandMenuAnchorRect(
+  editor: LexicalEditor,
+  editorRoot: HTMLElement,
+  anchorExpandedOffset: number | null,
+): DOMRect | null {
+  if (anchorExpandedOffset !== null) {
+    return (
+      triggerStartRectFromTextOffset(editor, anchorExpandedOffset) ??
+      caretRectFromDomSelection(editorRoot)
+    );
+  }
+  return caretRectFromDomSelection(editorRoot);
+}
+
+// Mirrors Cursor's live menu anchor: a real 1x1 span whose position is
+// rewritten from the trigger origin (falling back to the DOM caret). Floating
+// UI reads the live DOM rect via MutationObserver-driven updates, not React
+// state per keystroke.
 function usePromptEditorCaretAnchor({
+  commandMenuAnchorExpandedOffset,
   commandMenuOpen,
   editor,
   anchorElementRef,
 }: {
+  commandMenuAnchorExpandedOffset: number | null;
   commandMenuOpen: boolean;
   editor: LexicalEditor;
   anchorElementRef: RefObject<HTMLSpanElement | null>;
@@ -1028,7 +1134,9 @@ function usePromptEditorCaretAnchor({
 
     let frame: number | null = null;
     const place = () => {
-      const rect = caretRectFromDomSelection(editorRoot) ?? editorRoot.getBoundingClientRect();
+      const rect =
+        commandMenuAnchorRect(editor, editorRoot, commandMenuAnchorExpandedOffset) ??
+        editorRoot.getBoundingClientRect();
       const anchorRootRect = anchorRoot.getBoundingClientRect();
       anchor.style.left = `${rect.left - anchorRootRect.left}px`;
       anchor.style.top = `${rect.top - anchorRootRect.top}px`;
@@ -1068,7 +1176,7 @@ function usePromptEditorCaretAnchor({
       }
       observer.disconnect();
     };
-  }, [anchorElementRef, commandMenuOpen, editor]);
+  }, [anchorElementRef, commandMenuAnchorExpandedOffset, commandMenuOpen, editor]);
 }
 
 function captureSurroundSelection(editor: LexicalEditor): SurroundSelectionSnapshot | null {
@@ -1290,6 +1398,7 @@ const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, Compose
       className,
       hotkeyTargetRef,
       caretAnchorRef,
+      commandMenuAnchorExpandedOffset = null,
       commandMenuOpen = false,
       onMeasuredMultilineChange,
       onChange,
@@ -1348,6 +1457,7 @@ const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, Compose
     });
 
     usePromptEditorCaretAnchor({
+      commandMenuAnchorExpandedOffset,
       commandMenuOpen,
       editor,
       anchorElementRef: localCaretAnchorRef,

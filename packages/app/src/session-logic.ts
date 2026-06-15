@@ -935,7 +935,43 @@ function shouldOmitWorkLogEntry(
   workEntry: WorkLogEntry,
   subagents: ReadonlyArray<WorkLogSubagent>,
 ): boolean {
-  return workEntry.itemType === "collab_agent_tool_call" && subagents.length === 0;
+  return (
+    (workEntry.itemType === "collab_agent_tool_call" && subagents.length === 0) ||
+    isEmptyCommandWorkLogEntry(workEntry)
+  );
+}
+
+function isEmptyCommandWorkLogEntry(workEntry: WorkLogEntry): boolean {
+  if (workEntry.itemType !== "command_execution" && workEntry.requestKind !== "command") {
+    return false;
+  }
+  if (
+    workEntry.command ||
+    workEntry.rawCommand ||
+    workEntry.detail ||
+    workEntry.output ||
+    (workEntry.changedFiles?.length ?? 0) > 0 ||
+    (workEntry.artifacts?.length ?? 0) > 0 ||
+    (workEntry.subagents?.length ?? 0) > 0 ||
+    workEntry.subagentAction
+  ) {
+    return false;
+  }
+  return isGenericCommandLifecycleLabel(workEntry.label);
+}
+
+function isGenericCommandLifecycleLabel(label: string): boolean {
+  const normalized = label
+    .trim()
+    .toLowerCase()
+    .replace(/[.:]+$/, "");
+  return (
+    normalized === "ran" ||
+    normalized === "ran command" ||
+    normalized === "started command" ||
+    normalized === "running command" ||
+    normalized === "command failed"
+  );
 }
 
 function shouldOmitToolSummaryEntry(
@@ -3693,6 +3729,7 @@ function isExtensionUiRequestKind(value: unknown): value is DesktopExtensionUiRe
     case "confirm":
     case "input":
     case "editor":
+    case "question":
     case "custom":
       return true;
     default:

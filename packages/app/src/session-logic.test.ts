@@ -7,6 +7,35 @@ const createdAt = "2026-06-05T20:00:00.000Z";
 const turnId = TurnId.make("turn:streaming-command");
 
 describe("deriveWorkLogEntries", () => {
+  it("omits metadata-only command completion rows", () => {
+    const entries = deriveWorkLogEntries(
+      [
+        {
+          id: EventId.make("event:empty-command-completed"),
+          kind: "tool.completed",
+          tone: "tool",
+          summary: "Ran command",
+          turnId,
+          createdAt,
+          payload: {
+            itemId: "tool-call-empty-command",
+            itemType: "command_execution",
+            status: "completed",
+            title: "command",
+            data: {
+              toolCallId: "tool-call-empty-command",
+              toolName: "bash",
+              isError: false,
+            },
+          },
+        } satisfies OrchestrationThreadActivity,
+      ],
+      undefined,
+    );
+
+    expect(entries).toEqual([]);
+  });
+
   it("keeps running command output on the work entry instead of duplicating it in artifacts", () => {
     const entries = deriveWorkLogEntries(
       [

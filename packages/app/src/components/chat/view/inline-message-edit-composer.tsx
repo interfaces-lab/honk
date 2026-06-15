@@ -15,7 +15,6 @@ import {
   type ComposerInputProps,
 } from "../composer/input";
 
-const ignoreToggleInteractionMode = () => {};
 const ignoreInteractionModeChange = (_mode: ComposerInputProps["interactionMode"]) => {};
 
 export type InlineEditSubmitInput = {
@@ -122,7 +121,6 @@ export function InlineMessageEditComposer({
         composerImagesRef={composerImagesRef}
         footerSecondaryAction={cancelButton}
         onSend={handleSend}
-        toggleInteractionMode={ignoreToggleInteractionMode}
         handleInteractionModeChange={ignoreInteractionModeChange}
         submitDisabled={submitDisabled}
       />

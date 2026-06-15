@@ -173,10 +173,10 @@ describe("ThreadAgentRuntime tools", () => {
     expect(harness.runtime.session.getActiveToolNames()).toContain("read");
   });
 
-  it("runs the first-party ask_user extension through desktop UI", async () => {
+  it("runs the first-party ask_question extension through desktop UI", async () => {
     const harness = await createRuntimeHarness({
       extensionFactories: createDesktopAgentExtensionFactories({ agentDir: createAgentDir() }),
-      tools: ["ask_user"],
+      tools: ["ask_question"],
     });
     harnesses.push(harness);
     const ui = createDesktopExtensionUi();
@@ -186,10 +186,18 @@ describe("ThreadAgentRuntime tools", () => {
     harness.runtime.subscribe((event) => events.push(event));
     harness.setResponses([
       fauxAssistantMessage(
-        fauxToolCall("ask_user", {
-          prompt: "What should I use?",
-          kind: "input",
-          options: [],
+        fauxToolCall("ask_question", {
+          title: "Storage",
+          questions: [
+            {
+              id: "branch",
+              prompt: "What should I use?",
+              options: [
+                { id: "sqlite", label: "SQLite" },
+                { id: "postgres", label: "Postgres" },
+              ],
+            },
+          ],
         }),
         { stopReason: "toolUse" },
       ),
@@ -202,19 +210,32 @@ describe("ThreadAgentRuntime tools", () => {
     const request = await waitForPendingExtensionUiRequest(ui);
 
     expect(request).toMatchObject({
-      kind: "input",
-      title: "What should I use?",
-      placeholder: "Type your answer",
+      kind: "question",
+      title: "Storage",
+      questions: [
+        {
+          id: "branch",
+          text: "What should I use?",
+          options: [
+            { id: "sqlite", label: "SQLite" },
+            { id: "postgres", label: "Postgres" },
+          ],
+          allowMultiple: false,
+        },
+      ],
     });
-    ui.resolveRequest(request.id, "the sqlite branch");
+    ui.resolveRequest(request.id, {
+      answers: [{ questionId: "branch", selectedOptionIds: ["sqlite"] }],
+      cancelled: false,
+    });
     await harness.runtime.session.agent.waitForIdle();
 
     expect(ui.pendingRequests).toHaveLength(0);
     const completedEvent = events.find(
       (event) =>
-        event.type === "tool.completed" && expectRecord(event.data).toolName === "ask_user",
+        event.type === "tool.completed" && expectRecord(event.data).toolName === "ask_question",
     );
-    expect(completedEvent?.summary).toBe("Completed ask_user");
+    expect(completedEvent?.summary).toBe("Completed ask_question");
     expect(expectRecord(completedEvent?.data).isError).toBe(false);
   });
 

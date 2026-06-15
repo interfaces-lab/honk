@@ -49,10 +49,10 @@ import { buildPastThreadCandidates } from "./thread-items";
  * Both menus render through `ComposerCommandMenuPositioned`. See AGENTS.md
  * "Composer command menu" for the full contract. In short:
  *
- * - Anchor: live DOM rect from `prompt-editor.tsx` caret span via
+ * - Anchor: live DOM rect from `prompt-editor.tsx` trigger-origin span via
  *   `composerMenuPopoverAnchorFromElement` in `input.tsx`.
  * - Placement: `side="top"`, `positionMethod="fixed"`, dropdown collision
- *   (`shift`, `fallbackAxisSide: "none"`), no popover remount on caret moves.
+ *   (`shift`, `fallbackAxisSide: "none"`), no popover remount on anchor moves.
  * - Sizing: popup shell needs fixed width AND height caps (`w-*` + `max-w-*`,
  *   `max-h-[342px]`). Inner `CommandList` scrolls; do not rely on
  *   `min(20rem, var(--available-height))` alone during Base UI measurement.
@@ -778,9 +778,9 @@ export function ComposerCommandMenuPositioned(props: ComposerCommandMenuPosition
     ? composerMenuCollisionPadding()
     : { top: 8, bottom: 8, left: 8, right: 8 };
   const collisionBoundary = typeof document === "undefined" ? undefined : document.documentElement;
-  // The caret anchor is a virtual element (no DOM node), so Base UI's autoUpdate cannot
+  // The menu anchor is a virtual element (no DOM node), so Base UI's autoUpdate cannot
   // observe it. A new anchor identity per revision re-runs Floating UI positioning when
-  // the caret span moves (Cursor-style MutationObserver → updateFloating). Do not
+  // the trigger-origin span moves (Cursor-style MutationObserver → updateFloating). Do not
   // `key={anchorRevision}` the popup — remounting causes jitter (see AGENTS.md).
   const revisionedAnchor = useMemo<ComposerMenuPopoverAnchor>(
     () => ({ getBoundingClientRect: () => anchor.getBoundingClientRect() }),
@@ -802,8 +802,8 @@ export function ComposerCommandMenuPositioned(props: ComposerCommandMenuPosition
         side="top"
         sideOffset={COMPOSER_MENU_SIDE_OFFSET}
         className={cn(
-          // `relative` makes the popup the containing block for the absolutely
-          // positioned path-preview side panel rendered inside it.
+          // `relative` keeps the popup as the command-menu root for the fixed
+          // path preview panel rendered inside it.
           "relative border-0 bg-transparent p-0 opacity-100 shadow-none before:hidden data-starting-style:scale-100 data-starting-style:opacity-100 [--viewport-inline-padding:0] *:data-[slot=popover-viewport]:overflow-visible *:data-[slot=popover-viewport]:p-0",
           // Cap height to match width pattern. Base UI's auto-resize measures
           // the popup with `--available-height: max-content`, which breaks
