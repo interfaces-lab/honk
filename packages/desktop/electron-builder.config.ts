@@ -43,6 +43,14 @@ export default {
     icon: "icon.icns",
     category: "public.app-category.developer-tools",
     identity: resolveMacIdentity(),
+    hardenedRuntime: true,
+    gatekeeperAssess: false,
+    entitlements: "resources/entitlements.plist",
+    entitlementsInherit: "resources/entitlements.plist",
+    notarize: true,
+  },
+  dmg: {
+    sign: true,
   },
   linux: {
     target: ["AppImage"],

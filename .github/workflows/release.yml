@@ -179,9 +179,8 @@ jobs:
               export APPLE_API_KEY="$key_path"
               echo "macOS signing enabled."
             else
-              echo "macOS signing disabled (missing one or more Apple signing secrets)."
-              export CSC_IDENTITY_AUTO_DISCOVERY=false
-              export HONK_DESKTOP_SKIP_MAC_SIGNING=true
+              echo "macOS signing/notarization requires CSC_LINK, CSC_KEY_PASSWORD, APPLE_API_KEY, APPLE_API_KEY_ID, and APPLE_API_ISSUER." >&2
+              exit 1
             fi
           else
             echo "Signing disabled for ${{ matrix.platform }}."
