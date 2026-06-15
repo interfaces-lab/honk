@@ -8,10 +8,16 @@ import {
   type AgentThinkingLevel,
   type ModelSelection,
 } from "@honk/contracts";
+import {
+  createCursorComposerAgentPolicyModelSelection,
+  isCursorComposerPolicyModelSelection,
+} from "./cursor-composer";
 
 function thinkingLevelForAgentMode(agentMode: AgentPreferences["agentMode"]): AgentThinkingLevel {
   switch (agentMode) {
     case "rush":
+      return "off";
+    case "composer":
       return "off";
     case "smart":
       return "medium";
@@ -35,12 +41,31 @@ export function agentPolicyModelSelectionForPinnedModel(
   modelSelection: ModelSelection,
 ): AgentModelPolicy["modelSelection"] {
   const authProviderId = authProviderIdForModelSelection(modelSelection);
+  const options = modelSelection.options?.map((option) => ({ ...option })) ?? [];
   return {
     type: "explicit",
     authProviderId,
     accountId: AccountId.make(`${authProviderId}:default`),
     modelId: ModelId.make(`${authProviderId}/${modelSelection.model}`),
+    ...(options.length > 0 ? { options } : {}),
   };
+}
+
+function agentPolicyModelSelectionForPreferences(
+  preferences: AgentPreferences,
+  fallbackModelSelection: ModelSelection,
+): AgentModelPolicy["modelSelection"] {
+  if (preferences.agentMode !== "composer") {
+    return agentPolicyModelSelectionForPinnedModel(fallbackModelSelection);
+  }
+  return isCursorComposerPolicyModelSelection(preferences.modelSelection)
+    ? {
+        ...preferences.modelSelection,
+        ...(preferences.modelSelection.options
+          ? { options: preferences.modelSelection.options.map((option) => ({ ...option })) }
+          : {}),
+      }
+    : createCursorComposerAgentPolicyModelSelection();
 }
 
 function selectedModelThinkingLevel(input: {
@@ -58,7 +83,10 @@ export function createAgentModelPolicy(input: {
   readonly interactionMode: AgentInteractionMode;
   readonly modelSelection: ModelSelection;
 }): AgentModelPolicy {
-  const modelSelection = agentPolicyModelSelectionForPinnedModel(input.modelSelection);
+  const modelSelection = agentPolicyModelSelectionForPreferences(
+    input.preferences,
+    input.modelSelection,
+  );
   const modelThinkingLevel = selectedModelThinkingLevel({
     preferences: input.preferences,
     modelSelection,
@@ -68,7 +96,7 @@ export function createAgentModelPolicy(input: {
     interactionMode: input.interactionMode,
     modelSelection,
     thinkingLevel:
-      input.preferences.agentMode === "rush"
+      input.preferences.agentMode === "rush" || input.preferences.agentMode === "composer"
         ? thinkingLevelForAgentMode(input.preferences.agentMode)
         : (modelThinkingLevel ?? input.preferences.thinkingLevel),
     allowedToolNames: [],

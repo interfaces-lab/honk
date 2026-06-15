@@ -16,6 +16,7 @@ import {
   TrimmedNonEmptyString,
   TurnId,
 } from "./base-schemas";
+import { ModelOptionSelections } from "./model";
 
 export {
   AGENT_INTERACTION_MODES,
@@ -28,7 +29,7 @@ const UnknownRecord = Schema.Record(Schema.String, Schema.Unknown);
 export const AgentRuntime = Schema.Literal("pi");
 export type AgentRuntime = typeof AgentRuntime.Type;
 
-export const AGENT_MODES = ["rush", "smart", "deep"] as const;
+export const AGENT_MODES = ["rush", "smart", "deep", "composer"] as const;
 export const AgentMode = Schema.Literals(AGENT_MODES);
 export type AgentMode = typeof AgentMode.Type;
 
@@ -50,6 +51,7 @@ export const AgentPolicyModelSelection = Schema.Union([
     authProviderId: AuthProviderId,
     accountId: AccountId,
     modelId: ModelId,
+    options: Schema.optionalKey(ModelOptionSelections),
   }),
 ]).pipe(Schema.withDecodingDefault(Effect.succeed({ type: "pi-managed" as const })));
 export type AgentPolicyModelSelection = typeof AgentPolicyModelSelection.Type;
@@ -108,6 +110,7 @@ export const AgentCredentialKind = Schema.Literals([
   "claude-oauth",
   "codex-oauth",
   "codex-api-key",
+  "cursor-api-key",
 ]);
 export type AgentCredentialKind = typeof AgentCredentialKind.Type;
 

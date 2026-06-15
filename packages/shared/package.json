@@ -12,6 +12,10 @@
       "types": "./src/agent-model-policy.ts",
       "import": "./src/agent-model-policy.ts"
     },
+    "./cursor-composer": {
+      "types": "./src/cursor-composer.ts",
+      "import": "./src/cursor-composer.ts"
+    },
     "./conversation-density": {
       "types": "./src/conversation-density.ts",
       "import": "./src/conversation-density.ts"

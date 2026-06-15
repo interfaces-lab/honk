@@ -44,12 +44,12 @@ export function thinkingLevelForAgentMode(agentMode: AgentMode): AgentThinkingLe
   switch (agentMode) {
     case "rush":
       return "off";
+    case "composer":
+      return "off";
     case "smart":
       return "medium";
     case "deep":
       return "high";
-    default:
-      return DEFAULT_AGENT_THINKING_LEVEL;
   }
 }
 

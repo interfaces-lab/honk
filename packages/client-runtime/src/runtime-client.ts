@@ -46,6 +46,12 @@ const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
       authProviderId: AuthProviderId.make("openai"),
       accountId: null,
     },
+    {
+      kind: "cursor-api-key",
+      label: "Cursor API Key",
+      authProviderId: AuthProviderId.make("cursor"),
+      accountId: null,
+    },
   ],
 };
 

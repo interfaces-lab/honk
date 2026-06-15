@@ -11,6 +11,7 @@ import { authProviderIdForModelSelection } from "@honk/shared/agent-model-policy
 export interface AgentModeAvailability {
   readonly anthropic: boolean;
   readonly codex: boolean;
+  readonly cursor: boolean;
 }
 
 export function deriveAgentModeAvailability(
@@ -25,6 +26,9 @@ export function deriveAgentModeAvailability(
         (status.authProviderId === "openai-codex" || status.authProviderId === "openai") &&
         status.state === "available",
     ),
+    cursor: authStatuses.some(
+      (status) => status.authProviderId === "cursor" && status.state === "available",
+    ),
   };
 }
 
@@ -32,7 +36,15 @@ export function isAgentModeAvailable(
   mode: AgentMode,
   availability: AgentModeAvailability,
 ): boolean {
-  return mode === "smart" ? availability.anthropic : availability.codex;
+  switch (mode) {
+    case "smart":
+      return availability.anthropic;
+    case "composer":
+      return availability.cursor;
+    case "rush":
+    case "deep":
+      return availability.codex;
+  }
 }
 
 export function unavailableAgentModeReason(
@@ -42,7 +54,15 @@ export function unavailableAgentModeReason(
   if (isAgentModeAvailable(mode, availability)) {
     return null;
   }
-  return mode === "smart" ? "Requires Claude sign-in." : "Requires Codex sign-in.";
+  switch (mode) {
+    case "smart":
+      return "Requires Claude sign-in.";
+    case "composer":
+      return "Requires Cursor API key.";
+    case "rush":
+    case "deep":
+      return "Requires Codex sign-in.";
+  }
 }
 
 export function isModelSelectionAvailable(
@@ -56,6 +76,9 @@ export function isModelSelectionAvailable(
   if (authProviderId === "openai-codex" || authProviderId === "openai") {
     return availability.codex;
   }
+  if (authProviderId === "cursor") {
+    return availability.cursor;
+  }
   return true;
 }
 
@@ -66,21 +89,28 @@ export function unavailableModelSelectionReason(
   if (isModelSelectionAvailable(modelSelection, availability)) {
     return null;
   }
-  return authProviderIdForModelSelection(modelSelection) === "anthropic"
-    ? "Requires Claude sign-in."
-    : "Requires Codex sign-in.";
+  const authProviderId = authProviderIdForModelSelection(modelSelection);
+  if (authProviderId === "anthropic") {
+    return "Requires Claude sign-in.";
+  }
+  if (authProviderId === "cursor") {
+    return "Requires Cursor API key.";
+  }
+  return "Requires Codex sign-in.";
 }
 
 export const AGENT_MODE_LABELS: Record<AgentMode, string> = {
   rush: "Rush",
   smart: "Smart",
   deep: "Deep",
+  composer: "Composer",
 };
 
 export const AGENT_MODE_THINKING_LEVELS: Record<AgentMode, AgentThinkingLevel> = {
   rush: "off",
   smart: "medium",
   deep: "high",
+  composer: "off",
 };
 
 export const AGENT_MODE_OPTIONS = AGENT_MODES.map((value) => ({
@@ -118,5 +148,5 @@ export function normalizedConfigurableThinkingLevel(
 }
 
 export function agentModeSupportsThinkingLevelSelection(agentMode: AgentMode): boolean {
-  return agentMode !== "rush";
+  return agentMode !== "rush" && agentMode !== "composer";
 }
