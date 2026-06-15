@@ -35,19 +35,19 @@ Hidden parts use grid `setViewVisible(..., false)`, which caches size via `getVi
 
 Applies to `setUnifiedMaximizeState(true)` unless caller passes `{ skipHideSidebar: true }`.
 
-| # | Operation | Part id | Effect |
-| --- | --- | --- | --- |
-| 1 | `getViewSize(panelPartView)` → `panelHeightPercentageBeforeMaximize` | `workbench.parts.panel` | Cache only |
-| 2 | `panelVisibleBeforeMaximize = isVisible(panel)` | `workbench.parts.panel` | Cache only |
-| 3 | `sidebarVisibleBeforeMaximize = isVisible(sidebar)`; cache width % | `workbench.parts.sidebar` | Cache only |
-| 4 | If aux visible: cache `auxiliaryBarWidthPercentageBeforeMaximize` | `workbench.parts.auxiliarybar` | Cache only |
-| 5 | If unified sidebar visible: cache `unifiedSidebarWidthPercentageBeforeMaximize`; else `undefined` | `workbench.parts.unifiedsidebar` | Cache only |
-| 6 | `chatEditorGroupService.ensureChatVisibleOrCreate()` | `workbench.parts.auxiliarybar` | Ensure chat/composer pane exists |
-| 7 | `setSideBarHidden(true, true)` | `workbench.parts.sidebar` | **Yields** — `.nosidebar`, `setViewVisible(sideBarPartView, false)`, cached width |
-| 8 | `setPanelHidden(true, true)` | `workbench.parts.panel` | **Yields** — `.nopanel`, `setViewVisible(panelPartView, false)` |
-| 9 | `setEditorHidden(true, true)` | `workbench.parts.editor` | **Yields** — `.nomaineditorarea`, `.agentmode`, `setViewVisible(editorPartView, false)` |
-| 10 | Inside step 9 (unified mode, editor+panel hidden): ensure aux visible; `setSize(auxiliarybar, width = total − sidebar − unifiedsidebar − activitybar)` | `workbench.parts.auxiliarybar` | **Grows** into freed space |
-| 11 | `wasMaximized = true`; `agentChatMaximizedContext.set(true)`; `stateModel.save()` | — | State persist |
+| #   | Operation                                                                                                                                              | Part id                          | Effect                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- | --------------------------------------------------------------------------------------- |
+| 1   | `getViewSize(panelPartView)` → `panelHeightPercentageBeforeMaximize`                                                                                   | `workbench.parts.panel`          | Cache only                                                                              |
+| 2   | `panelVisibleBeforeMaximize = isVisible(panel)`                                                                                                        | `workbench.parts.panel`          | Cache only                                                                              |
+| 3   | `sidebarVisibleBeforeMaximize = isVisible(sidebar)`; cache width %                                                                                     | `workbench.parts.sidebar`        | Cache only                                                                              |
+| 4   | If aux visible: cache `auxiliaryBarWidthPercentageBeforeMaximize`                                                                                      | `workbench.parts.auxiliarybar`   | Cache only                                                                              |
+| 5   | If unified sidebar visible: cache `unifiedSidebarWidthPercentageBeforeMaximize`; else `undefined`                                                      | `workbench.parts.unifiedsidebar` | Cache only                                                                              |
+| 6   | `chatEditorGroupService.ensureChatVisibleOrCreate()`                                                                                                   | `workbench.parts.auxiliarybar`   | Ensure chat/composer pane exists                                                        |
+| 7   | `setSideBarHidden(true, true)`                                                                                                                         | `workbench.parts.sidebar`        | **Yields** — `.nosidebar`, `setViewVisible(sideBarPartView, false)`, cached width       |
+| 8   | `setPanelHidden(true, true)`                                                                                                                           | `workbench.parts.panel`          | **Yields** — `.nopanel`, `setViewVisible(panelPartView, false)`                         |
+| 9   | `setEditorHidden(true, true)`                                                                                                                          | `workbench.parts.editor`         | **Yields** — `.nomaineditorarea`, `.agentmode`, `setViewVisible(editorPartView, false)` |
+| 10  | Inside step 9 (unified mode, editor+panel hidden): ensure aux visible; `setSize(auxiliarybar, width = total − sidebar − unifiedsidebar − activitybar)` | `workbench.parts.auxiliarybar`   | **Grows** into freed space                                                              |
+| 11  | `wasMaximized = true`; `agentChatMaximizedContext.set(true)`; `stateModel.save()`                                                                      | —                                | State persist                                                                           |
 
 **Not called on ENTER:** `setAuxiliaryBarHidden`, `setUnifiedSidebarHidden`, `setActivityBarHidden`, `setPartHidden(..., "workbench.parts.unifiedsidebar")`.
 
@@ -55,10 +55,10 @@ Applies to `setUnifiedMaximizeState(true)` unless caller passes `{ skipHideSideb
 
 Steps 7 and 10 differ:
 
-| # | Operation | Part id | Effect |
-| --- | --- | --- | --- |
-| 7′ | Skip `setSideBarHidden` | `workbench.parts.sidebar` | **Keeps width** |
-| 7″ | `setSize(sidebar, current width)` if sidebar still visible | `workbench.parts.sidebar` | Pin width during maximize |
+| #   | Operation                                                                            | Part id                        | Effect                       |
+| --- | ------------------------------------------------------------------------------------ | ------------------------------ | ---------------------------- |
+| 7′  | Skip `setSideBarHidden`                                                              | `workbench.parts.sidebar`      | **Keeps width**              |
+| 7″  | `setSize(sidebar, current width)` if sidebar still visible                           | `workbench.parts.sidebar`      | Pin width during maximize    |
 | 10′ | Aux width = `total − sidebar − unifiedsidebar − activitybar` (sidebar term non-zero) | `workbench.parts.auxiliarybar` | Grows into editor+panel only |
 
 Used by: panel toggle while chat-maximized, layout switcher, mac close-window path, panel-unhide while maximized.
@@ -69,17 +69,17 @@ Used by: panel toggle while chat-maximized, layout switcher, mac close-window pa
 
 `setUnifiedMaximizeState(false)` (often with `{ skipHideSidebar: true }` when restoring panel).
 
-| # | Operation | Part id | Effect |
-| --- | --- | --- | --- |
-| 1 | Read current sidebar visible + width `r`; panel visible `s`; unified sidebar width ratio `o` | sidebar, panel, unifiedsidebar | Snapshot |
-| 2 | `c = (unifiedSidebarWidthPercentageBeforeMaximize ?? 0) − o` | unifiedsidebar | Delta for width redistribution |
-| 3 | `setEditorHidden(false, true)` | `workbench.parts.editor` | **Restore** — remove `.nomaineditorarea`/`.agentmode`, `setViewVisible(editorPartView, true)` |
-| 4 | `d = (auxiliaryBarWidthPercentageBeforeMaximize ?? 0.4) + c/2`; if aux visible: `setSize(auxiliarybar, floor(width * d))` | `workbench.parts.auxiliarybar` | Shrink aux back toward pre-maximize % |
-| 5 | If panel was visible OR `panelVisibleBeforeMaximize`: `setSize(panel, height from panelHeightPercentageBeforeMaximize)` then `setPanelHidden(false, true)` | `workbench.parts.panel` | Restore panel |
-| 5′ | Else: `setPanelHidden(true, true)` | `workbench.parts.panel` | Stay hidden |
-| 6 | If sidebar currently visible OR `sidebarVisibleBeforeMaximize`: `setSideBarHidden(false, true)` then `setSize(sidebar, r or percentage×width)` | `workbench.parts.sidebar` | Restore sidebar |
-| 6′ | Else: `setSideBarHidden(true, true)` | `workbench.parts.sidebar` | Stay hidden |
-| 7 | `wasMaximized = false`; `agentChatMaximizedContext.set(false)`; `stateModel.save()` | — | State persist |
+| #   | Operation                                                                                                                                                  | Part id                        | Effect                                                                                        |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------- |
+| 1   | Read current sidebar visible + width `r`; panel visible `s`; unified sidebar width ratio `o`                                                               | sidebar, panel, unifiedsidebar | Snapshot                                                                                      |
+| 2   | `c = (unifiedSidebarWidthPercentageBeforeMaximize ?? 0) − o`                                                                                               | unifiedsidebar                 | Delta for width redistribution                                                                |
+| 3   | `setEditorHidden(false, true)`                                                                                                                             | `workbench.parts.editor`       | **Restore** — remove `.nomaineditorarea`/`.agentmode`, `setViewVisible(editorPartView, true)` |
+| 4   | `d = (auxiliaryBarWidthPercentageBeforeMaximize ?? 0.4) + c/2`; if aux visible: `setSize(auxiliarybar, floor(width * d))`                                  | `workbench.parts.auxiliarybar` | Shrink aux back toward pre-maximize %                                                         |
+| 5   | If panel was visible OR `panelVisibleBeforeMaximize`: `setSize(panel, height from panelHeightPercentageBeforeMaximize)` then `setPanelHidden(false, true)` | `workbench.parts.panel`        | Restore panel                                                                                 |
+| 5′  | Else: `setPanelHidden(true, true)`                                                                                                                         | `workbench.parts.panel`        | Stay hidden                                                                                   |
+| 6   | If sidebar currently visible OR `sidebarVisibleBeforeMaximize`: `setSideBarHidden(false, true)` then `setSize(sidebar, r or percentage×width)`             | `workbench.parts.sidebar`      | Restore sidebar                                                                               |
+| 6′  | Else: `setSideBarHidden(true, true)`                                                                                                                       | `workbench.parts.sidebar`      | Stay hidden                                                                                   |
+| 7   | `wasMaximized = false`; `agentChatMaximizedContext.set(false)`; `stateModel.save()`                                                                        | —                              | State persist                                                                                 |
 
 **Not called on EXIT:** `setUnifiedSidebarHidden` — agent list visibility unchanged; only aux width adjusted by `c/2`.
 
@@ -87,16 +87,16 @@ Used by: panel toggle while chat-maximized, layout switcher, mac close-window pa
 
 ## Parts: remain vs yield (visible grid)
 
-| Part id | On ENTER (default) | Width behavior |
-| --- | --- | --- |
-| `workbench.parts.activitybar` | **Remains visible** | Unchanged |
-| `workbench.parts.unifiedsidebar` (agent list) | **Remains visible** | **Keeps width** — not hidden, not resized by maximize |
-| `workbench.parts.sidebar` (primary) | **Hidden** (yields) | Cached via `getViewCachedVisibleSize`; restored from % on exit |
-| `workbench.parts.editor` | **Hidden** (yields) | Full column reclaimed |
-| `workbench.parts.panel` | **Hidden** (yields) | Height % cached; restored on exit if was visible |
+| Part id                                                | On ENTER (default)  | Width behavior                                                     |
+| ------------------------------------------------------ | ------------------- | ------------------------------------------------------------------ |
+| `workbench.parts.activitybar`                          | **Remains visible** | Unchanged                                                          |
+| `workbench.parts.unifiedsidebar` (agent list)          | **Remains visible** | **Keeps width** — not hidden, not resized by maximize              |
+| `workbench.parts.sidebar` (primary)                    | **Hidden** (yields) | Cached via `getViewCachedVisibleSize`; restored from % on exit     |
+| `workbench.parts.editor`                               | **Hidden** (yields) | Full column reclaimed                                              |
+| `workbench.parts.panel`                                | **Hidden** (yields) | Height % cached; restored on exit if was visible                   |
 | `workbench.parts.auxiliarybar` (conversation/composer) | **Remains visible** | **Expands** — explicit `setSize` to fill `total − fixed neighbors` |
-| `workbench.parts.titlebar` | **Remains visible** | Unchanged |
-| `workbench.parts.statusbar` | **Remains visible** | Unchanged |
+| `workbench.parts.titlebar`                             | **Remains visible** | Unchanged                                                          |
+| `workbench.parts.statusbar`                            | **Remains visible** | Unchanged                                                          |
 
 With `skipHideSidebar: true`, primary sidebar moves from “hidden/yields” to “remains visible / keeps width.”
 

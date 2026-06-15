@@ -1,10 +1,4 @@
-import {
-  Menu,
-  MenuItem,
-  MenuPopup,
-  MenuSeparator,
-  MenuTrigger,
-} from "@honk/honkkit/menu";
+import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "@honk/honkkit/menu";
 import { workbenchIconButtonVariants } from "@honk/honkkit/workbench-button";
 import { IconDotGrid1x3Horizontal } from "central-icons";
 
@@ -49,7 +43,11 @@ export function BrowserMoreMenu(props: {
           Copy Current URL
         </MenuItem>
         <MenuSeparator className="my-1" variant="workbench" />
-        <MenuItem disabled={!props.hasPage} onClick={props.onClearBrowsingHistory} variant="workbench">
+        <MenuItem
+          disabled={!props.hasPage}
+          onClick={props.onClearBrowsingHistory}
+          variant="workbench"
+        >
           Clear Browsing History
         </MenuItem>
         <MenuItem disabled={!props.hasPage} onClick={props.onClearCookies} variant="workbench">

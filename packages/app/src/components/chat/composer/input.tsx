@@ -1565,7 +1565,9 @@ export const ComposerInput = memo(
       return modeSuggestionUsageRef.current;
     };
 
-    const readInteractionModeSuggestion = (prompt: string): ActiveComposerInteractionMode | null => {
+    const readInteractionModeSuggestion = (
+      prompt: string,
+    ): ActiveComposerInteractionMode | null => {
       const usage = syncModeSuggestionUsageForPrompt(prompt);
       return suggestedComposerInteractionMode({ interactionMode, prompt, usage });
     };
@@ -1582,9 +1584,7 @@ export const ComposerInput = memo(
       return suggestion;
     };
 
-    const cycleInteractionMode = (
-      focusMode: ComposerInteractionModeFocusMode = "preserve",
-    ) => {
+    const cycleInteractionMode = (focusMode: ComposerInteractionModeFocusMode = "preserve") => {
       const suggestedMode = consumeInteractionModeSuggestion();
       handleInteractionModeChange(
         suggestedMode ?? nextComposerInteractionMode(interactionMode),

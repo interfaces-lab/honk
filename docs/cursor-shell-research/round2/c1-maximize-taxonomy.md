@@ -15,36 +15,40 @@ Builds on round-1 reports `docs/cursor-shell-research/01..05*.md`.
 
 ## Context keys (relevant)
 
-| Key | Variable | Set when |
-|---|---|---|
-| `editorPartMultipleEditorGroups` | `ZUn` | `this.count>1` |
-| `editorPartMaximizedEditorGroup` | `UMt` | `this.hasMaximizedGroup()` |
-| `agentChatMaximized` | `K4e` | `setUnifiedMaximizeState` / `setEditorHidden` in unified mode |
-| `sideBarVisible` | `C8e` | primary sidebar visible |
-| `auxiliaryBarVisible` | `JMt` | auxiliary bar visible |
+| Key                              | Variable | Set when                                                      |
+| -------------------------------- | -------- | ------------------------------------------------------------- |
+| `editorPartMultipleEditorGroups` | `ZUn`    | `this.count>1`                                                |
+| `editorPartMaximizedEditorGroup` | `UMt`    | `this.hasMaximizedGroup()`                                    |
+| `agentChatMaximized`             | `K4e`    | `setUnifiedMaximizeState` / `setEditorHidden` in unified mode |
+| `sideBarVisible`                 | `C8e`    | primary sidebar visible                                       |
+| `auxiliaryBarVisible`            | `JMt`    | auxiliary bar visible                                         |
 
 Evidence:
 
 ```js
-const t=ZUn.bindTo(n),i=UMt.bindTo(n),r=()=>{this.count>1?t.set(!0):t.reset(),this.hasMaximizedGroup()?i.set(!0):i.reset()};
+const t = ZUn.bindTo(n),
+  i = UMt.bindTo(n),
+  r = () => {
+    (this.count > 1 ? t.set(!0) : t.reset(), this.hasMaximizedGroup() ? i.set(!0) : i.reset());
+  };
 ```
 
 ## Full command table
 
 Legend: **Y** = hides that part; **N** = unchanged by this command; **—** = not applicable.
 
-| Command ID | Toolbar / menu button | Hides primary sidebar (`workbench.parts.sidebar`)? | Hides auxiliary bar (`workbench.parts.auxiliarybar`)? | Hides unified/agent sidebar (`workbench.parts.unifiedsidebar`)? | Hides panel? | Hides editor part? | What grows |
-|---|---|:---:|:---:|:---:|:---:|:---:|---|
-| `workbench.action.toggleMaximizeEditorGroup` | **Editor group toolbar**: `Ct.EditorTitle` / `Ct.EmptyEditorGroup`, `group:"navigation"`, `order:-1e4`, `icon:it.screenFull`, `toggled:UMt`, `when:ze.and(UMt)`. Context menu: `Ct.EditorTitle`, `group:"8_group_operations"`, `when:ze.and(UMt.negate(),ZUn)` (maximize) / `when:ze.and(UMt)` (restore). | N | N | N | N | N | Active editor group inside editor part via `gridWidget.maximizeView` |
-| `workbench.action.maximizeEditorHideSidebar` | **No toolbar registration found.** Command palette / `f1:true` only. | Y | Y | N | N | N | Active editor group maximized inside remaining editor part |
-| `workbench.action.minimizeOtherEditors` | **No toolbar registration found.** Title: "Expand Editor Group". | N | N | N | N | N | Active editor group expands inside editor part via `gridWidget.expandView` |
-| `workbench.action.minimizeOtherEditorsHideSidebar` | **No toolbar registration found.** | Y | Y | N | N | N | Active editor group expands inside editor part |
-| `workbench.action.maximizeChatSize` | **Chat view title**: `Ct.ViewTitle`, `id:"workbench.action.maximizeChatSize"`, title "Maximize Chat", `toggled:ze.equals("agentChatMaximized",!0)`. Action class icon: `it.minimize` / toggled `it.maximize`. Keybinding `primary:2595`. Empty-editor watermark shortcut. Double-click aux tab also calls this id with `source:"double_click_tab"`. | Y (default path) | N (stays visible; expands) | N | Y | Y | Auxiliary bar (chat/composer pane) |
-| `workbench.action.toggleMaximizedPanel` | **Panel title toolbar**: `Ct.PanelTitle`, `group:"navigation"`, `order:1`, icons `YAx`/`QAx` (`it.chevronUp` / `it.chevronDown`, codicons `panel-maximize` / `panel-restore`). | N | N (may preserve width in unified mode) | N | — (panel is what grows) | Y (when entering panel-maximized) | Panel part |
-| `workbench.action.toggleZenMode` | **Appearance menu**: `Ct.MenubarAppearanceMenu`, `group:"1_toggle_view"`, `order:2`, `toggled:ife`. Layout customize menu entry. | Y | Y | N (no `unifiedsidebar` call in enter path) | Y | N | Editor area (centered if configured); chrome stripped |
-| `workbench.action.toggleFullScreen` | **Appearance menu** + layout customize menu. `toggled:lNo`. | N | N | N | N | N | Native OS window fullscreen; workbench parts unchanged |
-| `workbench.action.toggleCenteredLayout` | **Appearance menu**, `toggled:Gdh`. | N | N | N | N | N | Editor content centered inside editor part (`centeredLayoutWidget.activate`) |
-| `workbench.action.togglePanel` | Layout control toggles / panel chrome. Special unified-mode branch. | N (uses `skipHideSidebar:!0`) | N | N | toggles | N | Panel when shown; exits unified maximize when panel hidden while chat maximized |
+| Command ID                                         | Toolbar / menu button                                                                                                                                                                                                                                                                                                                               | Hides primary sidebar (`workbench.parts.sidebar`)? | Hides auxiliary bar (`workbench.parts.auxiliarybar`)? | Hides unified/agent sidebar (`workbench.parts.unifiedsidebar`)? |      Hides panel?       |        Hides editor part?         | What grows                                                                      |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------: | :---------------------------------------------------: | :-------------------------------------------------------------: | :---------------------: | :-------------------------------: | ------------------------------------------------------------------------------- |
+| `workbench.action.toggleMaximizeEditorGroup`       | **Editor group toolbar**: `Ct.EditorTitle` / `Ct.EmptyEditorGroup`, `group:"navigation"`, `order:-1e4`, `icon:it.screenFull`, `toggled:UMt`, `when:ze.and(UMt)`. Context menu: `Ct.EditorTitle`, `group:"8_group_operations"`, `when:ze.and(UMt.negate(),ZUn)` (maximize) / `when:ze.and(UMt)` (restore).                                           |                         N                          |                           N                           |                                N                                |            N            |                 N                 | Active editor group inside editor part via `gridWidget.maximizeView`            |
+| `workbench.action.maximizeEditorHideSidebar`       | **No toolbar registration found.** Command palette / `f1:true` only.                                                                                                                                                                                                                                                                                |                         Y                          |                           Y                           |                                N                                |            N            |                 N                 | Active editor group maximized inside remaining editor part                      |
+| `workbench.action.minimizeOtherEditors`            | **No toolbar registration found.** Title: "Expand Editor Group".                                                                                                                                                                                                                                                                                    |                         N                          |                           N                           |                                N                                |            N            |                 N                 | Active editor group expands inside editor part via `gridWidget.expandView`      |
+| `workbench.action.minimizeOtherEditorsHideSidebar` | **No toolbar registration found.**                                                                                                                                                                                                                                                                                                                  |                         Y                          |                           Y                           |                                N                                |            N            |                 N                 | Active editor group expands inside editor part                                  |
+| `workbench.action.maximizeChatSize`                | **Chat view title**: `Ct.ViewTitle`, `id:"workbench.action.maximizeChatSize"`, title "Maximize Chat", `toggled:ze.equals("agentChatMaximized",!0)`. Action class icon: `it.minimize` / toggled `it.maximize`. Keybinding `primary:2595`. Empty-editor watermark shortcut. Double-click aux tab also calls this id with `source:"double_click_tab"`. |                  Y (default path)                  |              N (stays visible; expands)               |                                N                                |            Y            |                 Y                 | Auxiliary bar (chat/composer pane)                                              |
+| `workbench.action.toggleMaximizedPanel`            | **Panel title toolbar**: `Ct.PanelTitle`, `group:"navigation"`, `order:1`, icons `YAx`/`QAx` (`it.chevronUp` / `it.chevronDown`, codicons `panel-maximize` / `panel-restore`).                                                                                                                                                                      |                         N                          |        N (may preserve width in unified mode)         |                                N                                | — (panel is what grows) | Y (when entering panel-maximized) | Panel part                                                                      |
+| `workbench.action.toggleZenMode`                   | **Appearance menu**: `Ct.MenubarAppearanceMenu`, `group:"1_toggle_view"`, `order:2`, `toggled:ife`. Layout customize menu entry.                                                                                                                                                                                                                    |                         Y                          |                           Y                           |           N (no `unifiedsidebar` call in enter path)            |            Y            |                 N                 | Editor area (centered if configured); chrome stripped                           |
+| `workbench.action.toggleFullScreen`                | **Appearance menu** + layout customize menu. `toggled:lNo`.                                                                                                                                                                                                                                                                                         |                         N                          |                           N                           |                                N                                |            N            |                 N                 | Native OS window fullscreen; workbench parts unchanged                          |
+| `workbench.action.toggleCenteredLayout`            | **Appearance menu**, `toggled:Gdh`.                                                                                                                                                                                                                                                                                                                 |                         N                          |                           N                           |                                N                                |            N            |                 N                 | Editor content centered inside editor part (`centeredLayoutWidget.activate`)    |
+| `workbench.action.togglePanel`                     | Layout control toggles / panel chrome. Special unified-mode branch.                                                                                                                                                                                                                                                                                 |           N (uses `skipHideSidebar:!0`)            |                           N                           |                                N                                |         toggles         |                 N                 | Panel when shown; exits unified maximize when panel hidden while chat maximized |
 
 Standalone `workbench.action.maximizeEditor` as its own command id: **not found** (count=1 is the prefix of `workbench.action.maximizeEditorHideSidebar`).
 
@@ -102,7 +106,9 @@ br.appendMenuItem(Ct.ViewTitle,{command:{id:"workbench.action.maximizeChatSize",
 `setUnifiedMaximizeState` enter path (default — no `skipHideSidebar`):
 
 ```js
-t?.skipHideSidebar||this.setSideBarHidden(!0,!0),this.setPanelHidden(!0,!0),this.setEditorHidden(!0,!0)
+(t?.skipHideSidebar || this.setSideBarHidden(!0, !0),
+  this.setPanelHidden(!0, !0),
+  this.setEditorHidden(!0, !0));
 ```
 
 Unified sidebar is **not** hidden here. Width is cached if visible:
@@ -131,7 +137,8 @@ toggleMaximizedPanel(){...else{...this.setEditorHidden(!0),...}}
 Panel toolbar chevron icons:
 
 ```js
-YAx=Qs("panel-maximize",it.chevronUp,N(3882,null)),QAx=Qs("panel-restore",it.chevronDown,N(3883,null))
+((YAx = Qs("panel-maximize", it.chevronUp, N(3882, null))),
+  (QAx = Qs("panel-restore", it.chevronDown, N(3883, null))));
 ```
 
 ### 6. `workbench.action.toggleZenMode`
@@ -143,7 +150,11 @@ id:"workbench.action.toggleZenMode",...run(n){return n.get(lm).toggleZenMode()}
 Enter path:
 
 ```js
-this.setPanelHidden(!0,!0),this.setAuxiliaryBarHidden(!0,!0),this.setSideBarHidden(!0,!0),o.hideActivityBar&&this.setActivityBarHidden(!0,!0),o.hideStatusBar&&this.setStatusBarHidden(!0,!0)
+(this.setPanelHidden(!0, !0),
+  this.setAuxiliaryBarHidden(!0, !0),
+  this.setSideBarHidden(!0, !0),
+  o.hideActivityBar && this.setActivityBarHidden(!0, !0),
+  o.hideStatusBar && this.setStatusBarHidden(!0, !0));
 ```
 
 `workbench.parts.unifiedsidebar`: **not found** in zen enter snippet.
@@ -151,7 +162,10 @@ this.setPanelHidden(!0,!0),this.setAuxiliaryBarHidden(!0,!0),this.setSideBarHidd
 ### 7. `workbench.action.togglePanel` (unified-mode coupling)
 
 ```js
-if(r&&s&&!o){await t.setUnifiedMaximizeState(!0,{skipHideSidebar:!0});return}
+if (r && s && !o) {
+  await t.setUnifiedMaximizeState(!0, { skipHideSidebar: !0 });
+  return;
+}
 ```
 
 `skipHideSidebar:!0` keeps primary sidebar visible while entering chat-maximized layout.
@@ -174,11 +188,11 @@ The **chevron-up/down** toolbar icons (`panel-maximize` / `panel-restore`) belon
 
 ## Common default vs explicit hide-sidebar maximize
 
-| User action | Command | Sidebars |
-|---|---|---|
-| Editor tab-strip expand icon (`screenFull`) | `toggleMaximizeEditorGroup` | Primary sidebar, auxiliary bar, and unified/agent sidebar **stay mounted** |
-| Palette: "Maximize Editor Group and Hide Side Bars" | `maximizeEditorHideSidebar` | Primary sidebar **and** auxiliary bar **hidden**; unified/agent sidebar **unchanged** |
-| Chat "Maximize Chat" / chat-size keybinding | `maximizeChatSize` → `setUnifiedMaximizeState` | Primary sidebar **hidden** (unless `skipHideSidebar`); unified/agent sidebar **stays**; auxiliary bar **expands** |
+| User action                                         | Command                                        | Sidebars                                                                                                          |
+| --------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Editor tab-strip expand icon (`screenFull`)         | `toggleMaximizeEditorGroup`                    | Primary sidebar, auxiliary bar, and unified/agent sidebar **stay mounted**                                        |
+| Palette: "Maximize Editor Group and Hide Side Bars" | `maximizeEditorHideSidebar`                    | Primary sidebar **and** auxiliary bar **hidden**; unified/agent sidebar **unchanged**                             |
+| Chat "Maximize Chat" / chat-size keybinding         | `maximizeChatSize` → `setUnifiedMaximizeState` | Primary sidebar **hidden** (unless `skipHideSidebar`); unified/agent sidebar **stays**; auxiliary bar **expands** |
 
 ## VERDICT
 

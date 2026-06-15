@@ -113,40 +113,43 @@ describe("ThreadAgentRuntime interaction modes", () => {
       includedTools: ["read", "bash"],
       excludedTools: ["edit", "write", "create_plan", "subagent"],
     },
-  ])("applies Cursor-style $mode tool profile for the turn", async ({ mode, includedTools, excludedTools }) => {
-    const harness = await createRuntimeHarness();
-    harnesses.push(harness);
-    const observedTools: string[][] = [];
-    harness.setResponses([
-      (context: Context) => {
-        observedTools.push((context.tools ?? []).map((tool) => tool.name));
-        return fauxAssistantMessage("ok");
-      },
-      (context: Context) => {
-        observedTools.push((context.tools ?? []).map((tool) => tool.name));
-        return fauxAssistantMessage("restored");
-      },
-    ]);
+  ])(
+    "applies Cursor-style $mode tool profile for the turn",
+    async ({ mode, includedTools, excludedTools }) => {
+      const harness = await createRuntimeHarness();
+      harnesses.push(harness);
+      const observedTools: string[][] = [];
+      harness.setResponses([
+        (context: Context) => {
+          observedTools.push((context.tools ?? []).map((tool) => tool.name));
+          return fauxAssistantMessage("ok");
+        },
+        (context: Context) => {
+          observedTools.push((context.tools ?? []).map((tool) => tool.name));
+          return fauxAssistantMessage("restored");
+        },
+      ]);
 
-    await waitForEvent(harness.runtime, "tree.updated", () =>
-      harness.runtime.sendMessage("inspect", {
-        ...EMPTY_SEND_MESSAGE_OPTIONS,
-        interactionMode: mode,
-      }),
-    );
-    await waitForEvent(harness.runtime, "tree.updated", () =>
-      harness.runtime.sendMessage("normal", EMPTY_SEND_MESSAGE_OPTIONS),
-    );
+      await waitForEvent(harness.runtime, "tree.updated", () =>
+        harness.runtime.sendMessage("inspect", {
+          ...EMPTY_SEND_MESSAGE_OPTIONS,
+          interactionMode: mode,
+        }),
+      );
+      await waitForEvent(harness.runtime, "tree.updated", () =>
+        harness.runtime.sendMessage("normal", EMPTY_SEND_MESSAGE_OPTIONS),
+      );
 
-    for (const toolName of includedTools) {
-      expect(observedTools[0]).toContain(toolName);
-    }
-    for (const toolName of excludedTools) {
-      expect(observedTools[0]).not.toContain(toolName);
-    }
-    expect(observedTools[1]).toContain("edit");
-    expect(observedTools[1]).toContain("write");
-  });
+      for (const toolName of includedTools) {
+        expect(observedTools[0]).toContain(toolName);
+      }
+      for (const toolName of excludedTools) {
+        expect(observedTools[0]).not.toContain(toolName);
+      }
+      expect(observedTools[1]).toContain("edit");
+      expect(observedTools[1]).toContain("write");
+    },
+  );
 
   it("does not leak a mode prompt into the next agent turn", async () => {
     const harness = await createRuntimeHarness();

@@ -295,11 +295,10 @@ export function BrowserPanel(props: BrowserPanelProps) {
       pendingUrl: null,
     });
     if (props.tabId) {
-      workbenchTabPersistenceActions.setBrowserTabMetadata(
-        props.workspaceKey,
-        props.tabId,
-        { url, title: readWebviewTitle(webview) },
-      );
+      workbenchTabPersistenceActions.setBrowserTabMetadata(props.workspaceKey, props.tabId, {
+        url,
+        title: readWebviewTitle(webview),
+      });
     }
   }, [browserCommittedUrl, browserIsEmpty, props.tabId, props.workspaceKey, updateBrowserState]);
 
@@ -365,11 +364,9 @@ export function BrowserPanel(props: BrowserPanelProps) {
         loadError: null,
       });
       if (props.tabId) {
-        workbenchTabPersistenceActions.setBrowserTabMetadata(
-          props.workspaceKey,
-          props.tabId,
-          { url: navigationEvent.url },
-        );
+        workbenchTabPersistenceActions.setBrowserTabMetadata(props.workspaceKey, props.tabId, {
+          url: navigationEvent.url,
+        });
       }
     };
     const handleFailLoad = (event: Event) => {
@@ -531,11 +528,15 @@ export function BrowserPanel(props: BrowserPanelProps) {
   }, [clearBrowserPartitionStorage]);
 
   const clearCache = useCallback(() => {
-    void clearBrowserPartitionStorage(["cachestorage", "filesystem", "shadercache", "serviceworkers"]);
+    void clearBrowserPartitionStorage([
+      "cachestorage",
+      "filesystem",
+      "shadercache",
+      "serviceworkers",
+    ]);
   }, [clearBrowserPartitionStorage]);
 
-  const locationPlaceholder =
-    detectedLocalhostServers[0]?.url ?? "Search or enter URL";
+  const locationPlaceholder = detectedLocalhostServers[0]?.url ?? "Search or enter URL";
 
   return (
     <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">

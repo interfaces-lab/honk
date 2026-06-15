@@ -194,9 +194,7 @@ export function ComposerPathPreviewPanel(props: {
       data-composer-menu-preview=""
       data-preview-side={placement.side}
       data-variant="surface"
-      style={
-        placement.side === "hidden" ? undefined : { left: placement.left, top: placement.top }
-      }
+      style={placement.side === "hidden" ? undefined : { left: placement.left, top: placement.top }}
       className={cn(
         "pointer-events-auto absolute max-h-[342px] w-[320px] overflow-hidden rounded-lg border border-honk-stroke-secondary bg-(--honk-composer-popup-surface-background) shadow-honk-soft honk-glass-inset-ring",
         placement.side === "hidden" && "hidden",

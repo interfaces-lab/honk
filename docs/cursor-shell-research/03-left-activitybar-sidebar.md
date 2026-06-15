@@ -67,38 +67,38 @@ Evidence:
 
 # 3 Exact identifiers
 
-| Identifier | Count | Meaning | Evidence |
-|---|---:|---|---|
-| `workbench.parts.activitybar` | 34 | Activity bar workbench part id. | `n.hasFocus("workbench.parts.activitybar")?i="workbench.parts.activitybar"` |
-| `workbench.parts.sidebar` | 111 | Primary sidebar workbench part id. | `super("workbench.parts.sidebar",...,this.minimumWidth=214` |
-| `activitybar` | 55 | Activity bar class/name fragment. | `.monaco-workbench .part.activitybar{height:100%;width:48px}` |
-| `activity-bar` | 0 | Not found. Cursor uses `activitybar`, not `activity-bar`. | not found |
-| `composite-bar` | 18 JS, 379 CSS | Host for view container tabs/icons. | `const t=e.querySelector(".composite-bar")??e` |
-| `composite-bar-action-tab` | 3 | Activity/composite item class. | `this.container.classList.add("composite-bar-action-tab")` |
-| `monaco-action-bar` | 80 JS, 622 CSS | Generic action bar wrapper. | `this.domNode=document.createElement("div"),this.domNode.className="monaco-action-bar"` |
-| `action-item` | 59 JS | Action list item. | `const s=document.createElement("li");s.className="action-item"` |
-| `action-label` | 73 JS | Anchor inside an action item. | `e.classList.add("action-label"),e.setAttribute("role",this.getDefaultAriaRole())` |
-| `badge` | 590 | Badge system, many workbench uses. | `this._badge=Qt(n,zt(".badge")),this._badgeContent=Qt(this._badge,zt(".badge-content"))` |
-| `badge-content` | 5 | Badge text content node. | `this._badgeContent.textContent=s,zw(this._badge)` |
-| `active-item-indicator` | 6 | Active activity bar marker. | `Qt(n,zt(".active-item-indicator")),nb(this.badge),this.update()` |
-| `global-actions` | 2 JS, 13 CSS | Toolbar area in pane composite titles. It is not the activity bar bottom strip. | `const t=e.appendChild(zt(".global-actions"));return this.globalToolBar=` |
-| `workbench.actions.manage` | 1 | Bottom activity bar manage/settings action id. | `var EFt="workbench.actions.manage",AFt="workbench.actions.accounts"` |
-| `workbench.actions.accounts` | 1 | Bottom activity bar accounts action id. | `var EFt="workbench.actions.manage",AFt="workbench.actions.accounts"` |
-| `settings-view-bar-icon` | 1 | Manage/settings bottom icon registration. | `var h7n=Qs("settings-view-bar-icon",it.settingsGear` |
-| `accounts-view-bar-icon` | 1 | Accounts bottom icon registration. | `IFt.ACCOUNTS_ICON=Qs("accounts-view-bar-icon",it.account` |
-| `sidebar-title` | 8 | Not primary sidebar. Matches marketplace editor sidebar titles. | `<h2 class=marketplace-editor__sidebar-title>Marketplace` |
-| `pane-header` | 8 JS, 51 CSS | Generic pane header class. | `this.header=zt(".pane-header"),Qt(this.element,this.header)` |
-| `split-view-view` | 2 JS, 34 CSS | Split view child wrapper for panes. | `const r=zt(".split-view-view");...this.viewContainer.appendChild(r)` |
-| `viewlet` | 85 | Legacy name for sidebar pane composite. | `ACTIVE_VIEWLET_SETTINGS_KEY="workbench.sidebar.activeviewletid"` |
-| `workbench.action.toggleSidebarVisibility` | 3 | Primary sidebar toggle command. | `PUg.ID="workbench.action.toggleSidebarVisibility"` |
-| `workbench.action.toggleActivityBarVisibility` | 1 | Activity bar toggle command. | `var YIx="workbench.action.toggleActivityBarVisibility"` |
-| `workbench.sideBar.location` | 39 | User setting for primary sidebar side. | `"workbench.sideBar.location":{type:"string",enum:["left","right"],default:z9t` |
-| `workbench.activityBar.location` | 33 | User setting for activity bar location/hidden state. | `"workbench.activityBar.location":{type:"string",enum:["default","top","bottom","hidden"]` |
-| `nosidebar` | 3 | Root class when primary sidebar is hidden. | `.monaco-workbench.nosidebar>.part.sidebar{display:none!important;visibility:hidden!important}` |
-| `cursor/editorLayout.sidebarWidth` | 1 | Cursor storage key for editor layout sidebar width. | `n.SIDEBAR_WIDTH="cursor/editorLayout.sidebarWidth"` |
-| `cursor/agentLayout.sidebarWidth` | 1 | Cursor storage key for agent layout sidebar width. | `n.SIDEBAR_WIDTH="cursor/agentLayout.sidebarWidth"` |
-| `workbench.sidebar.activeviewletid` | 2 | Last active primary sidebar viewlet id. | `p7n.activeViewletSettingsKey="workbench.sidebar.activeviewletid"` |
-| `SIDE_BAR_WIDTH` | 0 | Not found. | not found |
+| Identifier                                     |          Count | Meaning                                                                         | Evidence                                                                                        |
+| ---------------------------------------------- | -------------: | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `workbench.parts.activitybar`                  |             34 | Activity bar workbench part id.                                                 | `n.hasFocus("workbench.parts.activitybar")?i="workbench.parts.activitybar"`                     |
+| `workbench.parts.sidebar`                      |            111 | Primary sidebar workbench part id.                                              | `super("workbench.parts.sidebar",...,this.minimumWidth=214`                                     |
+| `activitybar`                                  |             55 | Activity bar class/name fragment.                                               | `.monaco-workbench .part.activitybar{height:100%;width:48px}`                                   |
+| `activity-bar`                                 |              0 | Not found. Cursor uses `activitybar`, not `activity-bar`.                       | not found                                                                                       |
+| `composite-bar`                                | 18 JS, 379 CSS | Host for view container tabs/icons.                                             | `const t=e.querySelector(".composite-bar")??e`                                                  |
+| `composite-bar-action-tab`                     |              3 | Activity/composite item class.                                                  | `this.container.classList.add("composite-bar-action-tab")`                                      |
+| `monaco-action-bar`                            | 80 JS, 622 CSS | Generic action bar wrapper.                                                     | `this.domNode=document.createElement("div"),this.domNode.className="monaco-action-bar"`         |
+| `action-item`                                  |          59 JS | Action list item.                                                               | `const s=document.createElement("li");s.className="action-item"`                                |
+| `action-label`                                 |          73 JS | Anchor inside an action item.                                                   | `e.classList.add("action-label"),e.setAttribute("role",this.getDefaultAriaRole())`              |
+| `badge`                                        |            590 | Badge system, many workbench uses.                                              | `this._badge=Qt(n,zt(".badge")),this._badgeContent=Qt(this._badge,zt(".badge-content"))`        |
+| `badge-content`                                |              5 | Badge text content node.                                                        | `this._badgeContent.textContent=s,zw(this._badge)`                                              |
+| `active-item-indicator`                        |              6 | Active activity bar marker.                                                     | `Qt(n,zt(".active-item-indicator")),nb(this.badge),this.update()`                               |
+| `global-actions`                               |   2 JS, 13 CSS | Toolbar area in pane composite titles. It is not the activity bar bottom strip. | `const t=e.appendChild(zt(".global-actions"));return this.globalToolBar=`                       |
+| `workbench.actions.manage`                     |              1 | Bottom activity bar manage/settings action id.                                  | `var EFt="workbench.actions.manage",AFt="workbench.actions.accounts"`                           |
+| `workbench.actions.accounts`                   |              1 | Bottom activity bar accounts action id.                                         | `var EFt="workbench.actions.manage",AFt="workbench.actions.accounts"`                           |
+| `settings-view-bar-icon`                       |              1 | Manage/settings bottom icon registration.                                       | `var h7n=Qs("settings-view-bar-icon",it.settingsGear`                                           |
+| `accounts-view-bar-icon`                       |              1 | Accounts bottom icon registration.                                              | `IFt.ACCOUNTS_ICON=Qs("accounts-view-bar-icon",it.account`                                      |
+| `sidebar-title`                                |              8 | Not primary sidebar. Matches marketplace editor sidebar titles.                 | `<h2 class=marketplace-editor__sidebar-title>Marketplace`                                       |
+| `pane-header`                                  |   8 JS, 51 CSS | Generic pane header class.                                                      | `this.header=zt(".pane-header"),Qt(this.element,this.header)`                                   |
+| `split-view-view`                              |   2 JS, 34 CSS | Split view child wrapper for panes.                                             | `const r=zt(".split-view-view");...this.viewContainer.appendChild(r)`                           |
+| `viewlet`                                      |             85 | Legacy name for sidebar pane composite.                                         | `ACTIVE_VIEWLET_SETTINGS_KEY="workbench.sidebar.activeviewletid"`                               |
+| `workbench.action.toggleSidebarVisibility`     |              3 | Primary sidebar toggle command.                                                 | `PUg.ID="workbench.action.toggleSidebarVisibility"`                                             |
+| `workbench.action.toggleActivityBarVisibility` |              1 | Activity bar toggle command.                                                    | `var YIx="workbench.action.toggleActivityBarVisibility"`                                        |
+| `workbench.sideBar.location`                   |             39 | User setting for primary sidebar side.                                          | `"workbench.sideBar.location":{type:"string",enum:["left","right"],default:z9t`                 |
+| `workbench.activityBar.location`               |             33 | User setting for activity bar location/hidden state.                            | `"workbench.activityBar.location":{type:"string",enum:["default","top","bottom","hidden"]`      |
+| `nosidebar`                                    |              3 | Root class when primary sidebar is hidden.                                      | `.monaco-workbench.nosidebar>.part.sidebar{display:none!important;visibility:hidden!important}` |
+| `cursor/editorLayout.sidebarWidth`             |              1 | Cursor storage key for editor layout sidebar width.                             | `n.SIDEBAR_WIDTH="cursor/editorLayout.sidebarWidth"`                                            |
+| `cursor/agentLayout.sidebarWidth`              |              1 | Cursor storage key for agent layout sidebar width.                              | `n.SIDEBAR_WIDTH="cursor/agentLayout.sidebarWidth"`                                             |
+| `workbench.sidebar.activeviewletid`            |              2 | Last active primary sidebar viewlet id.                                         | `p7n.activeViewletSettingsKey="workbench.sidebar.activeviewletid"`                              |
+| `SIDE_BAR_WIDTH`                               |              0 | Not found.                                                                      | not found                                                                                       |
 
 # 4 DOM/component hierarchy
 

@@ -41,7 +41,9 @@ export function resolveComposerInteractionModeTarget(
   if (targetId) {
     return composerInteractionModeTargets.get(targetId) ?? null;
   }
-  return resolveFocusedComposerInteractionModeTarget() ?? resolveDefaultComposerInteractionModeTarget();
+  return (
+    resolveFocusedComposerInteractionModeTarget() ?? resolveDefaultComposerInteractionModeTarget()
+  );
 }
 
 export function hasFocusedComposerInteractionModeTarget(): boolean {

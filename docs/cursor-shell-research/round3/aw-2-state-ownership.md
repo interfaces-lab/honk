@@ -50,7 +50,21 @@ Cursor adds agent/editor layout storage namespaces for layout presets and restor
 Evidence:
 
 ```js
-A0=(n=>(n.SIDEBAR_LOCATION="cursor/agentLayout.sidebarLocation",n.SIDEBAR_LOCATION_AGENT_OVERRIDE="cursor/agentLayout.sidebarLocationAgentOverride",n.SIDEBAR_VISIBLE="cursor/agentLayout.sidebarVisible",n.SIDEBAR_WIDTH="cursor/agentLayout.sidebarWidth",n.PANEL_VISIBLE="cursor/agentLayout.panelVisible",n.PANEL_WIDTH="cursor/agentLayout.panelWidth",n.PANEL_HEIGHT="cursor/agentLayout.panelHeight",n.EDITOR_VISIBLE="cursor/agentLayout.editorVisible",n.EDITOR_WIDTH="cursor/agentLayout.editorWidth",n.AUXILIARYBAR_VISIBLE="cursor/agentLayout.auxiliaryBarVisible",n.AUXILIARYBAR_WIDTH="cursor/agentLayout.auxiliaryBarWidth",n.STATUS_BAR_VISIBLE="cursor/agentLayout.statusBarVisible",n))(A0||{})
+A0 = ((n) => (
+  (n.SIDEBAR_LOCATION = "cursor/agentLayout.sidebarLocation"),
+  (n.SIDEBAR_LOCATION_AGENT_OVERRIDE = "cursor/agentLayout.sidebarLocationAgentOverride"),
+  (n.SIDEBAR_VISIBLE = "cursor/agentLayout.sidebarVisible"),
+  (n.SIDEBAR_WIDTH = "cursor/agentLayout.sidebarWidth"),
+  (n.PANEL_VISIBLE = "cursor/agentLayout.panelVisible"),
+  (n.PANEL_WIDTH = "cursor/agentLayout.panelWidth"),
+  (n.PANEL_HEIGHT = "cursor/agentLayout.panelHeight"),
+  (n.EDITOR_VISIBLE = "cursor/agentLayout.editorVisible"),
+  (n.EDITOR_WIDTH = "cursor/agentLayout.editorWidth"),
+  (n.AUXILIARYBAR_VISIBLE = "cursor/agentLayout.auxiliaryBarVisible"),
+  (n.AUXILIARYBAR_WIDTH = "cursor/agentLayout.auxiliaryBarWidth"),
+  (n.STATUS_BAR_VISIBLE = "cursor/agentLayout.statusBarVisible"),
+  n
+))(A0 || {});
 ```
 
 The developer dump/apply command treats those keys as storage, then compares them with current layout service state.
@@ -58,11 +72,24 @@ The developer dump/apply command treats those keys as storage, then compares the
 Evidence:
 
 ```js
-a.currentLayoutState={sidebarPosition:r.getSideBarPosition()===0?"left":"right",sidebarVisible:r.isVisible("workbench.parts.sidebar"),panelVisible:r.isVisible("workbench.parts.panel"),auxiliaryBarVisible:r.isVisible("workbench.parts.auxiliarybar"),unifiedSidebarVisible:r.isVisible("workbench.parts.unifiedsidebar")}
+a.currentLayoutState = {
+  sidebarPosition: r.getSideBarPosition() === 0 ? "left" : "right",
+  sidebarVisible: r.isVisible("workbench.parts.sidebar"),
+  panelVisible: r.isVisible("workbench.parts.panel"),
+  auxiliaryBarVisible: r.isVisible("workbench.parts.auxiliarybar"),
+  unifiedSidebarVisible: r.isVisible("workbench.parts.unifiedsidebar"),
+};
 ```
 
 ```js
-d(A0.SIDEBAR_VISIBLE,1,o.agentLayout?.sidebarVisible),d(A0.SIDEBAR_WIDTH,1,o.agentLayout?.sidebarWidth),d(A0.PANEL_VISIBLE,1,o.agentLayout?.panelVisible),d(A0.PANEL_HEIGHT,1,o.agentLayout?.panelHeight),d(A0.EDITOR_VISIBLE,1,o.agentLayout?.editorVisible),d(A0.EDITOR_WIDTH,1,o.agentLayout?.editorWidth),d(A0.AUXILIARYBAR_VISIBLE,1,o.agentLayout?.auxiliaryBarVisible),d(A0.AUXILIARYBAR_WIDTH,1,o.agentLayout?.auxiliaryBarWidth)
+(d(A0.SIDEBAR_VISIBLE, 1, o.agentLayout?.sidebarVisible),
+  d(A0.SIDEBAR_WIDTH, 1, o.agentLayout?.sidebarWidth),
+  d(A0.PANEL_VISIBLE, 1, o.agentLayout?.panelVisible),
+  d(A0.PANEL_HEIGHT, 1, o.agentLayout?.panelHeight),
+  d(A0.EDITOR_VISIBLE, 1, o.agentLayout?.editorVisible),
+  d(A0.EDITOR_WIDTH, 1, o.agentLayout?.editorWidth),
+  d(A0.AUXILIARYBAR_VISIBLE, 1, o.agentLayout?.auxiliaryBarVisible),
+  d(A0.AUXILIARYBAR_WIDTH, 1, o.agentLayout?.auxiliaryBarWidth));
 ```
 
 That makes `cursor/agentLayout.*` persistent restore and preset state, not the direct owner of live DOM layout.
@@ -78,7 +105,22 @@ createGridDescriptor(){const{width:e,height:t}=this._mainContainerDimension,i=th
 ```
 
 ```js
-B=this.stateModel.getRuntimeValue(Bu.SIDEBAR_HIDDEN),F={type:"leaf",data:{type:"workbench.parts.sidebar"},size:i,visible:!B&&!this.environmentService.isGlass},J=this.storageService.get("workbench.unifiedSidebar.hidden",1)==="true",W=this.isUnifiedMode(),H=this.contextService.getWorkbenchState()===1,V={type:"leaf",data:{type:"workbench.parts.unifiedsidebar"},size:r,visible:(W&&!H?!J:!1)&&!this.environmentService.isGlass}
+((B = this.stateModel.getRuntimeValue(Bu.SIDEBAR_HIDDEN)),
+  (F = {
+    type: "leaf",
+    data: { type: "workbench.parts.sidebar" },
+    size: i,
+    visible: !B && !this.environmentService.isGlass,
+  }),
+  (J = this.storageService.get("workbench.unifiedSidebar.hidden", 1) === "true"),
+  (W = this.isUnifiedMode()),
+  (H = this.contextService.getWorkbenchState() === 1),
+  (V = {
+    type: "leaf",
+    data: { type: "workbench.parts.unifiedsidebar" },
+    size: r,
+    visible: (W && !H ? !J : !1) && !this.environmentService.isGlass,
+  }));
 ```
 
 The public `isVisible(...)` API reads service state for most parts and grid visibility for titlebar, banner, and initialized unified sidebar.
@@ -98,7 +140,14 @@ getLayoutClasses(){return Op([this.isVisible("workbench.parts.sidebar")?void 0:"
 ```
 
 ```css
-.monaco-workbench.noauxiliarybar .part.auxiliarybar,body.no-titlebar-layout .monaco-workbench .part.auxiliarybar:not(.auxiliary-bar-show-agent-tabs)>.title{display:none!important;visibility:hidden!important}
+.monaco-workbench.noauxiliarybar .part.auxiliarybar,
+body.no-titlebar-layout
+  .monaco-workbench
+  .part.auxiliarybar:not(.auxiliary-bar-show-agent-tabs)
+  > .title {
+  display: none !important;
+  visibility: hidden !important;
+}
 ```
 
 ### 4. Sizes come from the grid, and hidden widths are remembered by the grid.
@@ -108,11 +157,19 @@ The layout service reads live part sizes through `workbenchGrid.getViewSize(...)
 Evidence:
 
 ```js
-const k=this.workbenchGrid.getViewSize(this.sideBarPartView).width,E=this.workbenchGrid.getViewCachedVisibleSize(this.sideBarPartView),A=this.stateModel.getInitializationValue(Bu.SIDEBAR_SIZE),R=this.stateModel.getRuntimeValue(Bu.SIDEBAR_HIDDEN)?E:k
+const k = this.workbenchGrid.getViewSize(this.sideBarPartView).width,
+  E = this.workbenchGrid.getViewCachedVisibleSize(this.sideBarPartView),
+  A = this.stateModel.getInitializationValue(Bu.SIDEBAR_SIZE),
+  R = this.stateModel.getRuntimeValue(Bu.SIDEBAR_HIDDEN) ? E : k;
 ```
 
 ```js
-this.stateModel.setInitializationValue(Bu.SIDEBAR_SIZE,W);const z=this.stateModel.getRuntimeValue(Bu.PANEL_HIDDEN)?this.workbenchGrid.getViewCachedVisibleSize(this.panelPartView):iG(this.stateModel.getRuntimeValue(Bu.PANEL_POSITION))?this.workbenchGrid.getViewSize(this.panelPartView).height:this.workbenchGrid.getViewSize(this.panelPartView).width
+this.stateModel.setInitializationValue(Bu.SIDEBAR_SIZE, W);
+const z = this.stateModel.getRuntimeValue(Bu.PANEL_HIDDEN)
+  ? this.workbenchGrid.getViewCachedVisibleSize(this.panelPartView)
+  : iG(this.stateModel.getRuntimeValue(Bu.PANEL_POSITION))
+    ? this.workbenchGrid.getViewSize(this.panelPartView).height
+    : this.workbenchGrid.getViewSize(this.panelPartView).width;
 ```
 
 Auxiliary bar follows the same rule, and unified sidebar has a separate storage key because it is not represented by `Bu.UNIFIED_SIDEBAR_HIDDEN`.
@@ -120,7 +177,20 @@ Auxiliary bar follows the same rule, and unified sidebar has a separate storage 
 Evidence:
 
 ```js
-const V=this.isUnifiedMode(),j=this.stateModel.getRuntimeValue(Bu.AUXILIARYBAR_HIDDEN)?this.workbenchGrid.getViewCachedVisibleSize(this.auxiliaryBarPartView):this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;if(this.stateModel.setInitializationValue(Bu.AUXILIARYBAR_SIZE,j),this.workbenchGrid.isViewVisible(this.unifiedSidebarPartView)&&V){const Q=this.workbenchGrid.getViewSize(this.unifiedSidebarPartView).width;typeof Q=="number"&&Number.isFinite(Q)&&Q>0&&this.storageService.store("workbench.unifiedSidebar.size",String(Q),1,1)}
+const V = this.isUnifiedMode(),
+  j = this.stateModel.getRuntimeValue(Bu.AUXILIARYBAR_HIDDEN)
+    ? this.workbenchGrid.getViewCachedVisibleSize(this.auxiliaryBarPartView)
+    : this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;
+if (
+  (this.stateModel.setInitializationValue(Bu.AUXILIARYBAR_SIZE, j),
+  this.workbenchGrid.isViewVisible(this.unifiedSidebarPartView) && V)
+) {
+  const Q = this.workbenchGrid.getViewSize(this.unifiedSidebarPartView).width;
+  typeof Q == "number" &&
+    Number.isFinite(Q) &&
+    Q > 0 &&
+    this.storageService.store("workbench.unifiedSidebar.size", String(Q), 1, 1);
+}
 ```
 
 The lower grid implementation confirms `setViewVisible(...)` changes visible state, lays out views, and leaves `cachedVisibleSize` available.
@@ -152,7 +222,11 @@ Auxiliary bar and editor hidden state follow the same service-owned path.
 Evidence:
 
 ```js
-this.stateModel.setRuntimeValue(Bu.AUXILIARYBAR_HIDDEN,e),this.stateModel.save(!0,!1),e?this.mainContainer.classList.add("noauxiliarybar"):this.mainContainer.classList.remove("noauxiliarybar")
+(this.stateModel.setRuntimeValue(Bu.AUXILIARYBAR_HIDDEN, e),
+  this.stateModel.save(!0, !1),
+  e
+    ? this.mainContainer.classList.add("noauxiliarybar")
+    : this.mainContainer.classList.remove("noauxiliarybar"));
 ```
 
 ```js
@@ -168,7 +242,8 @@ setUnifiedSidebarHidden(e,t){if(!this.workbenchGrid)return;if(this.agentLayoutSe
 ```
 
 ```js
-this.workbenchGrid.setViewVisible(this.unifiedSidebarPartView,!e),this.updateUnifiedSidebarVisibleContextKey()
+(this.workbenchGrid.setViewVisible(this.unifiedSidebarPartView, !e),
+  this.updateUnifiedSidebarVisibleContextKey());
 ```
 
 The layout service exposes part visibility as an event.
@@ -176,7 +251,8 @@ The layout service exposes part visibility as an event.
 Evidence:
 
 ```js
-this._onDidChangePartVisibility=this._register(new lt),this.onDidChangePartVisibility=this._onDidChangePartVisibility.event
+((this._onDidChangePartVisibility = this._register(new lt())),
+  (this.onDidChangePartVisibility = this._onDidChangePartVisibility.event));
 ```
 
 Consumers subscribe to layout service events and context changes, then imperatively update DOM positions, editor tabs, and toolbars.
@@ -184,11 +260,29 @@ Consumers subscribe to layout service events and context changes, then imperativ
 Evidence:
 
 ```js
-this._register(this.layoutService.onDidChangePartVisibility(()=>{V()})),this._register(this.configurationService.onDidChangeConfiguration(Y=>{Y.affectsConfiguration("workbench.sideBar.location")&&V()})),this.editorGroupsService=this.instantiationService.invokeFunction(Y=>Y.get(hl))
+(this._register(
+  this.layoutService.onDidChangePartVisibility(() => {
+    V();
+  }),
+),
+  this._register(
+    this.configurationService.onDidChangeConfiguration((Y) => {
+      Y.affectsConfiguration("workbench.sideBar.location") && V();
+    }),
+  ),
+  (this.editorGroupsService = this.instantiationService.invokeFunction((Y) => Y.get(hl))));
 ```
 
 ```js
-this._register(a.onDidChangeContext(Y=>{Y.affectsSome(j)&&V(),Y.affectsSome(new Set([r2i.key]))&&so(this.parent).requestAnimationFrame(()=>{V()})}))
+this._register(
+  a.onDidChangeContext((Y) => {
+    (Y.affectsSome(j) && V(),
+      Y.affectsSome(new Set([r2i.key])) &&
+        so(this.parent).requestAnimationFrame(() => {
+          V();
+        }));
+  }),
+);
 ```
 
 The context keys include `sideBarVisible`, `auxiliaryBarVisible`, and `agentChatMaximized`. A context-key updater reads the layout service and mirrors state to context keys and body classes.
@@ -196,7 +290,9 @@ The context keys include `sideBarVisible`, `auxiliaryBarVisible`, and `agentChat
 Evidence:
 
 ```js
-K4e=new $n("agentChatMaximized",!1,N(4314,null)),XUn=new $n("editorTabsVisible",!0,N(4315,null)),C8e=new $n("sideBarVisible",!1,N(4316,null))
+((K4e = new $n("agentChatMaximized", !1, N(4314, null))),
+  (XUn = new $n("editorTabsVisible", !0, N(4315, null))),
+  (C8e = new $n("sideBarVisible", !1, N(4316, null))));
 ```
 
 ```js
@@ -224,11 +320,16 @@ The `useSyncExternalStore` windows I checked were React export plumbing and a po
 Evidence:
 
 ```js
-n.useSyncExternalStore=function(ue,oe,he){return W.H.useSyncExternalStore(ue,oe,he)}
+n.useSyncExternalStore = function (ue, oe, he) {
+  return W.H.useSyncExternalStore(ue, oe, he);
+};
 ```
 
 ```js
-J1y=w(({contentComponent:n})=>{const e=cc(n.subscribe,n.getSnapshot,n.getServerSnapshot);return $(Es,{children:Object.values(e)})},"Portals")
+J1y = w(({ contentComponent: n }) => {
+  const e = cc(n.subscribe, n.getSnapshot, n.getServerSnapshot);
+  return $(Es, { children: Object.values(e) });
+}, "Portals");
 ```
 
 That does not prove no React code ever reads a layout value. It does prove the observed chrome layout paths are service events, context keys, grid operations, class toggles, and imperative DOM movement, not a React owner re-rendering the workbench chrome.

@@ -1471,8 +1471,7 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               return state;
             }
             const base = existing ?? createEmptyThreadDraft();
-            const nextDraftThreadInteractionMode =
-              nextInteractionMode ?? DEFAULT_INTERACTION_MODE;
+            const nextDraftThreadInteractionMode = nextInteractionMode ?? DEFAULT_INTERACTION_MODE;
             const draftThreadModeChanged =
               existingDraftThread !== undefined &&
               existingDraftThread.interactionMode !== nextDraftThreadInteractionMode;

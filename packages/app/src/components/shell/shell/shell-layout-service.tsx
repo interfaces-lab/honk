@@ -101,8 +101,7 @@ function resolveEffectiveRightOpen(input: {
 }): boolean {
   return (
     input.showRight &&
-    (input.storedRightOpen ||
-      Boolean(input.routeThreadId && input.gitFocusId && !input.muted))
+    (input.storedRightOpen || Boolean(input.routeThreadId && input.gitFocusId && !input.muted))
   );
 }
 
@@ -113,10 +112,7 @@ function getViewportWidth(root: HTMLElement | null): number {
   return root?.getBoundingClientRect().width ?? 0;
 }
 
-function areRecordsEqual(
-  left: Record<string, unknown>,
-  right: Record<string, unknown>,
-): boolean {
+function areRecordsEqual(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
   const leftKeys = Object.keys(left);
   const rightKeys = Object.keys(right);
   if (leftKeys.length !== rightKeys.length) return false;
@@ -124,7 +120,9 @@ function areRecordsEqual(
 }
 
 function areArraysEqual(left: readonly unknown[], right: readonly unknown[]): boolean {
-  return left.length === right.length && left.every((value, index) => Object.is(value, right[index]));
+  return (
+    left.length === right.length && left.every((value, index) => Object.is(value, right[index]))
+  );
 }
 
 function areStructurallyEqual(left: unknown, right: unknown): boolean {
@@ -138,10 +136,7 @@ function areStructurallyEqual(left: unknown, right: unknown): boolean {
     !Array.isArray(left) &&
     !Array.isArray(right)
   ) {
-    return areRecordsEqual(
-      left as Record<string, unknown>,
-      right as Record<string, unknown>,
-    );
+    return areRecordsEqual(left as Record<string, unknown>, right as Record<string, unknown>);
   }
   return false;
 }
@@ -334,10 +329,7 @@ export class ShellLayoutService {
 
 const ShellLayoutServiceContext = createContext<ShellLayoutService | null>(null);
 
-export function ShellLayoutProvider(props: {
-  children: ReactNode;
-  service: ShellLayoutService;
-}) {
+export function ShellLayoutProvider(props: { children: ReactNode; service: ShellLayoutService }) {
   return (
     <ShellLayoutServiceContext.Provider value={props.service}>
       {props.children}
@@ -345,10 +337,7 @@ export function ShellLayoutProvider(props: {
   );
 }
 
-export function useShellLayoutConfig(
-  service: ShellLayoutService,
-  config: ShellLayoutConfig,
-): void {
+export function useShellLayoutConfig(service: ShellLayoutService, config: ShellLayoutConfig): void {
   useLayoutSyncEffect(() => {
     service.setConfig(config);
   }, [

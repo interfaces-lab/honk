@@ -822,8 +822,8 @@ export function useBrowserWorkbenchState(
   workspaceKey: string | null,
   browserId?: string | undefined,
 ): BrowserWorkbenchState {
-  return useShellPanelsStore(
-    (state) => readBrowserWorkbenchState(state.browserByWorkspaceKey, workspaceKey, browserId),
+  return useShellPanelsStore((state) =>
+    readBrowserWorkbenchState(state.browserByWorkspaceKey, workspaceKey, browserId),
   );
 }
 
@@ -934,8 +934,6 @@ export const shellPanelsActions = {
     patch: Partial<BrowserWorkbenchState>,
     browserId?: string | undefined,
   ) => useShellPanelsStore.getState().setBrowserWorkbenchState(workspaceKey, patch, browserId),
-  removeBrowserWorkbenchState: (
-    workspaceKey: string | null,
-    browserId?: string | undefined,
-  ) => useShellPanelsStore.getState().removeBrowserWorkbenchState(workspaceKey, browserId),
+  removeBrowserWorkbenchState: (workspaceKey: string | null, browserId?: string | undefined) =>
+    useShellPanelsStore.getState().removeBrowserWorkbenchState(workspaceKey, browserId),
 };

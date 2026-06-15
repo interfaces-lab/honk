@@ -85,11 +85,7 @@ export function BrowserWorkbenchSubChrome(props: {
           className="relative flex size-(--honk-workbench-action-size) shrink-0 items-center justify-center"
           data-loading={props.isLoading ? "true" : undefined}
         >
-          <BrowserNavButton
-            aria-label="Reload"
-            disabled={!hasPage}
-            onClick={props.onReload}
-          >
+          <BrowserNavButton aria-label="Reload" disabled={!hasPage} onClick={props.onReload}>
             {reloadIcon}
           </BrowserNavButton>
           {props.isLoading ? (
@@ -114,11 +110,7 @@ export function BrowserWorkbenchSubChrome(props: {
       />
 
       <WorkbenchChromeActionGroup gap="sub">
-        <BrowserNavButton
-          aria-label="Browser agent"
-          disabled
-          title="Browser agent"
-        >
+        <BrowserNavButton aria-label="Browser agent" disabled title="Browser agent">
           <IconFeather className="size-4 shrink-0" aria-hidden />
         </BrowserNavButton>
         <BrowserNavButton

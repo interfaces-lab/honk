@@ -134,7 +134,11 @@ setSideBarHidden(e,t){...this.stateModel.setRuntimeValue(Bu.SIDEBAR_HIDDEN,e),th
 Evidence:
 
 ```js
-e?(this.mainContainer.classList.add("nosidebar"),this.mainContainer.classList.remove("sidebarvisible")):(this.mainContainer.classList.remove("nosidebar"),this.mainContainer.classList.add("sidebarvisible"))
+e
+  ? (this.mainContainer.classList.add("nosidebar"),
+    this.mainContainer.classList.remove("sidebarvisible"))
+  : (this.mainContainer.classList.remove("nosidebar"),
+    this.mainContainer.classList.add("sidebarvisible"));
 ```
 
 5. The active pane composite is hidden. The part container is not destroyed.
@@ -150,7 +154,9 @@ e&&this.paneCompositeService.getActivePaneComposite(0)?this.paneCompositeService
 Evidence:
 
 ```js
-const c=this.workbenchGrid.isViewVisible(this.sideBarPartView);this.workbenchGrid.setViewVisible(this.sideBarPartView,!e);const d=this.workbenchGrid.isViewVisible(this.sideBarPartView);
+const c = this.workbenchGrid.isViewVisible(this.sideBarPartView);
+this.workbenchGrid.setViewVisible(this.sideBarPartView, !e);
+const d = this.workbenchGrid.isViewVisible(this.sideBarPartView);
 ```
 
 7. If unified mode is active, Cursor preserves unified-sidebar width around that reflow.
@@ -170,7 +176,10 @@ a!==void 0&&this.workbenchGrid.isViewVisible(this.unifiedSidebarPartView)){const
 Evidence:
 
 ```css
-.monaco-workbench.nosidebar>.part.sidebar{display:none!important;visibility:hidden!important}
+.monaco-workbench.nosidebar > .part.sidebar {
+  display: none !important;
+  visibility: hidden !important;
+}
 ```
 
 ### Exit hidden
@@ -188,7 +197,11 @@ run(e){const t=e.get(lm);t.setPartHidden(t.isVisible("workbench.parts.sidebar"),
 Evidence:
 
 ```js
-e?(this.mainContainer.classList.add("nosidebar"),this.mainContainer.classList.remove("sidebarvisible")):(this.mainContainer.classList.remove("nosidebar"),this.mainContainer.classList.add("sidebarvisible"))
+e
+  ? (this.mainContainer.classList.add("nosidebar"),
+    this.mainContainer.classList.remove("sidebarvisible"))
+  : (this.mainContainer.classList.remove("nosidebar"),
+    this.mainContainer.classList.add("sidebarvisible"));
 ```
 
 ```js
@@ -200,7 +213,8 @@ else if(!e&&!this.paneCompositeService.getActivePaneComposite(0)){const o=this.p
 Evidence:
 
 ```js
-this.workbenchGrid.setViewVisible(this.sideBarPartView,!e);const d=this.workbenchGrid.isViewVisible(this.sideBarPartView);
+this.workbenchGrid.setViewVisible(this.sideBarPartView, !e);
+const d = this.workbenchGrid.isViewVisible(this.sideBarPartView);
 ```
 
 ## Unified sidebar toggle
@@ -212,7 +226,9 @@ this.workbenchGrid.setViewVisible(this.sideBarPartView,!e);const d=this.workbenc
 Evidence:
 
 ```js
-var NzT="cursor.toggleAgentWindowIDEUnification",rFt="workbench.action.toggleUnifiedSidebar",U3g="workbench.action.toggleAgents"
+var NzT = "cursor.toggleAgentWindowIDEUnification",
+  rFt = "workbench.action.toggleUnifiedSidebar",
+  U3g = "workbench.action.toggleAgents";
 ```
 
 2. The command checks current visibility, then calls `setPartHidden(true, "workbench.parts.unifiedsidebar")`.
@@ -240,7 +256,8 @@ setUnifiedSidebarHidden(e,t){if(!this.workbenchGrid)return;if(...this.storageSer
 ```
 
 ```js
-this.workbenchGrid.setViewVisible(this.unifiedSidebarPartView,!e),this.updateUnifiedSidebarVisibleContextKey()
+(this.workbenchGrid.setViewVisible(this.unifiedSidebarPartView, !e),
+  this.updateUnifiedSidebarVisibleContextKey());
 ```
 
 5. Body classes reflect the visibility for CSS.
@@ -256,11 +273,22 @@ e?(t.classList.add("unifiedsidebarvisible"),t.classList.remove("unifiedsidebarhi
 Evidence:
 
 ```css
-body.no-titlebar-layout.unifiedsidebarhidden .monaco-workbench .part.auxiliarybar>.content .split-view-view{padding-top:0}
+body.no-titlebar-layout.unifiedsidebarhidden
+  .monaco-workbench
+  .part.auxiliarybar
+  > .content
+  .split-view-view {
+  padding-top: 0;
+}
 ```
 
 ```css
-body.no-titlebar-layout.unifiedsidebarhidden[data-sidebar-position=right] .monaco-workbench .part.auxiliarybar.auxiliary-bar-show-agent-tabs>.title{padding-left:var(--traffic-lights-offset-adjusted,0)}
+body.no-titlebar-layout.unifiedsidebarhidden[data-sidebar-position="right"]
+  .monaco-workbench
+  .part.auxiliarybar.auxiliary-bar-show-agent-tabs
+  > .title {
+  padding-left: var(--traffic-lights-offset-adjusted, 0);
+}
 ```
 
 ### Exit hidden
@@ -278,7 +306,8 @@ h?...:(i.setPartHidden(!1,"workbench.parts.unifiedsidebar"),r.store("workbench.u
 Evidence:
 
 ```js
-this.workbenchGrid.setViewVisible(this.unifiedSidebarPartView,!e),this.updateUnifiedSidebarVisibleContextKey()
+(this.workbenchGrid.setViewVisible(this.unifiedSidebarPartView, !e),
+  this.updateUnifiedSidebarVisibleContextKey());
 ```
 
 3. Body classes switch back to `unifiedsidebarvisible`.
@@ -318,7 +347,12 @@ async toggleUnifiedMaximizeState(){const e=this.agentChatMaximizedContext?.get()
 Evidence:
 
 ```js
-if(this.isVisible("workbench.parts.unifiedsidebar")){const a=this.workbenchGrid.getViewSize(this.unifiedSidebarPartView);this.mainContainerDimension.width>0&&(this.unifiedSidebarWidthPercentageBeforeMaximize=a.width/this.mainContainerDimension.width)}
+if (this.isVisible("workbench.parts.unifiedsidebar")) {
+  const a = this.workbenchGrid.getViewSize(this.unifiedSidebarPartView);
+  this.mainContainerDimension.width > 0 &&
+    (this.unifiedSidebarWidthPercentageBeforeMaximize =
+      a.width / this.mainContainerDimension.width);
+}
 ```
 
 4. It ensures chat exists, then hides only the primary sidebar unless skipped, plus panel and editor.
@@ -326,7 +360,10 @@ if(this.isVisible("workbench.parts.unifiedsidebar")){const a=this.workbenchGrid.
 Evidence:
 
 ```js
-await this.chatEditorGroupService.ensureChatVisibleOrCreate(),t?.skipHideSidebar||this.setSideBarHidden(!0,!0),this.setPanelHidden(!0,!0),this.setEditorHidden(!0,!0)
+(await this.chatEditorGroupService.ensureChatVisibleOrCreate(),
+  t?.skipHideSidebar || this.setSideBarHidden(!0, !0),
+  this.setPanelHidden(!0, !0),
+  this.setEditorHidden(!0, !0));
 ```
 
 5. It does not call `setUnifiedSidebarHidden`. The unified sidebar is read and measured, not hidden.
@@ -346,7 +383,12 @@ setEditorHidden(e,t){this.stateModel.setRuntimeValue(Bu.EDITOR_HIDDEN,e),this.is
 ```
 
 ```js
-e?this.mainContainer.classList.add("nomaineditorarea"):this.mainContainer.classList.remove("nomaineditorarea"),this.workbenchGrid&&this.editorPartView&&this.workbenchGrid.setViewVisible(this.editorPartView,!e)
+(e
+  ? this.mainContainer.classList.add("nomaineditorarea")
+  : this.mainContainer.classList.remove("nomaineditorarea"),
+  this.workbenchGrid &&
+    this.editorPartView &&
+    this.workbenchGrid.setViewVisible(this.editorPartView, !e));
 ```
 
 7. When editor and panel are hidden in unified mode, the auxiliary bar is resized to fill the container minus fixed neighbors.
@@ -354,11 +396,23 @@ e?this.mainContainer.classList.add("nomaineditorarea"):this.mainContainer.classL
 Evidence:
 
 ```js
-const o=this.isVisible("workbench.parts.sidebar")?this.getSize("workbench.parts.sidebar").width:0,a=this.isVisible("workbench.parts.unifiedsidebar")?this.getSize("workbench.parts.unifiedsidebar").width:0,c=this.isVisible("workbench.parts.activitybar")?this.getSize("workbench.parts.activitybar").width:0
+const o = this.isVisible("workbench.parts.sidebar")
+    ? this.getSize("workbench.parts.sidebar").width
+    : 0,
+  a = this.isVisible("workbench.parts.unifiedsidebar")
+    ? this.getSize("workbench.parts.unifiedsidebar").width
+    : 0,
+  c = this.isVisible("workbench.parts.activitybar")
+    ? this.getSize("workbench.parts.activitybar").width
+    : 0;
 ```
 
 ```js
-d=Math.max(this.auxiliaryBarPartView.minimumWidth,this.mainContainerDimension.width-o-a-c);this.setSize("workbench.parts.auxiliarybar",{width:d,height:this.getSize("workbench.parts.auxiliarybar").height})
+d = Math.max(this.auxiliaryBarPartView.minimumWidth, this.mainContainerDimension.width - o - a - c);
+this.setSize("workbench.parts.auxiliarybar", {
+  width: d,
+  height: this.getSize("workbench.parts.auxiliarybar").height,
+});
 ```
 
 8. `setSize` is a grid resize over the existing part object.
@@ -374,7 +428,12 @@ setSize(e,t){this.workbenchGrid.resizeView(this.getPart(e),t)}resizePart(e,t,i){
 Evidence:
 
 ```js
-this.wasMaximized=e,this.agentChatMaximizedContext?.set(e),this.stateModel.save(!0,!1),queueMicrotask(()=>{this.isTogglingUnifiedMaximization=!1})
+((this.wasMaximized = e),
+  this.agentChatMaximizedContext?.set(e),
+  this.stateModel.save(!0, !1),
+  queueMicrotask(() => {
+    this.isTogglingUnifiedMaximization = !1;
+  }));
 ```
 
 ### Exit maximized
@@ -384,7 +443,12 @@ this.wasMaximized=e,this.agentChatMaximizedContext?.set(e),this.stateModel.save(
 Evidence:
 
 ```js
-const i=this.isVisible("workbench.parts.sidebar"),r=this.getSize("workbench.parts.sidebar").width,s=this.isVisible("workbench.parts.panel"),o=this.isVisible("workbench.parts.unifiedsidebar")?this.getSize("workbench.parts.unifiedsidebar").width/this.mainContainerDimension.width:0
+const i = this.isVisible("workbench.parts.sidebar"),
+  r = this.getSize("workbench.parts.sidebar").width,
+  s = this.isVisible("workbench.parts.panel"),
+  o = this.isVisible("workbench.parts.unifiedsidebar")
+    ? this.getSize("workbench.parts.unifiedsidebar").width / this.mainContainerDimension.width
+    : 0;
 ```
 
 2. It calls `setEditorHidden(false, true)`, which removes `agentmode` and `nomaineditorarea`, then makes the same editor view visible.
@@ -392,11 +456,17 @@ const i=this.isVisible("workbench.parts.sidebar"),r=this.getSize("workbench.part
 Evidence:
 
 ```js
-this.setEditorHidden(!1,!0);const d=(this.auxiliaryBarWidthPercentageBeforeMaximize??.4)+c/2;
+this.setEditorHidden(!1, !0);
+const d = (this.auxiliaryBarWidthPercentageBeforeMaximize ?? 0.4) + c / 2;
 ```
 
 ```js
-e?this.mainContainer.classList.add("nomaineditorarea"):this.mainContainer.classList.remove("nomaineditorarea"),this.workbenchGrid&&this.editorPartView&&this.workbenchGrid.setViewVisible(this.editorPartView,!e)
+(e
+  ? this.mainContainer.classList.add("nomaineditorarea")
+  : this.mainContainer.classList.remove("nomaineditorarea"),
+  this.workbenchGrid &&
+    this.editorPartView &&
+    this.workbenchGrid.setViewVisible(this.editorPartView, !e));
 ```
 
 3. It resizes auxiliary bar back toward the stored percentage.
@@ -404,7 +474,13 @@ e?this.mainContainer.classList.add("nomaineditorarea"):this.mainContainer.classL
 Evidence:
 
 ```js
-if(this.isVisible("workbench.parts.auxiliarybar")&&d){const f=Math.floor(this.mainContainerDimension.width*d);this.setSize("workbench.parts.auxiliarybar",{width:f,height:this.getSize("workbench.parts.auxiliarybar").height})}
+if (this.isVisible("workbench.parts.auxiliarybar") && d) {
+  const f = Math.floor(this.mainContainerDimension.width * d);
+  this.setSize("workbench.parts.auxiliarybar", {
+    width: f,
+    height: this.getSize("workbench.parts.auxiliarybar").height,
+  });
+}
 ```
 
 4. It restores or keeps hidden the panel and primary sidebar from pre-maximize state.
@@ -416,7 +492,12 @@ if(s||(this.panelVisibleBeforeMaximize??!1)){...this.setPanelHidden(!1,!0)}else 
 ```
 
 ```js
-if(i||(this.sidebarVisibleBeforeMaximize??!1))if(this.setSideBarHidden(!1,!0),i)this.setSize("workbench.parts.sidebar",{width:r,height:this.getSize("workbench.parts.sidebar").height})
+if (i || (this.sidebarVisibleBeforeMaximize ?? !1))
+  if ((this.setSideBarHidden(!1, !0), i))
+    this.setSize("workbench.parts.sidebar", {
+      width: r,
+      height: this.getSize("workbench.parts.sidebar").height,
+    });
 ```
 
 5. It does not restore the unified sidebar through hide/show. The unified sidebar stayed visible, so only its width ratio participates in auxiliary-bar redistribution.
@@ -424,7 +505,10 @@ if(i||(this.sidebarVisibleBeforeMaximize??!1))if(this.setSideBarHidden(!1,!0),i)
 Evidence:
 
 ```js
-const o=this.isVisible("workbench.parts.unifiedsidebar")?this.getSize("workbench.parts.unifiedsidebar").width/this.mainContainerDimension.width:0,c=(this.unifiedSidebarWidthPercentageBeforeMaximize??0)-o;
+const o = this.isVisible("workbench.parts.unifiedsidebar")
+    ? this.getSize("workbench.parts.unifiedsidebar").width / this.mainContainerDimension.width
+    : 0,
+  c = (this.unifiedSidebarWidthPercentageBeforeMaximize ?? 0) - o;
 ```
 
 ## Layout and visual changes
@@ -434,21 +518,29 @@ The visual change has two layers.
 First, CSS reacts to root and body classes:
 
 ```css
-.monaco-workbench.nosidebar>.part.sidebar{display:none!important;visibility:hidden!important}
+.monaco-workbench.nosidebar > .part.sidebar {
+  display: none !important;
+  visibility: hidden !important;
+}
 ```
 
 ```css
-body .monaco-workbench.agentmode .part.auxiliarybar .composite.title.auxiliary-bar-title--agent-mode{max-width:none}
+body
+  .monaco-workbench.agentmode
+  .part.auxiliarybar
+  .composite.title.auxiliary-bar-title--agent-mode {
+  max-width: none;
+}
 ```
 
 Second, the grid changes visibility and geometry:
 
 ```js
-this.workbenchGrid.setViewVisible(this.sideBarPartView,!e)
+this.workbenchGrid.setViewVisible(this.sideBarPartView, !e);
 ```
 
 ```js
-this.workbenchGrid.setViewVisible(this.unifiedSidebarPartView,!e)
+this.workbenchGrid.setViewVisible(this.unifiedSidebarPartView, !e);
 ```
 
 Global layout is still the workbench grid layout pass:

@@ -15,17 +15,17 @@ Targets:
 
 ## Anchor counts
 
-| Anchor | Count |
-|---|---:|
-| `setUnifiedMaximizeState` | 18 |
-| `toggleUnifiedMaximizeState` | 2 |
-| `skipHideSidebar` | 12 |
-| `setUnifiedSidebarHidden` | 3 |
-| `unifiedsidebar` | 83 |
-| `unifiedSidebarPartView` | 31 |
-| `agentChatMaximizedContext` / `K4e` (`agentChatMaximized`) | 9 |
-| `setSideBarHidden` | 9 |
-| `setAgentMaximized` | **0 (not found)** |
+| Anchor                                                     |             Count |
+| ---------------------------------------------------------- | ----------------: |
+| `setUnifiedMaximizeState`                                  |                18 |
+| `toggleUnifiedMaximizeState`                               |                 2 |
+| `skipHideSidebar`                                          |                12 |
+| `setUnifiedSidebarHidden`                                  |                 3 |
+| `unifiedsidebar`                                           |                83 |
+| `unifiedSidebarPartView`                                   |                31 |
+| `agentChatMaximizedContext` / `K4e` (`agentChatMaximized`) |                 9 |
+| `setSideBarHidden`                                         |                 9 |
+| `setAgentMaximized`                                        | **0 (not found)** |
 
 ## VERDICT
 
@@ -44,13 +44,21 @@ async setUnifiedMaximizeState(e,t){if(!this.workbenchGrid){this.wasMaximized=e,t
 Exit path restores editor/panel/file-sidebar sizes; still no unified-sidebar hide call. Ends by setting maximize context:
 
 ```js
-this.wasMaximized=e,this.agentChatMaximizedContext?.set(e),this.stateModel.save(!0,!1),queueMicrotask(()=>{this.isTogglingUnifiedMaximization=!1})
+((this.wasMaximized = e),
+  this.agentChatMaximizedContext?.set(e),
+  this.stateModel.save(!0, !1),
+  queueMicrotask(() => {
+    this.isTogglingUnifiedMaximization = !1;
+  }));
 ```
 
 On exit, unified-sidebar width is read (not restored from hidden state) to adjust auxiliary-bar restore:
 
 ```js
-const o=this.isVisible("workbench.parts.unifiedsidebar")?this.getSize("workbench.parts.unifiedsidebar").width/this.mainContainerDimension.width:0,c=(this.unifiedSidebarWidthPercentageBeforeMaximize??0)-o;
+const o = this.isVisible("workbench.parts.unifiedsidebar")
+    ? this.getSize("workbench.parts.unifiedsidebar").width / this.mainContainerDimension.width
+    : 0,
+  c = (this.unifiedSidebarWidthPercentageBeforeMaximize ?? 0) - o;
 ```
 
 ## 2. `skipHideSidebar` — file sidebar only, not unified sidebar
@@ -60,11 +68,14 @@ const o=this.isVisible("workbench.parts.unifiedsidebar")?this.getSize("workbench
 Agent-layout call sites overwhelmingly pass `{skipHideSidebar:!0}`:
 
 ```js
-await e.setUnifiedMaximizeState(f,{skipHideSidebar:!0})
+await e.setUnifiedMaximizeState(f, { skipHideSidebar: !0 });
 ```
 
 ```js
-if(r&&s&&!o){await t.setUnifiedMaximizeState(!0,{skipHideSidebar:!0});return}
+if (r && s && !o) {
+  await t.setUnifiedMaximizeState(!0, { skipHideSidebar: !0 });
+  return;
+}
 ```
 
 `toggleUnifiedMaximizeState` (used by `workbench.action.maximizeChatSize`) does not pass options:
@@ -106,7 +117,7 @@ This layout math assumes unified sidebar remains on screen while the composer ar
 Context key definition:
 
 ```js
-K4e=new $n("agentChatMaximized",!1,N(4314,null))
+K4e = new $n("agentChatMaximized", !1, N(4314, null));
 ```
 
 Bound at init: `this.agentChatMaximizedContext=K4e.bindTo(this.contextKeyService)`.
@@ -114,7 +125,12 @@ Bound at init: `this.agentChatMaximizedContext=K4e.bindTo(this.contextKeyService
 Set on maximize and on editor hide in unified mode:
 
 ```js
-this.isUnifiedMode()&&(this.agentChatMaximizedContext?.set(e),this.wasMaximized=e,e?this.mainContainer.classList.add("agentmode"):this.mainContainer.classList.remove("agentmode"))
+this.isUnifiedMode() &&
+  (this.agentChatMaximizedContext?.set(e),
+  (this.wasMaximized = e),
+  e
+    ? this.mainContainer.classList.add("agentmode")
+    : this.mainContainer.classList.remove("agentmode"));
 ```
 
 Maximize toggle command uses `agentChatMaximized` context (`K4e.key`) and calls `toggleUnifiedMaximizeState()`.
@@ -126,19 +142,29 @@ Startup restore when editor was hidden in unified mode also sets `agentChatMaxim
 CSS targets `.agentmode` auxiliary-bar chrome and `body.unifiedsidebarvisible` / `body.unifiedsidebarhidden` separately. Maximize adds `agentmode` + `nomaineditorarea`; unified-sidebar body classes flip only when unified-sidebar visibility changes, not in `setUnifiedMaximizeState`.
 
 ```css
-body .monaco-workbench.agentmode .part.auxiliarybar .composite.title.auxiliary-bar-title--agent-mode{max-width:none}
-body.no-titlebar-layout.unifiedsidebarvisible[data-sidebar-position=right] .monaco-workbench .part.auxiliarybar>.composite.title{pointer-events:none}
+body
+  .monaco-workbench.agentmode
+  .part.auxiliarybar
+  .composite.title.auxiliary-bar-title--agent-mode {
+  max-width: none;
+}
+body.no-titlebar-layout.unifiedsidebarvisible[data-sidebar-position="right"]
+  .monaco-workbench
+  .part.auxiliarybar
+  > .composite.title {
+  pointer-events: none;
+}
 ```
 
 ## 7. What gets hidden on maximize (agent layout)
 
-| Part | Hidden on maximize? | Mechanism |
-|---|---|---|
-| `workbench.parts.unifiedsidebar` (agent list) | **No** | Not referenced in hide path; width preserved/snapshot |
-| `workbench.parts.sidebar` (file explorer) | Conditional | `skipHideSidebar` → skip `setSideBarHidden`; agent paths pass `true` |
-| `workbench.parts.panel` | Yes | `setPanelHidden(!0,!0)` |
-| `workbench.parts.editor` | Yes | `setEditorHidden(!0,!0)` → `.nomaineditorarea`, `.agentmode` |
-| `workbench.parts.auxiliarybar` (composer) | **No** | Stays visible; resized to fill remaining width |
+| Part                                          | Hidden on maximize? | Mechanism                                                            |
+| --------------------------------------------- | ------------------- | -------------------------------------------------------------------- |
+| `workbench.parts.unifiedsidebar` (agent list) | **No**              | Not referenced in hide path; width preserved/snapshot                |
+| `workbench.parts.sidebar` (file explorer)     | Conditional         | `skipHideSidebar` → skip `setSideBarHidden`; agent paths pass `true` |
+| `workbench.parts.panel`                       | Yes                 | `setPanelHidden(!0,!0)`                                              |
+| `workbench.parts.editor`                      | Yes                 | `setEditorHidden(!0,!0)` → `.nomaineditorarea`, `.agentmode`         |
+| `workbench.parts.auxiliarybar` (composer)     | **No**              | Stays visible; resized to fill remaining width                       |
 
 ## 8. Not found
 

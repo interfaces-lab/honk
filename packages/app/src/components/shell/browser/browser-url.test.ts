@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isLikelyBrowserUrl, normalizeBrowserNavigationInput, formatBrowserLocationSegments } from "./browser-url";
+import {
+  isLikelyBrowserUrl,
+  normalizeBrowserNavigationInput,
+  formatBrowserLocationSegments,
+} from "./browser-url";
 
 describe("browser URL normalization", () => {
   it("keeps allowed schemes", () => {

@@ -17,7 +17,10 @@ Cursor keeps VS Code's titlebar part id, then fills it with three flex regions. 
 Evidence.
 
 ```js
-this.rootContainer=Qt(n,zt(".titlebar-container")),this.leftContent=Qt(this.rootContainer,zt(".titlebar-left")),this.centerContent=Qt(this.rootContainer,zt(".titlebar-center")),this.rightContent=Qt(this.rootContainer,zt(".titlebar-right"))
+((this.rootContainer = Qt(n, zt(".titlebar-container"))),
+  (this.leftContent = Qt(this.rootContainer, zt(".titlebar-left"))),
+  (this.centerContent = Qt(this.rootContainer, zt(".titlebar-center"))),
+  (this.rightContent = Qt(this.rootContainer, zt(".titlebar-right"))));
 ```
 
 The center region owns `.window-title`. If command center is enabled, Cursor replaces the text title with a `command-center` component. If it is disabled, it renders a text span or a workspace-name button that opens quick access.
@@ -37,11 +40,17 @@ The right region owns `.action-toolbar-container` and, when native/custom titleb
 Evidence.
 
 ```js
-this.actionToolBarElement=Qt(this.rightContent,zt("div.action-toolbar-container")),this.actionToolBarElement.classList.add("in-titlebar"),this.createActionToolBar(),this.createActionToolBarMenus()
+((this.actionToolBarElement = Qt(this.rightContent, zt("div.action-toolbar-container"))),
+  this.actionToolBarElement.classList.add("in-titlebar"),
+  this.createActionToolBar(),
+  this.createActionToolBarMenus());
 ```
 
 ```js
-this.windowControlsContainer=Qt(e==="left"?this.leftContent:this.rightContent,zt("div.window-controls-container"))
+this.windowControlsContainer = Qt(
+  e === "left" ? this.leftContent : this.rightContent,
+  zt("div.window-controls-container"),
+);
 ```
 
 The left region owns optional app icon, menubar, navigation controls, and other titlebar actions. Cursor creates a separate `.left-action-toolbar-container`, then splits it into `.left-other-actions-container` and `.navigation-actions-container`.
@@ -49,7 +58,8 @@ The left region owns optional app icon, menubar, navigation controls, and other 
 Evidence.
 
 ```js
-this.leftActionToolBarElement=Qt(this.leftContent,zt("div.left-action-toolbar-container")),this.createLeftActionToolBar()
+((this.leftActionToolBarElement = Qt(this.leftContent, zt("div.left-action-toolbar-container"))),
+  this.createLeftActionToolBar());
 ```
 
 ```js
@@ -61,63 +71,69 @@ The important non-rerender behavior is not that nothing ever updates. Menus and 
 Evidence.
 
 ```js
-t&&(n==="titlebar"&&this.windowControlsContainer?.parentElement===t?t.insertBefore(this.actionToolBarElement,this.windowControlsContainer):t.appendChild(this.actionToolBarElement),this.currentActionToolBarMode=n,this.actionToolBarElement.classList.toggle("in-editor-tabs",n==="editor-tabs"),this.actionToolBarElement.classList.toggle("in-titlebar",n==="titlebar"))
+t &&
+  (n === "titlebar" && this.windowControlsContainer?.parentElement === t
+    ? t.insertBefore(this.actionToolBarElement, this.windowControlsContainer)
+    : t.appendChild(this.actionToolBarElement),
+  (this.currentActionToolBarMode = n),
+  this.actionToolBarElement.classList.toggle("in-editor-tabs", n === "editor-tabs"),
+  this.actionToolBarElement.classList.toggle("in-titlebar", n === "titlebar"));
 ```
 
 # 3 Exact identifiers
 
-| Kind | Literal | Meaning |
-| --- | --- | --- |
-| part id | `workbench.parts.titlebar` | Main titlebar part. Evidence: `super("workbench.parts.titlebar",ci,"main"...` |
-| command | `workbench.action.focusTitleBar` | Focuses titlebar controls. Evidence: `id:"workbench.action.focusTitleBar",title:At(3995,"Focus Title Bar")` |
-| DOM class | `.part.titlebar` | Workbench titlebar part root. Evidence: `.monaco-workbench .part.titlebar{display:flex;flex-direction:row` |
-| DOM class | `.titlebar-container` | Flex container inside titlebar. Evidence: `zt(".titlebar-container")` |
-| DOM class | `.titlebar-left` | Left titlebar cluster. Evidence: `zt(".titlebar-left")` |
-| DOM class | `.titlebar-center` | Center title/title command area. Evidence: `zt(".titlebar-center")` |
-| DOM class | `.titlebar-right` | Right titlebar cluster. Evidence: `zt(".titlebar-right")` |
-| DOM class | `.titlebar-drag-region` | Full-size draggable region. Evidence: `zt("div.titlebar-drag-region")` |
-| DOM class | `.window-title` | Center title host. Evidence: `this.title=Qt(this.centerContent,zt("div.window-title"))` |
-| DOM class | `.window-title-text` | Plain title text or workspace quick-open button. Evidence: `i.className="window-title-text agent-workspace-quickopen"` |
-| DOM class | `.command-center` | Command center root. Evidence: `this.element.classList.add("command-center")` |
-| DOM class | `.command-center-center` | Primary command-center action item. Evidence: `n.classList.add("command-center-center")` |
-| DOM class | `.command-center-quick-pick` | Quick-open button inside command center. Evidence: `m.classList.toggle("command-center-quick-pick")` |
-| menu id | `Ct.CommandCenter` | Command-center toolbar menu. Evidence: `t.createInstance(Bhe,this.element,Ct.CommandCenter` |
-| menu id | `Ct.CommandCenterCenter` | Center submenu rendered by custom item. Evidence: `o.item.submenu===Ct.CommandCenterCenter` |
-| setting | `window.commandCenter` | Enables the command-center title content. Evidence: `n.affectsConfiguration("window.commandCenter")` |
-| setting | `workbench.commandCenter` | not found |
-| setting | `workbench.layoutControl.enabled` | Enables layout controls. Evidence: `n.affectsConfiguration("workbench.layoutControl.enabled")` |
-| setting | `workbench.layoutControl.type` | Switches menu-style layout control. Evidence: `ze.equals("config.workbench.layoutControl.type","menu")` |
-| setting | `workbench.navigationControl.enabled` | Enables navigation controls. Evidence: `n.affectsConfiguration("workbench.navigationControl.enabled")` |
-| setting | `workbench.agentsWindowButton.enabled` | Cursor titlebar agents button. Evidence: `b2p.SETTING="workbench.agentsWindowButton.enabled"` |
-| menu id | `Ct.LayoutControlMenu` | Main layout-control menu. Evidence: `this.menuService.createMenu(Ct.LayoutControlMenu,this.contextKeyService)` |
-| menu id | `Ct.LayoutControlMenuSubmenu` | Layout submenu under layout control. Evidence: `submenu:Ct.LayoutControlMenuSubmenu,title:N(3047,null)` |
-| command | `workbench.action.customizeLayout` | Opens customize layout menu. Evidence: `id:"workbench.action.customizeLayout",title:At(3163,"Customize Layout...")` |
-| command | `workbench.action.openLayoutSettingsMenu` | Layout settings action. Evidence: `ID="workbench.action.openLayoutSettingsMenu"` |
-| command | `workbench.action.openAgentLayoutQuickMenu` | Cursor settings quick menu from titlebar. Evidence: `ID="workbench.action.openAgentLayoutQuickMenu"` |
-| command | `workbench.action.toggleSidebarVisibility` | Primary sidebar toggle. Evidence: `PUg.ID="workbench.action.toggleSidebarVisibility"` |
-| command | `workbench.action.toggleSidebarPosition` | Sidebar left/right position toggle. Evidence: `IUg.ID="workbench.action.toggleSidebarPosition"` |
-| command | `workbench.action.togglePanel` | Panel toggle in layout menu, intentionally omitted from titlebar action builder. Evidence: `TUg.ID="workbench.action.togglePanel"` and `case"workbench.action.togglePanel":return` |
-| command | `workbench.action.toggleAuxiliaryBar` | Secondary side bar or chat pane toggle. Evidence: `xUg.ID="workbench.action.toggleAuxiliaryBar"` |
-| command | `workbench.action.maximizeChatSize` | Maximize chat action. Evidence: `RUg.ID="workbench.action.maximizeChatSize"` |
-| command | `workbench.action.toggleFullScreen` | Workbench fullscreen command. Evidence: `executeCommand("workbench.action.toggleFullScreen")` |
-| command | `toggleFullScreen` | Cursor/Glass command wrapper that calls workbench fullscreen. Evidence: `id:"toggleFullScreen",title:"Toggle Full Screen"` |
-| command | `workbench.action.toggleZenMode` | Layout customization option. Evidence: `Znt("workbench.action.toggleZenMode",ife,N(3103,null),KIx)` |
-| command | `workbench.action.toggleCenteredLayout` | Layout customization option. Evidence: `Znt("workbench.action.toggleCenteredLayout",Gdh,N(3104,null),jIx)` |
-| command | `workbench.action.splitEditor` | Generic split editor command. Evidence: `eMo="workbench.action.splitEditor"` |
-| command | `workbench.action.splitEditorRight` | Split editor right. Evidence: `fBt="workbench.action.splitEditorRight"` |
-| command | `workbench.action.splitEditorDown` | Split editor down. Evidence: `pBt="workbench.action.splitEditorDown"` |
-| label | `Split Right` | Menubar/editor window label. Evidence: `title:{...At(3507,"Split Right")` and `label:"Split Right"` |
-| label | `Split Down` | Menubar/editor window label. Evidence: `title:{...At(3505,"Split Down")` and `label:"Split Down"` |
-| label | `Editor Window` | Open editor window CTA. Evidence: `"aria-label":"Editor Window",className:"open-editor-window-cta"` |
-| label | `Enter Full Screen` | Fullscreen button label. Evidence: `title:J?"Exit Full Screen":"Enter Full Screen"` |
-| label | `Window Controls` | Command title for traffic-light update path. Evidence: `title:{value:"Update Window Controls",original:"Update Window Controls"}` |
-| class | `.window-controls-container` | Native/custom window controls host. Evidence: `zt("div.window-controls-container")` |
-| class | `.wco-enabled` | Added when window controls overlay is enabled. Evidence: `this.windowControlsContainer.classList.add("wco-enabled")` |
-| CSS variable | `--zoom-factor` | Titlebar counter-zoom support. Evidence: `this.element.style.setProperty("--zoom-factor",e.toString())` |
-| CSS variable | `--traffic-lights-offset-adjusted` | Runtime macOS traffic-light inset. Evidence: `var $qg="--traffic-lights-offset-adjusted"` |
-| literal | `--window-controls` | not found |
-| literal | `layout-controls` | not found |
-| literal | `TITLE_BAR` | not found |
+| Kind         | Literal                                     | Meaning                                                                                                                                                                            |
+| ------------ | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| part id      | `workbench.parts.titlebar`                  | Main titlebar part. Evidence: `super("workbench.parts.titlebar",ci,"main"...`                                                                                                      |
+| command      | `workbench.action.focusTitleBar`            | Focuses titlebar controls. Evidence: `id:"workbench.action.focusTitleBar",title:At(3995,"Focus Title Bar")`                                                                        |
+| DOM class    | `.part.titlebar`                            | Workbench titlebar part root. Evidence: `.monaco-workbench .part.titlebar{display:flex;flex-direction:row`                                                                         |
+| DOM class    | `.titlebar-container`                       | Flex container inside titlebar. Evidence: `zt(".titlebar-container")`                                                                                                              |
+| DOM class    | `.titlebar-left`                            | Left titlebar cluster. Evidence: `zt(".titlebar-left")`                                                                                                                            |
+| DOM class    | `.titlebar-center`                          | Center title/title command area. Evidence: `zt(".titlebar-center")`                                                                                                                |
+| DOM class    | `.titlebar-right`                           | Right titlebar cluster. Evidence: `zt(".titlebar-right")`                                                                                                                          |
+| DOM class    | `.titlebar-drag-region`                     | Full-size draggable region. Evidence: `zt("div.titlebar-drag-region")`                                                                                                             |
+| DOM class    | `.window-title`                             | Center title host. Evidence: `this.title=Qt(this.centerContent,zt("div.window-title"))`                                                                                            |
+| DOM class    | `.window-title-text`                        | Plain title text or workspace quick-open button. Evidence: `i.className="window-title-text agent-workspace-quickopen"`                                                             |
+| DOM class    | `.command-center`                           | Command center root. Evidence: `this.element.classList.add("command-center")`                                                                                                      |
+| DOM class    | `.command-center-center`                    | Primary command-center action item. Evidence: `n.classList.add("command-center-center")`                                                                                           |
+| DOM class    | `.command-center-quick-pick`                | Quick-open button inside command center. Evidence: `m.classList.toggle("command-center-quick-pick")`                                                                               |
+| menu id      | `Ct.CommandCenter`                          | Command-center toolbar menu. Evidence: `t.createInstance(Bhe,this.element,Ct.CommandCenter`                                                                                        |
+| menu id      | `Ct.CommandCenterCenter`                    | Center submenu rendered by custom item. Evidence: `o.item.submenu===Ct.CommandCenterCenter`                                                                                        |
+| setting      | `window.commandCenter`                      | Enables the command-center title content. Evidence: `n.affectsConfiguration("window.commandCenter")`                                                                               |
+| setting      | `workbench.commandCenter`                   | not found                                                                                                                                                                          |
+| setting      | `workbench.layoutControl.enabled`           | Enables layout controls. Evidence: `n.affectsConfiguration("workbench.layoutControl.enabled")`                                                                                     |
+| setting      | `workbench.layoutControl.type`              | Switches menu-style layout control. Evidence: `ze.equals("config.workbench.layoutControl.type","menu")`                                                                            |
+| setting      | `workbench.navigationControl.enabled`       | Enables navigation controls. Evidence: `n.affectsConfiguration("workbench.navigationControl.enabled")`                                                                             |
+| setting      | `workbench.agentsWindowButton.enabled`      | Cursor titlebar agents button. Evidence: `b2p.SETTING="workbench.agentsWindowButton.enabled"`                                                                                      |
+| menu id      | `Ct.LayoutControlMenu`                      | Main layout-control menu. Evidence: `this.menuService.createMenu(Ct.LayoutControlMenu,this.contextKeyService)`                                                                     |
+| menu id      | `Ct.LayoutControlMenuSubmenu`               | Layout submenu under layout control. Evidence: `submenu:Ct.LayoutControlMenuSubmenu,title:N(3047,null)`                                                                            |
+| command      | `workbench.action.customizeLayout`          | Opens customize layout menu. Evidence: `id:"workbench.action.customizeLayout",title:At(3163,"Customize Layout...")`                                                                |
+| command      | `workbench.action.openLayoutSettingsMenu`   | Layout settings action. Evidence: `ID="workbench.action.openLayoutSettingsMenu"`                                                                                                   |
+| command      | `workbench.action.openAgentLayoutQuickMenu` | Cursor settings quick menu from titlebar. Evidence: `ID="workbench.action.openAgentLayoutQuickMenu"`                                                                               |
+| command      | `workbench.action.toggleSidebarVisibility`  | Primary sidebar toggle. Evidence: `PUg.ID="workbench.action.toggleSidebarVisibility"`                                                                                              |
+| command      | `workbench.action.toggleSidebarPosition`    | Sidebar left/right position toggle. Evidence: `IUg.ID="workbench.action.toggleSidebarPosition"`                                                                                    |
+| command      | `workbench.action.togglePanel`              | Panel toggle in layout menu, intentionally omitted from titlebar action builder. Evidence: `TUg.ID="workbench.action.togglePanel"` and `case"workbench.action.togglePanel":return` |
+| command      | `workbench.action.toggleAuxiliaryBar`       | Secondary side bar or chat pane toggle. Evidence: `xUg.ID="workbench.action.toggleAuxiliaryBar"`                                                                                   |
+| command      | `workbench.action.maximizeChatSize`         | Maximize chat action. Evidence: `RUg.ID="workbench.action.maximizeChatSize"`                                                                                                       |
+| command      | `workbench.action.toggleFullScreen`         | Workbench fullscreen command. Evidence: `executeCommand("workbench.action.toggleFullScreen")`                                                                                      |
+| command      | `toggleFullScreen`                          | Cursor/Glass command wrapper that calls workbench fullscreen. Evidence: `id:"toggleFullScreen",title:"Toggle Full Screen"`                                                         |
+| command      | `workbench.action.toggleZenMode`            | Layout customization option. Evidence: `Znt("workbench.action.toggleZenMode",ife,N(3103,null),KIx)`                                                                                |
+| command      | `workbench.action.toggleCenteredLayout`     | Layout customization option. Evidence: `Znt("workbench.action.toggleCenteredLayout",Gdh,N(3104,null),jIx)`                                                                         |
+| command      | `workbench.action.splitEditor`              | Generic split editor command. Evidence: `eMo="workbench.action.splitEditor"`                                                                                                       |
+| command      | `workbench.action.splitEditorRight`         | Split editor right. Evidence: `fBt="workbench.action.splitEditorRight"`                                                                                                            |
+| command      | `workbench.action.splitEditorDown`          | Split editor down. Evidence: `pBt="workbench.action.splitEditorDown"`                                                                                                              |
+| label        | `Split Right`                               | Menubar/editor window label. Evidence: `title:{...At(3507,"Split Right")` and `label:"Split Right"`                                                                                |
+| label        | `Split Down`                                | Menubar/editor window label. Evidence: `title:{...At(3505,"Split Down")` and `label:"Split Down"`                                                                                  |
+| label        | `Editor Window`                             | Open editor window CTA. Evidence: `"aria-label":"Editor Window",className:"open-editor-window-cta"`                                                                                |
+| label        | `Enter Full Screen`                         | Fullscreen button label. Evidence: `title:J?"Exit Full Screen":"Enter Full Screen"`                                                                                                |
+| label        | `Window Controls`                           | Command title for traffic-light update path. Evidence: `title:{value:"Update Window Controls",original:"Update Window Controls"}`                                                  |
+| class        | `.window-controls-container`                | Native/custom window controls host. Evidence: `zt("div.window-controls-container")`                                                                                                |
+| class        | `.wco-enabled`                              | Added when window controls overlay is enabled. Evidence: `this.windowControlsContainer.classList.add("wco-enabled")`                                                               |
+| CSS variable | `--zoom-factor`                             | Titlebar counter-zoom support. Evidence: `this.element.style.setProperty("--zoom-factor",e.toString())`                                                                            |
+| CSS variable | `--traffic-lights-offset-adjusted`          | Runtime macOS traffic-light inset. Evidence: `var $qg="--traffic-lights-offset-adjusted"`                                                                                          |
+| literal      | `--window-controls`                         | not found                                                                                                                                                                          |
+| literal      | `layout-controls`                           | not found                                                                                                                                                                          |
+| literal      | `TITLE_BAR`                                 | not found                                                                                                                                                                          |
 
 # 4 DOM/component hierarchy
 
@@ -170,7 +186,9 @@ The right action toolbar is inserted before window controls when both share the 
 Evidence.
 
 ```js
-n==="titlebar"&&this.windowControlsContainer?.parentElement===t?t.insertBefore(this.actionToolBarElement,this.windowControlsContainer):t.appendChild(this.actionToolBarElement)
+n === "titlebar" && this.windowControlsContainer?.parentElement === t
+  ? t.insertBefore(this.actionToolBarElement, this.windowControlsContainer)
+  : t.appendChild(this.actionToolBarElement);
 ```
 
 # 5 Geometry & tokens
@@ -188,7 +206,17 @@ get minimumHeight(){if(this.isNoTitlebarLayoutActive())return 0;...let e=Ytg;ret
 ```
 
 ```css
-body.no-titlebar-layout .monaco-workbench .part.titlebar{background:transparent!important;border:none!important;height:34px!important;left:0!important;pointer-events:none!important;position:fixed!important;right:0!important;top:0!important;z-index:10000!important}
+body.no-titlebar-layout .monaco-workbench .part.titlebar {
+  background: transparent !important;
+  border: none !important;
+  height: 34px !important;
+  left: 0 !important;
+  pointer-events: none !important;
+  position: fixed !important;
+  right: 0 !important;
+  top: 0 !important;
+  z-index: 10000 !important;
+}
 ```
 
 The titlebar container is a 100 percent height flex row. Left and right each default to 20 percent width. Center defaults to 60 percent with a 10px horizontal margin.
@@ -196,11 +224,37 @@ The titlebar container is a 100 percent height flex row. Left and right each def
 Evidence.
 
 ```css
-.monaco-workbench .part.titlebar>.titlebar-container{align-items:center;box-sizing:border-box;display:flex;flex-grow:1;flex-shrink:1;height:100%;justify-content:space-between;overflow:hidden;user-select:none;-webkit-user-select:none;width:100%}
+.monaco-workbench .part.titlebar > .titlebar-container {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  flex-grow: 1;
+  flex-shrink: 1;
+  height: 100%;
+  justify-content: space-between;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  width: 100%;
+}
 ```
 
 ```css
-.titlebar-left{flex-grow:2;justify-content:flex-start;min-width:max-content;order:0;width:20%}.monaco-workbench .part.titlebar>.titlebar-container>.titlebar-center{justify-content:center;margin:0 10px;max-width:fit-content;min-width:0;order:1;width:60%}
+.titlebar-left {
+  flex-grow: 2;
+  justify-content: flex-start;
+  min-width: max-content;
+  order: 0;
+  width: 20%;
+}
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center {
+  justify-content: center;
+  margin: 0 10px;
+  max-width: fit-content;
+  min-width: 0;
+  order: 1;
+  width: 60%;
+}
 ```
 
 The command center pill is 22px high, `38vw` wide, capped at `600px`, with a 6px radius and a 1px border. It sits inside `.window-title`.
@@ -208,7 +262,22 @@ The command center pill is 22px high, `38vw` wide, capped at `600px`, with a 6px
 Evidence.
 
 ```css
-.command-center .action-item.command-center-center{align-items:stretch;background-color:var(--vscode-commandCenter-background);border:1px solid var(--vscode-commandCenter-border);border-bottom-left-radius:6px;border-bottom-right-radius:6px;border-top-left-radius:6px;border-top-right-radius:6px;color:var(--vscode-commandCenter-foreground);display:flex;height:22px;margin:0 6px;max-width:600px;overflow:hidden;width:38vw}
+.command-center .action-item.command-center-center {
+  align-items: stretch;
+  background-color: var(--vscode-commandCenter-background);
+  border: 1px solid var(--vscode-commandCenter-border);
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  color: var(--vscode-commandCenter-foreground);
+  display: flex;
+  height: 22px;
+  margin: 0 6px;
+  max-width: 600px;
+  overflow: hidden;
+  width: 38vw;
+}
 ```
 
 The center quick-pick label truncates, and the icon is 14px with reduced opacity.
@@ -216,11 +285,19 @@ The center quick-pick label truncates, and the icon is 14px with reduced opacity
 Evidence.
 
 ```css
-.command-center-quick-pick .search-icon{color:var(--vscode-commandCenter-foreground);font-size:14px;margin:auto 3px;opacity:.8}
+.command-center-quick-pick .search-icon {
+  color: var(--vscode-commandCenter-foreground);
+  font-size: 14px;
+  margin: auto 3px;
+  opacity: 0.8;
+}
 ```
 
 ```css
-.command-center-quick-pick .search-label{overflow:hidden;text-overflow:ellipsis}
+.command-center-quick-pick .search-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 ```
 
 The right action toolbar is hidden when it has no actions, otherwise flexed. It has `padding-right:8px`, `z-index:2500`, and lives above the drag region.
@@ -228,11 +305,24 @@ The right action toolbar is hidden when it has no actions, otherwise flexed. It 
 Evidence.
 
 ```css
-.titlebar-right>.action-toolbar-container{display:none;flex-grow:0;flex-shrink:0;height:100%;margin-left:auto;padding-right:8px;position:relative;text-align:center;z-index:2500}
+.titlebar-right > .action-toolbar-container {
+  display: none;
+  flex-grow: 0;
+  flex-shrink: 0;
+  height: 100%;
+  margin-left: auto;
+  padding-right: 8px;
+  position: relative;
+  text-align: center;
+  z-index: 2500;
+}
 ```
 
 ```css
-.titlebar-right>.action-toolbar-container:not(.has-no-actions){display:flex;justify-content:center}
+.titlebar-right > .action-toolbar-container:not(.has-no-actions) {
+  display: flex;
+  justify-content: center;
+}
 ```
 
 Native window controls use `.window-controls-container`. Non-web, non-mac platforms reserve `138px`. Non-web mac reserves `70px`. Fullscreen hides the container.
@@ -240,15 +330,22 @@ Native window controls use `.window-controls-container`. Non-web, non-mac platfo
 Evidence.
 
 ```css
-.monaco-workbench:not(.web):not(.mac) .part.titlebar .window-controls-container{width:calc(138px/var(--zoom-factor, 1))}
+.monaco-workbench:not(.web):not(.mac) .part.titlebar .window-controls-container {
+  width: calc(138px / var(--zoom-factor, 1));
+}
 ```
 
 ```css
-.monaco-workbench:not(.web).mac .part.titlebar .window-controls-container{width:70px}
+.monaco-workbench:not(.web).mac .part.titlebar .window-controls-container {
+  width: 70px;
+}
 ```
 
 ```css
-.monaco-workbench.fullscreen .part.titlebar .window-controls-container{background-color:transparent;display:none}
+.monaco-workbench.fullscreen .part.titlebar .window-controls-container {
+  background-color: transparent;
+  display: none;
+}
 ```
 
 Web window controls use the Window Controls Overlay env variables.
@@ -256,7 +353,10 @@ Web window controls use the Window Controls Overlay env variables.
 Evidence.
 
 ```css
-.monaco-workbench.web .part.titlebar .titlebar-right .window-controls-container{height:env(titlebar-area-height,35px);width:calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px))}
+.monaco-workbench.web .part.titlebar .titlebar-right .window-controls-container {
+  height: env(titlebar-area-height, 35px);
+  width: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px));
+}
 ```
 
 Mac traffic-light offset is written to the document root as `--traffic-lights-offset-adjusted`. CSS then consumes it for no-titlebar auxiliary/editor padding when sidebars are hidden.
@@ -268,7 +368,12 @@ var $qg="--traffic-lights-offset-adjusted",AGS=`var(${$qg}, 0px)`;function Gqg(n
 ```
 
 ```css
-body.no-titlebar-layout.unifiedsidebarhidden[data-sidebar-position=right] .monaco-workbench .part.auxiliarybar.auxiliary-bar-show-agent-tabs>.title{padding-left:var(--traffic-lights-offset-adjusted,0)}
+body.no-titlebar-layout.unifiedsidebarhidden[data-sidebar-position="right"]
+  .monaco-workbench
+  .part.auxiliarybar.auxiliary-bar-show-agent-tabs
+  > .title {
+  padding-left: var(--traffic-lights-offset-adjusted, 0);
+}
 ```
 
 The no-titlebar shell disables pointer events on the shell and selectively re-enables them on controls. That lets it sit over the app without blocking editor chrome.
@@ -276,11 +381,25 @@ The no-titlebar shell disables pointer events on the shell and selectively re-en
 Evidence.
 
 ```css
-body.no-titlebar-layout .monaco-workbench .part.titlebar{...pointer-events:none!important;position:fixed!important...}
+body.no-titlebar-layout .monaco-workbench .part.titlebar {
+  ...pointer-events: none !important;
+  position: fixed!important...;
+}
 ```
 
 ```css
-body.no-titlebar-layout .monaco-workbench .part.titlebar>.titlebar-container>.titlebar-left>.left-action-toolbar-container{display:flex!important;pointer-events:auto!important;position:relative!important;width:fit-content!important;z-index:10002!important}
+body.no-titlebar-layout
+  .monaco-workbench
+  .part.titlebar
+  > .titlebar-container
+  > .titlebar-left
+  > .left-action-toolbar-container {
+  display: flex !important;
+  pointer-events: auto !important;
+  position: relative !important;
+  width: fit-content !important;
+  z-index: 10002 !important;
+}
 ```
 
 # 6 State & connectivity
@@ -290,11 +409,33 @@ Titlebar text and command-center visibility can rebuild. Geometry updates mostly
 Evidence.
 
 ```js
-n.affectsConfiguration("window.commandCenter")&&(this.createTitle(),this.scheduleActionToolBarMenusUpdate({layoutActions:!0}),this._onDidChange.fire(void 0))
+n.affectsConfiguration("window.commandCenter") &&
+  (this.createTitle(),
+  this.scheduleActionToolBarMenusUpdate({ layoutActions: !0 }),
+  this._onDidChange.fire(void 0));
 ```
 
 ```js
-this.actionToolBarDisposable.add(this.editorGroupsContainer.onDidAddGroup(()=>{e()})),this.actionToolBarDisposable.add(this.editorGroupsContainer.onDidRemoveGroup(()=>{e()})),this.actionToolBarDisposable.add(this.editorGroupsContainer.onDidMoveGroup(()=>{e()})),this.actionToolBarDisposable.add(this.editorService.onDidVisibleEditorsChange(()=>{e()}))
+(this.actionToolBarDisposable.add(
+  this.editorGroupsContainer.onDidAddGroup(() => {
+    e();
+  }),
+),
+  this.actionToolBarDisposable.add(
+    this.editorGroupsContainer.onDidRemoveGroup(() => {
+      e();
+    }),
+  ),
+  this.actionToolBarDisposable.add(
+    this.editorGroupsContainer.onDidMoveGroup(() => {
+      e();
+    }),
+  ),
+  this.actionToolBarDisposable.add(
+    this.editorService.onDidVisibleEditorsChange(() => {
+      e();
+    }),
+  ));
 ```
 
 `updateActionsPositioning` debounces to the next animation frame, then `doUpdateActionsPositioning` chooses a target container.
@@ -310,7 +451,9 @@ The layout action cluster targets either the titlebar right region or an editor 
 Evidence.
 
 ```js
-const n=this.getLayoutActionsPositioningMode(),e=this.findTopRightMostGroupIncludingAuxBar(),t=n==="titlebar"?this.rightContent:this.getLayoutActionsTargetContainer(e)
+const n = this.getLayoutActionsPositioningMode(),
+  e = this.findTopRightMostGroupIncludingAuxBar(),
+  t = n === "titlebar" ? this.rightContent : this.getLayoutActionsTargetContainer(e);
 ```
 
 Left other actions and navigation controls follow the same pattern, except their fallback target is the top-left editor group's `leftActionsContainer`.
@@ -318,7 +461,9 @@ Left other actions and navigation controls follow the same pattern, except their
 Evidence.
 
 ```js
-const n=this.getLeftOtherActionsPositioningMode(),e=this.findTopLeftMostGroupIncludingAuxBar(),t=n==="titlebar"?this.leftActionToolBarElement:e?.leftActionsContainer
+const n = this.getLeftOtherActionsPositioningMode(),
+  e = this.findTopLeftMostGroupIncludingAuxBar(),
+  t = n === "titlebar" ? this.leftActionToolBarElement : e?.leftActionsContainer;
 ```
 
 Mode selection is a pure decision over no-titlebar layout, editor visibility, sidebar edge emptiness, chat editor group state, and panel state. It returns only `"titlebar"` or `"editor-tabs"`.
@@ -342,7 +487,12 @@ get minimumHeight(){if(this.isNoTitlebarLayoutActive())return 0;...}
 ```
 
 ```css
-body.no-titlebar-layout .monaco-workbench .part.titlebar{...position:fixed!important;right:0!important;top:0!important;z-index:10000!important}
+body.no-titlebar-layout .monaco-workbench .part.titlebar {
+  ...position: fixed !important;
+  right: 0 !important;
+  top: 0 !important;
+  z-index: 10000 !important;
+}
 ```
 
 Fullscreen hides native window controls and app icon by class. The titlebar part remains addressable as `.part.titlebar`.
@@ -350,11 +500,20 @@ Fullscreen hides native window controls and app icon by class. The titlebar part
 Evidence.
 
 ```css
-.monaco-workbench.fullscreen .part.titlebar .window-controls-container{background-color:transparent;display:none}
+.monaco-workbench.fullscreen .part.titlebar .window-controls-container {
+  background-color: transparent;
+  display: none;
+}
 ```
 
 ```css
-.monaco-workbench.fullscreen .part.titlebar>.titlebar-container>.titlebar-left>.window-appicon{display:none}
+.monaco-workbench.fullscreen
+  .part.titlebar
+  > .titlebar-container
+  > .titlebar-left
+  > .window-appicon {
+  display: none;
+}
 ```
 
 # 7 Honk mapping
@@ -374,11 +533,24 @@ Second, CSS pins the mounted titlebar shell to the viewport top and disables poi
 Evidence.
 
 ```css
-body.no-titlebar-layout .monaco-workbench .part.titlebar{...pointer-events:none!important;position:fixed!important;right:0!important;top:0!important;z-index:10000!important}
+body.no-titlebar-layout .monaco-workbench .part.titlebar {
+  ...pointer-events: none !important;
+  position: fixed !important;
+  right: 0 !important;
+  top: 0 !important;
+  z-index: 10000 !important;
+}
 ```
 
 ```css
-body.no-titlebar-layout .monaco-workbench .part.titlebar>.titlebar-container>.titlebar-left>.left-action-toolbar-container{...pointer-events:auto!important...}
+body.no-titlebar-layout
+  .monaco-workbench
+  .part.titlebar
+  > .titlebar-container
+  > .titlebar-left
+  > .left-action-toolbar-container {
+  ...pointer-events: auto!important...;
+}
 ```
 
 Third, Cursor moves existing toolbar nodes between titlebar and editor-tab containers. It does not recreate the controls just to change their place.
@@ -386,7 +558,10 @@ Third, Cursor moves existing toolbar nodes between titlebar and editor-tab conta
 Evidence.
 
 ```js
-t&&(t.appendChild(this.navigationActionsContainer),this.navigationActionsContainer.classList.toggle("in-editor-tabs",n==="editor-tabs"),this.navigationActionsContainer.classList.toggle("in-titlebar",n==="titlebar"))
+t &&
+  (t.appendChild(this.navigationActionsContainer),
+  this.navigationActionsContainer.classList.toggle("in-editor-tabs", n === "editor-tabs"),
+  this.navigationActionsContainer.classList.toggle("in-titlebar", n === "titlebar"));
 ```
 
 For Honk, that maps to:

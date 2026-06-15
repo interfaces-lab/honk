@@ -71,7 +71,12 @@ function threadSummary(input: Partial<SidebarThreadSummary> = {}): SidebarThread
 describe("buildProjectChatSections", () => {
   it("labels workspace sections with the folder name only", () => {
     const sections = buildProjectChatSections(
-      [threadSummary({ cwd: "/Users/workgyver/Developer/honk", projectCwd: "/Users/workgyver/Developer/honk" })],
+      [
+        threadSummary({
+          cwd: "/Users/workgyver/Developer/honk",
+          projectCwd: "/Users/workgyver/Developer/honk",
+        }),
+      ],
       [],
       "/Users/workgyver/Developer/honk",
       null,

@@ -200,10 +200,7 @@ import {
   applyLocalThreadCreated,
   applyLocalThreadTurnStartRequested,
 } from "~/stores/local-orchestration-events";
-import {
-  type ComposerSendSnapshot,
-  assertActiveThread,
-} from "./chat-view.logic";
+import { type ComposerSendSnapshot, assertActiveThread } from "./chat-view.logic";
 import {
   containsThreadEntry,
   deriveThreadBranchView,

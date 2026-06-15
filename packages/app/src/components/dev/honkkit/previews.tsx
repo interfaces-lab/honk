@@ -2019,8 +2019,8 @@ function WorkbenchParityPreview() {
         ) : null}
 
         <Text as="p" size="tab" tone="tertiary">
-          QA: top bar tabs, panel headers, composer prompt, menus, dialogs, reduced-motion, light/dark
-          glass.
+          QA: top bar tabs, panel headers, composer prompt, menus, dialogs, reduced-motion,
+          light/dark glass.
         </Text>
       </div>
     </PreviewFrame>

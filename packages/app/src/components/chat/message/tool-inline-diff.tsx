@@ -52,10 +52,7 @@ export function InlineToolDiff({ artifact }: InlineToolDiffProps) {
   return (
     <div className="web-component min-w-0" data-diffs-container>
       {renderablePatch.files.map((fileDiff) => (
-        <div
-          key={`${buildFileDiffKey(fileDiff)}:${resolvedTheme}`}
-          className="min-w-0 first:mt-0"
-        >
+        <div key={`${buildFileDiffKey(fileDiff)}:${resolvedTheme}`} className="min-w-0 first:mt-0">
           <FileDiff
             fileDiff={fileDiff}
             options={{

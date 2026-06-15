@@ -291,9 +291,8 @@ function WorkbenchTabClusters(props: {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<TabDropTarget | null>(null);
-  const [scrollMaskState, setScrollMaskState] = useState<ScrollMaskState>(
-    DEFAULT_SCROLL_MASK_STATE,
-  );
+  const [scrollMaskState, setScrollMaskState] =
+    useState<ScrollMaskState>(DEFAULT_SCROLL_MASK_STATE);
   const activeMeta =
     props.tabs.find((tab) => tab.id === props.activeTabId) ?? props.tabs[0] ?? null;
   const stableTabs = props.tabs.filter((tab) => tab.stable);
@@ -479,9 +478,7 @@ function NewTabMenu(props: {
         <MenuTrigger
           aria-expanded={open}
           aria-label="Open new tab menu"
-          className={cn(
-            workbenchIconButtonVariants({ active: open, chrome: "tool" }),
-          )}
+          className={cn(workbenchIconButtonVariants({ active: open, chrome: "tool" }))}
           title="New Tab"
         >
           <IconPlusLarge className="size-4 shrink-0" aria-hidden />

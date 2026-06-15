@@ -24,7 +24,12 @@ registerFullScreenListeners(n){this._register(this.hostService.onDidChangeFullSc
 ```
 
 ```js
-function hFr(n,e){GRt.INSTANCE.setFullscreen(n,e)}function Nee(n){return GRt.INSTANCE.isFullscreen(n)}
+function hFr(n, e) {
+  GRt.INSTANCE.setFullscreen(n, e);
+}
+function Nee(n) {
+  return GRt.INSTANCE.isFullscreen(n);
+}
 ```
 
 `hFr` writes a window-scoped map and fires `onDidChangeFullscreen`.
@@ -41,7 +46,18 @@ The layout service subscribes to that event, then flips `.fullscreen` on the mai
 Evidence:
 
 ```js
-this._register(sCe(i=>this.onFullscreenChanged(i))),Gqg(ci,Nee(ci)),this._register(w9t(()=>{Gqg(ci,Nee(ci))})),this._register(sCe(()=>{Gqg(ci,Nee(ci))}))
+(this._register(sCe((i) => this.onFullscreenChanged(i))),
+  Gqg(ci, Nee(ci)),
+  this._register(
+    w9t(() => {
+      Gqg(ci, Nee(ci));
+    }),
+  ),
+  this._register(
+    sCe(() => {
+      Gqg(ci, Nee(ci));
+    }),
+  ));
 ```
 
 ```js
@@ -53,8 +69,17 @@ In CSS, `.fullscreen` hides workbench-owned titlebar app chrome. It does not req
 Evidence:
 
 ```css
-.monaco-workbench.fullscreen .part.titlebar>.titlebar-container>.titlebar-left>.window-appicon{display:none}
-.monaco-workbench.fullscreen .part.titlebar .window-controls-container{background-color:transparent;display:none}
+.monaco-workbench.fullscreen
+  .part.titlebar
+  > .titlebar-container
+  > .titlebar-left
+  > .window-appicon {
+  display: none;
+}
+.monaco-workbench.fullscreen .part.titlebar .window-controls-container {
+  background-color: transparent;
+  display: none;
+}
 ```
 
 Traffic-light geometry is also class/state driven. On macOS fullscreen, Cursor zeros the adjusted traffic-light CSS variable; outside fullscreen it computes an offset from current layout state.
@@ -62,7 +87,16 @@ Traffic-light geometry is also class/state driven. On macOS fullscreen, Cursor z
 Evidence:
 
 ```js
-function Gqg(n,e){const t=n.document.documentElement;if(!$s||e){t.style.setProperty($qg,"0px");return}const i=Lee(n),r=qtg(i);t.style.setProperty($qg,`${r}px`)}
+function Gqg(n, e) {
+  const t = n.document.documentElement;
+  if (!$s || e) {
+    t.style.setProperty($qg, "0px");
+    return;
+  }
+  const i = Lee(n),
+    r = qtg(i);
+  t.style.setProperty($qg, `${r}px`);
+}
 ```
 
 ### Maximize editor group
@@ -75,7 +109,7 @@ There are two separate editor maximize concepts:
 Evidence:
 
 ```js
-tMo="workbench.action.toggleMaximizeEditorGroup"
+tMo = "workbench.action.toggleMaximizeEditorGroup";
 ```
 
 ```js
@@ -87,7 +121,10 @@ The hide-sidebars action calls the layout service first, then the editor group s
 Evidence:
 
 ```js
-n.get(Hi).activeEditor&&(e.setPartHidden(!0,"workbench.parts.sidebar"),e.setPartHidden(!0,"workbench.parts.auxiliarybar"),t.arrangeGroups(0))
+n.get(Hi).activeEditor &&
+  (e.setPartHidden(!0, "workbench.parts.sidebar"),
+  e.setPartHidden(!0, "workbench.parts.auxiliarybar"),
+  t.arrangeGroups(0));
 ```
 
 The editor group service maximizes through the grid widget, not by re-rendering editor DOM.
@@ -116,7 +153,9 @@ this.stateModel.setRuntimeValue(Bu.SIDEBAR_HIDDEN,e),this.stateModel.save(!0,!1)
 ```
 
 ```js
-const c=this.workbenchGrid.isViewVisible(this.sideBarPartView);this.workbenchGrid.setViewVisible(this.sideBarPartView,!e);const d=this.workbenchGrid.isViewVisible(this.sideBarPartView)
+const c = this.workbenchGrid.isViewVisible(this.sideBarPartView);
+this.workbenchGrid.setViewVisible(this.sideBarPartView, !e);
+const d = this.workbenchGrid.isViewVisible(this.sideBarPartView);
 ```
 
 `setAuxiliaryBarHidden` follows the same shape.
@@ -124,7 +163,11 @@ const c=this.workbenchGrid.isViewVisible(this.sideBarPartView);this.workbenchGri
 Evidence:
 
 ```js
-this.stateModel.setRuntimeValue(Bu.AUXILIARYBAR_HIDDEN,e),this.stateModel.save(!0,!1),e?this.mainContainer.classList.add("noauxiliarybar"):this.mainContainer.classList.remove("noauxiliarybar")
+(this.stateModel.setRuntimeValue(Bu.AUXILIARYBAR_HIDDEN, e),
+  this.stateModel.save(!0, !1),
+  e
+    ? this.mainContainer.classList.add("noauxiliarybar")
+    : this.mainContainer.classList.remove("noauxiliarybar"));
 ```
 
 ```js
@@ -136,8 +179,15 @@ The CSS backstop for the hidden classes is direct and small.
 Evidence:
 
 ```css
-.monaco-workbench.nosidebar>.part.sidebar{display:none!important;visibility:hidden!important}
-.monaco-workbench.noauxiliarybar .part.auxiliarybar,...{display:none!important;visibility:hidden!important}
+.monaco-workbench.nosidebar > .part.sidebar {
+  display: none !important;
+  visibility: hidden !important;
+}
+.monaco-workbench.noauxiliarybar .part.auxiliarybar,
+... {
+  display: none !important;
+  visibility: hidden !important;
+}
 ```
 
 ### Zen Mode
@@ -160,7 +210,11 @@ toggleZenMode(e,t=!1){const i=this._getFocusedPart();this.setZenModeActive(!this
 ```
 
 ```js
-this.setPanelHidden(!0,!0),this.setAuxiliaryBarHidden(!0,!0),this.setSideBarHidden(!0,!0),o.hideActivityBar&&this.setActivityBarHidden(!0,!0),o.hideStatusBar&&this.setStatusBarHidden(!0,!0)
+(this.setPanelHidden(!0, !0),
+  this.setAuxiliaryBarHidden(!0, !0),
+  this.setSideBarHidden(!0, !0),
+  o.hideActivityBar && this.setActivityBarHidden(!0, !0),
+  o.hideStatusBar && this.setStatusBarHidden(!0, !0));
 ```
 
 On exit, it restores the saved visibility state and exits fullscreen if Zen entered it.
@@ -168,7 +222,9 @@ On exit, it restores the saved visibility state and exits fullscreen if Zen ente
 Evidence:
 
 ```js
-a.wasVisible.panel&&this.setPanelHidden(!1,!0),a.wasVisible.auxiliaryBar&&this.setAuxiliaryBarHidden(!1,!0),a.wasVisible.sideBar&&this.setSideBarHidden(!1,!0)
+(a.wasVisible.panel && this.setPanelHidden(!1, !0),
+  a.wasVisible.auxiliaryBar && this.setAuxiliaryBarHidden(!1, !0),
+  a.wasVisible.sideBar && this.setSideBarHidden(!1, !0));
 ```
 
 ```js
@@ -209,7 +265,10 @@ async toggleUnifiedMaximizeState(){const e=this.agentChatMaximizedContext?.get()
 ```
 
 ```js
-await this.chatEditorGroupService.ensureChatVisibleOrCreate(),t?.skipHideSidebar||this.setSideBarHidden(!0,!0),this.setPanelHidden(!0,!0),this.setEditorHidden(!0,!0)
+(await this.chatEditorGroupService.ensureChatVisibleOrCreate(),
+  t?.skipHideSidebar || this.setSideBarHidden(!0, !0),
+  this.setPanelHidden(!0, !0),
+  this.setEditorHidden(!0, !0));
 ```
 
 On exit, it sets editor visible, restores panel/sidebar visibility, and restores widths/heights from percentages.
@@ -221,31 +280,36 @@ this.setEditorHidden(!1,!0);...this.setSize("workbench.parts.auxiliarybar",{widt
 ```
 
 ```js
-if(i||(this.sidebarVisibleBeforeMaximize??!1))if(this.setSideBarHidden(!1,!0),i)this.setSize("workbench.parts.sidebar",{width:r,height:this.getSize("workbench.parts.sidebar").height})
+if (i || (this.sidebarVisibleBeforeMaximize ?? !1))
+  if ((this.setSideBarHidden(!1, !0), i))
+    this.setSize("workbench.parts.sidebar", {
+      width: r,
+      height: this.getSize("workbench.parts.sidebar").height,
+    });
 ```
 
 ## 3. Exact identifiers
 
-| Identifier | Kind | Element or owner | Effect |
-|---|---|---|---|
-| `workbench.action.toggleMaximizeEditorGroup` | command id | editor group service | Toggles `gridWidget.maximizeView(...)` for active editor group. |
-| `workbench.action.maximizeEditorHideSidebar` | command id | layout service + editor group service | Hides primary sidebar and auxiliary bar, then maximizes editor group. |
-| `workbench.action.minimizeOtherEditors` | command id | editor group service | Calls `arrangeGroups(1)`, which expands the active group. |
-| `workbench.action.minimizeOtherEditorsHideSidebar` | command id | layout service + editor group service | Hides primary sidebar and auxiliary bar, then expands the active editor group. |
-| `workbench.action.toggleZenMode` | command id | layout service | Toggles `ZEN_MODE_ACTIVE`, hides/restores parts, may enter native fullscreen, may center layout. |
-| `workbench.action.toggleCenteredLayout` | command id | layout service + editor main part | Toggles `MAIN_EDITOR_CENTERED`, activates `centeredLayoutWidget`. |
-| `.monaco-workbench` | root class | `mainContainer` | Main workbench container; all layout classes sit here. |
-| `.fullscreen` | class | `.monaco-workbench` | Native fullscreen marker; hides app icon/window controls via CSS and changes edge snapping/titlebar visibility. |
-| `.nosidebar` | class | `.monaco-workbench` | Marks primary sidebar hidden; CSS hides `.part.sidebar`; grid also sets sidebar view invisible. |
-| `.sidebarvisible` | class | `.monaco-workbench` | Marks primary sidebar visible. I did not find a direct `.monaco-workbench.sidebarvisible` CSS rule. |
-| `.noauxiliarybar` | class | `.monaco-workbench` | Marks auxiliary bar hidden; CSS hides `.part.auxiliarybar`; grid also sets view invisible. |
-| `.nomaineditorarea` | class | `.monaco-workbench` | Marks editor part hidden. Used by unified maximize. |
-| `.nopanel` | class | `.monaco-workbench` | Marks panel hidden; grid sets panel view invisible. |
-| `.panelmaximized` | class | `.monaco-workbench` | Marks panel maximized when editor part is hidden and panel alignment/position allow it. |
-| `.nostatusbar` | class | `.monaco-workbench` | Marks status bar hidden; grid sets status bar view invisible. |
-| `.agentmode` | class | `.monaco-workbench` | Cursor unified layout marker when editor is hidden in unified mode. |
-| `body.no-titlebar-layout` | body class | `document.body` | Makes titlebar fixed/transparent and keeps titlebar controls mounted with pointer-event overrides. |
-| `--traffic-lights-offset-adjusted` | CSS custom property | `documentElement` | Updated on fullscreen/zoom; pads no-titlebar auxiliary/editor-tab chrome around mac traffic lights. |
+| Identifier                                         | Kind                | Element or owner                      | Effect                                                                                                          |
+| -------------------------------------------------- | ------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `workbench.action.toggleMaximizeEditorGroup`       | command id          | editor group service                  | Toggles `gridWidget.maximizeView(...)` for active editor group.                                                 |
+| `workbench.action.maximizeEditorHideSidebar`       | command id          | layout service + editor group service | Hides primary sidebar and auxiliary bar, then maximizes editor group.                                           |
+| `workbench.action.minimizeOtherEditors`            | command id          | editor group service                  | Calls `arrangeGroups(1)`, which expands the active group.                                                       |
+| `workbench.action.minimizeOtherEditorsHideSidebar` | command id          | layout service + editor group service | Hides primary sidebar and auxiliary bar, then expands the active editor group.                                  |
+| `workbench.action.toggleZenMode`                   | command id          | layout service                        | Toggles `ZEN_MODE_ACTIVE`, hides/restores parts, may enter native fullscreen, may center layout.                |
+| `workbench.action.toggleCenteredLayout`            | command id          | layout service + editor main part     | Toggles `MAIN_EDITOR_CENTERED`, activates `centeredLayoutWidget`.                                               |
+| `.monaco-workbench`                                | root class          | `mainContainer`                       | Main workbench container; all layout classes sit here.                                                          |
+| `.fullscreen`                                      | class               | `.monaco-workbench`                   | Native fullscreen marker; hides app icon/window controls via CSS and changes edge snapping/titlebar visibility. |
+| `.nosidebar`                                       | class               | `.monaco-workbench`                   | Marks primary sidebar hidden; CSS hides `.part.sidebar`; grid also sets sidebar view invisible.                 |
+| `.sidebarvisible`                                  | class               | `.monaco-workbench`                   | Marks primary sidebar visible. I did not find a direct `.monaco-workbench.sidebarvisible` CSS rule.             |
+| `.noauxiliarybar`                                  | class               | `.monaco-workbench`                   | Marks auxiliary bar hidden; CSS hides `.part.auxiliarybar`; grid also sets view invisible.                      |
+| `.nomaineditorarea`                                | class               | `.monaco-workbench`                   | Marks editor part hidden. Used by unified maximize.                                                             |
+| `.nopanel`                                         | class               | `.monaco-workbench`                   | Marks panel hidden; grid sets panel view invisible.                                                             |
+| `.panelmaximized`                                  | class               | `.monaco-workbench`                   | Marks panel maximized when editor part is hidden and panel alignment/position allow it.                         |
+| `.nostatusbar`                                     | class               | `.monaco-workbench`                   | Marks status bar hidden; grid sets status bar view invisible.                                                   |
+| `.agentmode`                                       | class               | `.monaco-workbench`                   | Cursor unified layout marker when editor is hidden in unified mode.                                             |
+| `body.no-titlebar-layout`                          | body class          | `document.body`                       | Makes titlebar fixed/transparent and keeps titlebar controls mounted with pointer-event overrides.              |
+| `--traffic-lights-offset-adjusted`                 | CSS custom property | `documentElement`                     | Updated on fullscreen/zoom; pads no-titlebar auxiliary/editor-tab chrome around mac traffic lights.             |
 
 Evidence for `.monaco-workbench` root:
 
@@ -262,15 +326,15 @@ getLayoutClasses(){return Op([this.isVisible("workbench.parts.sidebar")?void 0:"
 
 ## 4. Normal vs maximized part-state table
 
-| Part | Normal | Toggle maximize editor group | Maximize editor and hide side bars | Native window fullscreen | Zen Mode |
-|---|---|---|---|---|---|
-| Titlebar | Visible if titlebar policy says so. | Unchanged. | Unchanged. | `.fullscreen` on `.monaco-workbench`; titlebar view may be hidden by policy; app icon and window controls hidden by CSS. | Follows titlebar/native fullscreen settings; not the primary Zen hide target. |
-| Activity bar | Visible unless user/config hides it. | Unchanged. | Unchanged by the command found. | Unchanged. | Hidden if `zenMode.hideActivityBar` is true through `setActivityBarHidden`. |
-| Sidebar | Visible when `SIDEBAR_HIDDEN` false. | Unchanged. | Hidden by `setPartHidden(true,"workbench.parts.sidebar")`: `.nosidebar`, active composite hide, `workbenchGrid.setViewVisible(false)`. | Unchanged. | Hidden by `setSideBarHidden(true,true)`. |
-| Editor | Visible. | Active editor group maximized inside editor part using `gridWidget.maximizeView`; other editor groups collapse inside the editor grid. | Editor part stays visible; active group maximized. | Unchanged. | Visible, unless other unified logic applies; can be centered. |
-| Auxiliary bar | Visible when `AUXILIARYBAR_HIDDEN` false. | Unchanged. | Hidden by `setPartHidden(true,"workbench.parts.auxiliarybar")`: `.noauxiliarybar`, active composite hide, `workbenchGrid.setViewVisible(false)`. | Unchanged. | Hidden by `setAuxiliaryBarHidden(true,true)`. |
-| Panel | Visible/hidden by panel state. | Unchanged. | Unchanged by this command. | Unchanged. | Hidden by `setPanelHidden(true,true)`, restored from Zen exit info. |
-| Statusbar | Visible when `STATUSBAR_HIDDEN` false. | Unchanged. | Unchanged. | Unchanged, but mac focus radius rule only applies to `.mac:not(.fullscreen)`. | Hidden if `zenMode.hideStatusBar` is true through `setStatusBarHidden`. |
+| Part          | Normal                                    | Toggle maximize editor group                                                                                                           | Maximize editor and hide side bars                                                                                                               | Native window fullscreen                                                                                                 | Zen Mode                                                                      |
+| ------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Titlebar      | Visible if titlebar policy says so.       | Unchanged.                                                                                                                             | Unchanged.                                                                                                                                       | `.fullscreen` on `.monaco-workbench`; titlebar view may be hidden by policy; app icon and window controls hidden by CSS. | Follows titlebar/native fullscreen settings; not the primary Zen hide target. |
+| Activity bar  | Visible unless user/config hides it.      | Unchanged.                                                                                                                             | Unchanged by the command found.                                                                                                                  | Unchanged.                                                                                                               | Hidden if `zenMode.hideActivityBar` is true through `setActivityBarHidden`.   |
+| Sidebar       | Visible when `SIDEBAR_HIDDEN` false.      | Unchanged.                                                                                                                             | Hidden by `setPartHidden(true,"workbench.parts.sidebar")`: `.nosidebar`, active composite hide, `workbenchGrid.setViewVisible(false)`.           | Unchanged.                                                                                                               | Hidden by `setSideBarHidden(true,true)`.                                      |
+| Editor        | Visible.                                  | Active editor group maximized inside editor part using `gridWidget.maximizeView`; other editor groups collapse inside the editor grid. | Editor part stays visible; active group maximized.                                                                                               | Unchanged.                                                                                                               | Visible, unless other unified logic applies; can be centered.                 |
+| Auxiliary bar | Visible when `AUXILIARYBAR_HIDDEN` false. | Unchanged.                                                                                                                             | Hidden by `setPartHidden(true,"workbench.parts.auxiliarybar")`: `.noauxiliarybar`, active composite hide, `workbenchGrid.setViewVisible(false)`. | Unchanged.                                                                                                               | Hidden by `setAuxiliaryBarHidden(true,true)`.                                 |
+| Panel         | Visible/hidden by panel state.            | Unchanged.                                                                                                                             | Unchanged by this command.                                                                                                                       | Unchanged.                                                                                                               | Hidden by `setPanelHidden(true,true)`, restored from Zen exit info.           |
+| Statusbar     | Visible when `STATUSBAR_HIDDEN` false.    | Unchanged.                                                                                                                             | Unchanged.                                                                                                                                       | Unchanged, but mac focus radius rule only applies to `.mac:not(.fullscreen)`.                                            | Hidden if `zenMode.hideStatusBar` is true through `setStatusBarHidden`.       |
 
 ## 5. Geometry changes
 
@@ -279,11 +343,13 @@ The decisive geometry change is grid visibility. Classes are applied synchronous
 Evidence:
 
 ```js
-this.workbenchGrid.setViewVisible(this.sideBarPartView,!e)
+this.workbenchGrid.setViewVisible(this.sideBarPartView, !e);
 ```
 
 ```js
-this.workbenchGrid.layout(c,d),this.initialized=!0,this.handleContainerDidLayout(this.mainContainer,this._mainContainerDimension)
+(this.workbenchGrid.layout(c, d),
+  (this.initialized = !0),
+  this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension));
 ```
 
 CSS still matters for chrome:
@@ -297,19 +363,45 @@ CSS still matters for chrome:
 Evidence:
 
 ```css
-body.no-titlebar-layout .monaco-workbench .part.titlebar{background:transparent!important;border:none!important;height:34px!important;left:0!important;pointer-events:none!important;position:fixed!important;right:0!important;top:0!important;z-index:10000!important}
+body.no-titlebar-layout .monaco-workbench .part.titlebar {
+  background: transparent !important;
+  border: none !important;
+  height: 34px !important;
+  left: 0 !important;
+  pointer-events: none !important;
+  position: fixed !important;
+  right: 0 !important;
+  top: 0 !important;
+  z-index: 10000 !important;
+}
 ```
 
 ```css
-body.no-titlebar-layout .monaco-workbench .part.titlebar>.titlebar-container>.titlebar-left{display:flex!important;flex-grow:0!important;min-width:0!important;pointer-events:auto!important;position:relative!important;width:auto!important;z-index:10001!important}
+body.no-titlebar-layout .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left {
+  display: flex !important;
+  flex-grow: 0 !important;
+  min-width: 0 !important;
+  pointer-events: auto !important;
+  position: relative !important;
+  width: auto !important;
+  z-index: 10001 !important;
+}
 ```
 
 ```css
-body.no-titlebar-layout.unifiedsidebarhidden[data-sidebar-position=right] .monaco-workbench .part.auxiliarybar.auxiliary-bar-show-agent-tabs>.title{padding-left:var(--traffic-lights-offset-adjusted,0)}
+body.no-titlebar-layout.unifiedsidebarhidden[data-sidebar-position="right"]
+  .monaco-workbench
+  .part.auxiliarybar.auxiliary-bar-show-agent-tabs
+  > .title {
+  padding-left: var(--traffic-lights-offset-adjusted, 0);
+}
 ```
 
 ```css
-.monaco-workbench.mac:not(.fullscreen) .part.statusbar:focus{border-bottom-left-radius:10px;border-bottom-right-radius:10px}
+.monaco-workbench.mac:not(.fullscreen) .part.statusbar:focus {
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
 ```
 
 ## 6. State and connectivity
@@ -325,11 +417,16 @@ The state source is the layout service plus its state model:
 Evidence:
 
 ```js
-this.stateModel.setRuntimeValue(Bu.STATUSBAR_HIDDEN,e),this.configurationService.updateValue("workbench.statusBar.visible",!e),e?this.mainContainer.classList.add("nostatusbar"):this.mainContainer.classList.remove("nostatusbar")
+(this.stateModel.setRuntimeValue(Bu.STATUSBAR_HIDDEN, e),
+  this.configurationService.updateValue("workbench.statusBar.visible", !e),
+  e
+    ? this.mainContainer.classList.add("nostatusbar")
+    : this.mainContainer.classList.remove("nostatusbar"));
 ```
 
 ```js
-this._onDidChangePartVisibility.fire(),this.handleContainerDidLayout(this.mainContainer,this._mainContainerDimension)
+(this._onDidChangePartVisibility.fire(),
+  this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension));
 ```
 
 What re-renders: the workbench grid and editor grid lay out existing views. The root `.monaco-workbench` element and part containers stay mounted. CSS classes and custom properties move chrome. There is no React-style "render null" for the titlebar controls in these paths.
@@ -363,7 +460,11 @@ The `return null` explains bug (a): titlebar controls disappear because React re
 The `useEffect` explains bug (b): the root `data-shell-fullscreen-target` write happens after commit and after the browser may have painted one frame of the old layout. During that frame, CSS selectors like:
 
 ```css
-.agent-window[data-shell-fullscreen-target="right-workbench"] .agent-window__sidebar{width:0;min-width:0;overflow:hidden}
+.agent-window[data-shell-fullscreen-target="right-workbench"] .agent-window__sidebar {
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+}
 ```
 
 do not match yet, so the left sidebar can keep its previous width until another user action forces a render/reflow. Cursor avoids that class of bug by flipping `mainContainer.classList` inside the same imperative layout transition that updates the grid. The grid visibility call and class flip are contiguous:
@@ -373,7 +474,7 @@ e?(this.mainContainer.classList.add("nosidebar"),this.mainContainer.classList.re
 ```
 
 ```js
-this.workbenchGrid.setViewVisible(this.sideBarPartView,!e)
+this.workbenchGrid.setViewVisible(this.sideBarPartView, !e);
 ```
 
 For Honk, the closest equivalent is: when `workspaceEditorActions.toggleFullscreen(...)` changes the store, have the shell root receive `data-shell-fullscreen-target` in render or via a synchronous store subscription before paint. If avoiding `AppShell` re-render is still required, use a layout-synchronous external-store bridge or `useLayoutEffect`, not `useEffect`. The visual target is still Cursor's model: one root state marker, CSS-driven collapse, all chrome mounted.

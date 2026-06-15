@@ -55,11 +55,7 @@ import {
   workbenchTabPersistenceActions,
   type WorkbenchTabSnapshot,
 } from "~/stores/workbench-tab-store";
-import {
-  panelPresentation,
-  SHELL_CENTER_MIN_WIDTH,
-  type ShellPanelMode,
-} from "./shell-layout";
+import { panelPresentation, SHELL_CENTER_MIN_WIDTH, type ShellPanelMode } from "./shell-layout";
 import {
   ShellLayoutProvider,
   ShellLayoutService,
@@ -289,7 +285,9 @@ const RightWorkbenchFullscreenToggle = memo(function RightWorkbenchFullscreenTog
       data-tab-system="false"
       title="Toggle editor panel fullscreen"
       onClick={onClick}
-      className={cn(workbenchIconButtonVariants({ active: false, chrome: "tool", tabSystem: false }))}
+      className={cn(
+        workbenchIconButtonVariants({ active: false, chrome: "tool", tabSystem: false }),
+      )}
     >
       <span data-fullscreen-toggle-icon="expand">
         <IconExpand45 className="size-4 shrink-0" aria-hidden />
@@ -334,7 +332,8 @@ const RightAsideHeader = memo(function RightAsideHeader(props: {
     workbenchTabPersistenceActions.createTerminal(workspaceKey);
   }, [workspaceKey]);
   const onCreateBrowser = useCallback(
-    (url?: string | undefined) => workbenchTabPersistenceActions.createBrowser(workspaceKey, { url }),
+    (url?: string | undefined) =>
+      workbenchTabPersistenceActions.createBrowser(workspaceKey, { url }),
     [workspaceKey],
   );
   const onCreateFile = useCallback(
@@ -345,10 +344,7 @@ const RightAsideHeader = memo(function RightAsideHeader(props: {
     () => workbenchTabPersistenceActions.activateChanges(workspaceKey),
     [workspaceKey],
   );
-  const onHidePanel = useCallback(
-    () => setRightPanelOpen(false, workspaceKey),
-    [workspaceKey],
-  );
+  const onHidePanel = useCallback(() => setRightPanelOpen(false, workspaceKey), [workspaceKey]);
 
   const fullscreenControl = useMemo(
     () => <RightWorkbenchFullscreenToggle workspaceKey={workspaceKey} />,
@@ -378,10 +374,7 @@ const RightAsideHeader = memo(function RightAsideHeader(props: {
 // column resize + drag state, the sash, and the sticky mount gate. It renders
 // `props.children` (the content subtree) so its own re-renders — width commit,
 // fullscreen toggle, drag start/end — never re-render the content.
-function RightAsideFrame(props: {
-  workspaceKey: string | null;
-  children: ReactNode;
-}) {
+function RightAsideFrame(props: { workspaceKey: string | null; children: ReactNode }) {
   const layout = useShellLayout((snapshot) => ({
     editorPanelFullscreen: snapshot.editorPanelFullscreen,
     editorPanelVisible: snapshot.editorPanelVisible,
@@ -585,13 +578,7 @@ const RightAside = memo(function RightAside(props: {
     [props.workspaceKey, props.right, props.keybindings, props.threadTitle],
   );
 
-  return (
-    <RightAsideFrame
-      workspaceKey={props.workspaceKey}
-    >
-      {content}
-    </RightAsideFrame>
-  );
+  return <RightAsideFrame workspaceKey={props.workspaceKey}>{content}</RightAsideFrame>;
 });
 
 function RightAsidePanels(props: {
@@ -676,7 +663,10 @@ const ShellHeaderControls = memo(function ShellHeaderControls(props: {
 
   return (
     <div className="honk-shell-titlebar-controls pointer-events-none absolute top-0 right-0 left-0 z-(--z-index-shell-titlebar-controls) box-border flex h-(--honk-header-height) min-w-0 items-center">
-      <div className="honk-shell-titlebar-drag-region drag-region pointer-events-auto absolute inset-0" aria-hidden />
+      <div
+        className="honk-shell-titlebar-drag-region drag-region pointer-events-auto absolute inset-0"
+        aria-hidden
+      />
       <div className="honk-shell-titlebar-left-controls pointer-events-auto no-drag absolute flex h-(--honk-titlebar-control-height) shrink-0 items-center gap-0.5">
         <ShellLeftToggleButton />
         <button
@@ -752,8 +742,7 @@ function RightWorkbenchWindowExpander(props: { electron: boolean }) {
     if (layout.shellWidth <= 0) {
       return;
     }
-    const leftWidth =
-      layout.sidebarVisible && !layout.sidebarOverlayMode ? layout.leftWidth : 0;
+    const leftWidth = layout.sidebarVisible && !layout.sidebarOverlayMode ? layout.leftWidth : 0;
     const deficit = leftWidth + layout.rightWidth + SHELL_CENTER_MIN_WIDTH - layout.shellWidth;
     if (deficit > 0) {
       void window.desktopBridge?.expandWindowWidth?.(deficit);

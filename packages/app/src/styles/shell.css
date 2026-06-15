@@ -607,8 +607,7 @@ html:not([data-electron]) .agent-window {
   white-space: nowrap;
 }
 
-.agent-window[data-shell-route-kind="draft"]
-  .honk-workbench-tool-island.editor-panel-tab-root {
+.agent-window[data-shell-route-kind="draft"] .honk-workbench-tool-island.editor-panel-tab-root {
   background-color: transparent;
 }
 

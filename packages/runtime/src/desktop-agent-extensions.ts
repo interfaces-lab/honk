@@ -7,10 +7,7 @@ import { Type } from "@earendil-works/pi-ai";
 import { createSubagentExtension } from "./subagent-extension";
 import { createPlanExtension } from "./plan-extension";
 import { createDebugLogsExtension } from "./debug-logs-extension";
-import type {
-  DesktopExtensionUiQuestion,
-  DesktopExtensionUiQuestionResult,
-} from "./extension-ui";
+import type { DesktopExtensionUiQuestion, DesktopExtensionUiQuestionResult } from "./extension-ui";
 
 interface AskQuestionDetails {
   readonly title: string;
@@ -79,7 +76,10 @@ function normalizedTitle(title: string | undefined): string {
   return trimmed.length > 0 ? trimmed : "Questions";
 }
 
-function cancelledDetails(title: string | undefined, questions: readonly AskQuestion[]): AskQuestionDetails {
+function cancelledDetails(
+  title: string | undefined,
+  questions: readonly AskQuestion[],
+): AskQuestionDetails {
   return {
     title: normalizedTitle(title),
     questions,

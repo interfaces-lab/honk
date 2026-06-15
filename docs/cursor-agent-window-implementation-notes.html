@@ -787,15 +787,18 @@ subscribe = notify =&gt; manager.subscribeAll(ev =&gt; {
 
         <h3 id="ds-anysphere">@anysphere / <code>packages/ui</code></h3>
         <div class="callout key">
-          <p class="verdict">The design system is <u>not</u> a shipped <code>@anysphere/ui</code> npm package.</p>
+          <p class="verdict">
+            The design system is <u>not</u> a shipped <code>@anysphere/ui</code> npm package.
+          </p>
           <p>
             It is the internal monorepo package <code>packages/ui</code>, compiled into
             <code>workbench.desktop.main.js</code> as React components + ~1,427 embedded
             <code>.ui-*</code> CSS rules. The agent Canvas SDK mirrors a subset under
             <code>cursor/canvas/ui-primitives.d.ts</code> (imports reference
-            <code>@anysphere/ui</code> in type comments only). Shipped <code>@anysphere/*</code>
-            packages in <code>Cursor.app</code> are native infra (<code>tree-chunk-napi</code>,
-            <code>file-service</code>, <code>policy-watcher</code>) — not UI.
+            <code>@anysphere/ui</code> in type comments only). Shipped
+            <code>@anysphere/*</code> packages in <code>Cursor.app</code> are native infra
+            (<code>tree-chunk-napi</code>, <code>file-service</code>, <code>policy-watcher</code>) —
+            not UI.
           </p>
         </div>
         <table>
@@ -827,17 +830,13 @@ subscribe = notify =&gt; manager.subscribeAll(ev =&gt; {
         </table>
 
         <h3 id="ds-architecture">3-layer architecture</h3>
-        <div class="ascii">VS Code theme JSON (--vscode-*)
-        │
-        ▼
-GlassThemeService + semantic registry (c2f / Sei)
-        │  core palette: sidebar, chrome, editor, accent, focus
-        │  semantic: color-mix from foreground → text/bg/stroke tiers
-        ▼
---cursor-* custom properties on body[data-cursor-glass-mode="true"]
-        │
-        ▼
-packages/ui components (.ui-*) + Tailwind v4 utilities (@layer theme/utilities)</div>
+        <div class="ascii">
+          VS Code theme JSON (--vscode-*) │ ▼ GlassThemeService + semantic registry (c2f / Sei) │
+          core palette: sidebar, chrome, editor, accent, focus │ semantic: color-mix from foreground
+          → text/bg/stroke tiers ▼ --cursor-* custom properties on
+          body[data-cursor-glass-mode="true"] │ ▼ packages/ui components (.ui-*) + Tailwind v4
+          utilities (@layer theme/utilities)
+        </div>
         <p>
           Components reference <code>var(--cursor-*)</code> exclusively — never raw hex in product
           CSS. Legacy Monaco parts still read <code>--vscode-*</code> with
@@ -877,8 +876,8 @@ packages/ui components (.ui-*) + Tailwind v4 utilities (@layer theme/utilities)<
         </table>
         <p>
           Scoping: <code>body[data-cursor-glass-mode="true"]</code> + appearance bucket classes
-          (<code>cursor-dark</code>, <code>cursor-light</code>, <code>cursor-high-contrast</code>)
-          + <code>[data-component="root"]</code> on the Glass React shell.
+          (<code>cursor-dark</code>, <code>cursor-light</code>, <code>cursor-high-contrast</code>) +
+          <code>[data-component="root"]</code> on the Glass React shell.
         </p>
 
         <h3 id="ds-colors">Color tokens</h3>
@@ -907,7 +906,10 @@ packages/ui components (.ui-*) + Tailwind v4 utilities (@layer theme/utilities)<
           <tr>
             <td><code>chrome</code> / <code>sidebar</code></td>
             <td><code>#141414</code></td>
-            <td>Agent panel / left rail → <code>--cursor-bg-chrome</code>, <code>--cursor-bg-sidebar</code></td>
+            <td>
+              Agent panel / left rail → <code>--cursor-bg-chrome</code>,
+              <code>--cursor-bg-sidebar</code>
+            </td>
           </tr>
           <tr>
             <td><code>elevated</code></td>
@@ -1009,10 +1011,9 @@ packages/ui components (.ui-*) + Tailwind v4 utilities (@layer theme/utilities)<
           <code>--cursor-bg-{green,red,yellow,blue}-primary</code> (solid badges),
           <code>--cursor-bg-{green,red,yellow}-secondary</code> (soft fills),
           <code>--cursor-text-{green,red,yellow,blue,cyan,magenta,orange}-primary</code> (syntax +
-          semantic labels),
-          <code>--cursor-icon-*</code> (parallel icon ladder),
-          <code>--cursor-syntax-*</code> (Shiki bridge). Diff:
-          <code>--cursor-text-added</code> / <code>--cursor-text-removed</code>.
+          semantic labels), <code>--cursor-icon-*</code> (parallel icon ladder),
+          <code>--cursor-syntax-*</code> (Shiki bridge). Diff: <code>--cursor-text-added</code> /
+          <code>--cursor-text-removed</code>.
         </p>
 
         <h4>Glass bridge tokens</h4>
@@ -1103,18 +1104,23 @@ packages/ui components (.ui-*) + Tailwind v4 utilities (@layer theme/utilities)<
           </tr>
         </table>
         <p>
-          Font families: <code>--cursor-font-family-sans</code> (→ <code>--vscode-font-family</code>),
-          <code>--cursor-font-family-mono</code> (from <code>editor.fontFamily</code> config).
-          Weights: regular=400, medium=500, <b>semibold=590</b> (Apple intermediate), bold=700.
-          Context override: <code>--conversation-font-size: 13px</code> (transcript) or
-          <code>14px</code> (<code>.markdown-root</code> default).
+          Font families: <code>--cursor-font-family-sans</code> (→
+          <code>--vscode-font-family</code>), <code>--cursor-font-family-mono</code> (from
+          <code>editor.fontFamily</code> config). Weights: regular=400, medium=500,
+          <b>semibold=590</b> (Apple intermediate), bold=700. Context override:
+          <code>--conversation-font-size: 13px</code> (transcript) or <code>14px</code> (<code
+            >.markdown-root</code
+          >
+          default).
         </p>
 
         <h3 id="ds-spacing">Spacing scale</h3>
         <p>
-          Formula: <code>--cursor-spacing-{N} = N × 4px</code> where hyphens encode decimals
-          (<code>1-5</code> = 1.5 = 6px). Tailwind v4 base: <code>--spacing: 0.25rem</code>.
-          Negative tokens <code>--cursor-spacing-ne-{N}</code> for icon optical correction.
+          Formula: <code>--cursor-spacing-{N} = N × 4px</code> where hyphens encode decimals (<code
+            >1-5</code
+          >
+          = 1.5 = 6px). Tailwind v4 base: <code>--spacing: 0.25rem</code>. Negative tokens
+          <code>--cursor-spacing-ne-{N}</code> for icon optical correction.
         </p>
         <table>
           <tr>
@@ -1130,7 +1136,10 @@ packages/ui components (.ui-*) + Tailwind v4 utilities (@layer theme/utilities)<
           <tr>
             <td><code>1-5 / 2</code></td>
             <td>6 / 8</td>
-            <td><b>Leading cluster inset (6px)</b>; header padding-right (8px); icon-button lg = calc(2×6+12) = 24px</td>
+            <td>
+              <b>Leading cluster inset (6px)</b>; header padding-right (8px); icon-button lg =
+              calc(2×6+12) = 24px
+            </td>
           </tr>
           <tr>
             <td><code>2-5 / 3</code></td>
@@ -1153,31 +1162,67 @@ packages/ui components (.ui-*) + Tailwind v4 utilities (@layer theme/utilities)<
           <div class="card">
             <h4>Top bar (35px)</h4>
             <table>
-              <tr><td>Bar height</td><td><code>--tab-system-height: 35px</code></td></tr>
-              <tr><td>Section padding</td><td><code>4px 8px</code> (spacing-1 spacing-2)</td></tr>
-              <tr><td>Tab height</td><td>25px (bar − 2×5px container pad)</td></tr>
-              <tr><td>Tab padding</td><td>0 8px (stable/pinned: 0 6px)</td></tr>
-              <tr><td>Tab max-width / gap</td><td>200px / 1px</td></tr>
-              <tr><td>Action icon (lg)</td><td>24×24px, gap 1px between buttons</td></tr>
+              <tr>
+                <td>Bar height</td>
+                <td><code>--tab-system-height: 35px</code></td>
+              </tr>
+              <tr>
+                <td>Section padding</td>
+                <td><code>4px 8px</code> (spacing-1 spacing-2)</td>
+              </tr>
+              <tr>
+                <td>Tab height</td>
+                <td>25px (bar − 2×5px container pad)</td>
+              </tr>
+              <tr>
+                <td>Tab padding</td>
+                <td>0 8px (stable/pinned: 0 6px)</td>
+              </tr>
+              <tr>
+                <td>Tab max-width / gap</td>
+                <td>200px / 1px</td>
+              </tr>
+              <tr>
+                <td>Action icon (lg)</td>
+                <td>24×24px, gap 1px between buttons</td>
+              </tr>
             </table>
           </div>
           <div class="card">
             <h4>Second header (36px)</h4>
             <table>
-              <tr><td>Row height</td><td><b>36px</b></td></tr>
-              <tr><td>Padding</td><td>0 8px 0 6px</td></tr>
-              <tr><td>Gap</td><td>4–8px</td></tr>
-              <tr><td>Borders</td><td>top+bottom 1px <code>stroke-tertiary</code></td></tr>
-              <tr><td>Radius</td><td>none (flush hairline)</td></tr>
-              <tr><td>Window controls</td><td>24×30px, pad 0 4px 0 6px</td></tr>
+              <tr>
+                <td>Row height</td>
+                <td><b>36px</b></td>
+              </tr>
+              <tr>
+                <td>Padding</td>
+                <td>0 8px 0 6px</td>
+              </tr>
+              <tr>
+                <td>Gap</td>
+                <td>4–8px</td>
+              </tr>
+              <tr>
+                <td>Borders</td>
+                <td>top+bottom 1px <code>stroke-tertiary</code></td>
+              </tr>
+              <tr>
+                <td>Radius</td>
+                <td>none (flush hairline)</td>
+              </tr>
+              <tr>
+                <td>Window controls</td>
+                <td>24×30px, pad 0 4px 0 6px</td>
+              </tr>
             </table>
           </div>
         </div>
 
         <h3 id="ds-radius">Radius scale</h3>
         <p>
-          No <code>--cursor-radius-md</code> — shell default is <code>--cursor-radius-base</code>
-          (≈6px, Tailwind <code>md</code> equivalent).
+          No <code>--cursor-radius-md</code> — shell default is
+          <code>--cursor-radius-base</code> (≈6px, Tailwind <code>md</code> equivalent).
         </p>
         <table>
           <tr>
@@ -1223,7 +1268,10 @@ packages/ui components (.ui-*) + Tailwind v4 utilities (@layer theme/utilities)<
           <tr>
             <td>literal 16px</td>
             <td>16</td>
-            <td><b>Floating glass toolbar</b> (<code>--prompt-input-border-radius-compact-expanded</code>)</td>
+            <td>
+              <b>Floating glass toolbar</b>
+              (<code>--prompt-input-border-radius-compact-expanded</code>)
+            </td>
           </tr>
         </table>
 
@@ -1263,7 +1311,10 @@ packages/ui components (.ui-*) + Tailwind v4 utilities (@layer theme/utilities)<
           </tr>
           <tr>
             <td><code>xl</code></td>
-            <td>hairline + <code>0 0 4px 0</code> + <code>0 12px 24px 0</code> + <code>0 24px 36px 0</code></td>
+            <td>
+              hairline + <code>0 0 4px 0</code> + <code>0 12px 24px 0</code> +
+              <code>0 24px 36px 0</code>
+            </td>
             <td><b>Floating glass toolbars</b></td>
           </tr>
         </table>
@@ -1332,20 +1383,20 @@ packages/ui components (.ui-*) + Tailwind v4 utilities (@layer theme/utilities)<
         </table>
         <p>
           Win/Linux window frame:
-          <code>[data-component=root][data-system=linux|windows]:not([data-fullscreen=true])::after {
-          box-shadow: inset 0 0 0 1px var(--glass-window-border-color) }</code>. macOS uses OS-native
-          rounding (10px / 16px on Tahoe).
+          <code
+            >[data-component=root][data-system=linux|windows]:not([data-fullscreen=true])::after {
+            box-shadow: inset 0 0 0 1px var(--glass-window-border-color) }</code
+          >. macOS uses OS-native rounding (10px / 16px on Tahoe).
         </p>
 
         <h3 id="ds-motion">Motion</h3>
         <div class="callout">
           <b>Primary UI easing:</b>
-          <code>cubic-bezier(0.215, 0.61, 0.355, 1)</code> (easeOutCubic) at
-          <b>150ms</b> for tabs, prompt input, trays. <b>300ms</b> with
-          <code>cubic-bezier(0.165, 0.84, 0.44, 1)</code> for dialogs and text rolls.
-          <b>Maximize itself has no CSS transition</b> — it is imperative grid reflow
-          (<code>setViewVisible</code> + <code>layout()</code>); the 300ms curve applies to React UI
-          kit components, not the VS Code split grid.
+          <code>cubic-bezier(0.215, 0.61, 0.355, 1)</code> (easeOutCubic) at <b>150ms</b> for tabs,
+          prompt input, trays. <b>300ms</b> with <code>cubic-bezier(0.165, 0.84, 0.44, 1)</code> for
+          dialogs and text rolls. <b>Maximize itself has no CSS transition</b> — it is imperative
+          grid reflow (<code>setViewVisible</code> + <code>layout()</code>); the 300ms curve applies
+          to React UI kit components, not the VS Code split grid.
         </div>
         <table>
           <tr>
@@ -1396,7 +1447,8 @@ packages/ui components (.ui-*) + Tailwind v4 utilities (@layer theme/utilities)<
           <tr>
             <td>Base</td>
             <td>
-              radius <code>base</code> (6px); <code>border:1px solid transparent</code>; bg transparent;
+              radius <code>base</code> (6px); <code>border:1px solid transparent</code>; bg
+              transparent;
               <code>color:var(--cursor-text-tertiary)</code>
             </td>
           </tr>
@@ -1408,9 +1460,7 @@ packages/ui components (.ui-*) + Tailwind v4 utilities (@layer theme/utilities)<
           </tr>
           <tr>
             <td>Active (<code>data-active</code>)</td>
-            <td>
-              <b>filled pill</b> bg <code>--cursor-bg-quaternary</code> + primary text
-            </td>
+            <td><b>filled pill</b> bg <code>--cursor-bg-quaternary</code> + primary text</td>
           </tr>
           <tr>
             <td>Focus-visible</td>
@@ -1472,12 +1522,12 @@ packages/ui components (.ui-*) + Tailwind v4 utilities (@layer theme/utilities)<
         </table>
         <p>
           Full inventory (~1,427 rules): agent transcript (<code>ui-shell-tool-call</code>,
-          <code>ui-user-message-box</code>), navigation (<code>ui-breadcrumb</code>),
-          composer (<code>ui-prompt-input</code>), diff (<code>ui-default-diff</code>), settings
+          <code>ui-user-message-box</code>), navigation (<code>ui-breadcrumb</code>), composer
+          (<code>ui-prompt-input</code>), diff (<code>ui-default-diff</code>), settings
           (<code>ui-field-group</code>), MCP (<code>ui-mcp-server-form</code>), automations, trays,
-          and more. Canvas SDK exports a standalone mirror:
-          <code>Stack</code>, <code>Row</code>, <code>Grid</code>, <code>Text</code>, <code>Button</code>,
-          <code>Card</code>, <code>Callout</code>, <code>DiffView</code>, charts, etc.
+          and more. Canvas SDK exports a standalone mirror: <code>Stack</code>, <code>Row</code>,
+          <code>Grid</code>, <code>Text</code>, <code>Button</code>, <code>Card</code>,
+          <code>Callout</code>, <code>DiffView</code>, charts, etc.
         </p>
 
         <h3 id="ds-honk">Honk mapping</h3>
@@ -1512,7 +1562,9 @@ packages/ui components (.ui-*) + Tailwind v4 utilities (@layer theme/utilities)<
           </tr>
           <tr>
             <td><code>GlassThemeService</code> + <code>style#otg</code></td>
-            <td><code>applyAppearanceBaseColors()</code> + <code>#honk-custom-tint-tokens</code></td>
+            <td>
+              <code>applyAppearanceBaseColors()</code> + <code>#honk-custom-tint-tokens</code>
+            </td>
           </tr>
           <tr>
             <td><code>packages/ui</code> <code>.ui-tab-system-tab</code></td>

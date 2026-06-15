@@ -75,38 +75,38 @@ e&&(t==="workbench.parts.editor"||t==="workbench.parts.panel"||t==="workbench.pa
 
 # 3 Exact identifiers
 
-| kind | literal | meaning |
-| --- | --- | --- |
-| root class | `monaco-workbench` | Main workbench container class. Evidence: `["monaco-workbench",_c?"windows":A_?"linux":"mac"` |
-| root role | `role="application"` | Set on the root after the grid is prepended. Evidence: `this.mainContainer.setAttribute("role","application")` |
-| grid class | `monaco-grid-view` | Top grid element class. Evidence: `.monaco-grid-view{overflow:hidden;position:relative}` |
-| grid class | `monaco-grid-branch-node` | Grid branch node class. Evidence: `.monaco-grid-branch-node,.monaco-grid-view{height:100%;width:100%}` |
-| part class | `part` | Base class on every workbench part. Evidence: `i.classList.add("part",...t)` |
-| part id | `workbench.parts.titlebar` | Titlebar leaf. Evidence: `{id:"workbench.parts.titlebar",role:"none",classes:["titlebar"]}` |
-| part id | `workbench.parts.banner` | Banner leaf. Evidence: `{id:"workbench.parts.banner",role:"banner",classes:["banner"]}` |
-| part id | `workbench.parts.activitybar` | Activity bar leaf when activity bar location is vertical. Evidence: `{id:"workbench.parts.activitybar",role:"none",classes:["activitybar",A?"left":"right"]}` |
-| part id | `workbench.parts.sidebar` | Primary sidebar leaf. Evidence: `{id:"workbench.parts.sidebar",role:"none",classes:["sidebar",A?"left":"right"]}` |
-| part id | `workbench.parts.unifiedsidebar` | Cursor agent/unified sidebar leaf. Evidence: `{id:"workbench.parts.unifiedsidebar",role:"none",classes:["unifiedsidebar",R?"left":"right"]}` |
-| part id | `workbench.parts.editor` | Main editor leaf. Evidence: `{id:"workbench.parts.editor",role:"main",classes:["editor"]}` |
-| part id | `workbench.parts.panel` | Panel leaf. Evidence: `{id:"workbench.parts.panel",role:"none",classes:["panel","basepanel",D4e(this.getPanelPosition())]}` |
-| part id | `workbench.parts.auxiliarybar` | Auxiliary bar leaf. Evidence: `{id:"workbench.parts.auxiliarybar",role:"none",classes:["auxiliarybar","basepanel",A?"right":"left"]}` |
-| part id | `workbench.parts.statusbar` | Statusbar footer leaf. Evidence: `{id:"workbench.parts.statusbar",role:"status",classes:["statusbar"]}` |
-| hide class | `nosidebar` | Root class when primary sidebar is hidden. Evidence: `e?(this.mainContainer.classList.add("nosidebar"),this.mainContainer.classList.remove("sidebarvisible"))` |
-| show class | `sidebarvisible` | Root class when primary sidebar is visible. Evidence: `this.mainContainer.classList.remove("nosidebar"),this.mainContainer.classList.add("sidebarvisible")` |
-| hide class | `nopanel` | Root class when panel is hidden. Evidence: `e?this.mainContainer.classList.add("nopanel"):this.mainContainer.classList.remove("nopanel")` |
-| hide class | `noauxiliarybar` | Root class when auxiliary bar is hidden. Evidence: `e?this.mainContainer.classList.add("noauxiliarybar"):this.mainContainer.classList.remove("noauxiliarybar")` |
-| hide class | `nostatusbar` | Root class when statusbar is hidden. Evidence: `e?this.mainContainer.classList.add("nostatusbar"):this.mainContainer.classList.remove("nostatusbar")` |
-| hide class | `nomaineditorarea` | Root class when editor part is hidden. Evidence: `e?this.mainContainer.classList.add("nomaineditorarea"):this.mainContainer.classList.remove("nomaineditorarea")` |
-| state class | `panelmaximized` | Root class when panel occupies the main editor area. Evidence: `this.isPanelMaximized()?this.mainContainer.classList.add("panelmaximized")` |
-| state class | `fullscreen` | Initial layout class when the main window is fullscreen. Evidence: `this.state.runtime.mainWindowFullscreen?"fullscreen":void 0` |
-| state class | `native-titlebar` | Initial layout class when native titlebar layout is active. Evidence: `gX(this.configurationService)?"native-titlebar":void 0` |
-| body class | `no-titlebar-layout` | Cursor body class for no-titlebar layout. Evidence: `ci.document.body.classList.toggle("no-titlebar-layout",f)` |
-| setting key | `workbench.statusBar.visible` | Statusbar setting mirrored from hidden state. Evidence: `this.configurationService.updateValue("workbench.statusBar.visible",!e)` |
-| setting key | `workbench.activityBar.location` | Activity-bar hidden state maps to `hidden`. Evidence: `this.configurationService.updateValue("workbench.activityBar.location",t?"hidden":void 0)` |
-| setting key | `workbench.sideBar.location` | Sidebar position legacy setting. Evidence: `this.configurationService.updateValue("workbench.sideBar.location",D4e(t))` |
-| setting key | `window.titleBarStyle` | Titlebar style setting. Evidence: `const s=t.titleBarStyle;if(s==="native"||s==="custom")return"custom"` |
-| not found | `noactivitybar` | No JS or CSS hits found. Evidence: `noactivitybar js=0 css=0` |
-| not found | `part-hidden` | No generic `part-hidden` shell class found. Evidence: `part-hidden js=0 css=0` |
+| kind        | literal                          | meaning                                                                                                                                                           |
+| ----------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | ---------------------------- |
+| root class  | `monaco-workbench`               | Main workbench container class. Evidence: `["monaco-workbench",_c?"windows":A_?"linux":"mac"`                                                                     |
+| root role   | `role="application"`             | Set on the root after the grid is prepended. Evidence: `this.mainContainer.setAttribute("role","application")`                                                    |
+| grid class  | `monaco-grid-view`               | Top grid element class. Evidence: `.monaco-grid-view{overflow:hidden;position:relative}`                                                                          |
+| grid class  | `monaco-grid-branch-node`        | Grid branch node class. Evidence: `.monaco-grid-branch-node,.monaco-grid-view{height:100%;width:100%}`                                                            |
+| part class  | `part`                           | Base class on every workbench part. Evidence: `i.classList.add("part",...t)`                                                                                      |
+| part id     | `workbench.parts.titlebar`       | Titlebar leaf. Evidence: `{id:"workbench.parts.titlebar",role:"none",classes:["titlebar"]}`                                                                       |
+| part id     | `workbench.parts.banner`         | Banner leaf. Evidence: `{id:"workbench.parts.banner",role:"banner",classes:["banner"]}`                                                                           |
+| part id     | `workbench.parts.activitybar`    | Activity bar leaf when activity bar location is vertical. Evidence: `{id:"workbench.parts.activitybar",role:"none",classes:["activitybar",A?"left":"right"]}`     |
+| part id     | `workbench.parts.sidebar`        | Primary sidebar leaf. Evidence: `{id:"workbench.parts.sidebar",role:"none",classes:["sidebar",A?"left":"right"]}`                                                 |
+| part id     | `workbench.parts.unifiedsidebar` | Cursor agent/unified sidebar leaf. Evidence: `{id:"workbench.parts.unifiedsidebar",role:"none",classes:["unifiedsidebar",R?"left":"right"]}`                      |
+| part id     | `workbench.parts.editor`         | Main editor leaf. Evidence: `{id:"workbench.parts.editor",role:"main",classes:["editor"]}`                                                                        |
+| part id     | `workbench.parts.panel`          | Panel leaf. Evidence: `{id:"workbench.parts.panel",role:"none",classes:["panel","basepanel",D4e(this.getPanelPosition())]}`                                       |
+| part id     | `workbench.parts.auxiliarybar`   | Auxiliary bar leaf. Evidence: `{id:"workbench.parts.auxiliarybar",role:"none",classes:["auxiliarybar","basepanel",A?"right":"left"]}`                             |
+| part id     | `workbench.parts.statusbar`      | Statusbar footer leaf. Evidence: `{id:"workbench.parts.statusbar",role:"status",classes:["statusbar"]}`                                                           |
+| hide class  | `nosidebar`                      | Root class when primary sidebar is hidden. Evidence: `e?(this.mainContainer.classList.add("nosidebar"),this.mainContainer.classList.remove("sidebarvisible"))`    |
+| show class  | `sidebarvisible`                 | Root class when primary sidebar is visible. Evidence: `this.mainContainer.classList.remove("nosidebar"),this.mainContainer.classList.add("sidebarvisible")`       |
+| hide class  | `nopanel`                        | Root class when panel is hidden. Evidence: `e?this.mainContainer.classList.add("nopanel"):this.mainContainer.classList.remove("nopanel")`                         |
+| hide class  | `noauxiliarybar`                 | Root class when auxiliary bar is hidden. Evidence: `e?this.mainContainer.classList.add("noauxiliarybar"):this.mainContainer.classList.remove("noauxiliarybar")`   |
+| hide class  | `nostatusbar`                    | Root class when statusbar is hidden. Evidence: `e?this.mainContainer.classList.add("nostatusbar"):this.mainContainer.classList.remove("nostatusbar")`             |
+| hide class  | `nomaineditorarea`               | Root class when editor part is hidden. Evidence: `e?this.mainContainer.classList.add("nomaineditorarea"):this.mainContainer.classList.remove("nomaineditorarea")` |
+| state class | `panelmaximized`                 | Root class when panel occupies the main editor area. Evidence: `this.isPanelMaximized()?this.mainContainer.classList.add("panelmaximized")`                       |
+| state class | `fullscreen`                     | Initial layout class when the main window is fullscreen. Evidence: `this.state.runtime.mainWindowFullscreen?"fullscreen":void 0`                                  |
+| state class | `native-titlebar`                | Initial layout class when native titlebar layout is active. Evidence: `gX(this.configurationService)?"native-titlebar":void 0`                                    |
+| body class  | `no-titlebar-layout`             | Cursor body class for no-titlebar layout. Evidence: `ci.document.body.classList.toggle("no-titlebar-layout",f)`                                                   |
+| setting key | `workbench.statusBar.visible`    | Statusbar setting mirrored from hidden state. Evidence: `this.configurationService.updateValue("workbench.statusBar.visible",!e)`                                 |
+| setting key | `workbench.activityBar.location` | Activity-bar hidden state maps to `hidden`. Evidence: `this.configurationService.updateValue("workbench.activityBar.location",t?"hidden":void 0)`                 |
+| setting key | `workbench.sideBar.location`     | Sidebar position legacy setting. Evidence: `this.configurationService.updateValue("workbench.sideBar.location",D4e(t))`                                           |
+| setting key | `window.titleBarStyle`           | Titlebar style setting. Evidence: `const s=t.titleBarStyle;if(s==="native"                                                                                        |     | s==="custom")return"custom"` |
+| not found   | `noactivitybar`                  | No JS or CSS hits found. Evidence: `noactivitybar js=0 css=0`                                                                                                     |
+| not found   | `part-hidden`                    | No generic `part-hidden` shell class found. Evidence: `part-hidden js=0 css=0`                                                                                    |
 
 # 4 DOM/component hierarchy
 

@@ -301,9 +301,7 @@ function getLiveAppearance(): AppearanceSnapshot {
   return liveAppearance;
 }
 
-function updateLiveAppearance(
-  updater: (current: AppearanceSnapshot) => AppearanceSnapshot,
-): void {
+function updateLiveAppearance(updater: (current: AppearanceSnapshot) => AppearanceSnapshot): void {
   liveAppearance = updater(getLiveAppearance());
   cached = undefined;
 }

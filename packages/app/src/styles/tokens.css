@@ -355,11 +355,7 @@ html {
   --honk-bg-red-secondary: color-mix(in srgb, var(--honk-tone-red) 20%, transparent);
   --honk-fg-orange-primary: color-mix(in oklch, var(--warning) 74%, var(--destructive));
   --honk-fg-cyan-primary: var(--primary);
-  --honk-git-status-added: color-mix(
-    in srgb,
-    var(--honk-fg-green-primary) 86%,
-    var(--foreground)
-  );
+  --honk-git-status-added: color-mix(in srgb, var(--honk-fg-green-primary) 86%, var(--foreground));
   --honk-git-status-deleted: var(--honk-fg-red-primary);
   --honk-git-status-modified: var(--honk-fg-orange-primary);
   --honk-git-status-renamed: var(--honk-fg-cyan-primary);
@@ -388,8 +384,7 @@ html {
   --honk-icon-warning: var(--warning);
   --glass-window-border: color-mix(in srgb, var(--foreground) 14%, transparent);
   --honk-shadow-soft: 0 2px 8px rgb(0 0 0 / 0.15);
-  --honk-shadow-sm:
-    0 0 0 1px var(--honk-stroke-tertiary), 0 2px 8px 0 var(--honk-shadow-secondary);
+  --honk-shadow-sm: 0 0 0 1px var(--honk-stroke-tertiary), 0 2px 8px 0 var(--honk-shadow-secondary);
   --honk-shadow-base:
     0 0 0 1px var(--honk-stroke-tertiary), 0 0 4px 0 var(--honk-shadow-secondary),
     0 8px 24px -2px var(--honk-shadow-secondary);
@@ -569,11 +564,7 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-component="root
   --honk-color-surface: var(--honk-base-editor);
   --honk-color-elevated: var(--honk-base-editor);
   --honk-color-menubar: var(--honk-base-editor);
-  --honk-bubble-surface-opaque-background: color-mix(
-    in srgb,
-    var(--honk-base-editor) 96%,
-    #fff
-  );
+  --honk-bubble-surface-opaque-background: color-mix(in srgb, var(--honk-base-editor) 96%, #fff);
   --honk-composer-surface-opaque-background: var(--honk-bubble-surface-opaque-background);
   --honk-composer-surface-background: var(--honk-composer-surface-opaque-background);
   --honk-message-bubble-background: var(--honk-composer-surface-opaque-background);

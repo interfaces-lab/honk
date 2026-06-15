@@ -246,7 +246,9 @@ function normalizeWorkspaceState(state: WorkbenchTabWorkspaceState): WorkbenchTa
     ? state.activeTabId
     : DEFAULT_WORKBENCH_STATE.activeTabId;
   const visitedTabIds = Array.from(
-    new Set([...state.visitedTabIds, activeTabId].filter((id) => tabs.some((tab) => tab.id === id))),
+    new Set(
+      [...state.visitedTabIds, activeTabId].filter((id) => tabs.some((tab) => tab.id === id)),
+    ),
   );
 
   return {
@@ -256,7 +258,9 @@ function normalizeWorkspaceState(state: WorkbenchTabWorkspaceState): WorkbenchTa
   };
 }
 
-function normalizePersistedWorkspace(value: PersistedWorkbenchTabWorkspace): WorkbenchTabWorkspaceState {
+function normalizePersistedWorkspace(
+  value: PersistedWorkbenchTabWorkspace,
+): WorkbenchTabWorkspaceState {
   const tabs = Array.isArray(value.tabs)
     ? value.tabs
         .map((tab) =>
@@ -307,9 +311,7 @@ function persistWorkbenchTabs(data: Record<string, WorkbenchTabWorkspaceState>):
         state.activeTabId === DEV_TAB_ID || state.activeTabId === PLAN_TAB_ID
           ? FILES_TAB_ID
           : state.activeTabId,
-      visitedTabIds: state.visitedTabIds.filter(
-        (id) => id !== DEV_TAB_ID && id !== PLAN_TAB_ID,
-      ),
+      visitedTabIds: state.visitedTabIds.filter((id) => id !== DEV_TAB_ID && id !== PLAN_TAB_ID),
     };
   }
   window.localStorage.setItem(WORKBENCH_TAB_STORAGE_KEY, JSON.stringify(persisted));
@@ -468,9 +470,7 @@ function applyTerminalRuntimeTabs(
     });
 
   const presentTerminalIds = new Set(
-    result
-      .filter((tab) => tab.kind === "terminal" && tab.terminalId)
-      .map((tab) => tab.terminalId!),
+    result.filter((tab) => tab.kind === "terminal" && tab.terminalId).map((tab) => tab.terminalId!),
   );
 
   for (const session of terminal.sessions) {
@@ -498,10 +498,7 @@ function applyRuntimeTabs(
   return applyTerminalRuntimeTabs(applyPlanRuntimeTabs(tabs, runtime.plan), runtime.terminal);
 }
 
-function activeTabIdForTabs(
-  tabs: readonly WorkbenchManagedTab[],
-  activeTabId: string,
-): string {
+function activeTabIdForTabs(tabs: readonly WorkbenchManagedTab[], activeTabId: string): string {
   return tabs.some((tab) => tab.id === activeTabId)
     ? activeTabId
     : (tabs[0]?.id ?? DEFAULT_WORKBENCH_STATE.activeTabId);
@@ -662,7 +659,10 @@ function applyActivationSideEffects(workspaceKey: string | null, tab: WorkbenchM
   shellPanelsActions.setMuted(false, workspaceKey);
 }
 
-function activateManagedTab(workspaceKey: string | null, tabId: string): WorkbenchManagedTab | null {
+function activateManagedTab(
+  workspaceKey: string | null,
+  tabId: string,
+): WorkbenchManagedTab | null {
   const next = updateWorkspaceState(workspaceKey, (current) => activateTabState(current, tabId));
   const active = next.tabs.find((tab) => tab.id === next.activeTabId) ?? null;
   if (active) {
@@ -699,25 +699,20 @@ export function useWorkbenchTabSnapshot(
     useShallow((state) => readWorkspaceState(state.byWorkspaceKey, workspaceKey)),
   );
 
-  return useMemo(
-    () => {
-      const tabs = applyRuntimeTabs(workspace.tabs, runtime);
-      const activeTabId = activeTabIdForTabs(tabs, workspace.activeTabId);
-      const activeTab =
-        tabs.find((tab) => tab.id === activeTabId) ??
-        tabs[0] ??
-        DEFAULT_WORKBENCH_TABS[0]!;
-      return {
-        tabs,
-        activeTabId: activeTab.id,
-        activeTab,
-        visitedTabIds: new Set(
-          workspace.visitedTabIds.filter((id) => tabs.some((tab) => tab.id === id)),
-        ),
-      };
-    },
-    [runtime, workspace],
-  );
+  return useMemo(() => {
+    const tabs = applyRuntimeTabs(workspace.tabs, runtime);
+    const activeTabId = activeTabIdForTabs(tabs, workspace.activeTabId);
+    const activeTab =
+      tabs.find((tab) => tab.id === activeTabId) ?? tabs[0] ?? DEFAULT_WORKBENCH_TABS[0]!;
+    return {
+      tabs,
+      activeTabId: activeTab.id,
+      activeTab,
+      visitedTabIds: new Set(
+        workspace.visitedTabIds.filter((id) => tabs.some((tab) => tab.id === id)),
+      ),
+    };
+  }, [runtime, workspace]);
 }
 
 export const workbenchTabPersistenceActions = {
@@ -725,7 +720,10 @@ export const workbenchTabPersistenceActions = {
     activateManagedTab(workspaceKey, tabId);
   },
   activateKind: (workspaceKey: string | null, kind: WorkbenchTab): void => {
-    const workspace = readWorkspaceState(useWorkbenchTabStore.getState().byWorkspaceKey, workspaceKey);
+    const workspace = readWorkspaceState(
+      useWorkbenchTabStore.getState().byWorkspaceKey,
+      workspaceKey,
+    );
     const tab = activeTabForKind(workspaceKey, workspace.tabs, kind, workspace.activeTabId);
     if (tab) {
       activateManagedTab(workspaceKey, tab.id);
@@ -864,7 +862,10 @@ export const workbenchTabPersistenceActions = {
     activateManagedTab(workspaceKey, tabId);
   },
   closeTab: (workspaceKey: string | null, tabId: string): void => {
-    const workspace = readWorkspaceState(useWorkbenchTabStore.getState().byWorkspaceKey, workspaceKey);
+    const workspace = readWorkspaceState(
+      useWorkbenchTabStore.getState().byWorkspaceKey,
+      workspaceKey,
+    );
     const closingTab = workspace.tabs.find((tab) => tab.id === tabId);
     if (!closingTab) return;
 
@@ -900,7 +901,9 @@ export const workbenchTabPersistenceActions = {
       const currentIndex = current.tabs.findIndex((tab) => tab.id === tabId);
       const tabs = removeTab(current.tabs, tabId);
       const fallbackTab =
-        tabs[Math.max(0, Math.min(currentIndex, tabs.length - 1))] ?? tabs[0] ?? DEFAULT_WORKBENCH_TABS[0]!;
+        tabs[Math.max(0, Math.min(currentIndex, tabs.length - 1))] ??
+        tabs[0] ??
+        DEFAULT_WORKBENCH_TABS[0]!;
       return {
         tabs,
         activeTabId: current.activeTabId === tabId ? fallbackTab.id : current.activeTabId,
@@ -917,9 +920,7 @@ export const workbenchTabPersistenceActions = {
     updateWorkspaceState(workspaceKey, (current) => ({
       ...current,
       tabs: current.tabs.map((tab) =>
-        tab.id === tabId && tab.label !== trimmedLabel
-          ? { ...tab, label: trimmedLabel }
-          : tab,
+        tab.id === tabId && tab.label !== trimmedLabel ? { ...tab, label: trimmedLabel } : tab,
       ),
     }));
   },

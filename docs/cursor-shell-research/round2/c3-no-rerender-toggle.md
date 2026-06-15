@@ -16,25 +16,26 @@ Cursor's unified chat/editor maximize control is **`workbench.action.maximizeCha
 Command run path reads the context key and toggles layout:
 
 ```js
-const d=!(s.getContextKeyValue(K4e.key)===!0);await i.toggleUnifiedMaximizeState()
+const d = !(s.getContextKeyValue(K4e.key) === !0);
+await i.toggleUnifiedMaximizeState();
 ```
 
 Layout service writes the key when maximize state changes:
 
 ```js
-this.agentChatMaximizedContext?.set(e)
+this.agentChatMaximizedContext?.set(e);
 ```
 
 Context key definition:
 
 ```js
-K4e=new $n("agentChatMaximized",!1,N(4314,null))
+K4e = new $n("agentChatMaximized", !1, N(4314, null));
 ```
 
 Bound in layout service init:
 
 ```js
-this.agentChatMaximizedContext=K4e.bindTo(this.contextKeyService)
+this.agentChatMaximizedContext = K4e.bindTo(this.contextKeyService);
 ```
 
 ## 3. Menu registration (`toggled:`)
@@ -66,7 +67,10 @@ toggled:{condition:r2i,icon:QAx,tooltip:N(3903,null)}
 When menu items are parsed, `command.toggled` keys are registered:
 
 ```js
-if(e.command.toggled){const t=e.command.toggled.condition||e.command.toggled;CMp._fillInKbExprKeys(t,this._toggledContextKeys)}
+if (e.command.toggled) {
+  const t = e.command.toggled.condition || e.command.toggled;
+  CMp._fillInKbExprKeys(t, this._toggledContextKeys);
+}
 ```
 
 ### 4.2 Context change fires menu update
@@ -86,7 +90,15 @@ this.layoutToolbarMenu.onDidChange(()=>{...this.scheduleActionToolBarMenusUpdate
 Dedicated listener for maximize key also repositions toolbar container (DOM move, not React):
 
 ```js
-const o=new Set([K4e.key]);this._register(this.contextKeyService.onDidChangeContext(a=>{a.affectsSome(o)&&so(this.element).requestAnimationFrame(()=>{this.updateActionsPositioning()})}))
+const o = new Set([K4e.key]);
+this._register(
+  this.contextKeyService.onDidChangeContext((a) => {
+    a.affectsSome(o) &&
+      so(this.element).requestAnimationFrame(() => {
+        this.updateActionsPositioning();
+      });
+  }),
+);
 ```
 
 ### 4.3 MenuItemAction (`v0`) evaluates checked once per refresh
@@ -100,7 +112,9 @@ if(n.toggled){const c=n.toggled.condition?n.toggled:{condition:n.toggled};this.c
 Helper for structured toggled objects:
 
 ```js
-function IHp(n){return n?n.condition!==void 0:!1}
+function IHp(n) {
+  return n ? n.condition !== void 0 : !1;
+}
 ```
 
 ## 5. Imperative view-item update (no React)
@@ -108,7 +122,7 @@ function IHp(n){return n?n.condition!==void 0:!1}
 Toolbar is VS Code **`monaco-action-bar`** / **`ActionBar` (`Ey`)** inside titlebar part `jFa` / `v5v`. Titlebar creates one persistent container:
 
 ```js
-this.actionToolBarElement=Qt(this.rightContent,zt("div.action-toolbar-container"))
+this.actionToolBarElement = Qt(this.rightContent, zt("div.action-toolbar-container"));
 ```
 
 View item factory for menu actions:
@@ -124,7 +138,7 @@ function _5(n,e,t){return e instanceof v0?n.createInstance(rV,e,t):...}
 `L8` subscribes to `Lo.onDidChange` and calls `updateChecked()` when `checked` changes:
 
 ```js
-n.checked!==void 0&&this.updateChecked()
+n.checked !== void 0 && this.updateChecked();
 ```
 
 `gO.updateChecked()` mutates the existing `.action-label` node:
@@ -138,7 +152,15 @@ updateChecked(){this.label&&(this.action.checked!==void 0?(this.label.classList.
 `MenuEntryActionViewItem.updateClass()` -> `_updateItemClass()` picks icon from toggled state:
 
 ```js
-const i=this._commandAction.checked&&IHp(n.toggled)&&n.toggled.icon?n.toggled.icon:n.icon;if(i)if(mn.isThemeIcon(i)){const r=mn.asClassNameArray(i);t.classList.add(...r),this._itemClassDispose.value=or(()=>{t.classList.remove(...r)})}
+const i = this._commandAction.checked && IHp(n.toggled) && n.toggled.icon ? n.toggled.icon : n.icon;
+if (i)
+  if (mn.isThemeIcon(i)) {
+    const r = mn.asClassNameArray(i);
+    (t.classList.add(...r),
+      (this._itemClassDispose.value = or(() => {
+        t.classList.remove(...r);
+      })));
+  }
 ```
 
 Off state: `codicon-maximize`. On state: `codicon-minimize`. Swap is **classList add/remove on the same `<a.action-label>`**, not a React icon prop.
@@ -148,19 +170,21 @@ Off state: `codicon-maximize`. On state: `codicon-minimize`. Swap is **classList
 Action bar enables highlight when editor actions live in titlebar:
 
 ```js
-highlightToggledItems:this.editorActionsEnabled
+highlightToggledItems: this.editorActionsEnabled;
 ```
 
 Which adds container class:
 
 ```js
-this.options.highlightToggledItems&&this.actionsList.classList.add("highlight-toggled")
+this.options.highlightToggledItems && this.actionsList.classList.add("highlight-toggled");
 ```
 
 CSS:
 
 ```css
-.monaco-action-bar .actions-container.highlight-toggled .action-label.checked{background:var(--vscode-actionBar-toggledBackground)!important}
+.monaco-action-bar .actions-container.highlight-toggled .action-label.checked {
+  background: var(--vscode-actionBar-toggledBackground) !important;
+}
 ```
 
 `.toggled` class and `[aria-checked=true]` attribute selectors: **not found** in `workbench.desktop.main.css`. State uses `.checked` on `.action-label`.
@@ -172,7 +196,9 @@ CSS:
 Titlebar part, `.action-toolbar-container`, and `.monaco-action-bar` are created once in `createContentArea`. On maximize, the **same** `actionToolBarElement` node is reparented between titlebar and editor tabs:
 
 ```js
-t.appendChild(this.actionToolBarElement),this.actionToolBarElement.classList.toggle("in-editor-tabs",n==="editor-tabs"),this.actionToolBarElement.classList.toggle("in-titlebar",n==="titlebar")
+(t.appendChild(this.actionToolBarElement),
+  this.actionToolBarElement.classList.toggle("in-editor-tabs", n === "editor-tabs"),
+  this.actionToolBarElement.classList.toggle("in-titlebar", n === "titlebar"));
 ```
 
 This is imperative DOM motion, not component unmount.
@@ -215,23 +241,23 @@ toggleUnifiedMaximizeState()
 
 ## 8. Exact identifiers
 
-| Identifier | Role |
-|---|---|
-| `agentChatMaximized` | Context key string (`K4e.key`) |
-| `K4e` | Context key object; `bindTo(contextKeyService)` as `agentChatMaximizedContext` |
-| `workbench.action.maximizeChatSize` | Command id (`S3h.ID`, `RUg.ID`) |
-| `Ct.LayoutControlMenu` | Titlebar layout toolbar menu id |
-| `Ct.ViewTitle` | Composer pane title menu (also registers maximize with `toggled:`) |
-| `v0` | `MenuItemAction` — sets `.checked` from `contextMatchesRules(toggled.condition)` |
-| `rV` | `MenuEntryActionViewItem` — `_updateItemClass`, `updateChecked` |
-| `gO` | `CodiconActionViewItem` — `updateChecked()` on `.action-label` |
-| `L8` | `BaseActionViewItem` — `handleActionChangeEvent` -> `updateChecked()` |
-| `Ey` / `FB` | `ActionBar` / workbench `WorkbenchToolBar` |
-| `IHp()` | Returns true when toggled object has `.condition` |
-| `it.maximize` / `it.minimize` | Off/on codicons |
-| `.action-label.checked` | Toggle-on surface class |
-| `.highlight-toggled` | Action-bar container class for toggled background |
-| `data-command-id` | Set on menu-entry items (`Oot="data-command-id"`) |
+| Identifier                          | Role                                                                             |
+| ----------------------------------- | -------------------------------------------------------------------------------- |
+| `agentChatMaximized`                | Context key string (`K4e.key`)                                                   |
+| `K4e`                               | Context key object; `bindTo(contextKeyService)` as `agentChatMaximizedContext`   |
+| `workbench.action.maximizeChatSize` | Command id (`S3h.ID`, `RUg.ID`)                                                  |
+| `Ct.LayoutControlMenu`              | Titlebar layout toolbar menu id                                                  |
+| `Ct.ViewTitle`                      | Composer pane title menu (also registers maximize with `toggled:`)               |
+| `v0`                                | `MenuItemAction` — sets `.checked` from `contextMatchesRules(toggled.condition)` |
+| `rV`                                | `MenuEntryActionViewItem` — `_updateItemClass`, `updateChecked`                  |
+| `gO`                                | `CodiconActionViewItem` — `updateChecked()` on `.action-label`                   |
+| `L8`                                | `BaseActionViewItem` — `handleActionChangeEvent` -> `updateChecked()`            |
+| `Ey` / `FB`                         | `ActionBar` / workbench `WorkbenchToolBar`                                       |
+| `IHp()`                             | Returns true when toggled object has `.condition`                                |
+| `it.maximize` / `it.minimize`       | Off/on codicons                                                                  |
+| `.action-label.checked`             | Toggle-on surface class                                                          |
+| `.highlight-toggled`                | Action-bar container class for toggled background                                |
+| `data-command-id`                   | Set on menu-entry items (`Oot="data-command-id"`)                                |
 
 ## 9. Not found / caveats
 

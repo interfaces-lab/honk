@@ -23,25 +23,31 @@ Source discipline:
 
 React DOM is present. The useful counts were:
 
-| Anchor | JS count |
-|---|---:|
-| `createRoot` | 20 |
-| `.createRoot(` | 7 |
-| `react-dom` | 9 |
-| `react-dom/client` | 1 |
-| `ReactDOM` | 0 |
-| `jsx-runtime` | 17 |
-| `useState` | 69 |
-| `useReducer` | 11 |
-| `useSyncExternalStore` | 10 |
-| `react-bridge.js` | 1 |
-| `solid-js` | 5 |
-| `renderComposerPane` | 1 |
+| Anchor                 | JS count |
+| ---------------------- | -------: |
+| `createRoot`           |       20 |
+| `.createRoot(`         |        7 |
+| `react-dom`            |        9 |
+| `react-dom/client`     |        1 |
+| `ReactDOM`             |        0 |
+| `jsx-runtime`          |       17 |
+| `useState`             |       69 |
+| `useReducer`           |       11 |
+| `useSyncExternalStore` |       10 |
+| `react-bridge.js`      |        1 |
+| `solid-js`             |        5 |
+| `renderComposerPane`   |        1 |
 
 The bundle includes React DOM internals:
 
 ```js
-BKt={bundleType:0,version:"19.2.0",rendererPackageName:"react-dom",currentDispatcherRef:ie,reconcilerVersion:"19.2.0"}
+BKt = {
+  bundleType: 0,
+  version: "19.2.0",
+  rendererPackageName: "react-dom",
+  currentDispatcherRef: ie,
+  reconcilerVersion: "19.2.0",
+};
 ```
 
 It also includes Solid's runtime:
@@ -102,17 +108,26 @@ var NqS=(n,e,t,i)=>Tw(()=>{try{...const s=r.u(Sse("renderComposerPane")),o=Fr(),
 It writes composer-specific DOM attributes on the composer element:
 
 ```js
-Ar(bs,"data-composer-id",qr.t=Pm),Ou!==qr.a&&Ar(bs,"data-composer-location",qr.a=Ou),bp!==qr.o&&Ar(bs,"data-composer-status",qr.o=bp)
+(Ar(bs, "data-composer-id", (qr.t = Pm)),
+  Ou !== qr.a && Ar(bs, "data-composer-location", (qr.a = Ou)),
+  bp !== qr.o && Ar(bs, "data-composer-status", (qr.o = bp)));
 ```
 
 CSS then styles that leaf:
 
 ```css
-.composer-bar[data-composer-location=bar]{margin:0 auto;max-width:var(--composer-max-width,840px)}
+.composer-bar[data-composer-location="bar"] {
+  margin: 0 auto;
+  max-width: var(--composer-max-width, 840px);
+}
 ```
 
 ```css
-.composer-bar.editor,.composer-bar.editor .composer-human-message-container,...{background:var(--composer-pane-background)!important}
+.composer-bar.editor,
+.composer-bar.editor .composer-human-message-container,
+... {
+  background: var(--composer-pane-background) !important;
+}
 ```
 
 Verdict for the content area: the composer/chat UI is mounted inside a VS Code part or editor surface. It may use Solid and React bridge leaves. It is not the thing laying out the workbench chrome.
@@ -132,7 +147,9 @@ const m={"workbench.parts.activitybar":this.activityBarPartView,...,"workbench.p
 Generic layout is a grid operation followed by layout events:
 
 ```js
-this.workbenchGrid.layout(c,d),this.initialized=!0,this.handleContainerDidLayout(this.mainContainer,this._mainContainerDimension)
+(this.workbenchGrid.layout(c, d),
+  (this.initialized = !0),
+  this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension));
 ```
 
 ```js
@@ -166,7 +183,12 @@ setEditorHidden(e,t){this.stateModel.setRuntimeValue(Bu.EDITOR_HIDDEN,e),this.is
 ```
 
 ```js
-e?this.mainContainer.classList.add("nomaineditorarea"):this.mainContainer.classList.remove("nomaineditorarea"),this.workbenchGrid&&this.editorPartView&&this.workbenchGrid.setViewVisible(this.editorPartView,!e)
+(e
+  ? this.mainContainer.classList.add("nomaineditorarea")
+  : this.mainContainer.classList.remove("nomaineditorarea"),
+  this.workbenchGrid &&
+    this.editorPartView &&
+    this.workbenchGrid.setViewVisible(this.editorPartView, !e));
 ```
 
 Sidebar and panel follow the same imperative pattern:
@@ -182,11 +204,18 @@ setPanelHidden(e,t){...this.stateModel.setRuntimeValue(Bu.PANEL_HIDDEN,e),this.s
 The CSS backstop is plain display/visibility hiding:
 
 ```css
-.monaco-workbench.noauxiliarybar .part.auxiliarybar,...{display:none!important;visibility:hidden!important}
+.monaco-workbench.noauxiliarybar .part.auxiliarybar,
+... {
+  display: none !important;
+  visibility: hidden !important;
+}
 ```
 
 ```css
-.monaco-workbench.nosidebar>.part.sidebar{display:none!important;visibility:hidden!important}
+.monaco-workbench.nosidebar > .part.sidebar {
+  display: none !important;
+  visibility: hidden !important;
+}
 ```
 
 The exact hide-method windows contain state writes, class changes, pane-composite calls, `setViewVisible`, `resizeView`, context-key writes, and layout events. They do not contain a React render call.

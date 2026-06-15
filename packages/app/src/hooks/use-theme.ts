@@ -1,10 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { isElectron } from "../env";
-import {
-  APPEARANCE_SETTINGS_CHANGED,
-  applyAppearanceBoot,
-} from "../lib/appearance-settings";
+import { APPEARANCE_SETTINGS_CHANGED, applyAppearanceBoot } from "../lib/appearance-settings";
 
 type Theme = "light" | "dark" | "system";
 type ThemeSnapshot = {

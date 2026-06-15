@@ -1172,9 +1172,9 @@ function ChatWorkbenchShellHost(props: {
       const wasActive = previousTerminalState.activeId === terminalId;
       const api = readWorkbenchTerminalApi(props.environmentId);
       if (api && terminalThreadId) {
-        void api.close({ threadId: terminalThreadId, terminalId, deleteHistory: true }).catch(
-          () => undefined,
-        );
+        void api
+          .close({ threadId: terminalThreadId, terminalId, deleteHistory: true })
+          .catch(() => undefined);
         forgetWorkbenchTerminalRunning(terminalThreadId, props.environmentId, terminalId);
       }
       shellPanelsActions.removeTerminalSession(props.workspaceKey, terminalId);

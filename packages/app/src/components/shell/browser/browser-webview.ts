@@ -18,9 +18,7 @@ export function browserWebviewClearHistory(webview: HTMLWebViewElement): void {
   webview.clearHistory?.();
 }
 
-export function browserWebviewCapturePage(
-  webview: HTMLWebViewElement,
-): Promise<string | null> {
+export function browserWebviewCapturePage(webview: HTMLWebViewElement): Promise<string | null> {
   const capturePage = webview.capturePage;
   if (typeof capturePage !== "function") {
     return Promise.resolve(null);
