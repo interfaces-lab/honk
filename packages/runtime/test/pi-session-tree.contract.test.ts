@@ -197,6 +197,75 @@ describe("Pi session tree contract", () => {
     ).toEqual([[{ type: "text", text: "new prompt" }]]);
   });
 
+  it("branches prompts from the supplied thread parent entry", async () => {
+    const harness = await createRuntimeHarness();
+    harnesses.push(harness);
+    harness.setResponses([
+      fauxAssistantMessage("first response"),
+      fauxAssistantMessage("second response"),
+      fauxAssistantMessage("branched response"),
+    ]);
+
+    const firstClientMessageId = MessageId.make("client:first-parent");
+    const secondClientMessageId = MessageId.make("client:second-tip");
+    const branchClientMessageId = MessageId.make("client:branch-from-first");
+    await waitForEvent(harness.runtime, "tree.updated", () =>
+      harness.runtime.sendMessage("first prompt", {
+        ...EMPTY_SEND_MESSAGE_OPTIONS,
+        clientMessageId: firstClientMessageId,
+      }),
+    );
+    await waitForEvent(harness.runtime, "tree.updated", () =>
+      harness.runtime.sendMessage("second prompt", {
+        ...EMPTY_SEND_MESSAGE_OPTIONS,
+        clientMessageId: secondClientMessageId,
+      }),
+    );
+
+    await waitForEvent(harness.runtime, "tree.updated", () =>
+      harness.runtime.sendMessage("branched prompt", {
+        ...EMPTY_SEND_MESSAGE_OPTIONS,
+        clientMessageId: branchClientMessageId,
+        parentEntryId: threadEntryIdForMessageId(firstClientMessageId),
+      }),
+    );
+
+    const tree = harness.runtime.getSessionTree();
+    const firstUserEntry = tree.entries.find(
+      (entry) => entry.role === "user" && entry.clientMessageId === firstClientMessageId,
+    );
+    const secondUserEntry = tree.entries.find(
+      (entry) => entry.role === "user" && entry.clientMessageId === secondClientMessageId,
+    );
+    const branchUserEntry = tree.entries.find(
+      (entry) => entry.role === "user" && entry.clientMessageId === branchClientMessageId,
+    );
+    const branchAssistantEntry = tree.entries.find(
+      (entry) => entry.role === "assistant" && entry.text === "branched response",
+    );
+
+    expect(firstUserEntry).toBeDefined();
+    expect(secondUserEntry).toBeDefined();
+    expect(branchUserEntry?.parentId).toBe(firstUserEntry?.id);
+    expect(branchUserEntry?.parentThreadEntryId).toBe(
+      threadEntryIdForMessageId(firstClientMessageId),
+    );
+    expect(tree.leafEntryId).toBe(branchAssistantEntry?.id);
+
+    const branchNode = tree.nodes.find((node) => node.entryId === branchUserEntry?.id);
+    const secondNode = tree.nodes.find((node) => node.entryId === secondUserEntry?.id);
+    expect(branchNode?.isActivePath).toBe(true);
+    expect(secondNode?.isActivePath).toBe(false);
+    expect(
+      harness.runtime.session.messages
+        .filter((message): message is UserMessage => message.role === "user")
+        .map((message) => message.content),
+    ).toEqual([
+      [{ type: "text", text: "first prompt" }],
+      [{ type: "text", text: "branched prompt" }],
+    ]);
+  });
+
   it("rejects revision when the replaced client message id cannot be resolved", async () => {
     const harness = await createRuntimeHarness();
     harnesses.push(harness);

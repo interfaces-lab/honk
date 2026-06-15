@@ -367,10 +367,15 @@ export const ThreadAgentRuntimeSendTurnInput = Schema.Struct({
   clientMessageId: MessageId,
   /**
    * User message this send revises. The runtime branches the pi session so the
-   * new message becomes a sibling of the revised one; omitted/null appends at
-   * the current leaf.
+   * new message becomes a sibling of the revised one when parentEntryId points
+   * at the revised message's parent.
    */
   replacesClientMessageId: Schema.optional(Schema.NullOr(MessageId)),
+  /**
+   * Thread tree entry this send appends under. This is the canonical branch
+   * point shared by orchestration and the runtime session tree.
+   */
+  parentEntryId: Schema.optional(Schema.NullOr(ThreadEntryId)),
   images: Schema.Array(ThreadAgentRuntimeImageAttachment),
   policy: AgentModelPolicy,
 });
