@@ -754,8 +754,6 @@ describe("deriveTimelineRenderItems", () => {
             display: {
               kind: "subagent",
               mode: "single",
-              agentScope: "project",
-              projectAgentsDir: null,
               runs: [
                 {
                   subagentThreadId: "thread:child",

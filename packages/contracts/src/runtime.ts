@@ -394,10 +394,6 @@ export const SUBAGENT_MODES = ["single", "parallel", "chain"] as const;
 export const SubagentMode = Schema.Literals(SUBAGENT_MODES);
 export type SubagentMode = typeof SubagentMode.Type;
 
-export const SUBAGENT_SCOPES = ["user", "project", "both"] as const;
-export const SubagentScope = Schema.Literals(SUBAGENT_SCOPES);
-export type SubagentScope = typeof SubagentScope.Type;
-
 export const SUBAGENT_RUN_STATES = ["running", "completed", "failed", "aborted"] as const;
 export const SubagentRunState = Schema.Literals(SUBAGENT_RUN_STATES);
 export type SubagentRunState = typeof SubagentRunState.Type;
@@ -457,8 +453,6 @@ export type SubagentRunSnapshot = typeof SubagentRunSnapshot.Type;
 
 export const SubagentToolDetails = Schema.Struct({
   mode: SubagentMode,
-  agentScope: SubagentScope,
-  projectAgentsDir: Schema.NullOr(Schema.String),
   runs: Schema.Array(SubagentRunSnapshot),
   activities: Schema.Array(SubagentActivityDetails),
 });
@@ -581,8 +575,6 @@ const RuntimeDisplayTimelineMcpToolDisplay = Schema.Struct({
 const RuntimeDisplayTimelineSubagentToolDisplay = Schema.Struct({
   kind: Schema.Literal("subagent"),
   mode: SubagentMode,
-  agentScope: SubagentScope,
-  projectAgentsDir: Schema.NullOr(Schema.String),
   runs: Schema.Array(SubagentRunSnapshot),
   activities: Schema.Array(SubagentActivityDetails),
 });

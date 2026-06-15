@@ -381,8 +381,6 @@ describe("agent runtime store", () => {
           display: {
             kind: "subagent",
             mode: "single",
-            agentScope: "user",
-            projectAgentsDir: null,
             runs: [
               {
                 subagentThreadId: "thread:agent-store:child",

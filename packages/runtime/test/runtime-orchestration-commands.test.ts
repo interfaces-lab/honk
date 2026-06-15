@@ -211,8 +211,6 @@ describe("runtime orchestration commands", () => {
           content: [{ type: "text", text: "large final response should not be duplicated" }],
           details: {
             mode: "single",
-            agentScope: "both",
-            projectAgentsDir: null,
             runs: [
               {
                 subagentThreadId: "thread:child",
