@@ -664,14 +664,9 @@ const ShellHeaderControls = memo(function ShellHeaderControls(props: {
   const rightPanelLabel = rightOpen ? "Hide project panel" : SHOW_RIGHT_WORKBENCH_LABEL;
 
   return (
-    <div className="honk-shell-titlebar-controls pointer-events-none absolute top-0 right-0 left-0 z-(--z-index-shell-titlebar-controls) box-border flex h-(--honk-header-height) min-w-0 items-center">
+    <>
       <div
-        className="honk-shell-titlebar-drag-region drag-region pointer-events-auto absolute inset-0"
-        data-shell-drag-region=""
-        aria-hidden
-      />
-      <div
-        className="honk-shell-titlebar-left-controls pointer-events-auto no-drag absolute flex h-(--honk-titlebar-control-height) shrink-0 items-center gap-0.5"
+        className="honk-shell-titlebar-left-controls pointer-events-auto no-drag absolute z-(--z-index-shell-titlebar-controls) flex h-(--honk-titlebar-control-height) shrink-0 items-center gap-0.5"
         data-shell-no-drag=""
       >
         <ShellLeftToggleButton />
@@ -688,7 +683,7 @@ const ShellHeaderControls = memo(function ShellHeaderControls(props: {
       </div>
       {props.showRight ? (
         <div
-          className="honk-shell-titlebar-right-toggle pointer-events-auto no-drag absolute z-40 flex h-(--honk-titlebar-control-height) shrink-0 items-center"
+          className="honk-shell-titlebar-right-toggle pointer-events-auto no-drag absolute z-(--z-index-shell-titlebar-controls) flex h-(--honk-titlebar-control-height) shrink-0 items-center"
           data-shell-no-drag=""
         >
           <button
@@ -708,7 +703,7 @@ const ShellHeaderControls = memo(function ShellHeaderControls(props: {
           </button>
         </div>
       ) : null}
-    </div>
+    </>
   );
 });
 

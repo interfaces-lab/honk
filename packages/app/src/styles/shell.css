@@ -453,28 +453,10 @@ html:not([data-electron]) .agent-window {
   pointer-events: none;
 }
 
-.honk-shell-titlebar-controls {
-  z-index: 50;
-}
-
-/*
- * Honk's shell is Cursor's no-titlebar shape: chat and workbench top rows own
- * drag, while the floating titlebar layer owns only its visible controls.
- */
-.honk-shell-titlebar-drag-region {
-  z-index: 0;
-  pointer-events: none;
-}
-
-.honk-shell-titlebar-left-controls,
-.honk-shell-titlebar-right-toggle {
-  z-index: 1;
-}
-
 /*
  * Cursor editor-panel-tab-root: bar root drags empty chrome; interactive children opt out.
- * Raise above .honk-shell-titlebar-controls so the full-width titlebar drag band does not
- * swallow tab clicks (tabs sit in the same 35px row as the frameless titlebar).
+ * The floating shell controls are only the visible buttons; there is no full-width
+ * titlebar overlay over the workbench.
  */
 [data-shell-platform="electron"] .honk-workbench-tool-island.editor-panel-tab-root {
   z-index: var(--z-index-workbench-tool-island);
