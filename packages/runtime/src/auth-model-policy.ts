@@ -62,6 +62,7 @@ export function createModelPolicy(input: {
   readonly agentMode?: AgentMode;
   readonly thinkingLevel?: ThinkingLevel;
   readonly interactionMode?: AgentInteractionMode;
+  readonly fast?: boolean;
   readonly allowedToolNames?: readonly string[];
   readonly excludedToolNames?: readonly string[];
 }): AgentModelPolicy {
@@ -85,6 +86,7 @@ export function createModelPolicy(input: {
     agentMode,
     interactionMode: input.interactionMode ?? DEFAULT_AGENT_INTERACTION_MODE,
     modelSelection,
+    fast: input.fast ?? false,
     thinkingLevel,
     allowedToolNames: input.allowedToolNames ? [...input.allowedToolNames] : [],
     excludedToolNames: input.excludedToolNames ? [...input.excludedToolNames] : [],

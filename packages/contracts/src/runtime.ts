@@ -86,6 +86,7 @@ export const AgentModelPolicy = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed("agent" as const)),
   ),
   modelSelection: AgentPolicyModelSelection,
+  fast: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   thinkingLevel: Schema.NullOr(AgentThinkingLevel).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
@@ -197,6 +198,7 @@ export const AgentPreferences = Schema.Struct({
   modelSettingsByModelId: Schema.Record(ModelId, AgentModelSettings).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
+  fast: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   thinkingLevel: AgentThinkingLevel.pipe(
     Schema.withDecodingDefault(Effect.succeed("high" as const)),
   ),
@@ -214,6 +216,7 @@ export const AgentPreferencesPatch = Schema.Struct({
   interactionMode: Schema.optionalKey(AgentInteractionMode),
   modelSelection: Schema.optionalKey(AgentPolicyModelSelection),
   modelSettingsByModelId: Schema.optionalKey(Schema.Record(ModelId, AgentModelSettings)),
+  fast: Schema.optionalKey(Schema.Boolean),
   thinkingLevel: Schema.optionalKey(AgentThinkingLevel),
   resources: Schema.optionalKey(AgentResourcePreferences),
   credentials: Schema.optionalKey(Schema.Array(AgentCredentialPreference)),
@@ -382,6 +385,14 @@ export const ThreadAgentRuntimeHydrateInput = Schema.Struct({
   policy: AgentModelPolicy,
 });
 export type ThreadAgentRuntimeHydrateInput = typeof ThreadAgentRuntimeHydrateInput.Type;
+
+export const ThreadAgentRuntimeCompactInput = Schema.Struct({
+  threadId: ThreadId,
+  cwd: TrimmedNonEmptyString,
+  customInstructions: Schema.optional(Schema.String),
+  policy: AgentModelPolicy,
+});
+export type ThreadAgentRuntimeCompactInput = typeof ThreadAgentRuntimeCompactInput.Type;
 
 export const ThreadAgentRuntimeSetThreadFocusInput = Schema.Struct({
   threadId: ThreadId,
@@ -868,6 +879,7 @@ export interface HonkRuntimeApi {
   updatePreferences: (patch: AgentPreferencesPatch) => Promise<AgentPreferences>;
   configureCredential: (input: AgentCredentialConfigureInput) => Promise<HonkRuntimeHostSnapshot>;
   hydrateThread: (input: ThreadAgentRuntimeHydrateInput) => Promise<void>;
+  compactThread: (input: ThreadAgentRuntimeCompactInput) => Promise<void>;
   setThreadFocus: (input: ThreadAgentRuntimeSetThreadFocusInput) => Promise<void>;
   sendTurn: (input: ThreadAgentRuntimeSendTurnInput) => Promise<TurnId>;
   abort: (input: ThreadAgentRuntimeAbortInput) => Promise<void>;

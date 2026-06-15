@@ -40,6 +40,7 @@ function createRuntimeApi(input: {
       input.onSendTurn?.(turn);
       return TurnId.make(`turn:${turn.threadId}`);
     },
+    compactThread: async () => undefined,
     abort: async () => undefined,
     respondToExtensionUiRequest: async () => undefined,
     listSkills: async () => ({ skills: [] }),

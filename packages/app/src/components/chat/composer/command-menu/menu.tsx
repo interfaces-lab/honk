@@ -1,4 +1,9 @@
-import { type ProjectEntry, type EnvironmentId, type ThreadId } from "@honk/contracts";
+import {
+  type AgentMode,
+  type EnvironmentId,
+  type ProjectEntry,
+  type ThreadId,
+} from "@honk/contracts";
 import {
   insertRankedSearchResult,
   normalizeSearchQuery,
@@ -7,11 +12,13 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import {
+  IconArchive,
   IconBubble2,
   IconBug,
   IconBubbleQuestion,
   IconRobot,
   IconSquareChecklist,
+  IconTargetArrow,
 } from "central-icons";
 import { useMemo, type ComponentProps } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -317,6 +324,7 @@ function resolveComposerMenuActiveItemId(input: {
 
 export function useComposerCommandMenu(input: {
   activeThreadId: ThreadId | null;
+  agentMode?: AgentMode | undefined;
   allowModeSlashCommands?: boolean | undefined;
   composerTrigger: ComposerTrigger | null;
   environmentId: EnvironmentId;
@@ -442,7 +450,23 @@ export function useComposerCommandMenu(input: {
           label: "/debug",
           description: "Focus on diagnostics before making changes",
         },
+        {
+          id: "slash:compact",
+          type: "slash-command",
+          command: "compact",
+          label: "/compact",
+          description: "Compact this thread's context",
+        },
       );
+      if (input.agentMode === "deep" || input.agentMode === "rush") {
+        builtInSlashCommandItems.push({
+          id: "slash:goal",
+          type: "slash-command",
+          command: "goal",
+          label: "/goal",
+          description: "Write a Codex-style goal for this run",
+        });
+      }
     }
     const skillItems: Array<Extract<ComposerCommandItem, { type: "skill" }>> =
       input.allowModeSlashCommands === false
@@ -459,7 +483,7 @@ export function useComposerCommandMenu(input: {
       return searchSlashMenuItems(builtInSlashCommandItems, skillItems, query);
     }
 
-    // Unsearched: Skills section (collapsed to 3 + "Show N more") above Modes.
+    // Unsearched: Skills section (collapsed to 3 + "Show N more") above commands.
     const skillsExpanded = input.expandedSections.has(SLASH_MENU_SKILLS_SECTION_ID);
     const visibleSkillItems = skillsExpanded
       ? skillItems
@@ -533,6 +557,8 @@ function renderSlashCommandIcon(command: ComposerSlashCommand) {
   if (command === "ask") return <IconBubbleQuestion className={className} />;
   if (command === "plan") return <IconSquareChecklist className={className} />;
   if (command === "debug") return <IconBug className={className} />;
+  if (command === "compact") return <IconArchive className={className} />;
+  if (command === "goal") return <IconTargetArrow className={className} />;
   return <IconRobot className={className} />;
 }
 
@@ -540,6 +566,8 @@ function getSlashCommandTertiaryText(command: ComposerSlashCommand): string {
   if (command === "ask") return "Ask Mode";
   if (command === "plan") return "Plan Mode";
   if (command === "debug") return "Debug Mode";
+  if (command === "compact") return "Compact";
+  if (command === "goal") return "Goal";
   return "Build Mode";
 }
 
@@ -577,7 +605,7 @@ function groupCommandItems(
     groups.push({ id: "skills", label: "Skills", items: skillSectionItems });
   }
   if (modeItems.length > 0) {
-    groups.push({ id: "modes", label: "Modes", items: modeItems });
+    groups.push({ id: "commands", label: "Commands", items: modeItems });
   }
   return groups;
 }

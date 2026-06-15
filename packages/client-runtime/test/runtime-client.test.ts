@@ -36,6 +36,7 @@ function createRuntimeApi(
     hydrateThread: async () => undefined,
     setThreadFocus: async () => undefined,
     sendTurn: async (input) => TurnId.make(`test:${input.threadId}`),
+    compactThread: async () => undefined,
     abort: async () => undefined,
     respondToExtensionUiRequest: async () => undefined,
     listSkills: async () => ({ skills: [] }),
