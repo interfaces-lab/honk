@@ -6,6 +6,7 @@ import type {
   HonkRuntimeApi,
   SourceProposedPlanReference,
   ThreadAgentRuntimeImageAttachment,
+  ThreadEntryId,
   ThreadId,
 } from "@honk/contracts";
 import { createAgentModelPolicy } from "@honk/shared/agent-model-policy";
@@ -24,6 +25,7 @@ interface RuntimeTurnInput {
   readonly sourceProposedPlan: SourceProposedPlanReference | null;
   readonly clientMessageId: MessageId;
   readonly replacesClientMessageId: MessageId | null;
+  readonly parentEntryId?: ThreadEntryId | null;
   readonly images: readonly ThreadAgentRuntimeImageAttachment[];
   readonly modelSelection: ModelSelection;
 }
@@ -64,6 +66,7 @@ export async function sendRuntimeTurnWithPreparedPolicy(
     sourceProposedPlan: input.sourceProposedPlan,
     clientMessageId: input.clientMessageId,
     replacesClientMessageId: input.replacesClientMessageId,
+    ...(input.parentEntryId !== undefined ? { parentEntryId: input.parentEntryId } : {}),
     images: [...input.images],
     policy: await input.preparedPolicy.policy,
   });

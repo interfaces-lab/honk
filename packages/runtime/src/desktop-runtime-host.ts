@@ -156,6 +156,7 @@ type RuntimeThreadSendInput = Pick<
   | "sourceProposedPlan"
   | "clientMessageId"
   | "replacesClientMessageId"
+  | "parentEntryId"
   | "images"
 >;
 
@@ -459,6 +460,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     return entry.runtime.sendMessage(input.input, {
       clientMessageId: input.clientMessageId,
       replacesClientMessageId: input.replacesClientMessageId ?? null,
+      ...(input.parentEntryId !== undefined ? { parentEntryId: input.parentEntryId } : {}),
       interactionMode: input.interactionMode,
       sourceProposedPlan: input.sourceProposedPlan,
       images: input.images,
@@ -487,6 +489,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       sourceProposedPlan: input.sourceProposedPlan,
       clientMessageId: input.clientMessageId,
       replacesClientMessageId: input.replacesClientMessageId,
+      ...(input.parentEntryId !== undefined ? { parentEntryId: input.parentEntryId } : {}),
       images: input.images,
     };
     const startInput: RuntimeThreadStartInput = {

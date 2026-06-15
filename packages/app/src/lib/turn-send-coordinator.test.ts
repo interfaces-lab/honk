@@ -164,6 +164,7 @@ function baseCoordinateInput(input: {
   persistBeforeDispatch?: () => Promise<void>;
   bootstrap?: Parameters<typeof buildThreadTurnStartCommand>[0]["bootstrap"];
   replacesClientMessageId?: MessageId | null;
+  parentEntryId?: Parameters<typeof coordinateTurnSend>[0]["parentEntryId"];
 }) {
   return {
     environmentId,
@@ -186,6 +187,7 @@ function baseCoordinateInput(input: {
     ...(input.replacesClientMessageId !== undefined
       ? { replacesClientMessageId: input.replacesClientMessageId }
       : {}),
+    ...(input.parentEntryId !== undefined ? { parentEntryId: input.parentEntryId } : {}),
     ...(input.appendSendIntent !== undefined ? { appendSendIntent: input.appendSendIntent } : {}),
     ...(input.applyLocalTurnStart !== undefined
       ? { applyLocalTurnStart: input.applyLocalTurnStart }
@@ -324,10 +326,38 @@ describe("turn-send-coordinator", () => {
     ]);
   });
 
-  it("omits parentEntryId from thread.turn.start for tip-append sends", async () => {
-    // Tip-append sends let the server resolve its own committed leaf; only branching
-    // sends (message edits) pass an explicit parent the server then validates.
+  it("passes the active thread leaf as parentEntryId for tip-append sends", async () => {
+    const parentMessageId = MessageId.make("message:existing-parent");
+    const parentEntryId = threadEntryIdForMessageId(parentMessageId);
+    applyLocalThreadCreated({
+      environmentId,
+      threadId,
+      projectId: ProjectId.make("project:turn-coordinator"),
+      title: "Existing thread",
+      modelSelection,
+      runtimeMode: DEFAULT_RUNTIME_MODE,
+      interactionMode: "agent",
+      branch: null,
+      worktreePath: null,
+      createdAt,
+    });
+    applyLocalThreadTurnStartRequested({
+      environmentId,
+      threadId,
+      message: {
+        messageId: parentMessageId,
+        text: "existing",
+        attachments: [],
+      },
+      modelSelection,
+      titleSeed: "Existing thread",
+      runtimeMode: DEFAULT_RUNTIME_MODE,
+      interactionMode: "agent",
+      parentEntryId: null,
+      createdAt,
+    });
     const dispatched: unknown[] = [];
+    const sentTurns: ThreadAgentRuntimeSendTurnInput[] = [];
     const dispatchCommand = vi.fn(async (command: unknown) => {
       dispatched.push(command);
       return { sequence: 1 };
@@ -337,7 +367,14 @@ describe("turn-send-coordinator", () => {
       diagnostics: [],
     };
     vi.stubGlobal("window", {
-      nativeApi: createLocalApi(createRuntimeApi({ snapshot })),
+      nativeApi: createLocalApi(
+        createRuntimeApi({
+          snapshot,
+          onSendTurn: (turn) => {
+            sentTurns.push(turn);
+          },
+        }),
+      ),
     });
     const api = createOrchestrationApi({ dispatchCommand });
     const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent", modelSelection });
@@ -351,7 +388,8 @@ describe("turn-send-coordinator", () => {
     );
 
     expect(dispatched).toHaveLength(1);
-    expect(dispatched[0]).not.toHaveProperty("parentEntryId");
+    expect(dispatched[0]).toHaveProperty("parentEntryId", parentEntryId);
+    expect(sentTurns[0]).toEqual(expect.objectContaining({ parentEntryId }));
   });
 
   it("passes an explicit parentEntryId through to thread.turn.start for branching sends", () => {
@@ -374,6 +412,7 @@ describe("turn-send-coordinator", () => {
 
   it("passes replacesClientMessageId to runtime sends for branching edits", async () => {
     const originalMessageId = MessageId.make("message:original-edit");
+    const parentEntryId = null;
     const sentTurns: ThreadAgentRuntimeSendTurnInput[] = [];
     const snapshot = {
       ...createEmptyRuntimeHostSnapshot(),
@@ -398,6 +437,7 @@ describe("turn-send-coordinator", () => {
         preparedPolicy,
         appendSendIntent: false,
         applyLocalTurnStart: false,
+        parentEntryId,
         replacesClientMessageId: originalMessageId,
       }),
     );
@@ -405,9 +445,32 @@ describe("turn-send-coordinator", () => {
     expect(sentTurns[0]).toEqual(
       expect.objectContaining({
         clientMessageId: messageId,
+        parentEntryId,
         replacesClientMessageId: originalMessageId,
       }),
     );
+  });
+
+  it("rejects edit sends without an explicit branch parent", async () => {
+    const snapshot = {
+      ...createEmptyRuntimeHostSnapshot(),
+      diagnostics: [],
+    };
+    vi.stubGlobal("window", {
+      nativeApi: createLocalApi(createRuntimeApi({ snapshot })),
+    });
+    const api = createOrchestrationApi({});
+    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent", modelSelection });
+
+    await expect(
+      coordinateTurnSend(
+        baseCoordinateInput({
+          api,
+          preparedPolicy,
+          replacesClientMessageId: MessageId.make("message:missing-parent"),
+        }),
+      ),
+    ).rejects.toThrow("Branching edit sends require parentEntryId.");
   });
 
   it("skips send intent when callers already announced optimistic state", async () => {
