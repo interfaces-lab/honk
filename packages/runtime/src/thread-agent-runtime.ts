@@ -44,6 +44,7 @@ import {
   createContextUsageExtension,
   type ContextUsageSnapshotSink,
 } from "./context-usage-extension";
+import { createCodexRuntimePolicyExtension } from "./codex-runtime-policy-extension";
 import { createDesktopExtensionUi, type DesktopExtensionUiController } from "./extension-ui";
 import { makeRuntimeEventId, makeRuntimeSessionId, makeTurnId } from "./ids";
 import { projectPiAgentSessionEvent } from "./event-projection";
@@ -243,6 +244,7 @@ export class ThreadAgentRuntime {
         additionalExtensionPaths: [...(options.extensionPaths ?? [])],
         extensionFactories: [
           createHonkSystemPromptIdentityExtension(),
+          createCodexRuntimePolicyExtension(options.policy),
           ...(options.extensionFactories ?? []),
           createInteractionModeExtension(interactionModeQueue),
           createContextUsageExtension(contextUsageSink),
@@ -270,6 +272,7 @@ export class ThreadAgentRuntime {
         agentMode: options.policy.agentMode,
         interactionMode: options.policy.interactionMode,
         thinkingLevel: sessionResult.session.thinkingLevel,
+        fast: options.policy.fast,
         ...(options.tools ? { allowedToolNames: options.tools } : {}),
         excludedToolNames: excludeTools,
       };
@@ -496,6 +499,11 @@ export class ThreadAgentRuntime {
     images: readonly ThreadAgentRuntimeImageAttachment[],
   ): Promise<void> {
     await this.session.followUp(text, toPiImageContent(images));
+  }
+
+  async compactContext(customInstructions?: string): Promise<void> {
+    await this.session.compact(customInstructions);
+    this.emit(this.createEvent("tree.updated", "Session tree updated"));
   }
 
   async abort(): Promise<void> {

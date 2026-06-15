@@ -4,6 +4,7 @@ import * as DesktopIpc from "./desktop-ipc";
 import { getClientSettings, setClientSettings } from "./methods/client-settings";
 import {
   abortRuntimeThread,
+  compactRuntimeThread,
   configureRuntimeCredential,
   getRuntimeHostSnapshot,
   getRuntimePreferences,
@@ -55,6 +56,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(hydrateRuntimeThread);
   yield* ipc.handle(setRuntimeThreadFocus);
   yield* ipc.handle(sendRuntimeTurn);
+  yield* ipc.handle(compactRuntimeThread);
   yield* ipc.handle(abortRuntimeThread);
   yield* ipc.handle(respondToRuntimeExtensionUiRequest);
   yield* ipc.handle(listRuntimeSkills);

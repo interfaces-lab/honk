@@ -149,6 +149,7 @@ function createFauxModelPolicy(model: Model<string>): AgentModelPolicy {
       accountId: AccountId.make(`${authProviderId}:default`),
       modelId: ModelId.make(`${model.provider}/${model.id}`),
     },
+    fast: false,
     thinkingLevel: "high",
     allowedToolNames: [],
     excludedToolNames: [],

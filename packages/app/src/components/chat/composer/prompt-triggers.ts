@@ -1,7 +1,16 @@
 import { splitPromptIntoComposerSegments, type ComposerPromptSegment } from "./prompt-segments";
 
 export type ComposerTriggerKind = "path" | "slash-command";
-export type ComposerSlashCommand = "agent" | "ask" | "plan" | "debug";
+export type ComposerSlashCommand = "agent" | "ask" | "plan" | "debug" | "compact" | "goal";
+export type ComposerModeSlashCommand = Extract<
+  ComposerSlashCommand,
+  "agent" | "ask" | "plan" | "debug"
+>;
+
+export interface ParsedStandaloneComposerSlashCommand {
+  command: ComposerSlashCommand;
+  body: string;
+}
 
 export interface ComposerTrigger {
   kind: ComposerTriggerKind;
@@ -262,14 +271,55 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
   };
 }
 
-export function parseStandaloneComposerSlashCommand(text: string): ComposerSlashCommand | null {
-  const match = /^\/(agent|ask|plan|debug|build)\s*$/i.exec(text.trim());
+function normalizeStandaloneComposerSlashCommand(command: string): ComposerSlashCommand | null {
+  switch (command.toLowerCase()) {
+    case "agent":
+    case "build":
+      return "agent";
+    case "ask":
+      return "ask";
+    case "plan":
+      return "plan";
+    case "debug":
+      return "debug";
+    case "compact":
+      return "compact";
+    case "goal":
+      return "goal";
+    default:
+      return null;
+  }
+}
+
+export function isComposerModeSlashCommand(
+  command: ComposerSlashCommand,
+): command is ComposerModeSlashCommand {
+  return command === "agent" || command === "ask" || command === "plan" || command === "debug";
+}
+
+export function parseStandaloneComposerSlashCommand(
+  text: string,
+): ParsedStandaloneComposerSlashCommand | null {
+  const match = /^\/([a-z]+)(?:\s+([\s\S]*))?$/i.exec(text.trim());
   if (!match) {
     return null;
   }
-  const command = match[1]?.toLowerCase();
-  if (command === "ask" || command === "plan" || command === "debug") return command;
-  return "agent";
+
+  const commandText = match[1];
+  if (!commandText) {
+    return null;
+  }
+  const command = normalizeStandaloneComposerSlashCommand(commandText);
+  if (!command) {
+    return null;
+  }
+
+  const body = (match[2] ?? "").trim();
+  if (body.length > 0 && isComposerModeSlashCommand(command)) {
+    return null;
+  }
+
+  return { command, body };
 }
 
 export function isUnresolvedStandaloneComposerSlashCommand(

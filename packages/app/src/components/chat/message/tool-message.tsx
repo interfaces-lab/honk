@@ -1006,7 +1006,8 @@ function resolveToolCase(workEntry: WorkLogEntry): ToolCallModel["tool"]["case"]
     return "readToolCall";
   }
   if (workEntry.itemType === "file_search") {
-    return "globToolCall";
+    const searchArtifact = workEntry.artifacts?.find((artifact) => artifact.type === "search");
+    return searchArtifact?.flavor === "grep" ? "grepToolCall" : "globToolCall";
   }
   if (workEntry.itemType === "web_search") {
     return "webSearchToolCall";

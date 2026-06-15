@@ -640,6 +640,7 @@ async function runSubagentTask(input: {
       agentMode: profile.agentMode,
       interactionMode: "agent",
       modelSelection,
+      fast: false,
       thinkingLevel: productThinkingLevel,
       // The effective allowlist is driven by the `tools` option above (create derives the policy's
       // allowedToolNames from it); leave this empty so we don't fight the branded policy type.
