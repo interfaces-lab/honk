@@ -130,6 +130,11 @@ jobs:
             platform: linux
             target: AppImage
             arch: x64
+          - label: Windows x64
+            runner: windows-2022
+            platform: win
+            target: nsis
+            arch: x64
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -151,6 +156,87 @@ jobs:
       - name: Align package versions to release version
         run: node packages/release-scripts/src/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
 
+      - name: Install Spectre-mitigated MSVC libs
+        if: matrix.platform == 'win'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $installPath = & $vswhere -products * -latest -property installationPath
+          $setupExe = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe"
+          $proc = Start-Process -FilePath $setupExe `
+            -ArgumentList "modify", "--installPath", "`"$installPath`"", "--add", `
+            "Microsoft.VisualStudio.Component.VC.Tools.x86.x64.Spectre", "--quiet", "--norestart" `
+            -Wait -PassThru -NoNewWindow
+          if ($null -eq $proc -or $proc.ExitCode -ne 0) {
+            $code = if ($null -ne $proc) { $proc.ExitCode } else { 1 }
+            Write-Error "Visual Studio Installer failed with exit code $code"
+            exit $code
+          }
+
+      - name: Prepare Azure Trusted Signing
+        if: matrix.platform == 'win'
+        shell: pwsh
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+          AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME }}
+          AZURE_TRUSTED_SIGNING_PUBLISHER_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_PUBLISHER_NAME }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $requiredSecrets = @(
+            $env:AZURE_TENANT_ID,
+            $env:AZURE_CLIENT_ID,
+            $env:AZURE_CLIENT_SECRET,
+            $env:AZURE_TRUSTED_SIGNING_ENDPOINT,
+            $env:AZURE_TRUSTED_SIGNING_ACCOUNT_NAME,
+            $env:AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME,
+            $env:AZURE_TRUSTED_SIGNING_PUBLISHER_NAME
+          )
+          if ($requiredSecrets | Where-Object { [string]::IsNullOrWhiteSpace($_) }) {
+            Write-Host "Azure Trusted Signing disabled; skipping TrustedSigning module preparation."
+            exit 0
+          }
+
+          Install-PackageProvider `
+            -Name NuGet `
+            -MinimumVersion 2.8.5.201 `
+            -Force `
+            -Scope CurrentUser
+
+          Install-Module `
+            -Name TrustedSigning `
+            -MinimumVersion 0.5.0 `
+            -Force `
+            -AllowClobber `
+            -Repository PSGallery `
+            -Scope CurrentUser
+
+          Import-Module TrustedSigning -MinimumVersion 0.5.0 -Force
+          Get-Command Invoke-TrustedSigning -ErrorAction Stop
+
+          $moduleRoots = @(
+            [System.IO.Path]::Combine([Environment]::GetFolderPath("MyDocuments"), "PowerShell", "Modules"),
+            [System.IO.Path]::Combine([Environment]::GetFolderPath("MyDocuments"), "WindowsPowerShell", "Modules"),
+            [System.IO.Path]::Combine($env:ProgramFiles, "PowerShell", "Modules"),
+            [System.IO.Path]::Combine($env:ProgramFiles, "WindowsPowerShell", "Modules")
+          )
+          $modulePathEntries = @($moduleRoots + ($env:PSModulePath -split ";")) |
+            Where-Object { $_ -and (Test-Path $_) } |
+            Select-Object -Unique
+          "PSModulePath=$($modulePathEntries -join ';')" >> $env:GITHUB_ENV
+
+      - name: Configure Windows native build toolchain
+        if: matrix.platform == 'win'
+        shell: bash
+        run: |
+          echo "npm_config_msvs_version=2022" >> "$GITHUB_ENV"
+          echo "GYP_MSVS_VERSION=2022" >> "$GITHUB_ENV"
+
       - name: Build desktop bundle
         run: pnpm run build:desktop
 
@@ -162,6 +248,13 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+          AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME }}
+          AZURE_TRUSTED_SIGNING_PUBLISHER_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_PUBLISHER_NAME }}
         run: |
           has_all() {
             for value in "$@"; do
@@ -182,12 +275,28 @@ jobs:
               echo "macOS signing/notarization requires CSC_LINK, CSC_KEY_PASSWORD, APPLE_API_KEY, APPLE_API_KEY_ID, and APPLE_API_ISSUER." >&2
               exit 1
             fi
+          elif [[ "${{ matrix.platform }}" == "win" ]]; then
+            if has_all \
+              "$AZURE_TENANT_ID" \
+              "$AZURE_CLIENT_ID" \
+              "$AZURE_CLIENT_SECRET" \
+              "$AZURE_TRUSTED_SIGNING_ENDPOINT" \
+              "$AZURE_TRUSTED_SIGNING_ACCOUNT_NAME" \
+              "$AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME" \
+              "$AZURE_TRUSTED_SIGNING_PUBLISHER_NAME"; then
+              echo "Windows signing enabled (Azure Trusted Signing)."
+            else
+              echo "Windows signing disabled (missing one or more Azure Trusted Signing secrets)."
+              export CSC_IDENTITY_AUTO_DISCOVERY=false
+            fi
           else
             echo "Signing disabled for ${{ matrix.platform }}."
           fi
 
           if [[ "${{ matrix.platform }}" == "mac" ]]; then
             pnpm --dir packages/desktop exec electron-builder --mac --publish never --config electron-builder.config.ts
+          elif [[ "${{ matrix.platform }}" == "win" ]]; then
+            pnpm --dir packages/desktop exec electron-builder --win --x64 --publish never --config electron-builder.config.ts
           else
             pnpm --dir packages/desktop exec electron-builder --linux --publish never --config electron-builder.config.ts
           fi
@@ -203,6 +312,7 @@ jobs:
             "packages/desktop/dist/*.dmg" \
             "packages/desktop/dist/*.zip" \
             "packages/desktop/dist/*.AppImage" \
+            "packages/desktop/dist/*.exe" \
             "packages/desktop/dist/*.blockmap" \
             "packages/desktop/dist/*.yml"; do
             for file in $pattern; do
@@ -308,6 +418,7 @@ jobs:
             release-assets/*.dmg
             release-assets/*.zip
             release-assets/*.AppImage
+            release-assets/*.exe
             release-assets/*.blockmap
             release-assets/*.yml
           fail_on_unmatched_files: true
@@ -326,6 +437,7 @@ jobs:
             release-assets/*.dmg
             release-assets/*.zip
             release-assets/*.AppImage
+            release-assets/*.exe
             release-assets/*.blockmap
             release-assets/*.yml
           fail_on_unmatched_files: true
@@ -336,31 +448,11 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
-      - id: app_token
-        name: Mint release app token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-
       - name: Checkout
         uses: actions/checkout@v6
         with:
           ref: main
           fetch-depth: 0
-          token: ${{ steps.app_token.outputs.token }}
-          persist-credentials: true
-
-      - id: app_bot
-        name: Resolve GitHub App bot identity
-        env:
-          GH_TOKEN: ${{ steps.app_token.outputs.token }}
-          APP_SLUG: ${{ steps.app_token.outputs.app-slug }}
-        run: |
-          user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
-          echo "name=${APP_SLUG}[bot]" >> "$GITHUB_OUTPUT"
-          echo "email=${user_id}+${APP_SLUG}[bot]@users.noreply.github.com" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -395,8 +487,8 @@ jobs:
             exit 0
           fi
 
-          git config user.name "${{ steps.app_bot.outputs.name }}"
-          git config user.email "${{ steps.app_bot.outputs.email }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add packages/server/package.json packages/desktop/package.json packages/app/package.json packages/contracts/package.json pnpm-lock.yaml
           git commit -m "chore(release): prepare $RELEASE_TAG"

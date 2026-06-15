@@ -28,6 +28,46 @@ function resolveMacIdentity(): NonNullable<Configuration["mac"]>["identity"] {
   return process.env.HONK_DESKTOP_SKIP_MAC_SIGNING === "true" ? null : undefined;
 }
 
+type WindowsAzureSigningConfiguration = NonNullable<
+  NonNullable<Configuration["win"]>["azureSignOptions"]
+>;
+
+function resolveWinAzureSignOptions(): WindowsAzureSigningConfiguration | undefined {
+  const publisherName = process.env.AZURE_TRUSTED_SIGNING_PUBLISHER_NAME?.trim();
+  const endpoint = process.env.AZURE_TRUSTED_SIGNING_ENDPOINT?.trim();
+  const certificateProfileName =
+    process.env.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME?.trim();
+  const codeSigningAccountName = process.env.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME?.trim();
+
+  if (!publisherName || !endpoint || !certificateProfileName || !codeSigningAccountName) {
+    return undefined;
+  }
+
+  return {
+    publisherName,
+    endpoint,
+    certificateProfileName,
+    codeSigningAccountName,
+  };
+}
+
+function resolveWinConfig(): NonNullable<Configuration["win"]> {
+  const azureSignOptions = resolveWinAzureSignOptions();
+  if (azureSignOptions) {
+    return {
+      target: ["nsis"],
+      icon: "icon.ico",
+      azureSignOptions,
+    };
+  }
+
+  return {
+    target: ["nsis"],
+    icon: "icon.ico",
+    signAndEditExecutable: false,
+  };
+}
+
 export default {
   appId: "com.interfacesco.honk",
   productName: "Honk",
@@ -63,4 +103,5 @@ export default {
       },
     },
   },
+  win: resolveWinConfig(),
 } satisfies Configuration;
