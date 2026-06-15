@@ -51,6 +51,7 @@ import {
   projectRuntimeDisplayTimelineEvent,
 } from "./display-timeline-projection";
 import { toWireRuntimeEvent } from "./runtime-event-wire";
+import { registerCursorComposerProvider } from "./cursor-composer-provider";
 
 const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
   agentMode: "deep",
@@ -83,6 +84,12 @@ const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
       kind: "codex-api-key",
       label: "Codex API Key",
       authProviderId: AuthProviderId.make("openai"),
+      accountId: null,
+    },
+    {
+      kind: "cursor-api-key",
+      label: "Cursor API Key",
+      authProviderId: AuthProviderId.make("cursor"),
       accountId: null,
     },
   ],
@@ -208,6 +215,9 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     this.modelRegistry = this.authStorage
       ? ModelRegistry.create(this.authStorage, join(this.agentDir, "models.json"))
       : null;
+    if (this.modelRegistry) {
+      registerCursorComposerProvider(this.modelRegistry, { cwd: this.agentDir });
+    }
     this.extensionFactories =
       options.extensionFactories ??
       createDesktopAgentExtensionFactories({ agentDir: this.agentDir });
@@ -258,6 +268,11 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
         this.clearCredentialAuthFlow(input.authProviderId);
         break;
       case "oauth":
+        if (input.authProviderId === "cursor" || input.credentialKind === "cursor-api-key") {
+          throw new Error(
+            "Cursor SDK authentication requires a Cursor API key; OAuth is not supported.",
+          );
+        }
         if (!callbacks) {
           throw new Error("OAuth login callbacks are unavailable.");
         }
@@ -810,7 +825,9 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     const statuses: AgentAuthStatus[] = [];
 
     for (const credential of this.preferences.credentials) {
-      const status = this.authStorage?.getAuthStatus(credential.authProviderId);
+      const status =
+        this.modelRegistry?.getProviderAuthStatus(credential.authProviderId) ??
+        this.authStorage?.getAuthStatus(credential.authProviderId);
       const storedCredential = this.authStorage?.get(credential.authProviderId);
       const hasStoredCredential = credentialKindMatchesStoredCredential(
         credential.kind,

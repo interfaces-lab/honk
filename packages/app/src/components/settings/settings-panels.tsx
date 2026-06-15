@@ -4,6 +4,7 @@ import {
   IconCheckmark1,
   IconChevronDownSmall,
   IconClawd,
+  IconCursor,
   IconOpenaiCodex,
 } from "central-icons";
 import { useQueryClient } from "@tanstack/react-query";
@@ -86,6 +87,10 @@ import {
   unavailableAgentModeReason,
   type AgentModeAvailability,
 } from "~/lib/agent-mode-options";
+import {
+  cursorComposerPolicyModelSelection,
+  CURSOR_COMPOSER_MODEL_NAME,
+} from "@honk/shared/cursor-composer";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
 import {
   SettingResetButton,
@@ -830,6 +835,10 @@ const AGENT_MODE_MODEL_DETAILS: Record<
     modelName: "GPT-5.5",
     description: "Fast, low-token work for small, well-defined tasks.",
   },
+  composer: {
+    modelName: CURSOR_COMPOSER_MODEL_NAME,
+    description: "Cursor Composer through the Cursor SDK with your Cursor API key.",
+  },
 };
 
 const AGENT_AUTH_STATE_LABELS: Record<AgentAuthStatus["state"], string> = {
@@ -939,13 +948,18 @@ function CredentialKindIcon({
   kind: AgentCredentialKind;
   className?: string;
 }) {
-  const Icon = kind === "claude-api-key" || kind === "claude-oauth" ? IconClawd : IconOpenaiCodex;
+  const Icon =
+    kind === "claude-api-key" || kind === "claude-oauth"
+      ? IconClawd
+      : kind === "cursor-api-key"
+        ? IconCursor
+        : IconOpenaiCodex;
 
   return <Icon className={className} aria-hidden />;
 }
 
 function AgentModeIcon({ mode, className }: { mode: AgentMode; className?: string }) {
-  const Icon = mode === "smart" ? IconClawd : IconOpenaiCodex;
+  const Icon = mode === "smart" ? IconClawd : mode === "composer" ? IconCursor : IconOpenaiCodex;
 
   return <Icon className={className} aria-hidden />;
 }
@@ -1001,6 +1015,7 @@ function AgentModeSelector({
             thinkingLevel === "off"
               ? "No thinking"
               : `${AGENT_THINKING_LEVEL_LABELS[thinkingLevel]} effort`;
+          const summaryLabel = option.value === "composer" ? "Cursor SDK" : effortLabel;
 
           const content = (
             <>
@@ -1016,7 +1031,7 @@ function AgentModeSelector({
                   </span>
                 </span>
                 <span className="block truncate text-detail text-honk-fg-tertiary">
-                  {unavailableReason ?? effortLabel}
+                  {unavailableReason ?? summaryLabel}
                 </span>
               </span>
               {selected ? <IconCheckmark1 className="size-3 shrink-0" aria-hidden /> : null}
@@ -1064,7 +1079,11 @@ function AgentModeSelector({
                     <span>{details.modelName}</span>
                   </div>
                   <p className="mt-1 text-body text-honk-fg-secondary">{details.description}</p>
-                  <p className="mt-2 text-detail text-honk-fg-tertiary">{effortLabel}</p>
+                  <p className="mt-2 text-detail text-honk-fg-tertiary">
+                    {option.value === "composer"
+                      ? "Fast mode is configured in composer edit."
+                      : effortLabel}
+                  </p>
                 </div>
               </MenuSubPopup>
             </MenuSub>
@@ -1230,7 +1249,9 @@ function CredentialApiKeyForm({
         </Button>
       </div>
       <Text render={<p />} size="sm" tone="tertiary" className="mt-2">
-        Stored in Pi auth storage. Saved keys are never displayed here.
+        {credential.kind === "cursor-api-key"
+          ? "Use a Cursor Dashboard integrations key or Team service account key. OAuth, Desktop/CLI login, and Team Admin keys are not supported."
+          : "Saved locally. Existing keys stay hidden."}
       </Text>
     </form>
   );
@@ -1409,6 +1430,9 @@ export function AgentRuntimeSettingsSectionsView({
                 updateAgentPreferences({
                   agentMode,
                   thinkingLevel: AGENT_MODE_THINKING_LEVELS[agentMode],
+                  ...(agentMode === "composer"
+                    ? { modelSelection: cursorComposerPolicyModelSelection() }
+                    : {}),
                 });
               }}
             />
@@ -1531,7 +1555,7 @@ export function AgentRuntimeSettingsSectionsView({
         {visibleCredentials.length === 0 ? (
           <SettingsRow
             title="No accounts connected"
-            description="Add a Claude or Codex credential to run agents."
+            description="Add a Claude, Codex, or Cursor credential to run agents."
           />
         ) : null}
         {visibleCredentials.map((credential) => {

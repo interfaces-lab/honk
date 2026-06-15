@@ -143,7 +143,7 @@ describe("AgentRuntimeSettingsSections", () => {
     const source = readFileSync(new URL("./settings-panels.tsx", import.meta.url), "utf8");
 
     expect(source).toContain('type="password"');
-    expect(source).toContain("Stored in Pi auth storage. Saved keys are never displayed here.");
+    expect(source).toContain("Saved locally. Existing keys stay hidden.");
     expect(source).not.toContain("window.prompt");
   });
 

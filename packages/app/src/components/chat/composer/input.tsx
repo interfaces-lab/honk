@@ -28,6 +28,7 @@ import {
   MenuSubTrigger,
   MenuTrigger,
 } from "@honk/honkkit/menu";
+import { Switch } from "@honk/honkkit/switch";
 import { workbenchChromeTextControlVariants } from "@honk/honkkit/workbench-chrome-row";
 import {
   IconArrowUp,
@@ -37,6 +38,7 @@ import {
   IconChevronDownSmall,
   IconChevronLeftMedium,
   IconClawd,
+  IconCursor,
   IconCrossSmall,
   IconOpenaiCodex,
   IconPlusSmall,
@@ -134,6 +136,11 @@ import {
   unavailableAgentModeReason,
   type AgentModeAvailability,
 } from "~/lib/agent-mode-options";
+import {
+  cursorComposerFastEnabled,
+  cursorComposerPolicyModelSelection,
+  CURSOR_COMPOSER_MODEL_NAME,
+} from "@honk/shared/cursor-composer";
 
 export type {
   ComposerInputHandle,
@@ -308,6 +315,7 @@ const COMPOSER_AGENT_MODE_OPTIONS = [
   "deep",
   "smart",
   "rush",
+  "composer",
 ] as const satisfies readonly AgentMode[];
 
 const AGENT_MODE_MODEL_DETAILS: Record<
@@ -329,6 +337,10 @@ const AGENT_MODE_MODEL_DETAILS: Record<
     modelName: "GPT-5.5",
     description: "Fast, low-token work for small, well-defined tasks.",
   },
+  composer: {
+    modelName: CURSOR_COMPOSER_MODEL_NAME,
+    description: "Cursor Composer through the Cursor SDK with your Cursor API key.",
+  },
 };
 
 type AgentModeSubmenuState = {
@@ -337,7 +349,12 @@ type AgentModeSubmenuState = {
 } | null;
 
 function AgentModeProviderIcon(props: { agentMode: AgentMode; className?: string }) {
-  const Icon = props.agentMode === "smart" ? IconClawd : IconOpenaiCodex;
+  const Icon =
+    props.agentMode === "smart"
+      ? IconClawd
+      : props.agentMode === "composer"
+        ? IconCursor
+        : IconOpenaiCodex;
 
   return <Icon className={props.className} aria-hidden />;
 }
@@ -383,20 +400,15 @@ function AgentModeDetailsPopup(props: { mode: AgentMode; unavailableReason?: str
   );
 }
 
-function isThinkingAgentMode(agentMode: AgentMode): agentMode is Exclude<AgentMode, "rush"> {
-  return agentMode !== "rush";
-}
-
-function isCodexAgentMode(agentMode: AgentMode): agentMode is Exclude<AgentMode, "smart"> {
-  return agentMode === "deep" || agentMode === "rush";
-}
-
 function effectiveAgentModeThinkingLevel(
   mode: AgentMode,
   activeMode: AgentMode,
   activeThinkingLevel: AgentThinkingLevel,
 ): AgentThinkingLevel {
   if (mode === "rush") {
+    return "off";
+  }
+  if (mode === "composer") {
     return "off";
   }
   if (mode === activeMode && activeThinkingLevel !== "off") {
@@ -436,12 +448,14 @@ const ComposerAgentModePickerTrigger = memo(function ComposerAgentModePickerTrig
 function ComposerAgentModePicker(props: {
   agentMode: AgentMode;
   thinkingLevel: AgentThinkingLevel;
+  composerFastModeEnabled: boolean;
   availability: AgentModeAvailability;
   disabled: boolean;
   fastMode: boolean;
   onAgentModeChange: (agentMode: AgentMode) => void;
   onFastModeChange: (fastMode: boolean) => void;
   onAgentModeThinkingLevelChange: (agentMode: AgentMode, thinkingLevel: AgentThinkingLevel) => void;
+  onComposerFastModeChange: (fastEnabled: boolean) => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState<AgentModeSubmenuState>(null);
@@ -479,9 +493,16 @@ function ComposerAgentModePicker(props: {
           const label = AGENT_MODE_LABELS[mode];
           const unavailableReason = unavailableAgentModeReason(mode, props.availability);
           const modeUnavailable = unavailableReason !== null;
-          const showEffortSettings =
+          const hasEffortSettings = mode !== "rush" && mode !== "composer";
+          const hasOpenAIFastSettings = mode === "deep" || mode === "rush";
+          const hasComposerFastSettings = mode === "composer";
+          const hasEditSettings =
+            hasEffortSettings || hasOpenAIFastSettings || hasComposerFastSettings;
+          const showEditSettings =
             !modeUnavailable && openSubmenu?.mode === mode && openSubmenu.kind === "effort";
-          const modeHasSettings = isCodexAgentMode(mode);
+          const showEffortSettings = showEditSettings && hasEffortSettings;
+          const showOpenAIFastSettings = showEditSettings && hasOpenAIFastSettings;
+          const showComposerFastSettings = showEditSettings && hasComposerFastSettings;
 
           return (
             <MenuSub
@@ -492,7 +513,7 @@ function ComposerAgentModePicker(props: {
                   setOpenSubmenu({
                     mode,
                     kind:
-                      modeHasSettings &&
+                      hasEditSettings &&
                       isAgentModeEditTarget(eventDetails.event?.target ?? null)
                         ? "effort"
                         : "details",
@@ -539,20 +560,24 @@ function ComposerAgentModePicker(props: {
                     className="size-3.5 shrink-0 text-honk-icon-secondary"
                   />
                   <span className="min-w-0 truncate text-honk-fg-primary">{label}</span>
-                  {isThinkingAgentMode(mode) ? (
+                  {hasEffortSettings ? (
                     <span className="shrink-0 text-honk-fg-tertiary">
                       {MODEL_THINKING_LEVEL_LABELS[thinkingLevel]}
                     </span>
+                  ) : mode === "composer" ? (
+                    <span className="shrink-0 text-honk-fg-tertiary">
+                      {props.composerFastModeEnabled ? "Fast" : "Normal"}
+                    </span>
                   ) : null}
                 </span>
-                {modeHasSettings && !modeUnavailable ? (
+                {hasEditSettings && !modeUnavailable ? (
                   <span
                     className={cn(
                       "-my-px hidden shrink-0 items-center rounded-[4px] px-1 py-px text-detail text-honk-fg-secondary",
                       "hover:bg-honk-bg-quaternary hover:text-honk-fg-primary active:bg-honk-bg-tertiary",
                       "group-hover/model:inline-flex group-data-[highlighted]/model:inline-flex",
                       "data-[selected=true]:inline-flex",
-                      showEffortSettings && "bg-honk-bg-tertiary text-honk-fg-primary",
+                      showEditSettings && "bg-honk-bg-tertiary text-honk-fg-primary",
                     )}
                     data-agent-mode-edit=""
                     data-selected={selected ? "true" : undefined}
@@ -565,11 +590,18 @@ function ComposerAgentModePicker(props: {
               <MenuSubPopup
                 variant="workbench"
                 side="inline-end"
-                className="w-[220px] border-transparent shadow-honk-base"
+                className={cn(
+                  "border-transparent shadow-honk-base",
+                  showOpenAIFastSettings
+                    ? "w-[220px]"
+                    : showEditSettings
+                      ? "w-[160px]"
+                      : "w-[220px]",
+                )}
               >
-                {showEffortSettings ? (
+                {showEditSettings ? (
                   <>
-                    {isThinkingAgentMode(mode) ? (
+                    {showEffortSettings ? (
                       <MenuRadioGroup
                         value={thinkingLevel}
                         onValueChange={(value) => {
@@ -594,19 +626,36 @@ function ComposerAgentModePicker(props: {
                         ))}
                       </MenuRadioGroup>
                     ) : null}
-                    <MenuGroupLabel
-                      variant="workbench"
-                      className={isThinkingAgentMode(mode) ? "mt-1" : undefined}
-                    >
-                      OpenAI
-                    </MenuGroupLabel>
-                    <MenuCheckboxItem
-                      checked={props.fastMode}
-                      onCheckedChange={props.onFastModeChange}
-                      variant="workbench-switch"
-                    >
-                      Fast Mode
-                    </MenuCheckboxItem>
+                    {showOpenAIFastSettings ? (
+                      <>
+                        <MenuGroupLabel
+                          variant="workbench"
+                          className={showEffortSettings ? "mt-1" : undefined}
+                        >
+                          OpenAI
+                        </MenuGroupLabel>
+                        <MenuCheckboxItem
+                          checked={props.fastMode}
+                          onCheckedChange={props.onFastModeChange}
+                          variant="workbench-switch"
+                        >
+                          Fast Mode
+                        </MenuCheckboxItem>
+                      </>
+                    ) : null}
+                    {showComposerFastSettings ? (
+                      <div className="px-2 py-1.5">
+                        <MenuGroupLabel variant="workbench">Mode</MenuGroupLabel>
+                        <label className="mt-1 flex items-center justify-between gap-3 rounded-[4px] px-2 py-1.5 text-body text-honk-fg-primary">
+                          <span className="min-w-0 truncate">Fast mode</span>
+                          <Switch
+                            checked={props.composerFastModeEnabled}
+                            aria-label="Fast mode"
+                            onCheckedChange={props.onComposerFastModeChange}
+                          />
+                        </label>
+                      </div>
+                    ) : null}
                   </>
                 ) : (
                   <AgentModeDetailsPopup mode={mode} unavailableReason={unavailableReason} />
@@ -1556,16 +1605,27 @@ export const ComposerInput = memo(
 
     const handleAgentModeChange = (agentMode: AgentMode) => {
       const thinkingLevel = AGENT_MODE_THINKING_LEVELS[agentMode];
+      const modelSelection =
+        agentMode === "composer"
+          ? cursorComposerPolicyModelSelection(
+              cursorComposerFastEnabled(runtimePreferences.modelSelection),
+            )
+          : undefined;
       if (
         agentMode === runtimePreferences.agentMode &&
-        thinkingLevel === runtimePreferences.thinkingLevel
+        thinkingLevel === runtimePreferences.thinkingLevel &&
+        modelSelection === undefined
       ) {
         scheduleComposerFocus();
         return;
       }
 
       updateAgentRuntimePreferences(
-        { agentMode, thinkingLevel },
+        {
+          agentMode,
+          thinkingLevel,
+          ...(modelSelection ? { modelSelection } : {}),
+        },
         "Failed to update agent mode.",
         setIsAgentModeSaving,
       );
@@ -1578,6 +1638,26 @@ export const ComposerInput = memo(
       updateAgentRuntimePreferences(
         { agentMode, thinkingLevel },
         "Failed to update agent mode settings.",
+        setIsAgentModeSaving,
+      );
+    };
+
+    const handleComposerFastModeChange = (fastEnabled: boolean) => {
+      const modelSelection = cursorComposerPolicyModelSelection(fastEnabled);
+      if (
+        runtimePreferences.agentMode === "composer" &&
+        cursorComposerFastEnabled(runtimePreferences.modelSelection) === fastEnabled
+      ) {
+        scheduleComposerFocus();
+        return;
+      }
+      updateAgentRuntimePreferences(
+        {
+          agentMode: "composer",
+          thinkingLevel: AGENT_MODE_THINKING_LEVELS.composer,
+          modelSelection,
+        },
+        "Failed to update Composer settings.",
         setIsAgentModeSaving,
       );
     };
@@ -2518,18 +2598,21 @@ export const ComposerInput = memo(
           }}
         />
       );
+    const composerFastModeEnabled = cursorComposerFastEnabled(runtimePreferences.modelSelection);
     const composerAgentModeControl = showModeControls ? (
       <span className="inline-flex min-w-0 max-w-full shrink items-center gap-1 overflow-hidden">
         {isNewAgentComposer ? (
           <ComposerAgentModePicker
             agentMode={runtimePreferences.agentMode}
             thinkingLevel={runtimePreferences.thinkingLevel}
+            composerFastModeEnabled={composerFastModeEnabled}
             availability={agentModeAvailability}
             disabled={isAgentModeSaving || isConnecting}
             fastMode={runtimePreferences.fast}
             onAgentModeChange={handleAgentModeChange}
             onFastModeChange={handleFastModeChange}
             onAgentModeThinkingLevelChange={handleAgentModeThinkingLevelChange}
+            onComposerFastModeChange={handleComposerFastModeChange}
           />
         ) : (
           <ComposerReadOnlyAgentModeChip agentMode={runtimePreferences.agentMode} />

@@ -4,6 +4,7 @@ import {
   DEFAULT_AGENT_RESOURCE_PREFERENCES,
 } from "@honk/contracts";
 import { createAgentModelPolicy } from "../src/agent-model-policy";
+import { cursorComposerPolicyModelSelection } from "../src/cursor-composer";
 
 const preferences = {
   agentMode: "deep",
@@ -79,6 +80,31 @@ describe("createAgentModelPolicy", () => {
         authProviderId: "openai-codex",
         accountId: "openai-codex:default",
         modelId: "openai-codex/gpt-5.5",
+      },
+    });
+  });
+
+  it("pins Composer mode to the Cursor Composer model and preserves fast mode", () => {
+    expect(
+      createAgentModelPolicy({
+        preferences: {
+          ...preferences,
+          agentMode: "composer",
+          thinkingLevel: "xhigh",
+          modelSelection: cursorComposerPolicyModelSelection(true),
+        },
+        interactionMode: "agent",
+        modelSelection: codexModelSelection,
+      }),
+    ).toMatchObject({
+      agentMode: "composer",
+      thinkingLevel: "off",
+      modelSelection: {
+        type: "explicit",
+        authProviderId: "cursor",
+        accountId: "cursor:default",
+        modelId: "cursor/composer-2-5",
+        options: [{ id: "fast", value: true }],
       },
     });
   });

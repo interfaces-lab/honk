@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import process from "node:process";
 import {
   AccountId,
   AuthProviderId,
@@ -146,14 +147,21 @@ describe("DesktopRuntimeHost", () => {
       "anthropic",
       "openai-codex",
       "openai",
+      "cursor",
     ]);
     expect(snapshot.authStatuses.map((status) => status.credentialKind)).toEqual([
       "claude-api-key",
       "claude-oauth",
       "codex-oauth",
       "codex-api-key",
+      "cursor-api-key",
     ]);
-    expect(snapshot.authStatuses.every((status) => status.state === "missing")).toBe(true);
+    expect(snapshot.authStatuses.slice(0, 4).every((status) => status.state === "missing")).toBe(
+      true,
+    );
+    expect(snapshot.authStatuses[4]?.state).toBe(
+      process.env.CURSOR_API_KEY ? "available" : "missing",
+    );
 
     host.dispose();
   });
@@ -190,6 +198,21 @@ describe("DesktopRuntimeHost", () => {
     expect(
       snapshot.authStatuses.find((status) => status.authProviderId === "anthropic")?.state,
     ).toBe("available");
+
+    host.dispose();
+  });
+
+  it("rejects Cursor OAuth credential configuration", async () => {
+    const authStorage = AuthStorage.inMemory();
+    const host = new DesktopRuntimeHost({ agentDir: createAgentDir(), authStorage });
+
+    await expect(
+      host.configureCredential({
+        authProviderId: AuthProviderId.make("cursor"),
+        method: "oauth",
+        credentialKind: "cursor-api-key",
+      }),
+    ).rejects.toThrow("Cursor SDK authentication requires a Cursor API key");
 
     host.dispose();
   });
