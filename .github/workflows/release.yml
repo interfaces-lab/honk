@@ -187,7 +187,7 @@ jobs:
           fi
 
           if [[ "${{ matrix.platform }}" == "mac" ]]; then
-            pnpm --dir packages/desktop exec electron-builder --mac --publish never --config electron-builder.config.ts
+            pnpm --dir packages/desktop exec electron-builder --mac --${{ matrix.arch }} --publish never --config electron-builder.config.ts
           else
             pnpm --dir packages/desktop exec electron-builder --linux --publish never --config electron-builder.config.ts
           fi
