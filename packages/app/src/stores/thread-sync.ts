@@ -1903,10 +1903,6 @@ function isSameParentVisibleThread(previousThread: Thread, nextThread: Thread): 
   );
 }
 
-function isNeutralSessionStatus(status: ThreadSession["orchestrationStatus"] | null): boolean {
-  return status === null || status === "idle" || status === "ready";
-}
-
 function shouldPreserveLiveRuntimeSession(
   previousSession: ThreadSession | null | undefined,
   nextSession: ThreadSession | null | undefined,
@@ -1914,7 +1910,8 @@ function shouldPreserveLiveRuntimeSession(
   if (previousSession?.orchestrationStatus !== "running") {
     return false;
   }
-  if (!isNeutralSessionStatus(nextSession?.orchestrationStatus ?? null)) {
+  const nextStatus = nextSession?.orchestrationStatus ?? null;
+  if (nextStatus !== null && nextStatus !== "idle" && nextStatus !== "ready") {
     return false;
   }
   return (
@@ -3687,8 +3684,7 @@ function applyAgentRuntimeEventToEnvironment(
         const preservesTerminalState =
           latestTurn?.turnId === completedTurnId &&
           (latestTurn.state === "interrupted" || latestTurn.state === "error");
-        const agentStillRunning =
-          event.agentRuntime === "pi" && thread.session?.orchestrationStatus === "running";
+        const agentStillRunning = thread.session?.orchestrationStatus === "running";
         const activeTurnId =
           agentStillRunning && thread.session?.activeTurnId !== completedTurnId
             ? thread.session?.activeTurnId
