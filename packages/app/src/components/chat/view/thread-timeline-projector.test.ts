@@ -352,8 +352,6 @@ describe("projectThreadTimeline", () => {
           display: {
             kind: "subagent",
             mode: "single",
-            agentScope: "project",
-            projectAgentsDir: null,
             runs: [
               {
                 subagentThreadId: "thread:timeline-projector:subagent",
