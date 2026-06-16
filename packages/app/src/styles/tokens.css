@@ -145,7 +145,7 @@
 :root.dark {
   color-scheme: dark;
   --app-background: var(--background);
-  --honk-glass-surface-background: rgb(0 0 0 / 0.48);
+  --honk-glass-surface-background: rgb(0 0 0 / 0.42);
 
   --background: var(--honk-base-editor);
   --honk-base-foreground: #e4e4e4;
@@ -597,7 +597,8 @@ body.honk-os-vibrancy-on[data-honk-glass-mode="true"] {
 
 @supports (color: color-mix(in lab, red, red)) {
   html.dark [data-component="root"] {
-    --honk-bubble-surface-background: color-mix(in srgb, var(--honk-bg-elevated) 96%, #fff);
+    /* Cursor parity: one 96% lift from flat editor (#181818), not pre-whitened elevated. */
+    --honk-bubble-surface-background: color-mix(in srgb, var(--honk-base-editor) 96%, #fff);
     --honk-message-bubble-background: var(--honk-bubble-surface-background);
     --honk-composer-surface-background: var(--honk-bubble-surface-background);
   }
@@ -635,7 +636,7 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] {
 }
 
 html.dark body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-component="root"] {
-  --honk-bubble-surface-opaque-background: var(--honk-color-elevated-opaque);
+  --honk-bubble-surface-opaque-background: color-mix(in srgb, var(--honk-base-editor) 96%, #fff);
   --honk-composer-surface-opaque-background: var(--honk-bubble-surface-opaque-background);
   --honk-composer-surface-background: var(--honk-composer-surface-opaque-background);
   --honk-message-bubble-background: var(--honk-composer-surface-opaque-background);
