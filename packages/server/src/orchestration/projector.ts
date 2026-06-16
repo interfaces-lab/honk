@@ -29,6 +29,7 @@ import {
   ThreadRuntimeModeSetPayload,
   ThreadUnarchivedPayload,
   ThreadSessionSetPayload,
+  ThreadSessionStopRequestedPayload,
   ThreadTreeLeafMovedPayload,
 } from "./Schemas.ts";
 
@@ -392,7 +393,7 @@ export function projectEvent(
         const nextEntry = {
           id: entryId,
           threadId: payload.threadId,
-          parentEntryId: existingEntry?.parentEntryId ?? payload.parentEntryId,
+          parentEntryId: payload.parentEntryId,
           kind: "message" as const,
           messageId: payload.messageId,
           turnId: payload.turnId,
@@ -409,6 +410,7 @@ export function projectEvent(
             parentEntryId: payload.parentEntryId,
             role: payload.role,
           }),
+          repairMissingParents: true,
         });
 
         return {
@@ -425,13 +427,25 @@ export function projectEvent(
 
     case "thread.tree-leaf-moved":
       return decodeForEvent(ThreadTreeLeafMovedPayload, event.payload, event.type, "payload").pipe(
-        Effect.map((payload) => ({
-          ...nextBase,
-          threads: updateThread(nextBase.threads, payload.threadId, {
+        Effect.map((payload) => {
+          const thread = nextBase.threads.find((entry) => entry.id === payload.threadId);
+          if (!thread) {
+            return nextBase;
+          }
+          const repairedTree = repairThreadEntryTree({
+            entries: thread.entries,
             leafId: payload.leafId,
-            updatedAt: payload.updatedAt,
-          }),
-        })),
+            repairMissingParents: true,
+          });
+          return {
+            ...nextBase,
+            threads: updateThread(nextBase.threads, payload.threadId, {
+              leafId: repairedTree.leafId,
+              entries: [...repairedTree.entries],
+              updatedAt: payload.updatedAt,
+            }),
+          };
+        }),
       );
 
     case "thread.session-set":
@@ -482,6 +496,34 @@ export function projectEvent(
                         : null,
                   })
                 : thread.latestTurn,
+            updatedAt: event.occurredAt,
+          }),
+        };
+      });
+
+    case "thread.session-stop-requested":
+      return Effect.gen(function* () {
+        const payload = yield* decodeForEvent(
+          ThreadSessionStopRequestedPayload,
+          event.payload,
+          event.type,
+          "payload",
+        );
+        const thread = nextBase.threads.find((entry) => entry.id === payload.threadId);
+        if (!thread || thread.session === null) {
+          return nextBase;
+        }
+
+        return {
+          ...nextBase,
+          threads: updateThread(nextBase.threads, payload.threadId, {
+            session: {
+              ...thread.session,
+              status: "stopped",
+              activeTurnId: null,
+              lastError: null,
+              updatedAt: payload.createdAt,
+            },
             updatedAt: event.occurredAt,
           }),
         };

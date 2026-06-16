@@ -89,6 +89,11 @@ export default {
     notarize: true,
   },
   dmg: {
+    background: "dmg-background.png",
+    contents: [
+      { x: 166, y: 205, type: "file" },
+      { x: 505, y: 205, type: "link", path: "/Applications" },
+    ],
     sign: true,
   },
   linux: {

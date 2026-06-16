@@ -231,7 +231,6 @@ import {
 } from "./chat-view-lifecycle-sync";
 import {
   filterThreadSendIntentsToBranch,
-  runtimeDisplayTimelineActiveTurnId,
   runtimeDisplayTimelineHasActiveWork,
   runtimeDisplayTimelineHasResponseItem,
   runtimeDisplayTimelineRenderableUserMessageIds,
@@ -825,13 +824,18 @@ export default function ChatView(props: ChatViewProps) {
     () => filterActivitiesToBranch(sharedThreadActivities, branchView),
     [branchView, sharedThreadActivities],
   );
-  const orchestrationTurnActive =
-    activeThread?.session?.orchestrationStatus === "starting" ||
-    activeThread?.session?.orchestrationStatus === "running";
-  const activeRunningTurnId = orchestrationTurnActive
-    ? (activeThread?.session?.activeTurnId ??
-      (!latestTurnSettled ? (activeLatestTurn?.turnId ?? null) : null))
-    : null;
+  const activeSession = activeThread?.session ?? null;
+  const activeRunningTurnId =
+    activeSession !== null &&
+    (activeSession.orchestrationStatus === "starting" ||
+      activeSession.orchestrationStatus === "running") &&
+    activeLatestTurn !== null &&
+    activeLatestTurn.state === "running" &&
+    activeLatestTurn.completedAt === null &&
+    (activeSession.activeTurnId == null ||
+      activeSession.activeTurnId === activeLatestTurn.turnId)
+      ? activeLatestTurn.turnId
+      : null;
   const derivedWorkLogEntries = useMemo(
     () =>
       deriveWorkLogEntries(visibleThreadActivities, undefined, {
@@ -2115,6 +2119,19 @@ export default function ChatView(props: ChatViewProps) {
     let runtimeSendSucceeded = false;
     let localThreadAnnounced = false;
     let localTurnStartAnnounced = false;
+    const removeOptimisticSendIntent = () => {
+      if (promotedLocalSendThreadKey !== null) {
+        const removedPromotedIntents = removeThreadSendIntents(
+          promotedLocalSendThreadKey,
+          new Set([messageIdForSend]),
+        );
+        revokeThreadSendIntentMessages(removedPromotedIntents);
+        removeThreadSendIntents(routeThreadKey, new Set([messageIdForSend]));
+        clearThreadLocalDispatch(promotedLocalSendThreadKey);
+        return;
+      }
+      removeThreadSendIntentsByClientMessageId(messageIdForSend);
+    };
     await (async () => {
       const title = compiledTurn.title;
       const threadBranch = activeThreadBranch;
@@ -2268,7 +2285,6 @@ export default function ChatView(props: ChatViewProps) {
         titleSeed: title,
         runtimeMode: DEFAULT_RUNTIME_MODE,
         interactionMode: interactionModeForSend,
-        parentEntryId: parentEntryIdForSend,
         ...(turnBootstrap ? { bootstrap: turnBootstrap } : {}),
         cwd: initialRuntimeCwd,
         preparedPolicy: preparedRuntimePolicy,
@@ -2285,6 +2301,7 @@ export default function ChatView(props: ChatViewProps) {
       runtimeSendSucceeded = turnResult.runtimeSendSucceeded;
       if (localTurnStartAnnounced && !serverTurnStartSucceeded) {
         clearUnconfirmedLocalTurnStart(environmentId, threadIdForSend, messageIdForSend);
+        removeOptimisticSendIntent();
         localTurnStartAnnounced = false;
       }
       if (turnResult.serverPersistenceError) {
@@ -2338,22 +2355,14 @@ export default function ChatView(props: ChatViewProps) {
       if (localThreadAnnounced && !serverTurnStartSucceeded) {
         clearUnconfirmedLocalThread(environmentId, threadIdForSend);
       }
+      if (!serverTurnStartSucceeded) {
+        removeOptimisticSendIntent();
+      }
       if (
         !serverTurnStartSucceeded &&
         composerClearedForSend &&
         composerImagesRef.current.length === 0
       ) {
-        if (promotedLocalSendThreadKey !== null) {
-          const removedPromotedIntents = removeThreadSendIntents(
-            promotedLocalSendThreadKey,
-            new Set([messageIdForSend]),
-          );
-          revokeThreadSendIntentMessages(removedPromotedIntents);
-          removeThreadSendIntents(routeThreadKey, new Set([messageIdForSend]));
-          clearThreadLocalDispatch(promotedLocalSendThreadKey);
-        } else {
-          removeThreadSendIntentsByClientMessageId(messageIdForSend);
-        }
         const retryComposerImages = composerImagesSnapshot.map(cloneComposerImageForRetry);
         composerImagesRef.current = retryComposerImages;
         addComposerDraftImages(composerDraftTarget, retryComposerImages);
@@ -2563,22 +2572,7 @@ export default function ChatView(props: ChatViewProps) {
   const onInterrupt = async () => {
     const api = readEnvironmentApi(environmentId);
     if (!activeThread) return;
-    const runtimeSnapshot = useAgentRuntimeStore.getState().snapshot;
-    const runtimeDisplayTimeline = runtimeThreadId
-      ? (runtimeSnapshot.displayTimelines.find(
-          (timeline) => timeline.threadId === runtimeThreadId,
-        ) ?? null)
-      : null;
-    const runtimeActivity = selectRuntimeThreadActivity(
-      useAgentRuntimeStore.getState(),
-      runtimeThreadId,
-    );
-    const runtimeTurnId = runtimeTurnImpliesTurnRunning
-      ? (runtimeDisplayTimelineActiveTurnId(runtimeDisplayTimeline) ??
-        runtimeActivity.latestTurnId)
-      : null;
-    const latestUnsettledTurnId = !latestTurnSettled ? (activeLatestTurn?.turnId ?? null) : null;
-    const turnId = activeRunningTurnId ?? runtimeTurnId ?? latestUnsettledTurnId ?? undefined;
+    const turnId = activeRunningTurnId;
     const runtimeAbort = (async () => {
       try {
         await readHonkRuntimeApi().abort({ threadId: activeThread.id });
@@ -2590,13 +2584,17 @@ export default function ChatView(props: ChatViewProps) {
       await runtimeAbort;
       return;
     }
+    if (!turnId) {
+      await runtimeAbort;
+      return;
+    }
     await Promise.all([
       runtimeAbort,
       api.orchestration.dispatchCommand({
         type: "thread.turn.interrupt",
         commandId: newCommandId(),
         threadId: activeThread.id,
-        ...(turnId ? { turnId } : {}),
+        turnId,
         createdAt: new Date().toISOString(),
       }),
     ]);
@@ -2821,7 +2819,6 @@ export default function ChatView(props: ChatViewProps) {
         modelSelection: activeThread.modelSelection,
         titleSeed: activeThread.title,
         interactionMode: nextInteractionMode,
-        parentEntryId: parentEntryIdForSend,
         sourceProposedPlan,
         cwd: runtimeCwd,
         preparedPolicy: preparedRuntimePolicy,

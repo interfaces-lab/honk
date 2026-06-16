@@ -37,6 +37,7 @@ import { WorkbenchChromeDivider } from "@honk/honkkit/workbench-chrome-row";
 import { cn } from "~/lib/utils";
 import type { WorkbenchTab } from "~/lib/workbench-tabs";
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
+import { FileTreeFileIcon, FileTreeIconSprite } from "../../tree";
 import { RightWorkbenchToolIsland } from "./right-workbench-tool-island";
 
 const WORKBENCH_TAB_DRAG_MIME_TYPE = "application/x-honk-workbench-tab";
@@ -47,6 +48,7 @@ export interface WorkbenchTabMeta {
   readonly label: string;
   readonly icon: ComponentType<{ className?: string | undefined }>;
   readonly closable?: boolean | undefined;
+  readonly preview?: boolean | undefined;
   readonly stable?: boolean | undefined;
   readonly terminalId?: string | undefined;
   readonly browserId?: string | undefined;
@@ -150,6 +152,7 @@ function WorkbenchTabPill(props: {
   const Icon = props.tab.icon;
   const title = props.tab.filePath ?? props.tab.browserUrl ?? props.tab.label;
   const faviconUrl = props.tab.kind === "browser" ? props.tab.browserFaviconUrl : undefined;
+  const fileIconPath = props.tab.kind === "files" ? props.tab.filePath : undefined;
   const showLabel =
     props.tab.kind === "terminal" ||
     props.tab.kind === "dev" ||
@@ -180,6 +183,7 @@ function WorkbenchTabPill(props: {
       data-active={props.active ? "true" : "false"}
       data-closable={props.tab.closable ? "true" : undefined}
       data-dragging={props.dragging ? "true" : undefined}
+      data-preview={props.tab.preview ? "true" : undefined}
       data-shell-no-drag=""
       data-stable={props.tab.stable ? "" : undefined}
       data-tab-id={props.tab.id}
@@ -214,13 +218,25 @@ function WorkbenchTabPill(props: {
             draggable={false}
             src={faviconUrl}
           />
+        ) : fileIconPath ? (
+          <FileTreeFileIcon
+            path={fileIconPath}
+            className="ui-tab-system-tab__icon size-4 shrink-0"
+          />
         ) : (
           <span className="ui-tab-system-tab__icon inline-flex size-4 shrink-0 items-center justify-center [&_svg]:size-4 [&_svg]:shrink-0">
             <Icon aria-hidden />
           </span>
         )}
         {showLabel ? (
-          <span className="ui-tab-system-tab__label min-w-0 truncate">{props.tab.label}</span>
+          <span
+            className={cn(
+              "ui-tab-system-tab__label min-w-0 truncate",
+              props.tab.preview && "italic",
+            )}
+          >
+            {props.tab.label}
+          </span>
         ) : null}
       </span>
       {props.tab.closable ? (
@@ -545,6 +561,7 @@ export const RightWorkbenchHeader = memo(function RightWorkbenchHeader(
       }
     >
       <>
+        <FileTreeIconSprite />
         <div className="editor-panel-tab-bar-leading" data-shell-fullscreen-leading="" />
         <FullscreenChatTitle title={props.threadTitle} />
         <WorkbenchTabClusters

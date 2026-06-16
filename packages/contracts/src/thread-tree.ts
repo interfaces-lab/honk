@@ -222,9 +222,9 @@ export function repairThreadEntryTree<TEntry extends ThreadTreeOrderableEntry>(i
   readonly repairMissingParents?: boolean;
 }): RepairedThreadEntryTree<TEntry> {
   const entryIds = new Set(input.entries.map((entry) => entry.id));
-  const repairMissingParents = input.repairMissingParents ?? true;
+  const repairMissingParents = input.repairMissingParents ?? false;
   let repaired = false;
-  const entries = input.entries.map((entry) => {
+  const entries: TEntry[] = input.entries.map((entry) => {
     const parentEntryId = entry.parentEntryId;
     if (
       parentEntryId === null ||

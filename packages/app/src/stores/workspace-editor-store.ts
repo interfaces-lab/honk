@@ -17,9 +17,12 @@ export type WorkspaceEditorHistory = {
 
 export interface WorkspaceEditorFileState {
   readonly activePath: string | null;
+  readonly previewPath: string | null;
   readonly history: WorkspaceEditorHistory;
   readonly placement: WorkspaceEditorPlacement;
 }
+
+type PersistedWorkspaceEditorFileState = Omit<WorkspaceEditorFileState, "previewPath">;
 
 const EMPTY_EDITOR_HISTORY: WorkspaceEditorHistory = Object.freeze({
   index: -1,
@@ -28,6 +31,7 @@ const EMPTY_EDITOR_HISTORY: WorkspaceEditorHistory = Object.freeze({
 
 const DEFAULT_EDITOR_FILE_STATE: WorkspaceEditorFileState = Object.freeze({
   activePath: null,
+  previewPath: null,
   history: EMPTY_EDITOR_HISTORY,
   placement: "right-panel",
 });
@@ -53,6 +57,8 @@ interface WorkspaceEditorStoreState {
   enterFullscreen: (workspaceKey: string | null, target: WorkspacePanelFullscreenTarget) => void;
   exitFullscreen: (workspaceKey: string | null) => void;
   toggleFullscreen: (workspaceKey: string | null, target: WorkspacePanelFullscreenTarget) => void;
+  previewFile: (workspaceKey: string | null, path: string) => void;
+  clearFilePreview: (workspaceKey: string | null) => void;
   openFile: (workspaceKey: string | null, path: string) => void;
   openFileInCenter: (workspaceKey: string | null, path: string) => void;
   setEditorPlacement: (workspaceKey: string | null, placement: WorkspaceEditorPlacement) => void;
@@ -100,6 +106,7 @@ function fileStateFromHistory(history: WorkspaceEditorHistory): WorkspaceEditorF
       normalizedHistory.index >= 0
         ? (normalizedHistory.paths[normalizedHistory.index] ?? null)
         : null,
+    previewPath: null,
     history: normalizedHistory,
     placement: "right-panel",
   };
@@ -130,6 +137,7 @@ function readPersistedWorkspaceEditors(): Record<string, WorkspaceEditorFileStat
               : null;
       result[key] = {
         activePath,
+        previewPath: null,
         history,
         placement: decoded.placement ?? "right-panel",
       };
@@ -142,7 +150,15 @@ function readPersistedWorkspaceEditors(): Record<string, WorkspaceEditorFileStat
 
 function persistWorkspaceEditors(data: Record<string, WorkspaceEditorFileState>): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(WORKSPACE_EDITOR_STORAGE_KEY, JSON.stringify(data));
+  const persisted: Record<string, PersistedWorkspaceEditorFileState> = {};
+  for (const [key, value] of Object.entries(data)) {
+    persisted[key] = {
+      activePath: value.activePath,
+      history: value.history,
+      placement: value.placement,
+    };
+  }
+  window.localStorage.setItem(WORKSPACE_EDITOR_STORAGE_KEY, JSON.stringify(persisted));
 }
 
 function readPersistedWordWrap(): boolean {
@@ -195,6 +211,45 @@ const useWorkspaceEditorStore = create<WorkspaceEditorStoreState>((set) => ({
       },
     }));
   },
+  previewFile: (workspaceKey, path) => {
+    if (path.trim().length === 0) return;
+    const resolvedKey = resolveWorkspaceEditorKey(workspaceKey);
+    set((state) => {
+      const current = readFileState(state.fileStateByWorkspaceKey, workspaceKey);
+      const nextPreviewPath = current.activePath === path ? null : path;
+      if (current.previewPath === nextPreviewPath && current.placement === "right-panel") {
+        return state;
+      }
+      return {
+        fileStateByWorkspaceKey: {
+          ...state.fileStateByWorkspaceKey,
+          [resolvedKey]: {
+            ...current,
+            previewPath: nextPreviewPath,
+            placement: "right-panel",
+          },
+        },
+      };
+    });
+  },
+  clearFilePreview: (workspaceKey) => {
+    const resolvedKey = resolveWorkspaceEditorKey(workspaceKey);
+    set((state) => {
+      const current = readFileState(state.fileStateByWorkspaceKey, workspaceKey);
+      if (current.previewPath === null) {
+        return state;
+      }
+      return {
+        fileStateByWorkspaceKey: {
+          ...state.fileStateByWorkspaceKey,
+          [resolvedKey]: {
+            ...current,
+            previewPath: null,
+          },
+        },
+      };
+    });
+  },
   openFile: (workspaceKey, path) => {
     const resolvedKey = resolveWorkspaceEditorKey(workspaceKey);
     set((state) => {
@@ -203,6 +258,7 @@ const useWorkspaceEditorStore = create<WorkspaceEditorStoreState>((set) => ({
       const next: WorkspaceEditorFileState = {
         ...current,
         activePath: path,
+        previewPath: null,
         history,
       };
       const fileStateByWorkspaceKey = {
@@ -221,6 +277,7 @@ const useWorkspaceEditorStore = create<WorkspaceEditorStoreState>((set) => ({
       const next: WorkspaceEditorFileState = {
         ...current,
         activePath: path,
+        previewPath: null,
         history,
         placement: "center",
       };
@@ -262,6 +319,7 @@ const useWorkspaceEditorStore = create<WorkspaceEditorStoreState>((set) => ({
       const next: WorkspaceEditorFileState = {
         ...current,
         activePath: current.history.paths[nextIndex] ?? null,
+        previewPath: null,
         history: {
           ...current.history,
           index: nextIndex,
@@ -279,6 +337,17 @@ const useWorkspaceEditorStore = create<WorkspaceEditorStoreState>((set) => ({
     const resolvedKey = resolveWorkspaceEditorKey(workspaceKey);
     set((state) => {
       const current = readFileState(state.fileStateByWorkspaceKey, workspaceKey);
+      if (current.previewPath !== null) {
+        return {
+          fileStateByWorkspaceKey: {
+            ...state.fileStateByWorkspaceKey,
+            [resolvedKey]: {
+              ...current,
+              previewPath: null,
+            },
+          },
+        };
+      }
       if (current.activePath === null) {
         return state;
       }
@@ -301,17 +370,39 @@ const useWorkspaceEditorStore = create<WorkspaceEditorStoreState>((set) => ({
     const resolvedKey = resolveWorkspaceEditorKey(workspaceKey);
     set((state) => {
       const current = readFileState(state.fileStateByWorkspaceKey, workspaceKey);
-      if (!current.history.paths.includes(path) && current.activePath !== path) {
+      const nextPreviewPath = current.previewPath === path ? null : current.previewPath;
+      if (
+        !current.history.paths.includes(path) &&
+        current.activePath !== path &&
+        current.previewPath !== path
+      ) {
         return state;
+      }
+      if (!current.history.paths.includes(path) && current.activePath !== path) {
+        return {
+          fileStateByWorkspaceKey: {
+            ...state.fileStateByWorkspaceKey,
+            [resolvedKey]: {
+              ...current,
+              previewPath: nextPreviewPath,
+            },
+          },
+        };
       }
       const remainingPaths = current.history.paths.filter((entry) => entry !== path);
       const nextActivePath = current.activePath === path ? null : current.activePath;
       const next: WorkspaceEditorFileState =
         remainingPaths.length === 0
-          ? { ...current, activePath: nextActivePath, history: EMPTY_EDITOR_HISTORY }
+          ? {
+              ...current,
+              activePath: nextActivePath,
+              previewPath: nextPreviewPath,
+              history: EMPTY_EDITOR_HISTORY,
+            }
           : {
               ...current,
               activePath: nextActivePath,
+              previewPath: nextPreviewPath,
               history: {
                 paths: remainingPaths,
                 index:
@@ -365,6 +456,10 @@ export const workspaceEditorActions = {
     useWorkspaceEditorStore.getState().exitFullscreen(workspaceKey),
   toggleFullscreen: (workspaceKey: string | null, target: WorkspacePanelFullscreenTarget): void =>
     useWorkspaceEditorStore.getState().toggleFullscreen(workspaceKey, target),
+  previewFile: (workspaceKey: string | null, path: string): void =>
+    useWorkspaceEditorStore.getState().previewFile(workspaceKey, path),
+  clearFilePreview: (workspaceKey: string | null): void =>
+    useWorkspaceEditorStore.getState().clearFilePreview(workspaceKey),
   openFile: (workspaceKey: string | null, path: string): void =>
     useWorkspaceEditorStore.getState().openFile(workspaceKey, path),
   openFileInCenter: (workspaceKey: string | null, path: string): void =>
@@ -410,5 +505,13 @@ export function useWorkspaceEditorFileState(workspaceKey: string | null): {
           fileState.history.index < fileState.history.paths.length - 1,
       };
     }),
+  );
+}
+
+export function useWorkspaceEditorPreviewPath(workspaceKey: string | null): string | null {
+  const resolvedKey = resolveWorkspaceEditorKey(workspaceKey);
+  return useWorkspaceEditorStore(
+    (state) =>
+      (state.fileStateByWorkspaceKey[resolvedKey] ?? DEFAULT_EDITOR_FILE_STATE).previewPath,
   );
 }

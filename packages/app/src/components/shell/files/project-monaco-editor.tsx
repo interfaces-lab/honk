@@ -145,19 +145,21 @@ export function ProjectMonacoEditor(props: {
     let entry = modelEntryRef.current;
     if (!entry || !currentKey || !sameProjectModelKey(currentKey, key)) {
       releaseCurrentModel();
-      entry = acquireProjectModel(monaco, key, {
+      const acquiredEntry = acquireProjectModel(monaco, key, {
         contents: fileData.contents,
         languageId,
         mtimeMs: fileData.mtimeMs,
         sizeBytes: fileData.sizeBytes,
       });
+      entry = acquiredEntry;
       modelEntryRef.current = entry;
       modelKeyRef.current = key;
       editor.setModel(entry.model);
-      contentDisposableRef.current = entry.model.onDidChangeContent(() => {
-        onDirtyChangeRef.current(entry.dirty, { key, entry });
+      contentDisposableRef.current = acquiredEntry.model.onDidChangeContent(() => {
+        onDirtyChangeRef.current(acquiredEntry.dirty, { key, entry: acquiredEntry });
       });
     }
+    if (!entry) return;
 
     monaco.editor.setModelLanguage(entry.model, languageId);
     editor.updateOptions({ readOnly: false });

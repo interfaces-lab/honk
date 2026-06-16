@@ -85,6 +85,7 @@ function repairProjectedThreadTree(input: {
   const repaired = repairThreadEntryTree({
     entries: input.entries,
     leafId: input.leafId,
+    repairMissingParents: true,
   });
   return {
     leafId: repaired.leafId,

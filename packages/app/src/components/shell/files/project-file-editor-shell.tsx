@@ -99,7 +99,7 @@ export const ProjectFileEditorShell = forwardRef<
   const modelEntryRef = useRef<ProjectMonacoModelEntry | null>(null);
   const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [conflict, setConflict] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [savingKey, setSavingKey] = useState<ProjectModelKey | null>(null);
   const fileQuery = useQuery(
     projectReadFileQueryOptions({
       cwd: props.cwd,
@@ -109,6 +109,14 @@ export const ProjectFileEditorShell = forwardRef<
     }),
   );
   const editableFileData = fileQuery.data?.truncated === false ? fileQuery.data : null;
+  const currentProjectKey =
+    props.cwd && props.environmentId
+      ? { environmentId: props.environmentId, cwd: props.cwd, relativePath: props.relativePath }
+      : null;
+  const saving =
+    currentProjectKey !== null &&
+    savingKey !== null &&
+    sameProjectModelKey(savingKey, currentProjectKey);
 
   useEffect(() => {
     setConflict(false);
@@ -116,10 +124,11 @@ export const ProjectFileEditorShell = forwardRef<
 
   const save = useCallback(
     async (options?: { overwrite?: boolean }) => {
-      const cwd = props.cwd;
-      const environmentId = props.environmentId;
       const modelEntry = modelEntryRef.current;
-      const key = cwd && environmentId ? { environmentId, cwd, relativePath: props.relativePath } : null;
+      const key =
+        props.cwd && props.environmentId
+          ? { environmentId: props.environmentId, cwd: props.cwd, relativePath: props.relativePath }
+          : null;
       if (
         !key ||
         !editableFileData ||
@@ -130,9 +139,10 @@ export const ProjectFileEditorShell = forwardRef<
         return;
       }
 
+      const { cwd, environmentId } = key;
       const entry = modelEntry.entry;
       const contents = entry.model.getValue();
-      setSaving(true);
+      setSavingKey(key);
       try {
         const result = await writeProjectFile({
           environmentId,
@@ -150,7 +160,10 @@ export const ProjectFileEditorShell = forwardRef<
         });
         entry.markSaved(contents, result.mtimeMs, result.sizeBytes);
         props.onDirtyChange(entry.dirty);
-        setConflict(false);
+        const currentEntry = modelEntryRef.current;
+        if (currentEntry && sameProjectModelKey(currentEntry.key, key)) {
+          setConflict(false);
+        }
         await invalidateProjectFile(queryClient, {
           environmentId,
           cwd,
@@ -164,12 +177,17 @@ export const ProjectFileEditorShell = forwardRef<
         }
       } catch (error) {
         if (isProjectWriteConflictError(error)) {
-          setConflict(true);
+          const currentEntry = modelEntryRef.current;
+          if (currentEntry && sameProjectModelKey(currentEntry.key, key)) {
+            setConflict(true);
+          }
           return;
         }
         toast.error(formatProjectErrorDescription(error, "Unable to save file."));
       } finally {
-        setSaving(false);
+        setSavingKey((currentKey) =>
+          currentKey && sameProjectModelKey(currentKey, key) ? null : currentKey,
+        );
       }
     },
     [editableFileData, props, queryClient, saving],
@@ -268,7 +286,7 @@ export const ProjectFileEditorShell = forwardRef<
     );
   }
 
-  const fileData: ProjectReadFileResult | null = fileQuery.data ?? null;
+  const fileData = fileQuery.data ?? null;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col" onKeyDownCapture={handleKeyDownCapture}>

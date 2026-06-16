@@ -37,6 +37,7 @@ import {
 } from "~/lib/project-react-query";
 import {
   useWorkspaceEditorFileState,
+  useWorkspaceEditorPreviewPath,
   workspaceEditorActions,
 } from "~/stores/workspace-editor-store";
 import { workbenchTabPersistenceActions } from "~/stores/workbench-tab-store";
@@ -89,13 +90,17 @@ function ProjectFilesPanelContent(props: {
   const fileRailOpen = isFilesPanelActive && (fileRailInitialized ? fileRail.open : true);
   const editorState = useWorkspaceEditorFileState(props.workspaceKey);
   const selectedPath = editorState.activePath;
-  const centerEditorActive = editorState.placement === "center" && selectedPath !== null;
-  const selectedPathDirty = selectedPath ? (dirtyByPath[selectedPath] ?? false) : false;
+  const previewPath = useWorkspaceEditorPreviewPath(props.workspaceKey);
+  const visiblePath = previewPath ?? selectedPath;
+  const centerEditorActive =
+    editorState.placement === "center" && selectedPath !== null && previewPath === null;
+  const visiblePathDirty = visiblePath ? (dirtyByPath[visiblePath] ?? false) : false;
+  const treeActive = fileRailOpen || openFileDialogOpen;
   // The toolbar is a static second nav: it stays above the tree and viewer even
   // with no file open. When the editor lives in the center surface this panel
   // owns no file, so the toolbar's file-specific controls go inert.
-  const panelFilePath = centerEditorActive ? null : selectedPath;
-  const panelFileDirty = panelFilePath !== null && selectedPathDirty;
+  const panelFilePath = centerEditorActive ? null : visiblePath;
+  const panelFileDirty = panelFilePath !== null && visiblePathDirty;
 
   useEffect(() => {
     if (!isFilesPanelActive || fileRailInitialized) {
@@ -118,7 +123,15 @@ function ProjectFilesPanelContent(props: {
     [props.cwd, props.environmentId, queryClient],
   );
 
-  const openEditorPath = useCallback(
+  const previewEditorPath = useCallback(
+    (relativePath: string) => {
+      prefetchEditorPath(relativePath);
+      workbenchTabPersistenceActions.previewFile(props.workspaceKey, relativePath);
+    },
+    [prefetchEditorPath, props.workspaceKey],
+  );
+
+  const openEditorTabPath = useCallback(
     (relativePath: string) => {
       prefetchEditorPath(relativePath);
       workbenchTabPersistenceActions.createFile(props.workspaceKey, relativePath);
@@ -134,8 +147,8 @@ function ProjectFilesPanelContent(props: {
   );
 
   useEffect(() => {
-    fileTreeRef.current?.selectPath(selectedPath);
-  }, [selectedPath]);
+    fileTreeRef.current?.selectPath(visiblePath);
+  }, [visiblePath]);
 
   const tree = useMemo(
     () => (
@@ -145,9 +158,10 @@ function ProjectFilesPanelContent(props: {
         workspaceKey={props.workspaceKey}
         environmentId={props.environmentId}
         availableEditors={props.availableEditors}
-        onOpenFile={openEditorPath}
+        onPreviewFile={previewEditorPath}
+        onOpenFile={openEditorTabPath}
         onFilePathsChange={setLoadedFilePaths}
-        active={fileRailOpen || openFileDialogOpen}
+        active={treeActive}
         className="min-h-36 flex-1 border-b-0 bg-(--honk-workbench-panel-background)"
       />
     ),
@@ -156,9 +170,9 @@ function ProjectFilesPanelContent(props: {
       props.workspaceKey,
       props.environmentId,
       props.availableEditors,
-      openEditorPath,
-      fileRailOpen,
-      openFileDialogOpen,
+      previewEditorPath,
+      openEditorTabPath,
+      treeActive,
     ],
   );
 
@@ -184,6 +198,17 @@ function ProjectFilesPanelContent(props: {
         onForward={() => navigateEditorHistory(1)}
         onSave={() => editorShellRef.current?.save()}
         onClose={() => {
+          if (previewPath !== null && panelFilePath === previewPath) {
+            if (props.cwd && props.environmentId) {
+              markProjectModelClosed({
+                environmentId: props.environmentId,
+                cwd: props.cwd,
+                relativePath: previewPath,
+              });
+            }
+            workbenchTabPersistenceActions.closeTab(props.workspaceKey, runtime.activeTabId);
+            return;
+          }
           if (panelFilePath && props.cwd && props.environmentId) {
             markProjectModelClosed({
               environmentId: props.environmentId,
@@ -222,14 +247,18 @@ function ProjectFilesPanelContent(props: {
                   workspaceEditorActions.setEditorPlacement(props.workspaceKey, "right-panel");
                 }}
               />
-            ) : selectedPath ? (
+            ) : visiblePath ? (
               <ProjectFileEditorShell
                 ref={editorShellRef}
                 cwd={props.cwd}
                 environmentId={props.environmentId}
-                relativePath={selectedPath}
+                relativePath={visiblePath}
                 onDirtyChange={(dirty) => {
-                  setDirtyByPath((current) => ({ ...current, [selectedPath]: dirty }));
+                  if (!visiblePath) return;
+                  setDirtyByPath((current) => ({ ...current, [visiblePath]: dirty }));
+                  if (dirty && previewPath === visiblePath) {
+                    openEditorTabPath(visiblePath);
+                  }
                 }}
                 onAddSelectionToChat={() => {
                   workspaceEditorActions.setEditorPlacement(props.workspaceKey, "right-panel");
@@ -251,7 +280,7 @@ function ProjectFilesPanelContent(props: {
         filePaths={loadedFilePaths}
         open={openFileDialogOpen}
         onOpenChange={setOpenFileDialogOpen}
-        onOpenFile={openEditorPath}
+        onOpenFile={openEditorTabPath}
       />
     </div>
   );

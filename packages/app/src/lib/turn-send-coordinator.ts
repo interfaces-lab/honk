@@ -96,14 +96,17 @@ export async function coordinateTurnSend(
   );
   const userEntryId = threadEntryIdForMessageId(input.clientMessageId);
   const existingUserEntry = currentThread?.entries.find((entry) => entry.id === userEntryId);
-  const resolvedParentEntryId =
+  const localParentEntryId =
     input.parentEntryId !== undefined
       ? input.parentEntryId
       : currentThread?.leafId === userEntryId
         ? (existingUserEntry?.parentEntryId ?? null)
         : (currentThread?.leafId ?? null);
+  const serverParentEntryId = input.parentEntryId;
+  const localTurnStartApplied = input.applyLocalTurnStart !== false;
+  const sendIntentAppended = input.appendSendIntent !== false;
 
-  if (input.appendSendIntent !== false) {
+  if (sendIntentAppended) {
     useThreadSendIntentStore.getState().appendSendIntent(
       input.threadKey,
       createThreadSendIntent({
@@ -112,12 +115,12 @@ export async function coordinateTurnSend(
         ...(input.message.richText !== undefined ? { richText: input.message.richText } : {}),
         attachments: [...input.message.optimisticAttachments],
         createdAt: input.createdAt,
-        parentEntryId: resolvedParentEntryId,
+        parentEntryId: localParentEntryId,
       }),
     );
   }
 
-  if (input.applyLocalTurnStart !== false) {
+  if (localTurnStartApplied) {
     applyLocalThreadTurnStartRequested({
       environmentId: input.environmentId,
       threadId: input.threadId,
@@ -131,7 +134,7 @@ export async function coordinateTurnSend(
       titleSeed: input.titleSeed,
       runtimeMode: input.runtimeMode ?? DEFAULT_RUNTIME_MODE,
       interactionMode: input.interactionMode,
-      parentEntryId: resolvedParentEntryId,
+      parentEntryId: localParentEntryId,
       ...(input.sourceProposedPlan ? { sourceProposedPlan: input.sourceProposedPlan } : {}),
       createdAt: input.createdAt,
     });
@@ -148,6 +151,23 @@ export async function coordinateTurnSend(
       serverPersistenceError = error;
     }
   };
+  const clearUnpersistedLocalArtifacts = () => {
+    if (!input.api || serverTurnStartSucceeded) {
+      return;
+    }
+    if (localTurnStartApplied) {
+      useStore.getState().clearUnconfirmedLocalTurnStart({
+        environmentId: input.environmentId,
+        threadId: input.threadId,
+        messageId: input.clientMessageId,
+      });
+    }
+    if (sendIntentAppended) {
+      useThreadSendIntentStore
+        .getState()
+        .removeSendIntents(input.threadKey, new Set([input.clientMessageId]));
+    }
+  };
 
   const startRuntimeBeforePersistence = input.startRuntimeBeforePersistence ?? true;
   let runtimeSendPromise: Promise<void> | null = null;
@@ -162,7 +182,7 @@ export async function coordinateTurnSend(
         sourceProposedPlan: input.sourceProposedPlan ?? null,
         clientMessageId: input.clientMessageId,
         replacesClientMessageId: input.replacesClientMessageId ?? null,
-        parentEntryId: resolvedParentEntryId,
+        parentEntryId: localParentEntryId,
         images: turnAttachments as ThreadAgentRuntimeImageAttachment[],
         modelSelection: input.modelSelection,
         preparedPolicy: input.preparedPolicy,
@@ -182,50 +202,54 @@ export async function coordinateTurnSend(
     await input.persistBeforeDispatch().catch(captureServerPersistenceError);
   }
 
-  if (input.api) {
-    const turnAttachments = await input.message.getTurnAttachments();
-    const turnStartCommand = buildThreadTurnStartCommand({
-      threadId: input.threadId,
-      clientMessageId: input.clientMessageId,
-      createdAt: input.createdAt,
-      text: input.message.text,
-      ...(input.message.richText !== undefined ? { richText: input.message.richText } : {}),
-      attachments: turnAttachments,
-      modelSelection: input.modelSelection,
-      titleSeed: input.titleSeed,
-      runtimeMode: input.runtimeMode ?? DEFAULT_RUNTIME_MODE,
-      interactionMode: input.interactionMode,
-      parentEntryId: resolvedParentEntryId,
-      sourceProposedPlan: input.sourceProposedPlan ?? null,
-      ...(input.bootstrap ? { bootstrap: input.bootstrap } : {}),
-    });
+  try {
+    if (input.api) {
+      const turnAttachments = await input.message.getTurnAttachments();
+      const turnStartCommand = buildThreadTurnStartCommand({
+        threadId: input.threadId,
+        clientMessageId: input.clientMessageId,
+        createdAt: input.createdAt,
+        text: input.message.text,
+        ...(input.message.richText !== undefined ? { richText: input.message.richText } : {}),
+        attachments: turnAttachments,
+        modelSelection: input.modelSelection,
+        titleSeed: input.titleSeed,
+        runtimeMode: input.runtimeMode ?? DEFAULT_RUNTIME_MODE,
+        interactionMode: input.interactionMode,
+        ...(serverParentEntryId !== undefined ? { parentEntryId: serverParentEntryId } : {}),
+        sourceProposedPlan: input.sourceProposedPlan ?? null,
+        ...(input.bootstrap ? { bootstrap: input.bootstrap } : {}),
+      });
 
-    try {
-      const dispatchResult = await input.api.orchestration.dispatchCommand(turnStartCommand);
-      serverTurnStartSucceeded = true;
-      if (
-        dispatchResult &&
-        "preparedWorktree" in dispatchResult &&
-        dispatchResult.preparedWorktree
-      ) {
-        preparedWorktree = {
-          worktreePath: dispatchResult.preparedWorktree.worktreePath,
-          branch: dispatchResult.preparedWorktree.branch,
-        };
-        runtimeCwd = preparedWorktree.worktreePath;
+      try {
+        const dispatchResult = await input.api.orchestration.dispatchCommand(turnStartCommand);
+        serverTurnStartSucceeded = true;
+        if (
+          dispatchResult &&
+          "preparedWorktree" in dispatchResult &&
+          dispatchResult.preparedWorktree
+        ) {
+          preparedWorktree = {
+            worktreePath: dispatchResult.preparedWorktree.worktreePath,
+            branch: dispatchResult.preparedWorktree.branch,
+          };
+          runtimeCwd = preparedWorktree.worktreePath;
+        }
+      } catch (error) {
+        if (!startRuntimeBeforePersistence) {
+          throw error;
+        }
+        captureServerPersistenceError(error);
       }
-    } catch (error) {
-      if (!startRuntimeBeforePersistence) {
-        throw error;
-      }
-      captureServerPersistenceError(error);
     }
-  }
 
-  if (!startRuntimeBeforePersistence) {
-    await startRuntimeTurn();
-  } else if (runtimeSendPromise) {
-    await runtimeSendPromise;
+    if (!startRuntimeBeforePersistence) {
+      await startRuntimeTurn();
+    } else if (runtimeSendPromise) {
+      await runtimeSendPromise;
+    }
+  } finally {
+    clearUnpersistedLocalArtifacts();
   }
 
   return {

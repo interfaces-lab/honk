@@ -326,7 +326,7 @@ describe("turn-send-coordinator", () => {
     ]);
   });
 
-  it("passes the active thread leaf as parentEntryId for tip-append sends", async () => {
+  it("uses the local leaf for runtime appends while letting orchestration append at its own leaf", async () => {
     const parentMessageId = MessageId.make("message:existing-parent");
     const parentEntryId = threadEntryIdForMessageId(parentMessageId);
     applyLocalThreadCreated({
@@ -388,7 +388,7 @@ describe("turn-send-coordinator", () => {
     );
 
     expect(dispatched).toHaveLength(1);
-    expect(dispatched[0]).toHaveProperty("parentEntryId", parentEntryId);
+    expect(dispatched[0]).not.toHaveProperty("parentEntryId");
     expect(sentTurns[0]).toEqual(expect.objectContaining({ parentEntryId }));
   });
 

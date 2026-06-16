@@ -25,6 +25,7 @@ import {
   type Dispatch,
   forwardRef,
   memo,
+  type MouseEvent as ReactMouseEvent,
   type RefObject,
   type SetStateAction,
   useCallback,
@@ -406,7 +407,26 @@ function syncProjectFileTreeSelection(input: {
     input.model.getItem(selectedPath)?.deselect();
   }
   selectedItem.select();
-  input.model.focusPath(input.externalSelectedPath);
+}
+
+function filePathFromTreeMouseEvent(event: ReactMouseEvent<HTMLElement>): string | null {
+  for (const target of event.nativeEvent.composedPath()) {
+    if (!(target instanceof HTMLElement)) continue;
+    if (
+      target.dataset.type === "item" &&
+      target.dataset.itemType === "file" &&
+      target.dataset.itemPath
+    ) {
+      return normalizeTreePath(target.dataset.itemPath);
+    }
+  }
+
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return null;
+  const itemElement = target.closest<HTMLElement>(
+    '[data-type="item"][data-item-type="file"][data-item-path]',
+  );
+  return itemElement?.dataset.itemPath ? normalizeTreePath(itemElement.dataset.itemPath) : null;
 }
 
 const ProjectFileTreeComponent = forwardRef<
@@ -416,6 +436,7 @@ const ProjectFileTreeComponent = forwardRef<
     workspaceKey: string | null;
     environmentId: EnvironmentId | null;
     availableEditors: readonly EditorId[];
+    onPreviewFile?: (relativePath: string) => void;
     onOpenFile?: (relativePath: string) => void;
     onFilePathsChange?: (relativePaths: readonly string[]) => void;
     className?: string;
@@ -544,6 +565,10 @@ const ProjectFileTreeComponent = forwardRef<
         return;
       }
       lastOpenedPathRef.current = selectedPath;
+      if (props.onPreviewFile) {
+        props.onPreviewFile(selectedPath);
+        return;
+      }
       if (props.onOpenFile) {
         props.onOpenFile(selectedPath);
         return;
@@ -555,6 +580,29 @@ const ProjectFileTreeComponent = forwardRef<
       });
     },
   });
+
+  const openFileFromDoubleClick = useCallback(
+    (event: ReactMouseEvent<HTMLElement>) => {
+      const relativePath = filePathFromTreeMouseEvent(event);
+      if (!relativePath || filePathSetRef.current?.has(relativePath) !== true) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      lastOpenedPathRef.current = relativePath;
+      if (props.onOpenFile) {
+        props.onOpenFile(relativePath);
+        return;
+      }
+      openProjectFilePath({
+        relativePath,
+        cwd: props.cwd,
+        availableEditors: props.availableEditors,
+      });
+    },
+    [props.availableEditors, props.cwd, props.onOpenFile],
+  );
 
   const selectPath = useCallback(
     (relativePath: string | null) => {
@@ -672,6 +720,7 @@ const ProjectFileTreeComponent = forwardRef<
         {canRenderTree ? (
           <Tree
             model={model}
+            onDoubleClick={openFileFromDoubleClick}
             resolvedTheme={resolvedTheme}
             renderContextMenu={(item, context) => (
               <FileTreeContextMenu

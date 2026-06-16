@@ -2740,28 +2740,48 @@ function clearUnconfirmedLocalTurnStartInEnvironment(
 ): EnvironmentState {
   return updateThreadState(state, input.threadId, (thread) => {
     const message = thread.messages.find((candidate) => candidate.id === input.messageId);
-    if (
-      !message ||
-      message.role !== "user" ||
-      (message.turnId !== null && message.turnId !== undefined)
-    ) {
+    if (!message || message.role !== "user") {
       return thread;
     }
 
-    const removedEntries = thread.entries.filter(
-      (entry) =>
-        entry.kind === "message" &&
-        entry.messageId === input.messageId &&
-        (entry.turnId === null || entry.turnId === undefined),
+    const removedRootEntries = thread.entries.filter(
+      (entry) => entry.kind === "message" && entry.messageId === input.messageId,
     );
-    const removedEntryIds = new Set(removedEntries.map((entry) => entry.id));
-    const removedLeafEntry = removedEntries.find((entry) => entry.id === thread.leafId);
+    const removedEntryIds = new Set(removedRootEntries.map((entry) => entry.id));
+    let expanded = true;
+    while (expanded) {
+      expanded = false;
+      for (const entry of thread.entries) {
+        if (
+          entry.parentEntryId !== null &&
+          removedEntryIds.has(entry.parentEntryId) &&
+          !removedEntryIds.has(entry.id)
+        ) {
+          removedEntryIds.add(entry.id);
+          expanded = true;
+        }
+      }
+    }
+    const removedMessageIds = new Set<MessageId>([input.messageId]);
+    for (const entry of thread.entries) {
+      if (removedEntryIds.has(entry.id) && entry.messageId !== null) {
+        removedMessageIds.add(entry.messageId);
+      }
+    }
+    const remainingEntries = thread.entries.filter((entry) => !removedEntryIds.has(entry.id));
+    const removedLeafEntry = thread.leafId ? removedEntryIds.has(thread.leafId) : false;
+    const fallbackLeafId = removedRootEntries[0]?.parentEntryId ?? null;
+    const repairedTree = repairThreadEntryTree({
+      entries: remainingEntries,
+      leafId: removedLeafEntry ? fallbackLeafId : thread.leafId,
+      repairMissingParents: false,
+    });
 
     return {
       ...thread,
-      messages: thread.messages.filter((candidate) => candidate.id !== input.messageId),
-      entries: thread.entries.filter((entry) => !removedEntryIds.has(entry.id)),
-      leafId: removedLeafEntry ? removedLeafEntry.parentEntryId : thread.leafId,
+      messages: thread.messages.filter((candidate) => !removedMessageIds.has(candidate.id)),
+      entries: [...repairedTree.entries],
+      leafId: repairedTree.leafId,
       pendingSourceProposedPlan: undefined,
       updatedAt: new Date().toISOString(),
     };

@@ -26,6 +26,7 @@ export interface WorkbenchManagedTab {
   readonly label: string;
   readonly iconKey: WorkbenchTabIconKey;
   readonly closable: boolean;
+  readonly preview?: boolean | undefined;
   readonly stable?: boolean | undefined;
   readonly terminalId?: string | undefined;
   readonly filePath?: string | undefined;
@@ -62,6 +63,7 @@ interface PersistedWorkbenchTab {
   readonly label?: unknown;
   readonly iconKey?: unknown;
   readonly closable?: unknown;
+  readonly preview?: unknown;
   readonly stable?: unknown;
   readonly terminalId?: unknown;
   readonly filePath?: unknown;
@@ -81,6 +83,7 @@ const FILES_TAB_ID = "files";
 const BROWSER_TAB_ID = "browser";
 const DEV_TAB_ID = "dev";
 const PLAN_TAB_ID = "plan";
+const FILE_PREVIEW_TAB_ID = "file:preview";
 const DEFAULT_BROWSER_ID = "default";
 
 function terminalTabId(terminalId: string): string {
@@ -209,6 +212,7 @@ function normalizePersistedTab(value: PersistedWorkbenchTab): WorkbenchManagedTa
     label: value.label,
     iconKey: value.iconKey,
     closable: filePath ? true : typeof value.closable === "boolean" ? value.closable : true,
+    ...(typeof value.preview === "boolean" ? { preview: value.preview } : {}),
     ...(typeof value.stable === "boolean" ? { stable: value.stable } : {}),
     ...(typeof value.terminalId === "string" ? { terminalId: value.terminalId } : {}),
     ...(filePath ? { filePath } : {}),
@@ -298,7 +302,7 @@ function readPersistedWorkbenchTabs(): Record<string, WorkbenchTabWorkspaceState
 }
 
 function isPersistableTab(tab: WorkbenchManagedTab): boolean {
-  return tab.id !== DEV_TAB_ID && tab.id !== PLAN_TAB_ID;
+  return tab.id !== DEV_TAB_ID && tab.id !== PLAN_TAB_ID && tab.preview !== true;
 }
 
 function persistWorkbenchTabs(data: Record<string, WorkbenchTabWorkspaceState>): void {
@@ -308,10 +312,14 @@ function persistWorkbenchTabs(data: Record<string, WorkbenchTabWorkspaceState>):
     persisted[key] = {
       tabs: state.tabs.filter(isPersistableTab),
       activeTabId:
-        state.activeTabId === DEV_TAB_ID || state.activeTabId === PLAN_TAB_ID
+        !state.tabs.some((tab) => tab.id === state.activeTabId && isPersistableTab(tab)) ||
+        state.activeTabId === DEV_TAB_ID ||
+        state.activeTabId === PLAN_TAB_ID
           ? FILES_TAB_ID
           : state.activeTabId,
-      visitedTabIds: state.visitedTabIds.filter((id) => id !== DEV_TAB_ID && id !== PLAN_TAB_ID),
+      visitedTabIds: state.visitedTabIds.filter((id) =>
+        state.tabs.some((tab) => tab.id === id && isPersistableTab(tab)),
+      ),
     };
   }
   window.localStorage.setItem(WORKBENCH_TAB_STORAGE_KEY, JSON.stringify(persisted));
@@ -331,6 +339,7 @@ function areTabsEqual(left: WorkbenchManagedTab, right: WorkbenchManagedTab): bo
     left.label === right.label &&
     left.iconKey === right.iconKey &&
     left.closable === right.closable &&
+    left.preview === right.preview &&
     left.stable === right.stable &&
     left.terminalId === right.terminalId &&
     left.filePath === right.filePath &&
@@ -506,6 +515,22 @@ function tabLabelFromPath(relativePath: string): string {
   return parts.at(-1) ?? relativePath;
 }
 
+function fileWorkbenchTab(input: {
+  relativePath: string;
+  id: string;
+  preview?: boolean | undefined;
+}): WorkbenchManagedTab {
+  return {
+    id: input.id,
+    kind: "files",
+    label: tabLabelFromPath(input.relativePath),
+    iconKey: "file",
+    closable: true,
+    filePath: input.relativePath,
+    ...(input.preview ? { preview: true } : {}),
+  };
+}
+
 function tabLabelFromUrl(url: string): string {
   try {
     const parsed = new URL(url);
@@ -555,6 +580,10 @@ function reusableDefaultBrowserTab(
     tab.browserId ?? DEFAULT_BROWSER_ID,
   );
   return isBrowserWorkbenchStateEmpty(browserState) ? tab : null;
+}
+
+function previewFileTab(tabs: readonly WorkbenchManagedTab[]): WorkbenchManagedTab | null {
+  return tabs.find((tab) => tab.kind === "files" && tab.preview === true) ?? null;
 }
 
 function activateTabState(
@@ -610,8 +639,14 @@ function applyActivationSideEffects(workspaceKey: string | null, tab: WorkbenchM
     shellPanelsActions.setActiveTerminal(workspaceKey, tab.terminalId);
   }
   if (tab.kind === "files" && tab.filePath) {
-    workspaceEditorActions.openFile(workspaceKey, tab.filePath);
-    workspaceEditorActions.setEditorPlacement(workspaceKey, "right-panel");
+    if (tab.preview) {
+      workspaceEditorActions.previewFile(workspaceKey, tab.filePath);
+    } else {
+      workspaceEditorActions.openFile(workspaceKey, tab.filePath);
+      workspaceEditorActions.setEditorPlacement(workspaceKey, "right-panel");
+    }
+  } else if (tab.kind === "files") {
+    workspaceEditorActions.clearFilePreview(workspaceKey);
   }
   if (tab.kind === "browser" && tab.browserUrl) {
     const browserState = readBrowserWorkbenchSnapshot(workspaceKey, tab.browserId);
@@ -809,25 +844,70 @@ export const workbenchTabPersistenceActions = {
     }));
     activateManagedTab(workspaceKey, tabId);
   },
+  previewFile: (workspaceKey: string | null, relativePath: string): void => {
+    const trimmedPath = relativePath.trim();
+    if (!trimmedPath) return;
+    const durableTabId = fileTabId(trimmedPath);
+    const workspace = readWorkspaceState(
+      useWorkbenchTabStore.getState().byWorkspaceKey,
+      workspaceKey,
+    );
+    const durableTab = workspace.tabs.find(
+      (tab) => tab.id === durableTabId && tab.preview !== true,
+    );
+    if (durableTab) {
+      activateManagedTab(workspaceKey, durableTab.id);
+      return;
+    }
+
+    const previewTab = fileWorkbenchTab({
+      id: FILE_PREVIEW_TAB_ID,
+      relativePath: trimmedPath,
+      preview: true,
+    });
+    updateWorkspaceState(workspaceKey, (current) => {
+      const existingPreview = previewFileTab(current.tabs);
+      if (existingPreview) {
+        return {
+          ...current,
+          tabs: current.tabs.map((tab) => (tab.id === existingPreview.id ? previewTab : tab)),
+        };
+      }
+      return {
+        ...current,
+        tabs: upsertTab(current.tabs, previewTab, current.tabs.length),
+      };
+    });
+    activateManagedTab(workspaceKey, FILE_PREVIEW_TAB_ID);
+  },
   createFile: (workspaceKey: string | null, relativePath: string): void => {
     const trimmedPath = relativePath.trim();
     if (!trimmedPath) return;
     const tabId = fileTabId(trimmedPath);
-    updateWorkspaceState(workspaceKey, (current) => ({
-      ...current,
-      tabs: upsertTab(
-        current.tabs,
-        {
-          id: tabId,
-          kind: "files",
-          label: tabLabelFromPath(trimmedPath),
-          iconKey: "file",
-          closable: true,
-          filePath: trimmedPath,
-        },
-        current.tabs.length,
-      ),
-    }));
+    updateWorkspaceState(workspaceKey, (current) => {
+      const durableTab = fileWorkbenchTab({
+        id: tabId,
+        relativePath: trimmedPath,
+      });
+      const existingDurable = current.tabs.some(
+        (tab) => tab.id === tabId && tab.preview !== true,
+      );
+      const existingPreview = previewFileTab(current.tabs);
+      if (existingPreview?.filePath === trimmedPath && !existingDurable) {
+        return {
+          ...current,
+          tabs: current.tabs.map((tab) => (tab.id === existingPreview.id ? durableTab : tab)),
+        };
+      }
+      const tabs =
+        existingPreview?.filePath === trimmedPath
+          ? removeTab(current.tabs, existingPreview.id)
+          : current.tabs;
+      return {
+        ...current,
+        tabs: upsertTab(tabs, durableTab, tabs.length),
+      };
+    });
     activateManagedTab(workspaceKey, tabId);
   },
   closeTab: (workspaceKey: string | null, tabId: string): void => {
