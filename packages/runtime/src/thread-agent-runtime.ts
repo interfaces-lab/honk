@@ -21,6 +21,7 @@ import {
   AuthStorage,
   type AgentSessionEvent,
   type CreateAgentSessionOptions,
+  type ExtensionCommandContextActions,
   type ExtensionFactory,
   type PromptOptions,
   type ResourceLoader,
@@ -123,6 +124,8 @@ interface PendingPromptClientMessage {
   readonly clientMessageId: MessageId;
   readonly entryIdsBeforePrompt: ReadonlySet<string>;
 }
+
+type ForkSessionEntryOptions = Parameters<ExtensionCommandContextActions["fork"]>[1];
 
 interface InteractionModeQueue {
   readonly enqueue: (mode: AgentInteractionMode) => PendingInteractionMode;
@@ -364,14 +367,91 @@ export class ThreadAgentRuntime {
       commandContextActions: {
         waitForIdle: () => this.session.agent.waitForIdle(),
         newSession: async () => ({ cancelled: false }),
-        fork: async () => ({ cancelled: false }),
+        fork: (entryId, options) => this.forkSessionEntry(entryId, options),
         navigateTree: async () => ({ cancelled: false }),
         switchSession: async () => ({ cancelled: false }),
         reload: async () => {},
-      },
+      } satisfies ExtensionCommandContextActions,
     };
     await this.session.bindExtensions(bindings);
     return ui;
+  }
+
+  async cloneActiveBranch(targetThreadId: ThreadId): Promise<ThreadAgentRuntime> {
+    if (this.isTurnInProgress() || this.session.isStreaming) {
+      throw new Error("Cannot fork chat while a turn is running.");
+    }
+
+    const leafId = this.session.sessionManager.getLeafId();
+    if (!leafId) {
+      throw new Error("Cannot fork chat: no current session entry selected.");
+    }
+
+    const sourceSessionFile = this.session.sessionManager.getSessionFile();
+    if (!sourceSessionFile) {
+      throw new Error("Cannot fork chat: source session has not been persisted.");
+    }
+
+    const targetSessionDir = createThreadSessionDir(targetThreadId, this.options.agentDir);
+    const sessionManager = SessionManager.open(sourceSessionFile, targetSessionDir);
+    const forkedSessionPath = sessionManager.createBranchedSession(leafId);
+    if (!forkedSessionPath) {
+      throw new Error("Cannot fork chat: failed to create forked session.");
+    }
+
+    return ThreadAgentRuntime.create({
+      ...this.options,
+      threadId: targetThreadId,
+      sessionManager,
+    });
+  }
+
+  private async forkSessionEntry(
+    entryId: string,
+    options?: ForkSessionEntryOptions,
+  ): Promise<{ cancelled: boolean }> {
+    if (this.isTurnInProgress() || this.session.isStreaming) {
+      throw new Error("Cannot fork chat while a turn is running.");
+    }
+
+    const position = options?.position ?? "before";
+    if (this.session.hasExtensionHandlers("session_before_fork")) {
+      const result = await this.session.extensionRunner.emit({
+        type: "session_before_fork",
+        entryId,
+        position,
+      });
+      if (result?.cancel === true) {
+        return { cancelled: true };
+      }
+    }
+
+    const selectedEntry = this.session.sessionManager.getEntry(entryId);
+    if (!selectedEntry) {
+      throw new Error("Cannot fork chat: entry not found.");
+    }
+
+    const targetLeafId = targetLeafIdForForkEntry(selectedEntry, position);
+    const previousSessionFile = this.session.sessionManager.getSessionFile();
+    if (targetLeafId) {
+      const forkedSessionPath = this.session.sessionManager.createBranchedSession(targetLeafId);
+      if (this.session.sessionManager.isPersisted() && !forkedSessionPath) {
+        throw new Error("Cannot fork chat: failed to create forked session.");
+      }
+    } else {
+      this.session.sessionManager.newSession({
+        ...(previousSessionFile ? { parentSession: previousSessionFile } : {}),
+      });
+    }
+
+    this.session.agent.state.messages = this.session.sessionManager.buildSessionContext().messages;
+    this.pruneEntryMapsToCurrentSession();
+    this.clientMessageIdByEntryId.clear();
+    this.hydrateClientMessageIdSidecars();
+    this.emit(this.createEvent("session.started", "Pi session forked"));
+    this.emit(this.createEvent("tree.updated", "Session tree updated"));
+    await options?.withSession?.(this.session.createReplacedSessionContext());
+    return { cancelled: false };
   }
 
   async sendMessage(text: string, options: SendMessageOptions): Promise<TurnId> {
@@ -667,6 +747,20 @@ export class ThreadAgentRuntime {
 
   private hasSessionEntry(entryId: string): boolean {
     return this.session.sessionManager.getEntries().some((entry) => entry.id === entryId);
+  }
+
+  private pruneEntryMapsToCurrentSession(): void {
+    const entryIds = new Set(this.session.sessionManager.getEntries().map((entry) => entry.id));
+    for (const entryId of this.clientMessageIdByEntryId.keys()) {
+      if (!entryIds.has(entryId)) {
+        this.clientMessageIdByEntryId.delete(entryId);
+      }
+    }
+    for (const entryId of this.turnIdByEntryId.keys()) {
+      if (!entryIds.has(entryId)) {
+        this.turnIdByEntryId.delete(entryId);
+      }
+    }
   }
 
   private createEvent(
@@ -971,9 +1065,27 @@ function createThreadSessionManager(
   cwd: string,
   agentDir: string,
 ): SessionManager {
+  const sessionDir = createThreadSessionDir(threadId, agentDir);
+  return SessionManager.continueRecent(cwd, sessionDir);
+}
+
+function createThreadSessionDir(threadId: ThreadId, agentDir: string): string {
   const sessionDir = join(agentDir, "honk-thread-sessions", encodeThreadIdForPath(threadId));
   mkdirSync(sessionDir, { recursive: true });
-  return SessionManager.continueRecent(cwd, sessionDir);
+  return sessionDir;
+}
+
+function targetLeafIdForForkEntry(
+  entry: SessionEntry,
+  position: NonNullable<ForkSessionEntryOptions>["position"],
+): string | null {
+  if (position === "at") {
+    return entry.id;
+  }
+  if (entry.type !== "message" || entry.message.role !== "user") {
+    throw new Error("Cannot fork chat before a non-user message.");
+  }
+  return entry.parentId;
 }
 
 export function encodeThreadIdForPath(threadId: ThreadId): string {

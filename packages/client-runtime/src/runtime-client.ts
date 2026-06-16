@@ -165,6 +165,7 @@ export function createRuntimeClientFromApi(runtime: HonkRuntimeApi): HonkRuntime
     configureCredential: async (input) =>
       decodeHonkRuntimeHostSnapshot(await runtime.configureCredential(input)),
     hydrateThread: (input) => runtime.hydrateThread(input),
+    cloneThread: (input) => runtime.cloneThread(input),
     setThreadFocus: (input) => runtime.setThreadFocus(input),
     sendTurn: (input) => runtime.sendTurn(input),
     compactThread: async (input) => {

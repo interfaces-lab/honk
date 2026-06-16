@@ -30,6 +30,7 @@ export const RUNTIME_GET_PREFERENCES_CHANNEL = "desktop:runtime-get-preferences"
 export const RUNTIME_UPDATE_PREFERENCES_CHANNEL = "desktop:runtime-update-preferences";
 export const RUNTIME_CONFIGURE_CREDENTIAL_CHANNEL = "desktop:runtime-configure-credential";
 export const RUNTIME_HYDRATE_THREAD_CHANNEL = "desktop:runtime-hydrate-thread";
+export const RUNTIME_CLONE_THREAD_CHANNEL = "desktop:runtime-clone-thread";
 export const RUNTIME_SET_THREAD_FOCUS_CHANNEL = "desktop:runtime-set-thread-focus";
 export const RUNTIME_SEND_TURN_CHANNEL = "desktop:runtime-send-turn";
 export const RUNTIME_COMPACT_THREAD_CHANNEL = "desktop:runtime-compact-thread";

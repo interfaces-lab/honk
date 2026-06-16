@@ -502,30 +502,39 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-queued-composer
   visibility: visible;
 }
 
-body.honk-reduce-transparency[data-honk-glass-mode="true"]
-  [data-composer-command-menu-root]
-  [data-variant="surface"],
-body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-honk-composer-header],
-body.honk-reduce-transparency[data-honk-glass-mode="true"] .honk-slash-menu-popup {
+body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-honk-composer-header] {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   background: var(--honk-composer-surface-opaque-background);
 }
 
-body[data-honk-glass-mode="true"] [data-composer-command-menu-root] [data-variant="surface"],
-body[data-honk-glass-mode="true"] .honk-slash-menu-popup {
-  backdrop-filter: blur(var(--honk-composer-blur, 10px));
-  -webkit-backdrop-filter: blur(var(--honk-composer-blur, 10px));
-}
-
-html.dark body[data-honk-glass-mode="true"] :is(
+body.honk-reduce-transparency[data-honk-glass-mode="true"] :is(
   [data-composer-command-menu-root] [data-variant="surface"],
+  [data-composer-menu-preview],
   .honk-slash-menu-popup,
   .honk-workbench-menu-popup,
   [data-testid="command-palette"]
 ) {
-  backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-color: var(--honk-menu-surface-background);
+}
+
+/* Picker menus: opaque pane in glass (light and dark). Command palette stays glass in light. */
+body[data-honk-glass-mode="true"] :is(
+  [data-composer-command-menu-root] [data-variant="surface"],
+  [data-composer-menu-preview],
+  .honk-slash-menu-popup,
+  .honk-workbench-menu-popup
+) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-color: var(--honk-menu-surface-background);
+}
+
+html.dark body[data-honk-glass-mode="true"] [data-testid="command-palette"] {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   background-color: var(--honk-menu-surface-background);
 }
 

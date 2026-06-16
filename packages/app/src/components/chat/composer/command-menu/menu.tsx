@@ -24,6 +24,11 @@ import { useMemo, type ComponentProps } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { Popover, PopoverPopup } from "@honk/honkkit/popover";
+import {
+  honkMenuPickerChromeClasses,
+  honkMenuPopupFontClasses,
+  honkMenuPopupSurfaceClasses,
+} from "@honk/honkkit/utils";
 import { isDesktopRuntimeApiAvailable } from "~/lib/honk-runtime-api";
 import { runtimeSkillsQueryOptions, type RuntimeSkillSummary } from "~/lib/runtime-skills";
 import { selectSidebarThreadsAcrossEnvironments, useStore } from "~/stores/thread-store";
@@ -645,7 +650,12 @@ export function ComposerCommandMenu(props: {
       }}
     >
       <div
-        className="relative w-full max-w-full min-w-0 overflow-hidden rounded-lg border border-honk-stroke-secondary bg-(--honk-composer-popup-surface-background) font-honk text-honk-chrome text-honk-fg-primary shadow-honk-xl backdrop-blur-[length:var(--honk-glass-blur-floating)] motion-reduce:animate-none motion-reduce:transition-none"
+        className={cn(
+          "relative w-full max-w-full min-w-0 overflow-hidden rounded-lg backdrop-blur-[length:var(--honk-glass-blur-floating)] dark:backdrop-blur-none motion-reduce:animate-none motion-reduce:transition-none",
+          honkMenuPopupSurfaceClasses,
+          honkMenuPopupFontClasses,
+          honkMenuPickerChromeClasses,
+        )}
         data-menu-kind={props.menuKind}
         data-variant="surface"
       >

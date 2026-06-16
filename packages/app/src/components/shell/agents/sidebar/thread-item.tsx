@@ -1,8 +1,15 @@
-import { scopedThreadKey } from "~/lib/environment-scope";
+import { DESKTOP_RUNTIME_ENVIRONMENT_ID, scopedThreadKey } from "~/lib/environment-scope";
 import type { ScopedThreadRef } from "@honk/contracts";
 import { SidebarButton, SidebarItem } from "@honk/honkkit/sidebar";
 import { IconArchive1, IconPin, IconUnpin } from "central-icons";
-import { type KeyboardEvent, memo, type MouseEvent, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  memo,
+  type MouseEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
 import { resolveThreadCopyId } from "~/routes/-thread-route-targets";
@@ -23,6 +30,7 @@ type CommitThreadRename = (
   originalTitle: string,
 ) => Promise<void>;
 type ArchiveThread = (target: ScopedThreadRef) => Promise<void>;
+type CloneThread = (target: ScopedThreadRef, cwd: string) => Promise<void>;
 
 function useDraftSidebarTitle(item: DraftSidebarChatItem): string {
   return useComposerDraftStore((store) => {
@@ -68,17 +76,12 @@ const AgentSidebarDraftItem = memo(function AgentSidebarDraftItem(props: {
   );
 });
 
-function focusRenameInput(node: HTMLInputElement | null) {
-  if (!node) return;
-  node.focus();
-  node.select();
-}
-
 export const AgentSidebarThreadItem = memo(function AgentSidebarThreadItem(props: {
   item: SidebarChatItem;
   selected: boolean;
   archiveThread: ArchiveThread;
   unarchiveThread: ArchiveThread;
+  cloneThread: CloneThread;
   commitRename: CommitThreadRename;
   onSelectAgent: (id: string) => void;
   onPrefetchAgent?: (id: string) => void;
@@ -100,6 +103,7 @@ export const AgentSidebarThreadItem = memo(function AgentSidebarThreadItem(props
       selected={props.selected}
       archiveThread={props.archiveThread}
       unarchiveThread={props.unarchiveThread}
+      cloneThread={props.cloneThread}
       commitRename={props.commitRename}
       onSelectAgent={props.onSelectAgent}
       {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}
@@ -112,6 +116,7 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
   selected: boolean;
   archiveThread: ArchiveThread;
   unarchiveThread: ArchiveThread;
+  cloneThread: CloneThread;
   commitRename: CommitThreadRename;
   onSelectAgent: (id: string) => void;
   onPrefetchAgent?: (id: string) => void;
@@ -123,10 +128,34 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const committedRef = useRef(false);
+  const renameInputRef = useRef<HTMLInputElement | null>(null);
+  const renameStartTimerRef = useRef<number | null>(null);
 
   const selectThread = () => {
     onSelectAgent(item.id);
   };
+
+  useEffect(() => {
+    if (!renaming) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const input = renameInputRef.current;
+      input?.focus();
+      input?.select();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [renaming]);
+
+  useEffect(() => {
+    return () => {
+      if (renameStartTimerRef.current !== null) {
+        window.clearTimeout(renameStartTimerRef.current);
+      }
+    };
+  }, []);
 
   const finishRename = () => {
     setRenaming(false);
@@ -199,11 +228,33 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
     event.stopPropagation();
     toggleArchiveThread();
   };
+  const toggleThreadPinned = () => {
+    setThreadPinned(scopedThreadKey(targetThreadRef), !threadItem.pinned);
+  };
+  const forkChat = () => {
+    void props.cloneThread(targetThreadRef, threadItem.cwd).catch((error) => {
+      toast.error("Failed to fork chat", {
+        description: error instanceof Error ? error.message : "An error occurred.",
+      });
+    });
+  };
   const togglePinnedThread = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    setThreadPinned(scopedThreadKey(targetThreadRef), !threadItem.pinned);
+    toggleThreadPinned();
   };
+  const startRename = () => {
+    const title = threadItem.title;
+    if (renameStartTimerRef.current !== null) {
+      window.clearTimeout(renameStartTimerRef.current);
+    }
+    renameStartTimerRef.current = window.setTimeout(() => {
+      renameStartTimerRef.current = null;
+      setRenameValue(title);
+      setRenaming(true);
+    }, 0);
+  };
+
   if (renaming) {
     return (
       <SidebarItem
@@ -214,7 +265,7 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
       >
         <StatusSlot item={props.item} />
         <input
-          ref={focusRenameInput}
+          ref={renameInputRef}
           type="text"
           value={renameValue}
           onChange={(e) => setRenameValue(e.target.value)}
@@ -232,14 +283,15 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
   return (
     <ThreadContextMenu
       threadId={resolveThreadCopyId(targetThreadRef)}
-      onRename={() => {
-        setRenaming(true);
-        setRenameValue(threadItem.title);
-      }}
+      onRename={startRename}
       onMarkUnread={() => {
         markThreadUnread(scopedThreadKey(targetThreadRef), threadItem.latestReadableAt);
       }}
       archived={threadItem.archived}
+      pinned={threadItem.pinned}
+      canForkChat={targetThreadRef.environmentId === DESKTOP_RUNTIME_ENVIRONMENT_ID}
+      onTogglePinned={toggleThreadPinned}
+      onForkChat={forkChat}
       onArchive={toggleArchiveThread}
     >
       <SidebarItem

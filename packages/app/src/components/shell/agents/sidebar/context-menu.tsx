@@ -8,11 +8,14 @@ import {
 import {
   IconArchive1,
   IconBell,
+  IconBranch,
   IconCheckmark1Small,
   IconClipboard,
   IconCode,
   IconEditSmall1,
+  IconPin,
   IconTrashCan,
+  IconUnpin,
 } from "central-icons";
 import { useRef, type ReactElement } from "react";
 
@@ -50,8 +53,12 @@ export function ThreadContextMenu(props: {
   children: ReactElement;
   threadId: string;
   archived: boolean;
+  pinned: boolean;
+  canForkChat: boolean;
   onRename: () => void;
   onMarkUnread: () => void;
+  onTogglePinned: () => void;
+  onForkChat: () => void;
   onArchive: () => void;
 }) {
   const { handleOpenChange, setTriggerRef } = useContextMenuTriggerFocus();
@@ -60,6 +67,15 @@ export function ThreadContextMenu(props: {
     <ContextMenu data-slot="context-menu-root" onOpenChange={handleOpenChange}>
       <ContextMenuTrigger ref={setTriggerRef} render={props.children} />
       <WorkbenchContextMenuPopup positionerClassName="z-(--z-index-sidebar-context-menu)">
+        <WorkbenchContextMenuItem
+          label={props.pinned ? "Unpin" : "Pin"}
+          onClick={props.onTogglePinned}
+          icon={
+            props.pinned ? <IconUnpin aria-hidden /> : <IconPin aria-hidden />
+          }
+        >
+          {props.pinned ? "Unpin" : "Pin"}
+        </WorkbenchContextMenuItem>
         <WorkbenchContextMenuItem
           label="Rename"
           onClick={props.onRename}
@@ -74,7 +90,18 @@ export function ThreadContextMenu(props: {
         >
           Mark as unread
         </WorkbenchContextMenuItem>
-        <WorkbenchContextMenuSeparator />
+        {props.canForkChat ? (
+          <>
+            <WorkbenchContextMenuSeparator />
+            <WorkbenchContextMenuItem
+              label="Fork Chat"
+              onClick={props.onForkChat}
+              icon={<IconBranch aria-hidden />}
+            >
+              Fork Chat
+            </WorkbenchContextMenuItem>
+          </>
+        ) : null}
         <WorkbenchContextMenuItem
           label="Copy Thread ID"
           onClick={() => void navigator.clipboard.writeText(props.threadId)}

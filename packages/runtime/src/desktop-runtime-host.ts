@@ -20,6 +20,7 @@ import {
   type HonkRuntimeHostEvent,
   type HonkRuntimeHostSnapshot,
   type RuntimeDisplayTimelineProjection,
+  type ThreadAgentRuntimeCloneInput,
   type RuntimeGetThreadSessionFileInput,
   type RuntimeGetThreadSessionFileResult,
   type RuntimeListSkillsInput,
@@ -426,42 +427,35 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
         extensionPaths: this.extensionPaths,
         policy: input.policy,
       });
-      const ui = createDesktopExtensionUi();
-      const unsubscribeRuntime = runtime.subscribe((event) => {
-        const wireEvent = toWireRuntimeEvent(event);
-        this.recordRuntimeEvent(event, wireEvent);
-        this.emit({ type: "runtime-event", event: wireEvent });
-        this.applyRuntimeEventToDisplayTimeline(runtime, event);
-        this.scheduleDisplayTimelineEmit(runtime.threadId);
-        if (event.type === "tree.updated") {
-          this.publishSessionTree(runtime);
-        }
-      });
-      const unsubscribeUi = ui.onPendingRequestsChanged(() => {
-        this.emit({ type: "pending-extension-ui", requests: this.getPendingExtensionUiRequests() });
-        this.refreshDisplayTimeline(runtime);
-        this.scheduleDisplayTimelineEmit(runtime.threadId);
-      });
-      const unsubscribe = () => {
-        unsubscribeRuntime();
-        unsubscribeUi();
-      };
-
-      this.runtimes.set(input.threadId, { runtime, ui, unsubscribe });
-      if (this.bindRuntimeExtensions) {
-        await this.bindRuntimeExtensions(runtime, ui);
-      } else {
-        await runtime.bindExtensions(ui);
-      }
-      this.publishSessionTree(runtime);
-      this.emit({
-        type: "runtime-identities",
-        identities: this.getRuntimeIdentities(),
-        authStatuses: this.getAuthStatuses(),
-      });
+      await this.installRuntime(runtime);
       return runtime.identity;
     } catch (error) {
       this.disposeRuntime(input.threadId);
+      this.emit({ type: "snapshot", snapshot: await this.getHostSnapshot() });
+      throw error;
+    }
+  }
+
+  async cloneThread(input: ThreadAgentRuntimeCloneInput): Promise<void> {
+    if (!this.runtimes.has(input.sourceThreadId)) {
+      await this.startThread({
+        threadId: input.sourceThreadId,
+        cwd: input.cwd,
+        policy: input.policy,
+      });
+    }
+
+    const sourceEntry = this.runtimes.get(input.sourceThreadId);
+    if (!sourceEntry) {
+      throw new Error(`No runtime thread exists for ${input.sourceThreadId}.`);
+    }
+
+    this.disposeRuntime(input.targetThreadId);
+    try {
+      const runtime = await sourceEntry.runtime.cloneActiveBranch(input.targetThreadId);
+      await this.installRuntime(runtime);
+    } catch (error) {
+      this.disposeRuntime(input.targetThreadId);
       this.emit({ type: "snapshot", snapshot: await this.getHostSnapshot() });
       throw error;
     }
@@ -652,6 +646,49 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     this.refreshDisplayTimeline(runtime);
     this.scheduleDisplayTimelineEmit(runtime.threadId);
     this.emit({ type: "pending-extension-ui", requests: this.getPendingExtensionUiRequests() });
+  }
+
+  private async installRuntime(runtime: ThreadAgentRuntime): Promise<void> {
+    const ui = createDesktopExtensionUi();
+    const unsubscribeRuntime = runtime.subscribe((event) => {
+      const wireEvent = toWireRuntimeEvent(event);
+      this.recordRuntimeEvent(event, wireEvent);
+      this.emit({ type: "runtime-event", event: wireEvent });
+      this.applyRuntimeEventToDisplayTimeline(runtime, event);
+      this.scheduleDisplayTimelineEmit(runtime.threadId);
+      if (event.type === "session.started") {
+        this.emit({
+          type: "runtime-identities",
+          identities: this.getRuntimeIdentities(),
+          authStatuses: this.getAuthStatuses(),
+        });
+      }
+      if (event.type === "tree.updated") {
+        this.publishSessionTree(runtime);
+      }
+    });
+    const unsubscribeUi = ui.onPendingRequestsChanged(() => {
+      this.emit({ type: "pending-extension-ui", requests: this.getPendingExtensionUiRequests() });
+      this.refreshDisplayTimeline(runtime);
+      this.scheduleDisplayTimelineEmit(runtime.threadId);
+    });
+    const unsubscribe = () => {
+      unsubscribeRuntime();
+      unsubscribeUi();
+    };
+
+    this.runtimes.set(runtime.threadId, { runtime, ui, unsubscribe });
+    if (this.bindRuntimeExtensions) {
+      await this.bindRuntimeExtensions(runtime, ui);
+    } else {
+      await runtime.bindExtensions(ui);
+    }
+    this.publishSessionTree(runtime);
+    this.emit({
+      type: "runtime-identities",
+      identities: this.getRuntimeIdentities(),
+      authStatuses: this.getAuthStatuses(),
+    });
   }
 
   private scheduleDisplayTimelineEmit(threadId: string): void {

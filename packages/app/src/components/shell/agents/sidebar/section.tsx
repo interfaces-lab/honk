@@ -22,6 +22,7 @@ type CommitThreadRename = (
 ) => Promise<void>;
 type ArchiveThread = (target: ScopedThreadRef) => Promise<void>;
 type ArchiveThreads = (targets: readonly ScopedThreadRef[]) => Promise<void>;
+type CloneThread = (target: ScopedThreadRef, cwd: string) => Promise<void>;
 type RemoveProjectFromSidebar = (target: ScopedProjectRef) => Promise<void>;
 
 function minVisibleForSelection(
@@ -48,6 +49,7 @@ export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
   archiveThread: ArchiveThread;
   archiveThreads: ArchiveThreads;
   unarchiveThread: ArchiveThread;
+  cloneThread: CloneThread;
   commitRename: CommitThreadRename;
   removeProjectFromSidebar: RemoveProjectFromSidebar;
   onSelectAgent: (id: string) => void;
@@ -292,6 +294,7 @@ export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
               selected={props.selectedId === item.id}
               archiveThread={props.archiveThread}
               unarchiveThread={props.unarchiveThread}
+              cloneThread={props.cloneThread}
               commitRename={props.commitRename}
               onSelectAgent={props.onSelectAgent}
               {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}

@@ -1,5 +1,11 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
+import {
+  honkMenuPickerChromeClasses,
+  honkMenuPopupFontClasses,
+  honkMenuPopupSurfaceClasses,
+} from "@honk/honkkit/utils";
+
 import { cn } from "~/lib/utils";
 
 import { Tree, useTreeModel } from "../../../tree";
@@ -196,7 +202,10 @@ export function ComposerPathPreviewPanel(props: {
       data-variant="surface"
       style={placement.side === "hidden" ? undefined : { left: placement.left, top: placement.top }}
       className={cn(
-        "pointer-events-auto absolute max-h-[342px] w-[320px] overflow-hidden rounded-lg border border-honk-stroke-secondary bg-(--honk-composer-popup-surface-background) shadow-honk-soft honk-glass-inset-ring",
+        "pointer-events-auto absolute max-h-[342px] w-[320px] overflow-hidden rounded-lg",
+        honkMenuPopupSurfaceClasses,
+        honkMenuPopupFontClasses,
+        honkMenuPickerChromeClasses,
         placement.side === "hidden" && "hidden",
       )}
       onMouseDown={(event) => {

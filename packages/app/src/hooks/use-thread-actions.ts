@@ -1,4 +1,5 @@
 import {
+  DESKTOP_RUNTIME_ENVIRONMENT_ID,
   parseScopedThreadKey,
   scopedThreadKey,
   scopeProjectRef,
@@ -6,6 +7,7 @@ import {
 } from "~/lib/environment-scope";
 import { type ScopedProjectRef, type ScopedThreadRef, ThreadId } from "@honk/contracts";
 import type { SidebarThreadSortOrder } from "@honk/contracts/settings";
+import { createAgentModelPolicy } from "@honk/shared/agent-model-policy";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -16,9 +18,10 @@ import { readEnvironmentApi } from "../environment-api";
 import { invalidateGitQueries } from "../lib/git-react-query";
 import { ensureEnvironmentGitApi } from "../lib/environment-git-api";
 import { sortThreads, type ThreadSortInput } from "../lib/thread-sort";
-import { newCommandId } from "../lib/utils";
+import { newCommandId, newThreadId } from "../lib/utils";
 import { readHonkRuntimeApi } from "~/lib/honk-runtime-api";
 import { readLocalApi } from "../local-api";
+import { useAgentRuntimeStore } from "../stores/agent-runtime-store";
 import {
   selectProjectsAcrossEnvironments,
   selectThreadByRef,
@@ -258,6 +261,8 @@ export function useThreadActions() {
     (store) => store.clearProjectDraftThreadById,
   );
   const clearTerminalState = useTerminalStateStore((state) => state.clearTerminalState);
+  const markLocalRuntimeThread = useAgentRuntimeStore((store) => store.markLocalRuntimeThread);
+  const clearLocalRuntimeThread = useAgentRuntimeStore((store) => store.clearLocalRuntimeThread);
   const router = useRouter();
   const routeTarget = useRouteTarget();
   const { handleNewThread } = useNewThreadHandler();
@@ -340,6 +345,44 @@ export function useThreadActions() {
       });
     }
   }, []);
+
+  const cloneThread = useCallback(
+    async (target: ScopedThreadRef, cwd: string): Promise<void> => {
+      if (target.environmentId !== DESKTOP_RUNTIME_ENVIRONMENT_ID) {
+        throw new Error("Fork chat is only available for local Pi runtime threads.");
+      }
+
+      const resolved = resolveThreadTarget(target);
+      if (!resolved) {
+        throw new Error("Thread is unavailable.");
+      }
+
+      const runtimeApi = readHonkRuntimeApi();
+      const targetThreadId = newThreadId();
+      const preferences = await runtimeApi.getPreferences();
+      const policy = createAgentModelPolicy({
+        preferences,
+        interactionMode: resolved.thread.interactionMode,
+        modelSelection: resolved.thread.modelSelection,
+      });
+
+      markLocalRuntimeThread(targetThreadId);
+      try {
+        await runtimeApi.cloneThread({
+          sourceThreadId: target.threadId,
+          targetThreadId,
+          cwd,
+          policy,
+        });
+      } catch (error) {
+        clearLocalRuntimeThread(targetThreadId);
+        throw error;
+      }
+
+      await openThread(router, scopeThreadRef(DESKTOP_RUNTIME_ENVIRONMENT_ID, targetThreadId));
+    },
+    [clearLocalRuntimeThread, markLocalRuntimeThread, router],
+  );
 
   const archiveThread = useCallback(
     async (target: ScopedThreadRef) => {
@@ -741,6 +784,7 @@ export function useThreadActions() {
   return useMemo(
     () => ({
       commitRename,
+      cloneThread,
       archiveThread,
       archiveThreads,
       unarchiveThread,
@@ -753,6 +797,7 @@ export function useThreadActions() {
       archiveThread,
       archiveThreads,
       archiveWarningDialog,
+      cloneThread,
       confirmAndDeleteThread,
       deleteThread,
       removeProjectFromSidebar,

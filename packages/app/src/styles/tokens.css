@@ -203,7 +203,8 @@
   --honk-color-editor: var(--honk-color-editor-opaque);
   --honk-color-surface-opaque: var(--honk-base-editor);
   --honk-color-surface: var(--honk-color-surface-opaque);
-  --honk-color-elevated-opaque: color-mix(in srgb, var(--honk-base-editor) 92%, white);
+  /* Cursor parity: editorWidget / quickInput background. */
+  --honk-color-elevated-opaque: #252526;
   --honk-color-elevated: var(--honk-color-elevated-opaque);
   --honk-color-menubar-opaque: var(--honk-base-editor);
   --honk-color-menubar: var(--honk-color-menubar-opaque);
@@ -263,6 +264,7 @@ html {
   --honk-composer-surface-background: var(--honk-bubble-surface-background);
   --honk-composer-surface-opaque-background: var(--honk-bubble-surface-opaque-background);
   --honk-menu-surface-background: var(--honk-pane-surface-background);
+  --honk-composer-popup-surface-background: var(--honk-menu-surface-background);
   --honk-shadow-secondary: color-mix(in srgb, var(--honk-shadow-primary) 60%, transparent);
   --honk-shadow-tertiary: color-mix(in srgb, var(--honk-shadow-primary) 30%, transparent);
   --honk-shadow-workbench: 0 0 8px 2px
@@ -338,7 +340,7 @@ html {
   --honk-bg-card: var(--honk-bg-quaternary);
   --honk-bg-quinary: color-mix(in srgb, var(--foreground) 4%, transparent);
   --honk-bg-elevated: var(--honk-color-elevated-opaque);
-  --honk-command-palette-surface-background: var(--honk-bg-elevated);
+  --honk-command-palette-surface-background: var(--honk-menu-surface-background);
   --honk-bg-active: color-mix(in srgb, var(--foreground) 16%, transparent);
   --honk-bg-focused: color-mix(in srgb, var(--foreground) 22%, transparent);
   --honk-bg-green-primary: var(--success);
@@ -469,20 +471,20 @@ html {
     var(--honk-stroke-tertiary) 15%,
     transparent
   );
-  --honk-composer-popup-surface-background: color-mix(
-    in srgb,
-    var(--honk-composer-surface-opaque-background) 96%,
-    transparent
-  );
 }
 
 html.dark {
   --honk-vibrancy-sidebar-mix: 36%;
   --honk-vibrancy-chat-mix: 72%;
   --honk-vibrancy-editor-mix: var(--honk-vibrancy-chat-mix);
-  --honk-pane-surface-background: color-mix(in srgb, var(--honk-base-editor) 96%, #fff);
+  --honk-pane-surface-background: color-mix(in srgb, var(--honk-bg-elevated) 96%, #fff);
   --honk-menu-surface-background: var(--honk-pane-surface-background);
   --honk-composer-popup-surface-background: var(--honk-menu-surface-background);
+  --honk-bubble-surface-background: var(--honk-pane-surface-background);
+  --honk-bubble-surface-opaque-background: var(--honk-pane-surface-background);
+  --honk-message-bubble-background: var(--honk-bubble-surface-background);
+  --honk-composer-surface-background: var(--honk-bubble-surface-background);
+  --honk-composer-surface-opaque-background: var(--honk-pane-surface-background);
   --honk-command-palette-surface-background: var(--honk-menu-surface-background);
   --honk-workbench-panel-background: color-mix(
     in srgb,
@@ -505,17 +507,17 @@ html.dark {
     var(--honk-color-editor) 18%
   );
   --honk-bg-elevated: var(--honk-color-elevated-opaque);
-  --honk-shadow-secondary: transparent;
+  --honk-shadow-secondary: color-mix(in srgb, rgb(0 0 0) 60%, transparent);
   --honk-shadow-tertiary: transparent;
   --honk-shadow-workbench: none;
   --honk-shadow-toolbar: none;
   --honk-shadow-soft: none;
-  --honk-shadow-sm: none;
+  --honk-shadow-sm: 0 0 0 1px var(--honk-stroke-tertiary), 0 2px 8px 0 var(--honk-shadow-secondary);
   --honk-shadow-base: none;
   --honk-shadow-lg: none;
   --honk-shadow-xl: none;
   --honk-shadow-card: none;
-  --honk-shadow-popup: none;
+  --honk-shadow-popup: var(--honk-shadow-sm);
   --honk-shadow-flat-ring: 0 0 0 1px var(--honk-stroke-quaternary);
   --shadow-2xs: none;
   --shadow-xs: none;
@@ -571,11 +573,15 @@ body[data-honk-glass-mode="true"] {
   --honk-color-surface-opaque: var(--honk-base-editor);
   --honk-color-elevated-opaque: var(--honk-base-editor);
   --honk-color-menubar-opaque: var(--honk-base-editor);
-  --honk-command-palette-surface-background: var(--honk-base-chrome);
+  --honk-command-palette-surface-background: color-mix(
+    in srgb,
+    var(--honk-bg-elevated) 84%,
+    transparent
+  );
 }
 
 html.dark body[data-honk-glass-mode="true"] {
-  --honk-color-elevated-opaque: color-mix(in srgb, var(--honk-base-editor) 92%, white);
+  --honk-color-elevated-opaque: #252526;
   --honk-command-palette-surface-background: var(--honk-pane-surface-background);
 }
 
@@ -600,15 +606,6 @@ body.honk-os-vibrancy-on[data-honk-glass-mode="true"] {
 
 html.dark body.honk-os-vibrancy-on[data-honk-glass-mode="true"] {
   --honk-command-palette-surface-background: var(--honk-pane-surface-background);
-}
-
-@supports (color: color-mix(in lab, red, red)) {
-  html.dark [data-component="root"] {
-    /* Cursor parity: one 96% lift from flat editor (#181818), not pre-whitened elevated. */
-    --honk-bubble-surface-background: color-mix(in srgb, var(--honk-base-editor) 96%, #fff);
-    --honk-message-bubble-background: var(--honk-bubble-surface-background);
-    --honk-composer-surface-background: var(--honk-bubble-surface-background);
-  }
 }
 
 body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-component="root"] {
@@ -639,7 +636,8 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-component="root
 }
 
 body.honk-reduce-transparency[data-honk-glass-mode="true"] {
-  --honk-command-palette-surface-background: var(--honk-base-chrome);
+  --honk-command-palette-surface-background: var(--honk-pane-surface-background);
+  --honk-composer-popup-surface-background: var(--honk-menu-surface-background);
 }
 
 html.dark body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-component="root"] {

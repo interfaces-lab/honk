@@ -106,6 +106,7 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
     archiveThread,
     archiveThreads,
     unarchiveThread,
+    cloneThread,
     commitRename,
     removeProjectFromSidebar,
     archiveWarningDialog,
@@ -221,6 +222,7 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
       archiveThread={archiveThread}
       archiveThreads={archiveThreads}
       unarchiveThread={unarchiveThread}
+      cloneThread={cloneThread}
       commitRename={commitRename}
       removeProjectFromSidebar={removeProjectFromSidebar}
       onSelectAgent={props.onSelectAgent}

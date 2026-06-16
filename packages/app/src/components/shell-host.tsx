@@ -249,6 +249,30 @@ function hasGitAgentActionMessage(
   return thread.userMessageIds.includes(handoff.messageId);
 }
 
+function hasActiveOrchestrationTurn(
+  thread: Pick<Thread, "session" | "latestTurn"> | null | undefined,
+): boolean {
+  const latestTurn = thread?.latestTurn ?? null;
+  if (latestTurn?.state === "running" && latestTurn.completedAt === null) {
+    return true;
+  }
+
+  const session = thread?.session ?? null;
+  if (
+    session?.orchestrationStatus !== "starting" &&
+    session?.orchestrationStatus !== "running"
+  ) {
+    return false;
+  }
+
+  const activeTurnId = session.activeTurnId ?? null;
+  if (activeTurnId === null) {
+    return false;
+  }
+
+  return latestTurn?.turnId !== activeTurnId || latestTurn.completedAt === null;
+}
+
 function resolveActiveGitAgentHandoff(input: {
   activeRun: GitAgentRun | null;
   activeThread: ThreadGitAgentSurface | null;
@@ -272,13 +296,14 @@ function resolveActiveGitAgentHandoff(input: {
     return input.orchestrationHandoff;
   }
 
-  const orchestrationStatus = activeThread.session?.orchestrationStatus ?? null;
-  if (orchestrationStatus === "starting" || orchestrationStatus === "running") {
+  if (hasActiveOrchestrationTurn(activeThread)) {
     return input.orchestrationHandoff;
   }
 
   const latestTurnState = activeThread.latestTurn?.state ?? null;
+  const latestTurnCompleted = activeThread.latestTurn?.completedAt != null;
   if (
+    latestTurnCompleted ||
     latestTurnState === "completed" ||
     latestTurnState === "interrupted" ||
     latestTurnState === "error" ||
@@ -419,8 +444,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
     if (!activeGitAgentThread) {
       return null;
     }
-    const status = activeGitAgentThread.session?.orchestrationStatus ?? null;
-    if (status !== "starting" && status !== "running") {
+    if (!hasActiveOrchestrationTurn(activeGitAgentThread)) {
       return null;
     }
     const latestUserMessage = activeGitAgentThread.latestUserMessage;
@@ -501,9 +525,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
         ? activeLatestTurn.sourceProposedPlan.threadId
         : activeThread.id
       : null;
-  const activeTurnRunning =
-    activeThread?.session?.orchestrationStatus === "starting" ||
-    activeThread?.session?.orchestrationStatus === "running";
+  const activeTurnRunning = hasActiveOrchestrationTurn(activeThread);
   const showPlanImplementationActions = hasActionableProposedPlan(activeProposedPlan);
   const canImplementPlan =
     showPlanImplementationActions &&
@@ -713,8 +735,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
       throw new Error("Open this repository's draft before running the Git action.");
     }
 
-    const currentThreadStatus = currentServerThread?.session?.orchestrationStatus ?? null;
-    if (currentThreadStatus === "starting" || currentThreadStatus === "running") {
+    if (hasActiveOrchestrationTurn(currentServerThread)) {
       throw new Error("Wait for the current turn to finish before running this Git action.");
     }
 

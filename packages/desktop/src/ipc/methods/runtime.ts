@@ -9,6 +9,7 @@ import {
   RuntimeGetThreadSessionFileResult,
   RuntimeListSkillsInput,
   RuntimeListSkillsResult,
+  ThreadAgentRuntimeCloneInput,
   ThreadAgentRuntimeAbortInput,
   ThreadAgentRuntimeCompactInput,
   ThreadAgentRuntimeHydrateInput,
@@ -182,6 +183,33 @@ export const hydrateRuntimeThread = makeIpcMethod({
           logRuntimeFailure("runtime thread hydrate failed", input, error),
         ),
       );
+    }),
+});
+
+export const cloneRuntimeThread = makeIpcMethod({
+  channel: IpcChannels.RUNTIME_CLONE_THREAD_CHANNEL,
+  payload: ThreadAgentRuntimeCloneInput,
+  result: Schema.Void,
+  handler: (input) =>
+    Effect.gen(function* () {
+      yield* elog.info("runtime thread clone started", {
+        threadId: input.sourceThreadId,
+        targetThreadId: input.targetThreadId,
+      });
+      const host = yield* requireRuntimeHost;
+      yield* Effect.promise(() => host.cloneThread(input)).pipe(
+        Effect.tapError((error) =>
+          logRuntimeFailure(
+            "runtime thread clone failed",
+            { threadId: input.sourceThreadId },
+            error,
+          ),
+        ),
+      );
+      yield* elog.debug("runtime thread clone completed", {
+        threadId: input.sourceThreadId,
+        targetThreadId: input.targetThreadId,
+      });
     }),
 });
 

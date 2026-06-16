@@ -394,6 +394,14 @@ export const ThreadAgentRuntimeHydrateInput = Schema.Struct({
 });
 export type ThreadAgentRuntimeHydrateInput = typeof ThreadAgentRuntimeHydrateInput.Type;
 
+export const ThreadAgentRuntimeCloneInput = Schema.Struct({
+  sourceThreadId: ThreadId,
+  targetThreadId: ThreadId,
+  cwd: TrimmedNonEmptyString,
+  policy: AgentModelPolicy,
+});
+export type ThreadAgentRuntimeCloneInput = typeof ThreadAgentRuntimeCloneInput.Type;
+
 export const ThreadAgentRuntimeCompactInput = Schema.Struct({
   threadId: ThreadId,
   cwd: TrimmedNonEmptyString,
@@ -880,6 +888,7 @@ export interface HonkRuntimeApi {
   updatePreferences: (patch: AgentPreferencesPatch) => Promise<AgentPreferences>;
   configureCredential: (input: AgentCredentialConfigureInput) => Promise<HonkRuntimeHostSnapshot>;
   hydrateThread: (input: ThreadAgentRuntimeHydrateInput) => Promise<void>;
+  cloneThread: (input: ThreadAgentRuntimeCloneInput) => Promise<void>;
   compactThread: (input: ThreadAgentRuntimeCompactInput) => Promise<void>;
   setThreadFocus: (input: ThreadAgentRuntimeSetThreadFocusInput) => Promise<void>;
   sendTurn: (input: ThreadAgentRuntimeSendTurnInput) => Promise<TurnId>;

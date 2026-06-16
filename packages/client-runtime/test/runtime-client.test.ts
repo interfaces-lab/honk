@@ -34,6 +34,7 @@ function createRuntimeApi(
     updatePreferences: async () => snapshot.preferences,
     configureCredential: async () => snapshot,
     hydrateThread: async () => undefined,
+    cloneThread: async () => undefined,
     setThreadFocus: async () => undefined,
     sendTurn: async (input) => TurnId.make(`test:${input.threadId}`),
     compactThread: async () => undefined,
