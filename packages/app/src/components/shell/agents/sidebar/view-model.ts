@@ -92,13 +92,13 @@ export function threadState(sum: SidebarThreadSummary): SidebarThreadState {
   if (sum.orchestrationStatus === "stopped" || sum.latestTurnState === "interrupted") {
     return "stopped";
   }
+  const latestTurnRunning =
+    sum.latestTurnState === "running" && sum.latestTurnCompletedAt == null;
+  const orchestrationTurnRunning =
+    (sum.orchestrationStatus === "starting" || sum.orchestrationStatus === "running") &&
+    (sum.activeTurnId != null || latestTurnRunning);
   if (sum.needsAttention === true) return "needs_attention";
-  if (
-    sum.isStreaming ||
-    sum.orchestrationStatus === "starting" ||
-    sum.orchestrationStatus === "running" ||
-    sum.latestTurnState === "running"
-  ) {
+  if (sum.isStreaming || orchestrationTurnRunning || latestTurnRunning) {
     return "running";
   }
   return "idle";

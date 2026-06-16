@@ -59,3 +59,10 @@ export const controlTransitionVariants = cva(
 );
 export const interactiveControlCursorVariants = cva("cursor-(--honk-button-cursor)");
 export const interactiveHostCursorVariants = cva("[button&,a&]:cursor-(--honk-button-cursor)");
+
+/** Portaled menu/popup shells read `--honk-menu-surface-background` from `html`. */
+export const honkMenuPopupShellClasses =
+  "bg-(--honk-menu-surface-background) font-honk text-honk-chrome text-honk-fg-primary backdrop-blur-[length:var(--honk-glass-blur-surface)] dark:backdrop-blur-none";
+
+/** Match menu popup border (`border-honk-stroke-tertiary`) on workbench surfaces. */
+export const honkMenuSeparatorClasses = "mx-0 my-1 h-px shrink-0 bg-honk-stroke-tertiary";

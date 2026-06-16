@@ -3,7 +3,7 @@
 import { Autocomplete as AutocompletePrimitive } from "@base-ui/react/autocomplete";
 import { IconChevronRightMedium, IconCrossMediumDefault } from "central-icons";
 
-import { cn, interactiveControlCursorVariants } from "./utils";
+import { cn, honkMenuSeparatorClasses, interactiveControlCursorVariants } from "./utils";
 import { InputControlSizeContext, NativeInputRender, type InputControlSize } from "./input";
 import { ScrollArea } from "./scroll-area";
 
@@ -143,7 +143,7 @@ function AutocompleteItem({ className, children, ...props }: AutocompletePrimiti
 function AutocompleteSeparator({ className, ...props }: AutocompletePrimitive.Separator.Props) {
   return (
     <AutocompletePrimitive.Separator
-      className={cn("mx-2 my-1 h-px bg-border last:hidden", className)}
+      className={cn(honkMenuSeparatorClasses, "last:hidden", className)}
       data-slot="autocomplete-separator"
       {...props}
     />

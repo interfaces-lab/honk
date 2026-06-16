@@ -3,7 +3,7 @@
 import { Dialog as CommandDialogPrimitive } from "@base-ui/react/dialog";
 import { IconMagnifyingGlass } from "central-icons";
 import type * as React from "react";
-import { cn } from "./utils";
+import { cn, honkMenuSeparatorClasses } from "./utils";
 import {
   Autocomplete,
   AutocompleteCollection,
@@ -191,7 +191,7 @@ function CommandSeparator({
 }: React.ComponentProps<typeof AutocompleteSeparator>) {
   return (
     <AutocompleteSeparator
-      className={cn("my-2", className)}
+      className={cn(honkMenuSeparatorClasses, "last:hidden", className)}
       data-slot="command-separator"
       {...props}
     />

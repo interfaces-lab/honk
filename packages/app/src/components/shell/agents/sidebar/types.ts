@@ -47,7 +47,9 @@ export interface SidebarThreadSummary {
   firstMessage: string;
   isStreaming: boolean;
   orchestrationStatus?: OrchestrationSessionStatus | null;
+  activeTurnId?: OrchestrationLatestTurn["turnId"] | null;
   latestTurnState?: OrchestrationLatestTurn["state"] | null;
+  latestTurnCompletedAt?: OrchestrationLatestTurn["completedAt"] | null;
   needsAttention?: boolean;
 }
 

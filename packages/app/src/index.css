@@ -53,6 +53,7 @@
   --color-honk-elevated: var(--honk-color-elevated);
   --color-honk-bubble: var(--honk-message-bubble-background);
   --color-honk-bubble-opaque: var(--honk-composer-surface-opaque-background);
+  --color-honk-menu: var(--honk-menu-surface-background, var(--honk-bg-elevated));
   --color-honk-menubar: var(--honk-color-menubar);
   --color-honk-border: var(--honk-color-border);
   --color-honk-stroke: var(--honk-color-stroke);

@@ -518,6 +518,17 @@ body[data-honk-glass-mode="true"] .honk-slash-menu-popup {
   -webkit-backdrop-filter: blur(var(--honk-composer-blur, 10px));
 }
 
+html.dark body[data-honk-glass-mode="true"] :is(
+  [data-composer-command-menu-root] [data-variant="surface"],
+  .honk-slash-menu-popup,
+  .honk-workbench-menu-popup,
+  [data-testid="command-palette"]
+) {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background-color: var(--honk-menu-surface-background);
+}
+
 /* Cursor parity: 16px column padding (timeline px-4) + per-row text/block inset. */
 [data-chat-timeline-scroll]
   [data-tool-call-line]:not(

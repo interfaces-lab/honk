@@ -4,7 +4,7 @@ import { ContextMenu as ContextMenuPrimitive } from "@base-ui/react/context-menu
 import { cva } from "class-variance-authority";
 import { forwardRef, type ReactNode } from "react";
 
-import { cn, controlTransitionVariants, interactiveControlCursorVariants } from "./utils";
+import { cn, controlTransitionVariants, honkMenuSeparatorClasses, interactiveControlCursorVariants } from "./utils";
 
 const ContextMenu = ContextMenuPrimitive.Root;
 
@@ -91,7 +91,7 @@ function WorkbenchContextMenuSeparator({
 }: ContextMenuPrimitive.Separator.Props) {
   return (
     <ContextMenuPrimitive.Separator
-      className={cn("my-0.5 h-px shrink-0 bg-honk-stroke/60", className)}
+      className={cn(honkMenuSeparatorClasses, className)}
       {...props}
     />
   );

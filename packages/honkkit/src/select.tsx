@@ -8,7 +8,7 @@ import { IconCheckmark1, IconChevronRightMedium } from "central-icons";
 import type * as React from "react";
 
 import { menuPopupVariants, workbenchMenuItemVariants } from "./menu";
-import { cn, controlTransitionVariants, interactiveControlCursorVariants } from "./utils";
+import { cn, controlTransitionVariants, honkMenuSeparatorClasses, interactiveControlCursorVariants } from "./utils";
 
 const Select = SelectPrimitive.Root;
 
@@ -222,7 +222,7 @@ function SelectItem({
 function SelectSeparator({ className, ...props }: SelectPrimitive.Separator.Props) {
   return (
     <SelectPrimitive.Separator
-      className={cn("mx-2 my-1 h-px bg-border", className)}
+      className={cn(honkMenuSeparatorClasses, className)}
       data-slot="select-separator"
       {...props}
     />

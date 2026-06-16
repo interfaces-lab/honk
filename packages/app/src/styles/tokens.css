@@ -262,6 +262,7 @@ html {
   --honk-message-bubble-background: var(--honk-bubble-surface-background);
   --honk-composer-surface-background: var(--honk-bubble-surface-background);
   --honk-composer-surface-opaque-background: var(--honk-bubble-surface-opaque-background);
+  --honk-menu-surface-background: var(--honk-pane-surface-background);
   --honk-shadow-secondary: color-mix(in srgb, var(--honk-shadow-primary) 60%, transparent);
   --honk-shadow-tertiary: color-mix(in srgb, var(--honk-shadow-primary) 30%, transparent);
   --honk-shadow-workbench: 0 0 8px 2px
@@ -479,7 +480,10 @@ html.dark {
   --honk-vibrancy-sidebar-mix: 36%;
   --honk-vibrancy-chat-mix: 72%;
   --honk-vibrancy-editor-mix: var(--honk-vibrancy-chat-mix);
-  --honk-pane-surface-background: color-mix(in srgb, var(--honk-color-editor-opaque) 94%, white);
+  --honk-pane-surface-background: color-mix(in srgb, var(--honk-base-editor) 96%, #fff);
+  --honk-menu-surface-background: var(--honk-pane-surface-background);
+  --honk-composer-popup-surface-background: var(--honk-menu-surface-background);
+  --honk-command-palette-surface-background: var(--honk-menu-surface-background);
   --honk-workbench-panel-background: color-mix(
     in srgb,
     var(--honk-color-editor) 88%,
@@ -501,7 +505,6 @@ html.dark {
     var(--honk-color-editor) 18%
   );
   --honk-bg-elevated: var(--honk-color-elevated-opaque);
-  --honk-command-palette-surface-background: var(--honk-color-elevated-opaque);
   --honk-shadow-secondary: transparent;
   --honk-shadow-tertiary: transparent;
   --honk-shadow-workbench: none;
@@ -573,7 +576,7 @@ body[data-honk-glass-mode="true"] {
 
 html.dark body[data-honk-glass-mode="true"] {
   --honk-color-elevated-opaque: color-mix(in srgb, var(--honk-base-editor) 92%, white);
-  --honk-command-palette-surface-background: var(--honk-color-elevated-opaque);
+  --honk-command-palette-surface-background: var(--honk-pane-surface-background);
 }
 
 body.honk-os-vibrancy-on[data-honk-glass-mode="true"] [data-component="root"] {
@@ -593,6 +596,10 @@ body.honk-os-vibrancy-on[data-honk-glass-mode="true"] {
     var(--honk-base-chrome) var(--honk-vibrancy-chat-mix),
     transparent
   );
+}
+
+html.dark body.honk-os-vibrancy-on[data-honk-glass-mode="true"] {
+  --honk-command-palette-surface-background: var(--honk-pane-surface-background);
 }
 
 @supports (color: color-mix(in lab, red, red)) {
@@ -644,5 +651,5 @@ html.dark body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-compo
 }
 
 html.dark body.honk-reduce-transparency[data-honk-glass-mode="true"] {
-  --honk-command-palette-surface-background: var(--honk-color-elevated-opaque);
+  --honk-command-palette-surface-background: var(--honk-pane-surface-background);
 }

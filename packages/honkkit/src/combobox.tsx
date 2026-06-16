@@ -4,7 +4,7 @@ import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { IconCheckmark1, IconChevronRightMedium, IconCrossMediumDefault } from "central-icons";
 import * as React from "react";
 
-import { cn, interactiveControlCursorVariants } from "./utils";
+import { cn, honkMenuSeparatorClasses, interactiveControlCursorVariants } from "./utils";
 import { Input, InputControlSizeContext, NativeInputRender, type InputControlSize } from "./input";
 import { ScrollArea } from "./scroll-area";
 
@@ -231,7 +231,7 @@ function ComboboxItem({
 function ComboboxSeparator({ className, ...props }: ComboboxPrimitive.Separator.Props) {
   return (
     <ComboboxPrimitive.Separator
-      className={cn("mx-2 my-1 h-px bg-border last:hidden", className)}
+      className={cn(honkMenuSeparatorClasses, "last:hidden", className)}
       data-slot="combobox-separator"
       {...props}
     />
