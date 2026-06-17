@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { IconApple, IconArrowDown, IconChevronDownMedium } from "central-icons";
 
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@honk/honkkit/menu";
@@ -6,9 +6,8 @@ import { cn } from "@honk/honkkit/utils";
 
 import {
   defaultMacDesktopArch,
-  GITHUB_RELEASES_PAGE,
   MAC_DESKTOP_ARCH_OPTIONS,
-  resolveMacDmgDownloadUrl,
+  macDmgDownloadPath,
   type MacDesktopArch,
 } from "../lib/desktop-download";
 
@@ -40,24 +39,9 @@ export function DesktopDownloadControls(props: {
 }) {
   const [arch, setArch] = useState<MacDesktopArch>(() => defaultMacDesktopArch());
   const [menuOpen, setMenuOpen] = useState(false);
-  const [downloadUrl, setDownloadUrl] = useState(GITHUB_RELEASES_PAGE);
 
   const selectedOption =
     MAC_DESKTOP_ARCH_OPTIONS.find((option) => option.arch === arch) ?? MAC_DESKTOP_ARCH_OPTIONS[0]!;
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void resolveMacDmgDownloadUrl(arch).then((url) => {
-      if (!cancelled) {
-        setDownloadUrl(url);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [arch]);
 
   return (
     <div className={cn("flex w-full max-w-[280px] flex-col items-stretch gap-2", props.className)}>
@@ -109,7 +93,7 @@ export function DesktopDownloadControls(props: {
       <a
         className={downloadButtonClassName}
         download
-        href={downloadUrl}
+        href={macDmgDownloadPath(arch)}
         rel="noopener noreferrer"
       >
         Download

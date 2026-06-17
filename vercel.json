@@ -2,5 +2,17 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "tanstack-start",
   "buildCommand": "pnpm --filter=@honk/marketing run build",
-  "installCommand": "pnpm install --frozen-lockfile"
+  "installCommand": "pnpm install --frozen-lockfile",
+  "redirects": [
+    {
+      "source": "/download/mac/arm64",
+      "destination": "https://github.com/interfaces-lab/honk/releases/latest/download/Honk-arm64.dmg",
+      "permanent": true
+    },
+    {
+      "source": "/download/mac/x64",
+      "destination": "https://github.com/interfaces-lab/honk/releases/latest/download/Honk-x64.dmg",
+      "permanent": true
+    }
+  ]
 }
