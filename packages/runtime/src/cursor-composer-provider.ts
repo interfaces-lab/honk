@@ -50,6 +50,8 @@ interface CursorToolEventState {
   readonly completedFingerprints: Set<string>;
 }
 
+type AssistantContent = AssistantMessage["content"][number];
+
 class CursorComposerAbortError extends Error {
   constructor() {
     super("Cursor Composer request was aborted.");
@@ -180,6 +182,7 @@ async function runCursorComposerStream(input: {
     }
     appendFinalTextIfNeeded(input.stream, input.message, result.result);
     endOpenContent(input.stream, input.message);
+    stripSyntheticCursorToolContent(input.message);
     applyCursorApproximateUsage(input.message, promptInputTokens);
     input.message.stopReason = "stop";
     input.stream.push({
@@ -552,6 +555,16 @@ function cursorToolArguments(toolCall: Record<string, unknown>): Record<string, 
   return recordField(toolCall, "args") ?? recordField(toolCall, "input") ?? {};
 }
 
+function isSyntheticCursorToolContent(content: AssistantContent): boolean {
+  return (
+    content.type === "toolCall" && content.arguments[CURSOR_SYNTHETIC_TOOL_EVENT_ARG] === true
+  );
+}
+
+function stripSyntheticCursorToolContent(message: AssistantMessage): void {
+  message.content = message.content.filter((content) => !isSyntheticCursorToolContent(content));
+}
+
 function toRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 }
@@ -681,6 +694,7 @@ function pushError(
   reason: "error" | "aborted",
 ): void {
   endOpenContent(stream, message);
+  stripSyntheticCursorToolContent(message);
   message.stopReason = reason;
   message.errorMessage = errorMessage;
   stream.push({ type: "error", reason, error: message });

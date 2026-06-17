@@ -172,15 +172,13 @@ describe("Cursor Composer provider", () => {
     const [events, finalMessage] = await Promise.all([collectEvents(stream), stream.result()]);
     const toolStartEvents = events.filter((event) => event.type === "toolcall_start");
     const toolEndEvents = events.filter((event) => event.type === "toolcall_end");
-    const toolCalls = finalMessage.content.filter(
-      (content): content is Extract<AssistantMessage["content"][number], { type: "toolCall" }> =>
-        content.type === "toolCall",
-    );
+    const toolCalls = finalMessage.content.filter((content) => content.type === "toolCall");
 
     expect(toolStartEvents).toHaveLength(1);
     expect(toolEndEvents).toHaveLength(1);
-    expect(toolCalls).toHaveLength(1);
-    expect(toolCalls[0]).toMatchObject({
+    expect(toolCalls).toHaveLength(0);
+    const completedToolCall = toolEndEvents[0]?.toolCall;
+    expect(completedToolCall).toMatchObject({
       name: "bash",
       arguments: {
         command: "git status --short",
