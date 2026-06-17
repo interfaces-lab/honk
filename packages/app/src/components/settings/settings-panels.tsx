@@ -1,13 +1,18 @@
 import {
   IconArchive1,
   IconArchiveJunk,
+  IconAgentNetwork,
+  IconAgents,
+  IconBrain1,
+  IconBuildingBlocks,
   IconCheckmark1,
   IconChevronDownSmall,
   IconClawd,
   IconCursor,
   IconOpenaiCodex,
+  IconTelescope,
 } from "central-icons";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   AGENT_INTERACTION_MODES,
@@ -73,7 +78,8 @@ import { Switch } from "@honk/honkkit/switch";
 import { Text, textVariants } from "@honk/honkkit/text";
 import { toastManager } from "~/app/toast";
 import { cn } from "~/lib/utils";
-import { readHonkRuntimeApi } from "~/lib/honk-runtime-api";
+import { isDesktopRuntimeApiAvailable, readHonkRuntimeApi } from "~/lib/honk-runtime-api";
+import { runtimeSkillsQueryOptions } from "~/lib/runtime-skills";
 import { useAgentRuntimeStore } from "~/stores/agent-runtime-store";
 import {
   AGENT_MODE_LABELS,
@@ -397,6 +403,7 @@ export function GeneralSettingsPanel() {
     <SettingsPageContainer>
       <SettingsSection title="General">
         <SettingsRow
+          preferenceId="general.timestamp-format"
           title="Time format"
           description="System default follows your browser or OS clock preference."
           resetAction={
@@ -441,6 +448,7 @@ export function GeneralSettingsPanel() {
           }
         />
         <SettingsRow
+          preferenceId="general.add-project-base-directory"
           title="Add project starts in"
           description={`Leave empty to use "${DEFAULT_PROJECTLESS_CWD}" when the Add Project browser opens.`}
           resetAction={
@@ -472,6 +480,7 @@ export function GeneralSettingsPanel() {
 
       <SettingsSection title="Advanced">
         <SettingsRow
+          preferenceId="general.keybindings"
           title="Keybindings"
           description="Open the persisted keybindings file to edit advanced bindings directly."
           status={
@@ -561,6 +570,7 @@ export function AgentsSettingsPanel() {
 
       <SettingsSection title="Agents">
         <SettingsRow
+          preferenceId="agents.assistant-streaming"
           title="Assistant output"
           description="Show token-by-token output while a response is in progress."
           resetAction={
@@ -587,6 +597,7 @@ export function AgentsSettingsPanel() {
           }
         />
         <SettingsRow
+          preferenceId="agents.send-while-running"
           title="Send while running"
           description="Choose what the composer submit action does while an agent turn is active."
           resetAction={
@@ -641,6 +652,7 @@ export function AgentsSettingsPanel() {
           }
         />
         <SettingsRow
+          preferenceId="agents.usage-summary"
           title="Usage summary"
           description="Auto shows context usage after 50%; Always shows it whenever data exists."
           resetAction={
@@ -695,6 +707,7 @@ export function AgentsSettingsPanel() {
           }
         />
         <SettingsRow
+          preferenceId="agents.new-threads"
           title="New threads"
           description="Pick the default project mode for newly created draft threads."
           resetAction={
@@ -743,6 +756,7 @@ export function AgentsSettingsPanel() {
 
       <SettingsSection title="Review">
         <SettingsRow
+          preferenceId="agents.diff-line-wrapping"
           title="Diff line wrapping"
           description="Set the default wrap state when the diff panel opens."
           control={
@@ -754,6 +768,7 @@ export function AgentsSettingsPanel() {
           }
         />
         <SettingsRow
+          preferenceId="agents.archive-confirmation"
           title="Archive confirmation"
           description="Require a second click before a thread is archived."
           resetAction={
@@ -777,6 +792,7 @@ export function AgentsSettingsPanel() {
           }
         />
         <SettingsRow
+          preferenceId="agents.delete-confirmation"
           title="Delete confirmation"
           description="Ask before deleting a thread and its chat history."
           resetAction={
@@ -799,6 +815,203 @@ export function AgentsSettingsPanel() {
             />
           }
         />
+      </SettingsSection>
+    </SettingsPageContainer>
+  );
+}
+
+const SUBAGENT_PROFILE_CARDS = [
+  {
+    name: "general-purpose",
+    label: "General Purpose",
+    description:
+      "Default delegated worker for broad implementation, research, and follow-up tasks.",
+    mode: "Smart",
+    thinking: "Inherits parent",
+    tools: "Inherits parent",
+    icon: IconAgentNetwork,
+  },
+  {
+    name: "scout",
+    label: "Scout",
+    description: "Read-only reconnaissance for quickly mapping files, symbols, and code paths.",
+    mode: "Rush",
+    thinking: "Medium",
+    tools: "read, grep, find, ls, bash",
+    icon: IconTelescope,
+  },
+  {
+    name: "oracle",
+    label: "Oracle",
+    description:
+      "Read-only deep analysis for root cause, design trade-offs, and recommended approaches.",
+    mode: "Deep",
+    thinking: "XHigh",
+    tools: "read, grep, find, ls, bash",
+    icon: IconBrain1,
+  },
+] as const;
+
+function SkillSummaryRow({
+  skill,
+}: {
+  skill: {
+    readonly name: string;
+    readonly description: string;
+    readonly filePath: string;
+    readonly scope: "user" | "project";
+  };
+}) {
+  return (
+    <div className="border-t border-honk-stroke-quaternary px-2.5 py-3 first:border-t-0 sm:px-3">
+      <div className="flex min-w-0 items-start gap-2">
+        <IconBuildingBlocks className="mt-0.5 size-4.5 shrink-0 text-honk-icon-secondary" />
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-baseline gap-1.5">
+            <Text
+              render={<h3 />}
+              size="lg"
+              tone="primary"
+              weight="medium"
+              className="min-w-0 truncate"
+              title={skill.name}
+            >
+              {skill.name}
+            </Text>
+            <span className="shrink-0 text-detail text-honk-fg-tertiary">
+              {skill.scope === "project" ? "Project skill" : "User skill"}
+            </span>
+          </div>
+          <Text
+            render={<p />}
+            size="base"
+            tone="secondary"
+            className="mt-1 max-w-[64ch] text-pretty"
+          >
+            {skill.description}
+          </Text>
+          <code
+            className="mt-2 block truncate font-honk-mono text-honk-sm text-honk-fg-tertiary"
+            title={skill.filePath}
+          >
+            {skill.filePath}
+          </code>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SubagentProfileCard({ profile }: { profile: (typeof SUBAGENT_PROFILE_CARDS)[number] }) {
+  const Icon = profile.icon;
+
+  return (
+    <div className="border-t border-honk-stroke-quaternary px-2.5 py-3 first:border-t-0 sm:px-3">
+      <div className="flex min-w-0 items-start gap-2">
+        <Icon className="mt-0.5 size-4.5 shrink-0 text-honk-icon-secondary" />
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-baseline">
+            <Text
+              render={<h3 />}
+              size="lg"
+              tone="primary"
+              weight="medium"
+              className="min-w-0 truncate"
+            >
+              {profile.label}
+            </Text>
+          </div>
+          <Text
+            render={<p />}
+            size="base"
+            tone="secondary"
+            className="mt-1 max-w-[64ch] text-pretty"
+          >
+            {profile.description}
+          </Text>
+          <div className="mt-3 grid gap-x-3 gap-y-2 sm:grid-cols-3">
+            <div className="min-w-0">
+              <Text render={<div />} size="sm" tone="tertiary">
+                Mode
+              </Text>
+              <Text render={<div />} size="sm" tone="primary" weight="medium">
+                {profile.mode}
+              </Text>
+            </div>
+            <div className="min-w-0">
+              <Text render={<div />} size="sm" tone="tertiary">
+                Thinking
+              </Text>
+              <Text render={<div />} size="sm" tone="primary" weight="medium">
+                {profile.thinking}
+              </Text>
+            </div>
+            <div className="min-w-0">
+              <Text render={<div />} size="sm" tone="tertiary">
+                Tools
+              </Text>
+              <Text render={<div />} size="sm" tone="primary" weight="medium" className="truncate">
+                {profile.tools}
+              </Text>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function SkillsSettingsPanel() {
+  const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
+  const skillsCwd = projects[0]?.cwd ?? null;
+  const runtimeSkillsQuery = useQuery(
+    runtimeSkillsQueryOptions({ cwd: skillsCwd, enabled: skillsCwd !== null }),
+  );
+  const runtimeSkills =
+    runtimeSkillsQuery.data?.skills.toSorted(
+      (left, right) =>
+        left.scope.localeCompare(right.scope) || left.name.localeCompare(right.name),
+    ) ?? [];
+
+  const skillsUnavailableReason = !isDesktopRuntimeApiAvailable()
+    ? "Skills are available in the desktop runtime."
+    : skillsCwd === null
+      ? "Add a project to resolve user and project skills."
+      : null;
+
+  return (
+    <SettingsPageContainer>
+      <SettingsSection title="Skills" icon={<IconBuildingBlocks className="size-4" />}>
+        {skillsUnavailableReason ? (
+          <SettingsRow title="Skills unavailable" description={skillsUnavailableReason} />
+        ) : runtimeSkillsQuery.isLoading ? (
+          <SettingsRow
+            title="Loading skills"
+            description="Resolving skills for the active project."
+          />
+        ) : runtimeSkillsQuery.isError ? (
+          <SettingsRow
+            title="Could not load skills"
+            description={
+              runtimeSkillsQuery.error instanceof Error
+                ? runtimeSkillsQuery.error.message
+                : "Skill discovery failed."
+            }
+          />
+        ) : runtimeSkills.length === 0 ? (
+          <SettingsRow
+            title="No skills found"
+            description="User and project skills will appear here."
+          />
+        ) : (
+          runtimeSkills.map((skill) => <SkillSummaryRow key={skill.filePath} skill={skill} />)
+        )}
+      </SettingsSection>
+
+      <SettingsSection title="Subagents" icon={<IconAgents className="size-4" />}>
+        {SUBAGENT_PROFILE_CARDS.map((profile) => (
+          <SubagentProfileCard key={profile.name} profile={profile} />
+        ))}
       </SettingsSection>
     </SettingsPageContainer>
   );
@@ -839,14 +1052,6 @@ const AGENT_MODE_MODEL_DETAILS: Record<
     modelName: CURSOR_COMPOSER_MODEL_NAME,
     description: "Cursor Composer through the Cursor SDK with your Cursor API key.",
   },
-};
-
-const AGENT_AUTH_STATE_LABELS: Record<AgentAuthStatus["state"], string> = {
-  available: "Available",
-  missing: "Missing",
-  expired: "Expired",
-  error: "Error",
-  unknown: "Unknown",
 };
 
 function findCredentialAuthStatus(
@@ -908,19 +1113,6 @@ function describeCredentialDisplayState(
     return authFlow.message ?? "Pi authentication failed.";
   }
   return describeCredentialState(status);
-}
-
-function resolveCredentialStatusLabel(
-  status: AgentAuthStatus | null,
-  authFlow: AgentCredentialAuthFlow | null,
-): string {
-  if (authFlow?.state === "pending") {
-    return "Login pending";
-  }
-  if (authFlow?.state === "error") {
-    return "Login failed";
-  }
-  return AGENT_AUTH_STATE_LABELS[status?.state ?? "missing"];
 }
 
 function resolveCredentialActionLabel(
@@ -1290,10 +1482,6 @@ export function AgentRuntimeSettingsSectionsView({
     const runtimeApi = readHonkRuntimeApi();
     void runtimeApi
       .updatePreferences(patch)
-      .then(async () => {
-        const snapshot = await runtimeApi.getHostSnapshot();
-        setSnapshot(snapshot);
-      })
       .catch((error: unknown) => {
         toastManager.add({
           type: "error",
@@ -1340,6 +1528,7 @@ export function AgentRuntimeSettingsSectionsView({
       const snapshot = await runtimeApi.configureCredential({
         authProviderId: credential.authProviderId,
         method: "api-key",
+        credentialKind: credential.kind,
         apiKey: trimmedApiKey,
       });
       setSnapshot(snapshot);
@@ -1367,6 +1556,7 @@ export function AgentRuntimeSettingsSectionsView({
       const snapshot = await runtimeApi.configureCredential({
         authProviderId: credential.authProviderId,
         method: "logout",
+        credentialKind: credential.kind,
       });
       setSnapshot(snapshot);
       setApiKeyDraftByKind((previous) => {
@@ -1413,6 +1603,7 @@ export function AgentRuntimeSettingsSectionsView({
     <>
       <SettingsSection title="Pi runtime">
         <SettingsRow
+          preferenceId="agents.agent-mode"
           title="Agent mode"
           description="Default model for new sessions."
           status={
@@ -1440,6 +1631,7 @@ export function AgentRuntimeSettingsSectionsView({
         />
         {agentModeSupportsThinkingLevelSelection(preferences.agentMode) ? (
           <SettingsRow
+            preferenceId="agents.thinking-level"
             title="Thinking level"
             description="Default reasoning depth for new Pi sessions in this agent mode."
             control={
@@ -1483,6 +1675,7 @@ export function AgentRuntimeSettingsSectionsView({
           />
         ) : null}
         <SettingsRow
+          preferenceId="agents.interaction-mode"
           title="Interaction mode"
           description="Default behavior for new agent turns."
           control={
@@ -1570,6 +1763,7 @@ export function AgentRuntimeSettingsSectionsView({
           return (
             <SettingsRow
               key={credential.kind}
+              preferenceId={`agents.account.${credential.kind}`}
               title={
                 <span className="inline-flex items-center gap-1.5">
                   <CredentialKindIcon
@@ -1580,13 +1774,12 @@ export function AgentRuntimeSettingsSectionsView({
                 </span>
               }
               description={describeCredentialDisplayState(status, authFlow)}
-              status={resolveCredentialStatusLabel(status, authFlow)}
               control={
                 isOAuthCredential(credential) ? (
                   <>
                     <Button
                       size="xs"
-                      variant="outline"
+                      variant="ghost"
                       disabled={!canStartCredentialAction}
                       onClick={() => void configureOAuthCredential(credential)}
                     >
@@ -1609,7 +1802,7 @@ export function AgentRuntimeSettingsSectionsView({
                   <>
                     <Button
                       size="xs"
-                      variant="outline"
+                      variant="ghost"
                       disabled={!canStartCredentialAction}
                       onClick={() => setEditingApiKeyCredentialKind(credential.kind)}
                     >

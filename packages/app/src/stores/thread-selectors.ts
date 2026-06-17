@@ -34,21 +34,26 @@ function createScopedThreadSelector(
   return (state) => {
     const ref = resolveRef(state);
     if (!ref) {
+      previousEnvironmentState = undefined;
+      previousThreadId = undefined;
+      previousThread = undefined;
       return undefined;
     }
 
     const environmentState = selectEnvironmentState(state, ref.environmentId);
+    const shell = environmentState.threadShellById[ref.threadId];
     if (
       previousThread &&
       previousEnvironmentState === environmentState &&
-      previousThreadId === ref.threadId
+      previousThreadId === ref.threadId &&
+      shell
     ) {
       return previousThread;
     }
 
     previousEnvironmentState = environmentState;
     previousThreadId = ref.threadId;
-    previousThread = getThreadFromEnvironmentState(environmentState, ref.threadId);
+    previousThread = shell ? getThreadFromEnvironmentState(environmentState, ref.threadId) : undefined;
     return previousThread;
   };
 }

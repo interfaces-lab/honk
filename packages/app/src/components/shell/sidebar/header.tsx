@@ -1,6 +1,43 @@
 import { IconCollaborationPointerRight, IconFolderAddRight } from "central-icons";
+import type { DragEvent } from "react";
 
 import { SidebarButton } from "@honk/honkkit/sidebar";
+
+import { SIDEBAR_CHAT_DRAG_MIME_TYPE } from "../agents/sidebar/drag-and-drop";
+
+function attachNewAgentDragPreview(event: DragEvent<HTMLElement>): void {
+  const source = event.currentTarget;
+  source.dataset.dragging = "true";
+
+  const clearDragging = () => {
+    delete source.dataset.dragging;
+    window.removeEventListener("dragend", clearDragging, true);
+    window.removeEventListener("drop", clearDragging, true);
+  };
+  window.addEventListener("dragend", clearDragging, true);
+  window.addEventListener("drop", clearDragging, true);
+
+  const preview = source.cloneNode(true);
+  if (!(preview instanceof HTMLElement)) return;
+
+  preview.classList.add("glass-sidebar-agent-drag-preview");
+  preview.dataset.dragPreview = "true";
+  preview.style.left = "0";
+  preview.style.position = "fixed";
+  preview.style.top = "-1000px";
+  preview.style.width = `${source.getBoundingClientRect().width}px`;
+  document.body.append(preview);
+  event.dataTransfer.setDragImage(preview, 12, 12);
+  window.setTimeout(() => preview.remove(), 0);
+}
+
+function writeNewAgentDragPayload(event: DragEvent<HTMLElement>): void {
+  event.stopPropagation();
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData(SIDEBAR_CHAT_DRAG_MIME_TYPE, JSON.stringify({ kind: "new-agent" }));
+  event.dataTransfer.setData("text/plain", "New Agent");
+  attachNewAgentDragPreview(event);
+}
 
 export function ShellSidebarHeader(props: { onNewChat: () => void; onAddProject?: () => void }) {
   return (
@@ -8,8 +45,11 @@ export function ShellSidebarHeader(props: { onNewChat: () => void; onAddProject?
       <div className="flex min-h-[22px] min-w-0 items-center gap-0.5">
         <SidebarButton
           variant="chrome"
+          draggable
           onClick={props.onNewChat}
-          className="flex-1 text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary"
+          onDragStart={writeNewAgentDragPayload}
+          className="flex-1 text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary [-webkit-user-drag:element]"
+          data-agent-sidebar-cell=""
           data-testid="new-thread-button"
         >
           <IconCollaborationPointerRight className="size-4 shrink-0 opacity-65" />

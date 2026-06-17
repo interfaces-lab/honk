@@ -39,7 +39,6 @@ import { isElectron } from "~/env";
 import { formatGitActionErrorDescription } from "~/git/action-error-description";
 import { useEnvironmentGitPanel } from "~/hooks/use-environment-git";
 import { useHandleNewThread } from "~/hooks/use-handle-new-thread";
-import { useRouteThreadId } from "~/hooks/use-route-thread-id";
 import { readEnvironmentGitApi } from "~/lib/environment-git-api";
 import { refreshGitStatus, useGitStatus } from "~/lib/git-status-state";
 import { useServerAvailableEditors, useServerConfig } from "~/rpc/server-state";
@@ -51,6 +50,7 @@ import { inferLoginShellCaption } from "~/lib/shell-caption";
 import { coordinateTurnSend, dispatchTurnStartFailure } from "~/lib/turn-send-coordinator";
 import { resolveProjectlessCwd } from "~/lib/project-state";
 import {
+  deriveWorkspaceKey,
   findWorkspaceProjectByRef,
   findWorkspaceProjectForSource,
   isSourceForWorkspaceProject,
@@ -114,6 +114,12 @@ import {
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "~/types";
 import type { Thread } from "~/types";
 import { sidebarSelectionIdForChatRoute, useChatRouteTarget } from "~/app/chat-route-state";
+import {
+  chatPaneTilingActions,
+  chatPaneTilingRouteKeyForDraftId,
+  chatPaneTilingRouteKeyForThreadRef,
+  useChatPaneFocusedTarget,
+} from "./chat/view/chat-pane-tiling-store";
 import { GitPanel } from "./shell/git/panel";
 import { ProjectFilesPanel } from "./shell/files/panel";
 import { ProjectCenterEditorSurface } from "./shell/files/project-center-editor-surface";
@@ -156,6 +162,7 @@ import {
 } from "@honk/honkkit/alert-dialog";
 import { Button } from "@honk/honkkit/button";
 import { TerminalWorkbenchSubChrome } from "./shell/terminal/workbench-subchrome";
+import type { WorkbenchTab } from "~/lib/workbench-tabs";
 
 const WORKBENCH_TAB_ICONS: Record<
   WorkbenchTabIconKey,
@@ -168,6 +175,8 @@ const WORKBENCH_TAB_ICONS: Record<
   file: IconFileText,
   browser: IconBrowserTabs,
 };
+
+const SETTINGS_WORKBENCH_TABS: readonly WorkbenchTab[] = ["browser", "files"];
 
 function toWorkbenchTabMeta(tab: WorkbenchManagedTab): WorkbenchTabMeta {
   return {
@@ -326,12 +335,33 @@ export function ShellHost(props: { children?: ReactNode; mode: "chat" | "setting
 
 function SettingsShellHost(props: { children?: ReactNode }) {
   const router = useRouter();
-  const firstProjectCwd = useStore(
-    (store) => selectProjectsAcrossEnvironments(store)[0]?.cwd ?? null,
-  );
+  const firstProject = useStore((store) => selectProjectsAcrossEnvironments(store)[0] ?? null);
+  const availableEditors = useServerAvailableEditors();
+  const timestampFormat = useSettings((settings) => settings.timestampFormat);
+  const noopGitAgentAction = useCallback(() => {}, []);
   const backToChat = () => {
     void openChatIndex(router);
   };
+  const cwd = firstProject?.cwd ?? null;
+  const environmentId = firstProject?.environmentId ?? null;
+  const projectWorkspaceKey = deriveWorkspaceKey({ rpcEnvironmentId: environmentId, cwd });
+  const workspaceKey = `${projectWorkspaceKey}:settings`;
+  const settingsPlan: PlanWorkbenchState = useMemo(
+    () => ({
+      available: false,
+      activePlan: null,
+      activeProposedPlan: null,
+      label: "Tasks",
+      environmentId,
+      markdownCwd: cwd ?? undefined,
+      timestampFormat,
+      canImplementPlan: false,
+      isImplementingPlan: false,
+      onImplementPlan: undefined,
+      onSaveProposedPlan: undefined,
+    }),
+    [cwd, environmentId, timestampFormat],
+  );
 
   const settingsLeft = (
     <div className="thread-rail-pad relative flex min-h-0 flex-1 flex-col px-0">
@@ -345,24 +375,39 @@ function SettingsShellHost(props: { children?: ReactNode }) {
   );
 
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
-      <AppShell
-        cwd={firstProjectCwd}
-        left={settingsLeft}
-        center={props.children ?? <Outlet />}
-        centerSurface="editor"
-        centerRouteKind="settings"
-        right={null}
-      />
-    </div>
+    <ChatWorkbenchShellHost
+      left={settingsLeft}
+      center={props.children ?? <Outlet />}
+      routeKind="settings"
+      routeThreadId={null}
+      cwd={cwd}
+      workspaceKey={workspaceKey}
+      environmentId={environmentId}
+      availableEditors={availableEditors}
+      allowedWorkbenchTabs={SETTINGS_WORKBENCH_TABS}
+      centerSurface="editor"
+      thread={null}
+      threadId={null}
+      threadTitle={null}
+      plan={settingsPlan}
+      onGitAgentAction={noopGitAgentAction}
+      onStopGitAgentAction={null}
+      stoppingGitAgentAction={false}
+      pendingGitAgentAction={null}
+    />
   );
 }
 
 function ChatShellHost(props: { children?: ReactNode }) {
   const router = useRouter();
   const openAddProject = useCommandPaletteStore((store) => store.openAddProject);
-  const routeThreadId = useRouteThreadId();
   const routeTarget = useChatRouteTarget();
+  const routeFullscreenThreadId =
+    routeTarget?.kind === "server"
+      ? routeTarget.threadRef.threadId
+      : routeTarget?.kind === "draft"
+        ? routeTarget.draftId
+        : null;
   const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
   const sidebarThreads = useStore(useShallow(selectSidebarThreadsAcrossEnvironments));
   const sidebarBootstrapComplete = useStore((state) =>
@@ -393,8 +438,19 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const threadEnvMode = settings.defaultThreadEnvMode;
 
   const routeSelectedId = sidebarSelectionIdForChatRoute(routeTarget);
+  const routeTilingKey =
+    routeTarget?.kind === "server"
+      ? chatPaneTilingRouteKeyForThreadRef(routeTarget.threadRef)
+      : routeTarget?.kind === "draft"
+        ? chatPaneTilingRouteKeyForDraftId(routeTarget.draftId)
+        : null;
+  const focusedChatPaneTarget = useChatPaneFocusedTarget(routeTilingKey);
+  const focusedTileSelectedId =
+    focusedChatPaneTarget?.routeKind === "server"
+      ? focusedChatPaneTarget.threadId
+      : (focusedChatPaneTarget?.draftId ?? null);
   const [clickedSidebarId, setClickedSidebarId] = useState<string | null>(null);
-  const selectedId = clickedSidebarId ?? routeSelectedId;
+  const selectedId = clickedSidebarId ?? focusedTileSelectedId ?? routeSelectedId;
 
   useEffect(() => {
     if (clickedSidebarId !== null && clickedSidebarId === routeSelectedId) {
@@ -648,17 +704,49 @@ function ChatShellHost(props: { children?: ReactNode }) {
     projectlessCwd,
     projects,
     routeActiveThread: routeActiveThread ?? null,
-    selectedId: routeSelectedId,
+    selectedId,
     sidebarThreads,
   });
+  const focusChatTileBySidebarId = useCallback(
+    (id: string) => {
+      if (!routeTilingKey) return false;
+      let didFocus = false;
+      chatPaneTilingActions.updateRouteTileset(routeTilingKey, (current) => {
+        if (!current) return current;
+        const panel = Object.values(current.panels).find((candidate) => {
+          const data = candidate.data;
+          if (data.kind !== "agent") return false;
+          return data.target.routeKind === "draft"
+            ? data.target.draftId === id
+            : data.target.threadId === id;
+        });
+        if (!panel) return current;
+        didFocus = true;
+        return {
+          ...current,
+          expandedPanelId:
+            current.expandedPanelId && current.expandedPanelId !== panel.panelId
+              ? null
+              : current.expandedPanelId,
+          focusedPanelId: panel.panelId,
+        };
+      });
+      return didFocus;
+    },
+    [routeTilingKey],
+  );
   const selectSidebarAgent = useCallback(
     (id: string) => {
+      if (focusChatTileBySidebarId(id)) {
+        setClickedSidebarId(null);
+        return;
+      }
       flushSync(() => {
         setClickedSidebarId(id);
       });
       sidebarModel.select(id);
     },
-    [sidebarModel.select],
+    [focusChatTileBySidebarId, sidebarModel.select],
   );
 
   const startGitAgentAction = async (action: GitAgentAction) => {
@@ -1012,7 +1100,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
       left={chatLeft}
       center={center}
       routeKind={routeTarget?.kind ?? null}
-      routeThreadId={routeThreadId}
+      routeThreadId={routeFullscreenThreadId}
       cwd={activeCwd}
       workspaceKey={workspaceTarget.workspaceKey}
       environmentId={activeRpcEnvironmentId}
@@ -1140,12 +1228,14 @@ function GitStatusSync(props: { cwd: string | null; environmentId: EnvironmentId
 function ChatWorkbenchShellHost(props: {
   left: ReactNode;
   center: ReactNode;
-  routeKind: "draft" | "server" | null;
+  routeKind: "draft" | "server" | "settings" | null;
   routeThreadId: string | null;
   cwd: string | null;
   workspaceKey: string;
   environmentId: EnvironmentId | null;
   availableEditors: readonly EditorId[];
+  allowedWorkbenchTabs?: readonly WorkbenchTab[] | undefined;
+  centerSurface?: "chat" | "editor" | undefined;
   thread: Thread | null;
   threadId: ThreadId | null;
   threadTitle: string | null;
@@ -1172,9 +1262,14 @@ function ChatWorkbenchShellHost(props: {
   const tabSnapshot = useWorkbenchTabSnapshot(props.workspaceKey, workbenchTabRuntime);
   const editorState = useWorkspaceEditorFileState(props.workspaceKey);
   const centerEditorActive = editorState.placement === "center" && editorState.activePath !== null;
+  const allowedWorkbenchTabs = props.allowedWorkbenchTabs;
+  const gitWorkbenchAllowed = !allowedWorkbenchTabs || allowedWorkbenchTabs.includes("git");
   const workbenchTabs: WorkbenchTabMeta[] = useMemo(
-    () => tabSnapshot.tabs.map(toWorkbenchTabMeta),
-    [tabSnapshot.tabs],
+    () =>
+      tabSnapshot.tabs
+        .filter((tab) => !allowedWorkbenchTabs || allowedWorkbenchTabs.includes(tab.kind))
+        .map(toWorkbenchTabMeta),
+    [allowedWorkbenchTabs, tabSnapshot.tabs],
   );
   const activateTerminalSession = useCallback(
     (terminalId: string) => {
@@ -1377,7 +1472,9 @@ function ChatWorkbenchShellHost(props: {
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
-      <GitStatusSync cwd={props.cwd} environmentId={props.environmentId} />
+      {gitWorkbenchAllowed ? (
+        <GitStatusSync cwd={props.cwd} environmentId={props.environmentId} />
+      ) : null}
       <AppShell
         cwd={props.cwd}
         workspaceKey={props.workspaceKey}
@@ -1415,7 +1512,7 @@ function ChatWorkbenchShellHost(props: {
           </div>
         }
         right={right}
-        centerSurface={centerEditorActive ? "editor" : "chat"}
+        centerSurface={props.centerSurface ?? (centerEditorActive ? "editor" : "chat")}
         centerRouteKind={props.routeKind ?? undefined}
       />
       <AlertDialog

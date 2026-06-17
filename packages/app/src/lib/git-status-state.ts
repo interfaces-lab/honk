@@ -40,6 +40,7 @@ interface GitStatusTarget {
 
 interface RefreshGitStatusOptions {
   readonly force?: boolean;
+  readonly scope?: "full" | "local";
 }
 
 const EMPTY_GIT_STATUS_STATE = Object.freeze<GitStatusState>({
@@ -145,7 +146,12 @@ export function refreshGitStatus(
 
       const nextForceRefresh = currentInFlight
         .catch(() => null)
-        .then(() => refreshGitStatus(target, resolvedClient, { force: true }))
+        .then(() =>
+          refreshGitStatus(target, resolvedClient, {
+            force: true,
+            ...(options.scope ? { scope: options.scope } : {}),
+          }),
+        )
         .finally(() => {
           gitStatusQueuedForceRefresh.delete(targetKey);
         });
@@ -185,7 +191,12 @@ export function refreshGitStatus(
     });
     return error;
   };
-  const sourcePromise = resolvedClient.refreshStatus({ cwd: target.cwd }).then(updateSuccess);
+  const sourcePromise = resolvedClient
+    .refreshStatus({
+      cwd: target.cwd,
+      ...(options?.scope ? { scope: options.scope } : {}),
+    })
+    .then(updateSuccess);
   const timeoutPromise = new Promise<GitStatusResult>((_, reject) => {
     window.setTimeout(() => {
       reject(refreshError(`Timed out after ${GIT_STATUS_REFRESH_TIMEOUT_MS}ms for ${target.cwd}.`));

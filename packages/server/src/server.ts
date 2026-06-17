@@ -47,8 +47,10 @@ export const makeServerLayer = Layer.unwrap(
     );
 
     const serverApplicationLayer = Layer.mergeAll(
+      // Keep Effect's per-request access logger off; WebSocket debug logging
+      // should not amplify every HTTP poll into desktop/server log writes.
       HttpRouter.serve(makeRoutesLayer, {
-        disableLogger: !config.logWebSocketEvents,
+        disableLogger: true,
       }),
       httpListeningLayer,
       runtimeStateLayer,

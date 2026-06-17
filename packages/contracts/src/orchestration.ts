@@ -9,8 +9,10 @@ import {
   IsoDateTime,
   MessageId,
   NonNegativeInt,
+  PositiveInt,
   ProjectId,
   RuntimeItemId,
+  RuntimeSessionId,
   ThreadEntryId,
   ThreadId,
   TrimmedNonEmptyString,
@@ -264,6 +266,7 @@ export const OrchestrationThreadActivityKind = Schema.Literals([
   "subagent.content.delta",
   "subagent.usage.updated",
   "runtime.turn.start.failed",
+  "runtime.turn.provider.failed",
   "runtime.turn.interrupt.failed",
   "runtime.approval.respond.failed",
   "runtime.user-input.respond.failed",
@@ -579,6 +582,7 @@ export const OrchestrationThreadActivity = Schema.Union([
     ...OrchestrationThreadActivityBaseFields,
     kind: Schema.Literals([
       "runtime.turn.start.failed",
+      "runtime.turn.provider.failed",
       "runtime.turn.interrupt.failed",
       "runtime.approval.respond.failed",
       "runtime.user-input.respond.failed",
@@ -955,7 +959,7 @@ const ThreadProposedPlanUpdateCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
-const DispatchableClientOrchestrationCommand = Schema.Union([
+export const DispatchableClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
@@ -1046,9 +1050,62 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadSessionStopCommand,
   ThreadTreeNavigateCommand,
   ThreadProposedPlanUpdateCommand,
-  InternalOrchestrationCommand,
 ]);
 export type ClientOrchestrationCommand = typeof ClientOrchestrationCommand.Type;
+
+export const RuntimeIngestionRecordId =
+  TrimmedNonEmptyString.pipe(Schema.brand("RuntimeIngestionRecordId"));
+export type RuntimeIngestionRecordId = typeof RuntimeIngestionRecordId.Type;
+
+const RuntimeIngestionRecordBase = {
+  recordId: RuntimeIngestionRecordId,
+  threadId: ThreadId,
+  runtimeSessionId: RuntimeSessionId,
+  sourceEventId: TrimmedNonEmptyString,
+  createdAt: IsoDateTime,
+} as const;
+
+const RuntimeAssistantCompletionRecord = Schema.Struct({
+  ...RuntimeIngestionRecordBase,
+  kind: Schema.Literal("assistant.completion"),
+  payload: Schema.Struct({
+    messageId: MessageId,
+    text: Schema.String,
+    turnId: TurnId,
+    parentEntryId: ThreadEntryId,
+  }),
+});
+
+const RuntimeThreadActivityRecord = Schema.Struct({
+  ...RuntimeIngestionRecordBase,
+  kind: Schema.Literal("thread.activity"),
+  payload: Schema.Struct({
+    activity: OrchestrationThreadActivity,
+  }),
+});
+
+export const RuntimeIngestionRecord = Schema.Union([
+  RuntimeAssistantCompletionRecord,
+  RuntimeThreadActivityRecord,
+]);
+export type RuntimeIngestionRecord = typeof RuntimeIngestionRecord.Type;
+
+export const RuntimeIngestionRequest = Schema.Struct({
+  records: Schema.Array(RuntimeIngestionRecord),
+});
+export type RuntimeIngestionRequest = typeof RuntimeIngestionRequest.Type;
+
+export const RuntimeIngestionAck = Schema.Struct({
+  recordId: RuntimeIngestionRecordId,
+  sequence: NonNegativeInt,
+});
+export type RuntimeIngestionAck = typeof RuntimeIngestionAck.Type;
+
+export const RuntimeIngestionResult = Schema.Struct({
+  accepted: NonNegativeInt,
+  acks: Schema.Array(RuntimeIngestionAck),
+});
+export type RuntimeIngestionResult = typeof RuntimeIngestionResult.Type;
 
 export const OrchestrationEventType = Schema.Literals([
   "project.created",
@@ -1395,17 +1452,24 @@ export const DispatchResult = Schema.Struct({
 });
 export type DispatchResult = typeof DispatchResult.Type;
 
+export const ORCHESTRATION_REPLAY_EVENTS_DEFAULT_LIMIT = 1000;
+
 export const OrchestrationReplayEventsInput = Schema.Struct({
   fromSequenceExclusive: NonNegativeInt,
+  limit: Schema.optional(PositiveInt),
 });
 export type OrchestrationReplayEventsInput = typeof OrchestrationReplayEventsInput.Type;
 
-const OrchestrationReplayEventsResult = Schema.Array(OrchestrationEvent);
+export const OrchestrationReplayEventsResult = Schema.Struct({
+  events: Schema.Array(OrchestrationEvent),
+  nextSequence: NonNegativeInt,
+  upToDate: Schema.Boolean,
+});
 export type OrchestrationReplayEventsResult = typeof OrchestrationReplayEventsResult.Type;
 
 export const OrchestrationRpcSchemas = {
   dispatchCommand: {
-    input: OrchestrationCommand,
+    input: ClientOrchestrationCommand,
     output: DispatchResult,
   },
   replayEvents: {

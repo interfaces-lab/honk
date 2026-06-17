@@ -2,7 +2,7 @@ import fsPromises from "node:fs/promises";
 
 import { getFiletypeFromFileName } from "@pierre/diffs";
 import { Effect, FileSystem, Layer, Path } from "effect";
-import { ProjectDeleteFileError, ProjectWriteConflictError } from "@honk/contracts";
+import { ProjectDeleteFileError, ProjectCreateDirectoryError, ProjectRenamePathError, ProjectWriteConflictError } from "@honk/contracts";
 
 import {
   ProjectFileSystem,
@@ -252,7 +252,131 @@ export const makeProjectFileSystem = Effect.gen(function* () {
     return { relativePath: target.relativePath };
   });
 
-  return { readFile, writeFile, deleteFile } satisfies ProjectFileSystemShape;
+  const createDirectory: ProjectFileSystemShape["createDirectory"] = Effect.fn(
+    "ProjectFileSystem.createDirectory",
+  )(function* (input) {
+    const normalizedCwd = yield* projectPaths.normalizeProjectRoot(input.cwd);
+    const target = yield* projectPaths.resolveRelativePathWithinRoot({
+      projectRoot: normalizedCwd,
+      relativePath: input.relativePath,
+    });
+
+    const alreadyExists = yield* fileSystem.exists(target.absolutePath).pipe(
+      Effect.mapError(
+        (cause) =>
+          new ProjectFileSystemError({
+            cwd: normalizedCwd,
+            relativePath: input.relativePath,
+            operation: "projectFileSystem.createDirectory.exists",
+            detail: cause.message,
+            cause,
+          }),
+      ),
+    );
+    if (alreadyExists) {
+      return yield* new ProjectCreateDirectoryError({
+        message: `"${target.relativePath}" already exists.`,
+      });
+    }
+
+    yield* fileSystem.makeDirectory(target.absolutePath, { recursive: false }).pipe(
+      Effect.mapError((cause) => {
+        if (errorCode(cause) === "ENOENT") {
+          return new ProjectCreateDirectoryError({
+            message: "Parent directory does not exist.",
+            cause,
+          });
+        }
+        if (errorCode(cause) === "EEXIST") {
+          return new ProjectCreateDirectoryError({
+            message: `"${target.relativePath}" already exists.`,
+            cause,
+          });
+        }
+        return new ProjectFileSystemError({
+          cwd: normalizedCwd,
+          relativePath: input.relativePath,
+          operation: "projectFileSystem.createDirectory",
+          detail: cause.message,
+          cause,
+        });
+      }),
+    );
+    yield* projectEntries.invalidate(normalizedCwd);
+    return { relativePath: target.relativePath };
+  });
+
+  const renamePath: ProjectFileSystemShape["renamePath"] = Effect.fn(
+    "ProjectFileSystem.renamePath",
+  )(function* (input) {
+    const normalizedCwd = yield* projectPaths.normalizeProjectRoot(input.cwd);
+    const source = yield* projectPaths.resolveRelativePathWithinRoot({
+      projectRoot: normalizedCwd,
+      relativePath: input.fromRelativePath,
+    });
+    const destination = yield* projectPaths.resolveRelativePathWithinRoot({
+      projectRoot: normalizedCwd,
+      relativePath: input.toRelativePath,
+    });
+
+    if (source.relativePath === destination.relativePath) {
+      return {
+        fromRelativePath: source.relativePath,
+        toRelativePath: destination.relativePath,
+      };
+    }
+
+    const destinationExists = yield* fileSystem.exists(destination.absolutePath).pipe(
+      Effect.mapError(
+        (cause) =>
+          new ProjectFileSystemError({
+            cwd: normalizedCwd,
+            relativePath: input.toRelativePath,
+            operation: "projectFileSystem.renamePath.exists",
+            detail: cause.message,
+            cause,
+          }),
+      ),
+    );
+    if (destinationExists) {
+      return yield* new ProjectRenamePathError({
+        message: `"${destination.relativePath}" already exists.`,
+      });
+    }
+
+    yield* Effect.tryPromise({
+      try: () => fsPromises.rename(source.absolutePath, destination.absolutePath),
+      catch: (cause) => {
+        if (errorCode(cause) === "ENOENT") {
+          return new ProjectRenamePathError({
+            message: `"${source.relativePath}" was not found.`,
+            cause,
+          });
+        }
+        if (errorCode(cause) === "EEXIST") {
+          return new ProjectRenamePathError({
+            message: `"${destination.relativePath}" already exists.`,
+            cause,
+          });
+        }
+        return new ProjectFileSystemError({
+          cwd: normalizedCwd,
+          relativePath: input.fromRelativePath,
+          operation: "projectFileSystem.renamePath",
+          detail: cause instanceof Error ? cause.message : String(cause),
+          cause,
+        });
+      },
+    });
+
+    yield* projectEntries.invalidate(normalizedCwd);
+    return {
+      fromRelativePath: source.relativePath,
+      toRelativePath: destination.relativePath,
+    };
+  });
+
+  return { readFile, writeFile, deleteFile, createDirectory, renamePath } satisfies ProjectFileSystemShape;
 });
 
 export const ProjectFileSystemLive = Layer.effect(ProjectFileSystem, makeProjectFileSystem);

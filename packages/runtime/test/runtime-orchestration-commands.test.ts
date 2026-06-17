@@ -158,6 +158,55 @@ describe("runtime orchestration commands", () => {
     expect(runtimeToolCompletedActivityCommands(event)).toEqual([]);
   });
 
+  it("omits successful metadata-only generic tool completions", () => {
+    const event: AgentRuntimeEvent = {
+      id: EventId.make("runtime-event:metadata-only-read"),
+      agentRuntime: "pi",
+      threadId,
+      runtimeSessionId,
+      turnId,
+      type: "tool.completed",
+      summary: "Completed read",
+      createdAt,
+      data: {
+        toolName: "tool",
+        toolCallId: "toolu-read",
+        isError: false,
+      },
+    };
+
+    expect(runtimeToolCompletedActivityCommands(event)).toEqual([]);
+  });
+
+  it("keeps failed metadata-only generic tool completions", () => {
+    const event: AgentRuntimeEvent = {
+      id: EventId.make("runtime-event:metadata-only-read-failed"),
+      agentRuntime: "pi",
+      threadId,
+      runtimeSessionId,
+      turnId,
+      type: "tool.completed",
+      summary: "read failed",
+      createdAt,
+      data: {
+        toolName: "tool",
+        toolCallId: "toolu-read-failed",
+        isError: true,
+      },
+    };
+
+    expect(runtimeToolCompletedActivityCommands(event)).toEqual([
+      expect.objectContaining({
+        activity: expect.objectContaining({
+          id: EventId.make("runtime-activity:runtime-event:metadata-only-read-failed"),
+          tone: "error",
+          kind: "tool.completed",
+          summary: "read failed",
+        }),
+      }),
+    ]);
+  });
+
   it("canonicalizes legacy generic bash completions with payload data", () => {
     const event: AgentRuntimeEvent = {
       id: EventId.make("runtime-event:legacy-bash-with-result"),
@@ -315,6 +364,120 @@ describe("runtime orchestration commands", () => {
         subagentThreadId: "thread:child",
         parentItemId: RuntimeItemId.make("toolu-subagent"),
       },
+    });
+  });
+
+  it("compacts persisted subagent item payloads", () => {
+    const event: AgentRuntimeEvent = {
+      id: EventId.make("runtime-event:subagent-tool-with-item"),
+      agentRuntime: "pi",
+      threadId,
+      runtimeSessionId,
+      turnId,
+      type: "tool.completed",
+      summary: "Completed subagent",
+      createdAt,
+      data: {
+        toolName: "subagent",
+        toolCallId: "toolu-subagent",
+        isError: false,
+        result: {
+          details: {
+            runs: [
+              {
+                subagentThreadId: "thread:child",
+                agentId: "agent:child",
+                nickname: "Review",
+                role: "oracle",
+                model: "gpt-5.5",
+                prompt: "Review the code",
+                state: "completed",
+              },
+            ],
+            activities: [
+              {
+                id: "runtime-subagent:thread",
+                kind: "subagent.thread.started",
+                summary: "Started Review",
+                createdAt,
+                sequence: 1,
+                payload: {
+                  subagentThreadId: "thread:child",
+                  parentThreadId: threadId,
+                  parentItemId: "toolu-subagent",
+                  agentId: "agent:child",
+                  nickname: "Review",
+                  role: "oracle",
+                  model: "gpt-5.5",
+                  prompt: "Review the code",
+                },
+              },
+              {
+                id: "runtime-subagent:item",
+                kind: "subagent.item.completed",
+                summary: "Completed read",
+                createdAt,
+                sequence: 2,
+                payload: {
+                  subagentThreadId: "thread:child",
+                  parentThreadId: threadId,
+                  parentItemId: "toolu-subagent",
+                  agentId: "agent:child",
+                  nickname: "Review",
+                  role: "oracle",
+                  model: "gpt-5.5",
+                  prompt: "Review the code",
+                  itemType: "file_read",
+                  itemId: "item:read",
+                  status: "completed",
+                  title: "Read",
+                  data: {
+                    type: "tool_execution_end",
+                    toolCallId: "toolu-read",
+                    toolName: "read",
+                    result: {
+                      content: [{ type: "text", text: "visible output" }],
+                      details: {
+                        truncation: {
+                          content: "visible output",
+                          totalBytes: 100,
+                          outputBytes: 14,
+                          truncated: true,
+                        },
+                      },
+                    },
+                    isError: false,
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    const subagentItemCommand = runtimeToolCompletedActivityCommands(event).find(
+      (command) =>
+        command.type === "thread.activity.append" &&
+        command.activity.kind === "subagent.item.completed",
+    );
+
+    if (subagentItemCommand?.type !== "thread.activity.append") {
+      throw new Error("Expected child subagent item activity command.");
+    }
+
+    const payload = subagentItemCommand.activity.payload as Record<string, unknown>;
+    const data = payload.data as Record<string, unknown>;
+    const result = data.result as Record<string, unknown>;
+    const details = result.details as Record<string, unknown>;
+    const truncation = details.truncation as Record<string, unknown>;
+
+    expect(payload.prompt).toBeUndefined();
+    expect(result.content).toEqual([{ type: "text", text: "visible output" }]);
+    expect(truncation).toEqual({
+      totalBytes: 100,
+      outputBytes: 14,
+      truncated: true,
     });
   });
 

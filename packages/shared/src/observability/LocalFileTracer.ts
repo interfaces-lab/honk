@@ -11,6 +11,7 @@ export interface LocalFileTracerOptions {
   readonly batchWindowMs: number;
   readonly delegate?: Tracer.Tracer;
   readonly sink?: TraceSink;
+  readonly recordFilter?: (record: EffectTraceRecord) => boolean;
 }
 
 class LocalFileSpan implements Tracer.Span {
@@ -32,6 +33,7 @@ class LocalFileSpan implements Tracer.Span {
     options: Parameters<Tracer.Tracer["span"]>[0],
     private readonly delegate: Tracer.Span,
     private readonly push: (record: EffectTraceRecord) => void,
+    private readonly recordFilter: (record: EffectTraceRecord) => boolean,
   ) {
     this.name = delegate.name;
     this.spanId = delegate.spanId;
@@ -59,7 +61,10 @@ class LocalFileSpan implements Tracer.Span {
     this.delegate.end(endTime, exit);
 
     if (this.sampled) {
-      this.push(spanToTraceRecord(this));
+      const record = spanToTraceRecord(this);
+      if (this.recordFilter(record)) {
+        this.push(record);
+      }
     }
   }
 
@@ -100,7 +105,12 @@ export const makeLocalFileTracer = Effect.fn("makeLocalFileTracer")(function* (
 
   return Tracer.make({
     span(spanOptions) {
-      return new LocalFileSpan(spanOptions, delegate.span(spanOptions), sink.push);
+      return new LocalFileSpan(
+        spanOptions,
+        delegate.span(spanOptions),
+        sink.push,
+        options.recordFilter ?? (() => true),
+      );
     },
     ...(delegate.context ? { context: delegate.context } : {}),
   });

@@ -5,7 +5,7 @@ import { Effect } from "effect";
 
 import type { TraceRecord } from "./TraceRecord";
 
-const FLUSH_BUFFER_THRESHOLD = 32;
+const FLUSH_BUFFER_THRESHOLD = 256;
 
 export interface TraceSinkOptions {
   readonly filePath: string;
@@ -131,11 +131,35 @@ export const makeTraceSink = Effect.fn("makeTraceSink")(function* (options: Trac
   });
 
   let buffer: Array<string> = [];
+  let flushTimeout: ReturnType<typeof setTimeout> | null = null;
+  let closed = false;
 
-  const flushUnsafe = () => {
-    if (buffer.length === 0) {
+  const clearFlushTimeout = () => {
+    if (flushTimeout === null) {
       return;
     }
+    clearTimeout(flushTimeout);
+    flushTimeout = null;
+  };
+
+  const scheduleFlush = () => {
+    if (closed || flushTimeout !== null || buffer.length === 0) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      if (flushTimeout === timeout) {
+        flushTimeout = null;
+      }
+      flushUnsafe();
+    }, options.batchWindowMs);
+    timeout.unref?.();
+    flushTimeout = timeout;
+  };
+
+  const flushUnsafe = () => {
+    clearFlushTimeout();
+    if (buffer.length === 0) return;
 
     const chunk = buffer.join("");
     buffer = [];
@@ -144,14 +168,18 @@ export const makeTraceSink = Effect.fn("makeTraceSink")(function* (options: Trac
       sink.write(chunk);
     } catch {
       buffer.unshift(chunk);
+      scheduleFlush();
     }
   };
 
   const flush = Effect.sync(flushUnsafe).pipe(Effect.withTracerEnabled(false));
 
-  yield* Effect.addFinalizer(() => flush.pipe(Effect.ignore));
-  yield* Effect.forkScoped(
-    Effect.sleep(`${options.batchWindowMs} millis`).pipe(Effect.andThen(flush), Effect.forever),
+  yield* Effect.addFinalizer(() =>
+    Effect.sync(() => {
+      closed = true;
+      flushUnsafe();
+      clearFlushTimeout();
+    }).pipe(Effect.ignore),
   );
 
   return {
@@ -161,6 +189,8 @@ export const makeTraceSink = Effect.fn("makeTraceSink")(function* (options: Trac
         buffer.push(`${JSON.stringify(record)}\n`);
         if (buffer.length >= FLUSH_BUFFER_THRESHOLD) {
           flushUnsafe();
+        } else {
+          scheduleFlush();
         }
       } catch {
         return;

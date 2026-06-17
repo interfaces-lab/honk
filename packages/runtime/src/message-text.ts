@@ -1,3 +1,5 @@
+import { formatTurnFailureMessage } from "./provider-error";
+
 type TextPart = {
   readonly type: "text";
   readonly text: string;
@@ -47,6 +49,13 @@ function messageErrorMessage(message: unknown): string {
   return typeof message.errorMessage === "string" ? message.errorMessage.trim() : "";
 }
 
+function messageStopReason(message: unknown): string | null {
+  if (typeof message !== "object" || message === null || !("stopReason" in message)) {
+    return null;
+  }
+  return typeof message.stopReason === "string" ? message.stopReason : null;
+}
+
 export function extractMessageText(message: unknown): string {
   const content = messageContent(message);
   if (typeof content === "string") {
@@ -62,9 +71,16 @@ export function extractMessageText(message: unknown): string {
     .join("\n");
 }
 
-export function extractMessageErrorText(message: unknown): string {
+export function extractProviderFailureMessage(message: unknown): string | null {
+  const stopReason = messageStopReason(message);
+  if (stopReason !== "error" && stopReason !== "aborted") {
+    return null;
+  }
   const errorMessage = messageErrorMessage(message);
-  return errorMessage ? `Provider error: ${errorMessage}` : "";
+  if (!errorMessage) {
+    return null;
+  }
+  return formatTurnFailureMessage(errorMessage);
 }
 
 export function extractMessageThinking(message: unknown): string {

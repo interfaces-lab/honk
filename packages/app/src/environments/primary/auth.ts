@@ -22,7 +22,11 @@ import {
   stripPairingTokenFromUrl as stripPairingTokenUrl,
 } from "./pairing-url";
 
-import { readPrimaryEnvironmentTarget, resolvePrimaryEnvironmentHttpUrl } from "./target";
+import {
+  readDesktopLocalEnvironmentBootstrap,
+  readPrimaryEnvironmentTarget,
+  resolvePrimaryEnvironmentHttpUrl,
+} from "./target";
 import { Data, DateTime, Predicate, Schema } from "effect";
 
 export class BootstrapHttpError extends Data.TaggedError("BootstrapHttpError")<{
@@ -75,13 +79,21 @@ type ServerAuthGateState =
 let bootstrapPromise: Promise<ServerAuthGateState> | null = null;
 let resolvedAuthenticatedGateState: ServerAuthGateState | null = null;
 let serverBearerSessionRecord: ServerBearerSessionRecord | null = null;
+let validatedServerBearerSessionRecord: ValidatedServerBearerSessionRecord | null = null;
 let resolveAuthenticatedServerBearerTokenPromise: Promise<string | null> | null = null;
 const SERVER_BEARER_SESSION_STORAGE_KEY = "honk.server.bearerSession.v1";
+const SERVER_BEARER_SESSION_VALIDATION_TTL_MS = 60_000;
 
 interface ServerBearerSessionRecord {
   readonly httpBaseUrl: string;
   readonly sessionToken: string;
   readonly expiresAt: string;
+}
+
+interface ValidatedServerBearerSessionRecord {
+  readonly httpBaseUrl: string;
+  readonly sessionToken: string;
+  readonly validatedAtMs: number;
 }
 
 export function peekPairingTokenFromUrl(): string | null {
@@ -111,11 +123,7 @@ function readCurrentHttpBaseUrl(): string | null {
 }
 
 function readBootstrapCredential(): string | null {
-  return (
-    takePairingTokenFromUrl() ??
-    window.desktopBridge?.getLocalEnvironmentBootstrap()?.bootstrapToken ??
-    null
-  );
+  return takePairingTokenFromUrl() ?? readDesktopLocalEnvironmentBootstrap()?.bootstrapToken ?? null;
 }
 
 function parseServerBearerSessionRecord(raw: string | null): ServerBearerSessionRecord | null {
@@ -155,6 +163,7 @@ function isExpired(isoTime: string): boolean {
 
 function clearServerBearerSession(): void {
   serverBearerSessionRecord = null;
+  validatedServerBearerSessionRecord = null;
   window.sessionStorage?.removeItem(SERVER_BEARER_SESSION_STORAGE_KEY);
 }
 
@@ -194,6 +203,7 @@ function writeServerBearerSession(result: AuthBootstrapResult): void {
     expiresAt: DateTime.formatIso(result.expiresAt),
   };
   serverBearerSessionRecord = record;
+  rememberServerBearerSessionValidated(record);
   window.sessionStorage?.setItem(SERVER_BEARER_SESSION_STORAGE_KEY, JSON.stringify(record));
 }
 
@@ -201,12 +211,34 @@ export function getServerBearerSessionToken(): string | null {
   return readServerBearerSession()?.sessionToken ?? null;
 }
 
+function rememberServerBearerSessionValidated(record: ServerBearerSessionRecord): void {
+  validatedServerBearerSessionRecord = {
+    httpBaseUrl: record.httpBaseUrl,
+    sessionToken: record.sessionToken,
+    validatedAtMs: Date.now(),
+  };
+}
+
+function hasFreshServerBearerSessionValidation(record: ServerBearerSessionRecord): boolean {
+  return (
+    validatedServerBearerSessionRecord?.httpBaseUrl === record.httpBaseUrl &&
+    validatedServerBearerSessionRecord.sessionToken === record.sessionToken &&
+    Date.now() - validatedServerBearerSessionRecord.validatedAtMs <
+      SERVER_BEARER_SESSION_VALIDATION_TTL_MS
+  );
+}
+
 async function resolveAuthenticatedServerBearerTokenOnce(): Promise<string | null> {
-  const existingToken = getServerBearerSessionToken();
-  if (existingToken) {
+  const existingSession = readServerBearerSession();
+  if (existingSession) {
+    if (hasFreshServerBearerSessionValidation(existingSession)) {
+      return existingSession.sessionToken;
+    }
+
     const currentSession = await fetchSessionState();
     if (currentSession.authenticated) {
-      return existingToken;
+      rememberServerBearerSessionValidated(existingSession);
+      return existingSession.sessionToken;
     }
     clearServerBearerSession();
     resolvedAuthenticatedGateState = null;
@@ -581,5 +613,7 @@ export async function resolveInitialServerAuthGateState(): Promise<ServerAuthGat
 export function __resetServerAuthBootstrapForTests() {
   bootstrapPromise = null;
   resolvedAuthenticatedGateState = null;
+  serverBearerSessionRecord = null;
+  validatedServerBearerSessionRecord = null;
   resolveAuthenticatedServerBearerTokenPromise = null;
 }

@@ -7,6 +7,8 @@ const PROJECT_LIST_DIRECTORY_PATH_MAX_LENGTH = 512;
 const PROJECT_READ_FILE_PATH_MAX_LENGTH = 512;
 const PROJECT_WRITE_FILE_PATH_MAX_LENGTH = 512;
 const PROJECT_DELETE_FILE_PATH_MAX_LENGTH = 512;
+const PROJECT_CREATE_DIRECTORY_PATH_MAX_LENGTH = 512;
+const PROJECT_RENAME_PATH_MAX_LENGTH = 512;
 
 export const DEFAULT_PROJECTLESS_CWD = "~/Documents";
 
@@ -135,6 +137,48 @@ export type ProjectDeleteFileResult = typeof ProjectDeleteFileResult.Type;
 
 export class ProjectDeleteFileError extends Schema.TaggedErrorClass<ProjectDeleteFileError>()(
   "ProjectDeleteFileError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
+
+export const ProjectCreateDirectoryInput = Schema.Struct({
+  cwd: TrimmedNonEmptyString,
+  relativePath: TrimmedNonEmptyString.check(
+    Schema.isMaxLength(PROJECT_CREATE_DIRECTORY_PATH_MAX_LENGTH),
+  ),
+});
+export type ProjectCreateDirectoryInput = typeof ProjectCreateDirectoryInput.Type;
+
+export const ProjectCreateDirectoryResult = Schema.Struct({
+  relativePath: TrimmedNonEmptyString,
+});
+export type ProjectCreateDirectoryResult = typeof ProjectCreateDirectoryResult.Type;
+
+export class ProjectCreateDirectoryError extends Schema.TaggedErrorClass<ProjectCreateDirectoryError>()(
+  "ProjectCreateDirectoryError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
+
+export const ProjectRenamePathInput = Schema.Struct({
+  cwd: TrimmedNonEmptyString,
+  fromRelativePath: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_RENAME_PATH_MAX_LENGTH)),
+  toRelativePath: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_RENAME_PATH_MAX_LENGTH)),
+});
+export type ProjectRenamePathInput = typeof ProjectRenamePathInput.Type;
+
+export const ProjectRenamePathResult = Schema.Struct({
+  fromRelativePath: TrimmedNonEmptyString,
+  toRelativePath: TrimmedNonEmptyString,
+});
+export type ProjectRenamePathResult = typeof ProjectRenamePathResult.Type;
+
+export class ProjectRenamePathError extends Schema.TaggedErrorClass<ProjectRenamePathError>()(
+  "ProjectRenamePathError",
   {
     message: TrimmedNonEmptyString,
     cause: Schema.optional(Schema.Defect),

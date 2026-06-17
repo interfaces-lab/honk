@@ -94,20 +94,20 @@ export function ThreadContextMenu(props: {
           <>
             <WorkbenchContextMenuSeparator />
             <WorkbenchContextMenuItem
-              label="Fork Chat"
+              label="Fork chat"
               onClick={props.onForkChat}
               icon={<IconBranch aria-hidden />}
             >
-              Fork Chat
+              Fork chat
             </WorkbenchContextMenuItem>
           </>
         ) : null}
         <WorkbenchContextMenuItem
-          label="Copy Thread ID"
+          label="Copy thread ID"
           onClick={() => void navigator.clipboard.writeText(props.threadId)}
           icon={<IconClipboard aria-hidden />}
         >
-          Copy Thread ID
+          Copy thread ID
         </WorkbenchContextMenuItem>
         <WorkbenchContextMenuSeparator />
         <WorkbenchContextMenuItem

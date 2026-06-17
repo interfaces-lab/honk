@@ -42,6 +42,7 @@ type BrowserWebviewIpcMessageEvent = Event & {
 const BROWSER_LOCALHOST_PORT_CANDIDATES = [
   3000, 3001, 3002, 4000, 4173, 4321, 5000, 5173, 5174, 6006, 7000, 8000, 8080, 8787, 8888,
 ] as const;
+const BROWSER_LOCALHOST_RESCAN_INTERVAL_MS = 120_000;
 
 interface DetectedLocalhostServer {
   port: number;
@@ -218,7 +219,7 @@ export function BrowserPanel(props: BrowserPanelProps) {
   };
 
   useEffect(() => {
-    if (!browserActive || browserCommittedUrl) return undefined;
+    if (!browserActive || !browserIsEmpty) return undefined;
 
     const detectLocalhostPorts =
       typeof window !== "undefined" ? window.desktopBridge?.detectLocalhostPorts : undefined;
@@ -231,10 +232,25 @@ export function BrowserPanel(props: BrowserPanelProps) {
 
     let cancelled = false;
     let scanInFlight = false;
+    let rescanTimeoutId: number | null = null;
     setLocalhostScanState("scanning");
+
+    const clearScheduledScan = () => {
+      if (rescanTimeoutId === null) return;
+      window.clearTimeout(rescanTimeoutId);
+      rescanTimeoutId = null;
+    };
+
+    const scheduleRescan = () => {
+      if (cancelled || document.visibilityState === "hidden") return;
+      clearScheduledScan();
+      rescanTimeoutId = window.setTimeout(scan, BROWSER_LOCALHOST_RESCAN_INTERVAL_MS);
+    };
 
     const scan = () => {
       if (scanInFlight) return;
+      if (document.visibilityState === "hidden") return;
+      clearScheduledScan();
       scanInFlight = true;
 
       void detectLocalhostPorts(BROWSER_LOCALHOST_PORT_CANDIDATES)
@@ -250,17 +266,35 @@ export function BrowserPanel(props: BrowserPanelProps) {
           scanInFlight = false;
           if (cancelled) return;
           setLocalhostScanState("complete");
+          scheduleRescan();
         });
     };
 
+    const scanVisibleWindow = () => {
+      if (document.visibilityState !== "hidden") {
+        scan();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        clearScheduledScan();
+        return;
+      }
+      scan();
+    };
+
     scan();
-    const intervalId = window.setInterval(scan, 5_000);
+    window.addEventListener("focus", scanVisibleWindow);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       cancelled = true;
-      window.clearInterval(intervalId);
+      clearScheduledScan();
+      window.removeEventListener("focus", scanVisibleWindow);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [browserActive, browserCommittedUrl]);
+  }, [browserActive, browserIsEmpty]);
 
   const syncLoadedWebviewState = useCallback(() => {
     const webview = webviewRef.current;
@@ -310,6 +344,7 @@ export function BrowserPanel(props: BrowserPanelProps) {
 
   const handleWebviewRef = useCallback((element: HTMLElement | null) => {
     const webview = element as HTMLWebViewElement | null;
+    webview?.setAttribute("allowpopups", "true");
     webviewRef.current = webview;
     setWebviewElement(webview);
   }, []);
@@ -572,7 +607,6 @@ export function BrowserPanel(props: BrowserPanelProps) {
         <webview
           key={webviewInstanceKey}
           ref={handleWebviewRef}
-          allowpopups
           className={cn(
             "min-h-0 min-w-0 flex-1 bg-(--honk-workbench-editor-surface-background)",
             !browserState.committedUrl && "pointer-events-none opacity-0",

@@ -2,7 +2,7 @@ import type { EnvironmentId, ScopedProjectRef } from "@honk/contracts";
 import { useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
-import ChatView from "~/components/chat/view/chat-view";
+import { ChatPaneTilingSurface } from "~/components/chat/view/chat-pane-tiling-surface";
 import {
   DraftId,
   useComposerDraftStore,
@@ -164,7 +164,7 @@ function ChatIndexAgentPanel(props: {
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <ChatView
+      <ChatPaneTilingSurface
         draftId={draftRenderState.draftId}
         environmentId={draftRenderState.environmentId}
         threadId={draftRenderState.threadId}

@@ -10,17 +10,30 @@
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
+    "@honk/honkkit": "workspace:*",
+    "@honk/shared": "workspace:*",
+    "@pierre/diffs": "^1.2.11",
     "@tanstack/react-router": "^1.170.15",
     "@tanstack/react-start": "^1.168.25",
+    "central-icons": "npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.265",
+    "class-variance-authority": "^0.7.1",
+    "effect": "catalog:",
+    "geist": "^1.7.2",
+    "nitro": "3.0.260610-beta",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "shiki": "3.23.0",
+    "tailwind-merge": "^3.6.0",
     "vite": "^8.0.16"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.1",
     "@tanstack/router-plugin": "^1.168.18",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
+    "react-grab": "^0.1.44",
+    "tailwindcss": "^4.3.1",
     "typescript": "catalog:"
   }
 }

@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { SubagentActivityDetails, SubagentToolDetails } from "@honk/contracts";
 
-import { capLiveSubagentActivities, MAX_LIVE_SUBAGENT_ACTIVITIES } from "../src/subagent-extension";
+import {
+  capLiveSubagentActivities,
+  compactSubagentActivityData,
+  MAX_LIVE_SUBAGENT_ACTIVITIES,
+} from "../src/subagent-extension";
 
 function makeActivity(sequence: number): SubagentActivityDetails {
   return {
@@ -40,6 +44,12 @@ function makeDetails(activityCount: number): SubagentToolDetails {
   };
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value))
+    : null;
+}
+
 describe("capLiveSubagentActivities", () => {
   it("returns the same details when activities fit the live cap", () => {
     const details = makeDetails(MAX_LIVE_SUBAGENT_ACTIVITIES);
@@ -55,5 +65,58 @@ describe("capLiveSubagentActivities", () => {
     expect(capped.activities.at(-1)?.sequence).toBe(MAX_LIVE_SUBAGENT_ACTIVITIES + overflow - 1);
     expect(capped.runs).toBe(details.runs);
     expect(capped.mode).toBe(details.mode);
+  });
+});
+
+describe("compactSubagentActivityData", () => {
+  it("drops bulky tool result bodies while preserving useful metadata", () => {
+    const compacted = compactSubagentActivityData({
+      type: "tool.completed",
+      toolCallId: "call-read",
+      toolName: "read",
+      args: { path: "src/file.ts" },
+      result: {
+        content: [{ type: "text", text: "x".repeat(100_000) }],
+        details: {
+          truncation: {
+            content: "x".repeat(100_000),
+            omittedLines: 200,
+          },
+          fullOutputPath: "/tmp/output.log",
+        },
+      },
+      isError: false,
+    });
+
+    expect(compacted).toEqual({
+      type: "tool.completed",
+      toolCallId: "call-read",
+      toolName: "read",
+      args: { path: "src/file.ts" },
+      isError: false,
+      result: {
+        details: {
+          truncation: {
+            omittedLines: 200,
+          },
+          fullOutputPath: "/tmp/output.log",
+        },
+      },
+    });
+    expect(JSON.stringify(compacted)).not.toContain("xxxxx");
+  });
+
+  it("caps large metadata strings", () => {
+    const compacted = compactSubagentActivityData({
+      command: "printf hi",
+      metadata: {
+        summary: "a".repeat(8_000),
+      },
+    });
+
+    const metadata = asRecord(compacted?.metadata);
+    const summary = typeof metadata?.summary === "string" ? metadata.summary : "";
+    expect(summary.length).toBeLessThan(8_000);
+    expect(summary).toContain("[truncated]");
   });
 });

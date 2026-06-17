@@ -1,5 +1,6 @@
 "use client";
 
+import type { FileTreeRenameEvent } from "@pierre/trees";
 import {
   type ContextMenuItem,
   type ContextMenuOpenContext,
@@ -29,8 +30,8 @@ import {
   type RefObject,
   type SetStateAction,
   useCallback,
-  useImperativeHandle,
   useEffect,
+  useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
@@ -42,18 +43,31 @@ import { isElectronHost } from "~/env";
 import { ensureLocalApi } from "~/local-api";
 import { formatProjectErrorDescription } from "~/lib/project-error-description";
 import {
+  createProjectDirectory,
   deleteProjectFile,
   invalidateProjectEntries,
   invalidateProjectFile,
   projectListDirectoryQueryOptions,
+  renameProjectPath,
+  writeProjectFile,
 } from "~/lib/project-react-query";
 import { markProjectModelClosed } from "~/lib/monaco/project-models";
 import { cn } from "~/lib/utils";
 import { useEnvironmentApiReady } from "~/hooks/use-environment-api-ready";
+import { useMountEffect } from "~/hooks/use-mount-effect";
 import { useTheme } from "~/hooks/use-theme";
 import { workspaceEditorActions } from "~/stores/workspace-editor-store";
+import { workbenchTabPersistenceActions } from "~/stores/workbench-tab-store";
 import { Tree, useTreeModel } from "../../tree";
 import { resolveFileTreeContextMenuPosition } from "./project-file-tree-context-menu-position";
+import {
+  parentDirectoryFromContextItem,
+  relativePathFromContextItem,
+  renameFileTreePaths,
+  treePathForNewFile,
+  treePathForNewFolder,
+  uniqueSiblingName,
+} from "./project-file-tree-paths";
 
 const DIRECTORY_PLACEHOLDER_FILE_NAME = "Loading...";
 type ProjectTreeModel = ReturnType<typeof useTreeModel>["model"];
@@ -227,8 +241,26 @@ function revealProjectFilePath(input: { relativePath: string; cwd: string | null
     });
 }
 
+type PendingCompositionEntry = {
+  kind: "directory" | "file";
+  path: string;
+};
+
 const FILE_TREE_MENU_ITEM_CLASS =
   "flex min-h-6 w-full items-center rounded-xs px-2 text-left text-muted-foreground outline-hidden hover:bg-honk-hover hover:text-foreground focus-visible:bg-honk-hover focus-visible:text-foreground";
+
+const FILE_TREE_CONTEXT_MENU_SEPARATOR_CLASS = "my-1 h-px bg-honk-border/70";
+
+async function copyPathToClipboard(path: string, successTitle: string): Promise<void> {
+  if (!navigator.clipboard?.writeText) {
+    toast.error("Unable to copy path", {
+      description: "This browser cannot write to the clipboard.",
+    });
+    return;
+  }
+  await navigator.clipboard.writeText(path);
+  toast.success(successTitle);
+}
 
 function fileTreeContextMenuPosition(
   anchorRect: ContextMenuOpenContext["anchorRect"],
@@ -262,7 +294,14 @@ function FileTreeContextMenu(props: {
   availableEditors: readonly EditorId[];
   canDeleteEntry: boolean;
   canRevealInFinder: boolean;
+  canCreateEntry: boolean;
+  canRenameEntry: boolean;
   onRequestDelete: (entry: PendingDeleteEntry) => void;
+  onRequestNewFile: (item: ContextMenuItem) => void;
+  onRequestNewFolder: (item: ContextMenuItem) => void;
+  onRequestRename: (item: ContextMenuItem) => void;
+  onCopyAbsolutePath: (item: ContextMenuItem) => void;
+  onCopyRelativePath: (item: ContextMenuItem) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [position, setPosition] = useState(() =>
@@ -287,7 +326,7 @@ function FileTreeContextMenu(props: {
     props.context.anchorRect.width,
   ]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     containerRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
   }, []);
 
@@ -321,32 +360,100 @@ function FileTreeContextMenu(props: {
         Open in External Editor
       </button>
       {props.canRevealInFinder ? (
-        <button
-          type="button"
-          role="menuitem"
-          className={FILE_TREE_MENU_ITEM_CLASS}
-          onClick={() => {
-            props.context.close();
-            revealProjectFilePath({ relativePath: props.item.path, cwd: props.cwd });
-          }}
-        >
-          Open in Finder
-        </button>
-      ) : null}
-      {props.canDeleteEntry ? (
         <>
-          <div role="separator" className="my-1 h-px bg-honk-border/70" />
+          <div role="separator" className={FILE_TREE_CONTEXT_MENU_SEPARATOR_CLASS} />
           <button
             type="button"
             role="menuitem"
-            className="flex min-h-6 w-full items-center rounded-xs px-2 text-left text-destructive outline-hidden hover:bg-destructive/10 hover:text-destructive focus-visible:bg-destructive/10 focus-visible:text-destructive"
+            className={FILE_TREE_MENU_ITEM_CLASS}
             onClick={() => {
               props.context.close();
-              props.onRequestDelete({ kind: props.item.kind, path: props.item.path });
+              revealProjectFilePath({ relativePath: props.item.path, cwd: props.cwd });
             }}
           >
-            Delete {props.item.kind === "directory" ? "Folder" : "File"}
+            Reveal in Finder
           </button>
+        </>
+      ) : null}
+      {props.canCreateEntry ? (
+        <>
+          <div role="separator" className={FILE_TREE_CONTEXT_MENU_SEPARATOR_CLASS} />
+          <button
+            type="button"
+            role="menuitem"
+            className={FILE_TREE_MENU_ITEM_CLASS}
+            onClick={() => {
+              props.context.close({ restoreFocus: false });
+              props.onRequestNewFile(props.item);
+            }}
+          >
+            New File
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={FILE_TREE_MENU_ITEM_CLASS}
+            onClick={() => {
+              props.context.close({ restoreFocus: false });
+              props.onRequestNewFolder(props.item);
+            }}
+          >
+            New Folder
+          </button>
+        </>
+      ) : null}
+      <div role="separator" className={FILE_TREE_CONTEXT_MENU_SEPARATOR_CLASS} />
+      <button
+        type="button"
+        role="menuitem"
+        className={FILE_TREE_MENU_ITEM_CLASS}
+        onClick={() => {
+          props.context.close();
+          props.onCopyAbsolutePath(props.item);
+        }}
+      >
+        Copy Path
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className={FILE_TREE_MENU_ITEM_CLASS}
+        onClick={() => {
+          props.context.close();
+          props.onCopyRelativePath(props.item);
+        }}
+      >
+        Copy Relative Path
+      </button>
+      {props.canRenameEntry || props.canDeleteEntry ? (
+        <>
+          <div role="separator" className={FILE_TREE_CONTEXT_MENU_SEPARATOR_CLASS} />
+          {props.canRenameEntry ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={FILE_TREE_MENU_ITEM_CLASS}
+              onClick={() => {
+                props.context.close({ restoreFocus: false });
+                props.onRequestRename(props.item);
+              }}
+            >
+              Rename
+            </button>
+          ) : null}
+          {props.canDeleteEntry ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="flex min-h-6 w-full items-center rounded-xs px-2 text-left text-destructive outline-hidden hover:bg-destructive/10 hover:text-destructive focus-visible:bg-destructive/10 focus-visible:text-destructive"
+              onClick={() => {
+                props.context.close();
+                props.onRequestDelete({ kind: props.item.kind, path: props.item.path });
+              }}
+            >
+              Delete
+            </button>
+          ) : null}
         </>
       ) : null}
     </div>
@@ -506,9 +613,14 @@ const ProjectFileTreeComponent = forwardRef<
   const externalSelectedPathRef = useRef<string | null>(null);
   const lastOpenedPathRef = useRef<string | null>(null);
   const suppressSelectionOpenRef = useRef<string | null>(null);
+  const pendingCompositionRef = useRef<Map<string, PendingCompositionEntry>>(new Map());
+  const pendingRenamePathRef = useRef<string | null>(null);
+  const pendingExpandedPathsRef = useRef<string[]>([]);
+  const treePathsRef = useRef<string[]>([]);
   const { resolvedTheme } = useTheme();
   const queryClient = useQueryClient();
   const [treePaths, setTreePaths] = useState<string[]>([]);
+  treePathsRef.current = treePaths;
   const [loadError, setLoadError] = useState<unknown>(null);
   const [pendingDeleteEntry, setPendingDeleteEntry] = useState<PendingDeleteEntry | null>(null);
   const [deletingPath, setDeletingPath] = useState<string | null>(null);
@@ -535,24 +647,12 @@ const ProjectFileTreeComponent = forwardRef<
       : `This removes "${pendingDeleteDescriptionPath}" from the project. This action cannot be undone.`;
   const deletingPendingEntry = pendingDeletePath !== null && deletingPath === pendingDeletePath;
 
-  useEffect(() => {
+  useMountEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
-  }, []);
-
-  useEffect(() => {
-    loadedDirectoriesRef.current?.clear();
-    loadingDirectoriesRef.current?.clear();
-    filePathSetRef.current?.clear();
-    lastOpenedPathRef.current = null;
-    suppressSelectionOpenRef.current = null;
-    setPendingDeleteEntry(null);
-    setDeletingPath(null);
-    setTreePaths([]);
-    setLoadError(null);
-  }, [props.cwd, props.environmentId]);
+  });
 
   const confirmDeletePendingEntry = async () => {
     const cwd = props.cwd;
@@ -614,6 +714,176 @@ const ProjectFileTreeComponent = forwardRef<
     }
   };
 
+  const handleTreeRename = useCallback(
+    async (event: FileTreeRenameEvent) => {
+      const cwd = props.cwd;
+      const environmentId = props.environmentId;
+      if (!cwd || !environmentId) {
+        return;
+      }
+
+      const sourceTreePath = normalizeTreePath(event.sourcePath);
+      const destinationBasename = projectFileName(
+        normalizeTreePath(event.destinationPath).replace(/\/+$/g, ""),
+      );
+      const renameResult = renameFileTreePaths({
+        files: treePathsRef.current,
+        path: sourceTreePath,
+        isFolder: event.isFolder,
+        nextBasename: destinationBasename,
+      });
+      if ("error" in renameResult) {
+        toast.error(renameResult.error);
+        return;
+      }
+
+      const sourceRelativePath = renameResult.sourcePath;
+      const destinationRelativePath = renameResult.destinationPath;
+      if (sourceRelativePath === destinationRelativePath) {
+        pendingCompositionRef.current.delete(sourceTreePath);
+        return;
+      }
+
+      const pendingComposition = pendingCompositionRef.current.get(sourceTreePath);
+      try {
+        if (pendingComposition?.kind === "file") {
+          await writeProjectFile({
+            environmentId,
+            file: {
+              cwd,
+              relativePath: destinationRelativePath,
+              contents: "",
+            },
+          });
+        } else if (pendingComposition?.kind === "directory") {
+          await createProjectDirectory({
+            environmentId,
+            directory: {
+              cwd,
+              relativePath: destinationRelativePath,
+            },
+          });
+        } else {
+          await renameProjectPath({
+            environmentId,
+            paths: {
+              cwd,
+              fromRelativePath: sourceRelativePath,
+              toRelativePath: destinationRelativePath,
+            },
+          });
+          if (!event.isFolder) {
+            markProjectModelClosed({ environmentId, cwd, relativePath: sourceRelativePath });
+          }
+          workspaceEditorActions.renameFileInHistory(
+            props.workspaceKey,
+            sourceRelativePath,
+            destinationRelativePath,
+            event.isFolder,
+          );
+          workbenchTabPersistenceActions.renameFilePath(
+            props.workspaceKey,
+            sourceRelativePath,
+            destinationRelativePath,
+          );
+        }
+
+        pendingCompositionRef.current.delete(sourceTreePath);
+        await invalidateProjectEntries(queryClient, { environmentId, cwd });
+        setTreePaths(renameResult.nextFiles);
+        if (pendingComposition?.kind === "file") {
+          props.onOpenFile?.(destinationRelativePath);
+        }
+      } catch (error) {
+        toast.error(
+          formatProjectErrorDescription(
+            error,
+            pendingComposition ? "Unable to create project entry." : "Unable to rename project entry.",
+          ),
+        );
+        if (pendingComposition) {
+          pendingCompositionRef.current.delete(sourceTreePath);
+          setTreePaths((currentPaths) =>
+            currentPaths.filter((path) => normalizeTreePath(path) !== sourceTreePath),
+          );
+        }
+      }
+    },
+    [props.cwd, props.environmentId, props.onOpenFile, props.workspaceKey, queryClient],
+  );
+
+  const handleTreeRenameRef = useRef(handleTreeRename);
+  handleTreeRenameRef.current = handleTreeRename;
+
+  const startNewFile = useCallback((item: ContextMenuItem) => {
+    const parentDir = parentDirectoryFromContextItem(item);
+    const fileName = uniqueSiblingName({
+      parentDir,
+      baseName: "Untitled",
+      treePaths: treePathsRef.current,
+      isDirectory: false,
+    });
+    const nextPath = treePathForNewFile(parentDir, fileName);
+    pendingCompositionRef.current.set(nextPath, { kind: "file", path: nextPath });
+    pendingRenamePathRef.current = nextPath;
+    if (parentDir) {
+      pendingExpandedPathsRef.current = [`${normalizeTreePath(parentDir)}/`];
+    }
+    setTreePaths((currentPaths) => {
+      const nextPaths = new Set(currentPaths);
+      if (parentDir) {
+        nextPaths.add(`${normalizeTreePath(parentDir)}/`);
+      }
+      nextPaths.add(nextPath);
+      return [...nextPaths];
+    });
+  }, []);
+
+  const startNewFolder = useCallback((item: ContextMenuItem) => {
+    const parentDir = parentDirectoryFromContextItem(item);
+    const folderName = uniqueSiblingName({
+      parentDir,
+      baseName: "New Folder",
+      treePaths: treePathsRef.current,
+      isDirectory: true,
+    });
+    const nextPath = treePathForNewFolder(parentDir, folderName);
+    pendingCompositionRef.current.set(nextPath, { kind: "directory", path: nextPath });
+    pendingRenamePathRef.current = nextPath;
+    if (parentDir) {
+      pendingExpandedPathsRef.current = [`${normalizeTreePath(parentDir)}/`];
+    }
+    setTreePaths((currentPaths) => {
+      const nextPaths = new Set(currentPaths);
+      if (parentDir) {
+        nextPaths.add(`${normalizeTreePath(parentDir)}/`);
+      }
+      nextPaths.add(nextPath);
+      return [...nextPaths];
+    });
+  }, []);
+
+  const copyAbsolutePath = useCallback(
+    (item: ContextMenuItem) => {
+      if (!props.cwd) return;
+      const relativePath = relativePathFromContextItem(item);
+      void copyPathToClipboard(
+        joinProjectPath(props.cwd, relativePath),
+        "Copied path",
+      ).catch((error: unknown) => {
+        toast.error(error instanceof Error ? error.message : "Unable to copy path.");
+      });
+    },
+    [props.cwd],
+  );
+
+  const copyRelativePath = useCallback((item: ContextMenuItem) => {
+    const relativePath = relativePathFromContextItem(item);
+    void copyPathToClipboard(relativePath, "Copied relative path").catch((error: unknown) => {
+      toast.error(error instanceof Error ? error.message : "Unable to copy path.");
+    });
+  }, []);
+
   const { model } = useTreeModel({
     paths: [],
     initialExpansion: "closed",
@@ -648,6 +918,32 @@ const ProjectFileTreeComponent = forwardRef<
         availableEditors: props.availableEditors,
       });
     },
+    renaming: {
+      canRename: (item) => !isDirectoryPlaceholderPath(normalizeTreePath(item.path)),
+      onRename: (event) => {
+        void handleTreeRenameRef.current(event);
+      },
+      onError: (message) => {
+        toast.error(message);
+      },
+    },
+  });
+
+  const requestRename = useCallback(
+    (item: ContextMenuItem) => {
+      model.startRenaming(item.path);
+    },
+    [model],
+  );
+
+  useMountEffect(() => {
+    return model.onMutation("remove", (event) => {
+      const removedPath = normalizeTreePath(event.path);
+      pendingCompositionRef.current.delete(removedPath);
+      setTreePaths((currentPaths) =>
+        currentPaths.filter((path) => normalizeTreePath(path) !== removedPath),
+      );
+    });
   });
 
   const openFileFromDoubleClick = useCallback(
@@ -755,6 +1051,8 @@ const ProjectFileTreeComponent = forwardRef<
       <ProjectFileTreePathsSync
         model={model}
         onPathsSynced={syncStoredSelectedPath}
+        pendingExpandedPathsRef={pendingExpandedPathsRef}
+        pendingRenamePathRef={pendingRenamePathRef}
         treePaths={treePaths}
       />
       {canLoad ? (
@@ -799,7 +1097,16 @@ const ProjectFileTreeComponent = forwardRef<
                 availableEditors={props.availableEditors}
                 canDeleteEntry={canDeleteTreeItem(item, filePathSetRef.current)}
                 canRevealInFinder={canRevealInFinder}
+                canCreateEntry={
+                  canQuery && !isDirectoryPlaceholderPath(normalizeTreePath(item.path))
+                }
+                canRenameEntry={canDeleteTreeItem(item, filePathSetRef.current)}
                 onRequestDelete={setPendingDeleteEntry}
+                onRequestNewFile={startNewFile}
+                onRequestNewFolder={startNewFolder}
+                onRequestRename={requestRename}
+                onCopyAbsolutePath={copyAbsolutePath}
+                onCopyRelativePath={copyRelativePath}
               />
             )}
           />
@@ -882,20 +1189,33 @@ function ProjectFileTreePathSetSync({
 function ProjectFileTreePathsSync({
   model,
   onPathsSynced,
+  pendingExpandedPathsRef,
+  pendingRenamePathRef,
   treePaths,
 }: {
   model: ProjectTreeModel;
   onPathsSynced: () => void;
+  pendingExpandedPathsRef: RefObject<string[]>;
+  pendingRenamePathRef: RefObject<string | null>;
   treePaths: readonly string[];
 }) {
   useEffect(() => {
-    const expandedPaths = getExpandedDirectoryPaths(model, treePaths);
+    const expandedPaths = [
+      ...getExpandedDirectoryPaths(model, treePaths),
+      ...(pendingExpandedPathsRef.current ?? []),
+    ];
+    pendingExpandedPathsRef.current = [];
     model.resetPaths(treePaths, {
       initialExpandedPaths: expandedPaths,
       preparedInput: prepareFileTreeInput(treePaths),
     });
     onPathsSynced();
-  }, [model, onPathsSynced, treePaths]);
+    const pendingRenamePath = pendingRenamePathRef.current;
+    if (pendingRenamePath) {
+      pendingRenamePathRef.current = null;
+      model.startRenaming(pendingRenamePath, { removeIfCanceled: true });
+    }
+  }, [model, onPathsSynced, pendingExpandedPathsRef, pendingRenamePathRef, treePaths]);
 
   return null;
 }

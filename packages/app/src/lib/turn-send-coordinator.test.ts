@@ -128,6 +128,8 @@ function createOrchestrationApi(input: {
       searchEntries: async () => notCalled(),
       writeFile: async () => notCalled(),
       deleteFile: async () => notCalled(),
+      createDirectory: async () => notCalled(),
+      renamePath: async () => notCalled(),
     },
     filesystem: {
       browse: async () => notCalled(),
@@ -150,6 +152,7 @@ function createOrchestrationApi(input: {
     },
     orchestration: {
       dispatchCommand: input.dispatchCommand ?? (async () => ({ sequence: 1 })),
+      replayEvents: async () => ({ events: [], nextSequence: 0, upToDate: true }),
       subscribeShell: () => () => undefined,
       subscribeThread: () => () => undefined,
     },

@@ -171,9 +171,10 @@ export const ProjectFileEditorShell = forwardRef<
         });
         const gitApi = readEnvironmentGitApi(environmentId);
         if (gitApi) {
-          void refreshGitStatus({ environmentId, cwd }, gitApi, { force: true }).catch(
-            () => undefined,
-          );
+          void refreshGitStatus({ environmentId, cwd }, gitApi, {
+            force: true,
+            scope: "local",
+          }).catch(() => undefined);
         }
       } catch (error) {
         if (isProjectWriteConflictError(error)) {

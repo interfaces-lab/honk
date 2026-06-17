@@ -56,7 +56,7 @@ export function deriveSidebarDraftTitle(draft: {
     if (line) return line;
   }
   const head = draft.firstAttachmentName;
-  if (!head) return "New chat";
+  if (!head) return "New Agent";
   if (draft.attachmentCount === 1) return head;
   return `${head} +${draft.attachmentCount - 1}`;
 }
@@ -92,8 +92,7 @@ export function threadState(sum: SidebarThreadSummary): SidebarThreadState {
   if (sum.orchestrationStatus === "stopped" || sum.latestTurnState === "interrupted") {
     return "stopped";
   }
-  const latestTurnRunning =
-    sum.latestTurnState === "running" && sum.latestTurnCompletedAt == null;
+  const latestTurnRunning = sum.latestTurnState === "running" && sum.latestTurnCompletedAt == null;
   const orchestrationTurnRunning =
     (sum.orchestrationStatus === "starting" || sum.orchestrationStatus === "running") &&
     (sum.activeTurnId != null || latestTurnRunning);
@@ -108,7 +107,7 @@ function buildDraftChat(draft: SidebarDraftSummary) {
   return {
     id: draft.id,
     kind: "draft",
-    title: draft.title?.trim() || "New chat",
+    title: draft.title?.trim() || "New Agent",
     state: draft.state,
     unread: false,
     updatedAt: draft.updatedAt,

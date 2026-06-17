@@ -1,6 +1,6 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
-import { cn } from "./utils";
+import { cn, honkMenuPickerShellClasses } from "./utils";
 
 const TooltipCreateHandle = TooltipPrimitive.createHandle;
 
@@ -46,7 +46,10 @@ function TooltipPopup({
         <TooltipPrimitive.Popup
           className={cn(
             workbench
-              ? "t-tt relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) overflow-hidden rounded-honk-lg border border-honk-stroke-tertiary bg-honk-bg-elevated font-honk text-honk-chrome text-honk-fg-primary shadow-honk-sm outline-none backdrop-blur-[length:var(--honk-glass-blur-surface)] transition-[width,height,scale,opacity] [transition-duration:var(--tt-out-dur)] [transition-timing-function:var(--tt-out-ease)] data-ending-style:scale-(--tt-scale) data-starting-style:scale-(--tt-scale) data-ending-style:opacity-0 data-starting-style:opacity-0 data-starting-style:[transition-delay:var(--tt-delay)] data-starting-style:[transition-duration:var(--tt-in-dur)] data-starting-style:[transition-timing-function:var(--tt-in-ease)] data-instant:!transition-none data-instant:data-starting-style:opacity-100 data-instant:data-starting-style:scale-100 motion-reduce:transition-none"
+              ? cn(
+                  "honk-workbench-menu-popup t-tt relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) outline-none transition-[width,height,scale,opacity] [transition-duration:var(--tt-out-dur)] [transition-timing-function:var(--tt-out-ease)] data-ending-style:scale-(--tt-scale) data-starting-style:scale-(--tt-scale) data-ending-style:opacity-0 data-starting-style:opacity-0 data-starting-style:[transition-delay:var(--tt-delay)] data-starting-style:[transition-duration:var(--tt-in-dur)] data-starting-style:[transition-timing-function:var(--tt-in-ease)] data-instant:!transition-none data-instant:data-starting-style:opacity-100 data-instant:data-starting-style:scale-100 motion-reduce:transition-none",
+                  honkMenuPickerShellClasses,
+                )
               : "t-tt relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) text-balance rounded-md border bg-popover not-dark:bg-clip-padding text-popover-foreground text-detail shadow-md/5 transition-[width,height,scale,opacity] [transition-duration:var(--tt-out-dur)] [transition-timing-function:var(--tt-out-ease)] before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-md)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] data-ending-style:scale-(--tt-scale) data-starting-style:scale-(--tt-scale) data-ending-style:opacity-0 data-starting-style:opacity-0 data-starting-style:[transition-delay:var(--tt-delay)] data-starting-style:[transition-duration:var(--tt-in-dur)] data-starting-style:[transition-timing-function:var(--tt-in-ease)] data-instant:duration-0 motion-reduce:transition-none dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
             className,
           )}

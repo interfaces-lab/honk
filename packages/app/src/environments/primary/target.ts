@@ -7,9 +7,18 @@ export interface PrimaryEnvironmentTarget {
 }
 
 const LOOPBACK_HOSTNAMES = new Set(["127.0.0.1", "::1", "localhost"]);
+let cachedDesktopBootstrapBridge: Window["desktopBridge"] | null | undefined;
+let cachedDesktopBootstrap: DesktopEnvironmentBootstrap | null = null;
 
-function getDesktopLocalEnvironmentBootstrap(): DesktopEnvironmentBootstrap | null {
-  return window.desktopBridge?.getLocalEnvironmentBootstrap() ?? null;
+export function readDesktopLocalEnvironmentBootstrap(): DesktopEnvironmentBootstrap | null {
+  const bridge = window.desktopBridge ?? null;
+  if (cachedDesktopBootstrapBridge === bridge) {
+    return cachedDesktopBootstrap;
+  }
+
+  cachedDesktopBootstrapBridge = bridge;
+  cachedDesktopBootstrap = bridge?.getLocalEnvironmentBootstrap() ?? null;
+  return cachedDesktopBootstrap;
 }
 
 function normalizeBaseUrl(rawValue: string): string {
@@ -110,7 +119,7 @@ function resolveWindowOriginPrimaryTarget(): PrimaryEnvironmentTarget {
 }
 
 function resolveDesktopPrimaryTarget(): PrimaryEnvironmentTarget | null {
-  const desktopBootstrap = getDesktopLocalEnvironmentBootstrap();
+  const desktopBootstrap = readDesktopLocalEnvironmentBootstrap();
   if (!desktopBootstrap) {
     return null;
   }

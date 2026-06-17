@@ -53,6 +53,7 @@ export interface ChatMessage {
   createdAt: string;
   completedAt?: string | undefined;
   streaming: boolean;
+  turnFailure?: string | undefined;
 }
 
 export interface LiveAssistantTurn {

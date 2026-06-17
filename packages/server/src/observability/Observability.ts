@@ -5,7 +5,11 @@ import {
   configureHonkProcessMetadata,
   effectLogLevel,
 } from "@honk/shared/logging";
-import { makeLocalFileTracer, makeTraceSink } from "@honk/shared/observability";
+import {
+  makeLocalFileTracer,
+  makeTraceSink,
+  type EffectTraceRecord,
+} from "@honk/shared/observability";
 import { Effect, Layer, References, Tracer } from "effect";
 import { OtlpMetrics, OtlpSerialization, OtlpTracer } from "effect/unstable/observability";
 
@@ -14,6 +18,11 @@ import { ServerLoggerLive } from "../server-logger.ts";
 
 const otlpSerializationLayer = OtlpSerialization.layerJson;
 const SERVER_EVLOG_MAX_BYTES = 10 * 1024 * 1024;
+const LOW_VALUE_SUCCESS_TRACE_NAMES = new Set(["sql.execute", "sql.transaction"]);
+
+function shouldRecordServerLocalTrace(record: EffectTraceRecord): boolean {
+  return record.exit._tag !== "Success" || !LOW_VALUE_SUCCESS_TRACE_NAMES.has(record.name);
+}
 
 export const ObservabilityLive = Layer.unwrap(
   Effect.gen(function* () {
@@ -65,6 +74,7 @@ export const ObservabilityLive = Layer.unwrap(
           maxFiles: config.traceMaxFiles,
           batchWindowMs: config.traceBatchWindowMs,
           sink,
+          recordFilter: shouldRecordServerLocalTrace,
           ...(delegate ? { delegate } : {}),
         });
 

@@ -7,6 +7,10 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./src/index.ts"
+    },
+    "./provider-error": {
+      "types": "./src/provider-error.ts",
+      "import": "./src/provider-error.ts"
     }
   },
   "scripts": {

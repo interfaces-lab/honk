@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveShellPresentation, SHELL_BREAKPOINTS } from "./shell-layout";
+import {
+  CHAT_NARROW_THRESHOLD,
+  computeResponsivePaneLayout,
+  resolveShellPresentation,
+  SHELL_BREAKPOINTS,
+} from "./shell-layout";
 
 const ALL_OPEN = { leftOpen: true, rightOpen: true, secondaryRailOpen: true };
 
@@ -76,5 +81,53 @@ describe("resolveShellPresentation", () => {
       expect(presentation.right).not.toBe("collapsed");
       expect(presentation.secondaryRail).not.toBe("collapsed");
     }
+  });
+});
+
+describe("computeResponsivePaneLayout", () => {
+  it("computes narrow state from available center pane width", () => {
+    expect(
+      computeResponsivePaneLayout({
+        dockedSidebarWidth: 260,
+        editorPanelVisible: true,
+        editorPanelWidth: 400,
+        shellWidth: 1107,
+      }),
+    ).toEqual({
+      centerPaneWidth: CHAT_NARROW_THRESHOLD - 1,
+      isNarrow: true,
+      narrowThreshold: CHAT_NARROW_THRESHOLD,
+    });
+  });
+
+  it("does not treat the full window width as the chat width", () => {
+    expect(
+      computeResponsivePaneLayout({
+        dockedSidebarWidth: 260,
+        editorPanelVisible: true,
+        editorPanelWidth: 400,
+        shellWidth: 1108,
+      }).isNarrow,
+    ).toBe(false);
+  });
+
+  it("ignores an unavailable editor panel and treats unmeasured shells as wide", () => {
+    expect(
+      computeResponsivePaneLayout({
+        dockedSidebarWidth: 260,
+        editorPanelDisallowed: true,
+        editorPanelVisible: true,
+        editorPanelWidth: 400,
+        shellWidth: 700,
+      }),
+    ).toMatchObject({ centerPaneWidth: 440, isNarrow: true });
+    expect(
+      computeResponsivePaneLayout({
+        dockedSidebarWidth: 260,
+        editorPanelVisible: true,
+        editorPanelWidth: 400,
+        shellWidth: 0,
+      }).isNarrow,
+    ).toBe(false);
   });
 });

@@ -54,7 +54,9 @@ import { makeKeyedCoalescingWorker } from "./KeyedCoalescingWorker";
 
 const DEFAULT_HISTORY_LINE_LIMIT = 5_000;
 const DEFAULT_PERSIST_DEBOUNCE_MS = 40;
-const DEFAULT_SUBPROCESS_POLL_INTERVAL_MS = 1_000;
+const DEFAULT_SUBPROCESS_POLL_INTERVAL_MS = 5_000;
+const DEFAULT_SUBPROCESS_IDLE_POLL_INTERVAL_MS = 30_000;
+const DEFAULT_SUBPROCESS_RECENT_ACTIVITY_POLL_WINDOW_MS = 15_000;
 const DEFAULT_PROCESS_KILL_GRACE_MS = 1_000;
 const DEFAULT_MAX_RETAINED_INACTIVE_SESSIONS = 128;
 const DEFAULT_OPEN_COLS = 120;
@@ -396,7 +398,7 @@ function checkWindowsSubprocessActivity(
   }).pipe(Effect.map((result) => result.code === 0));
 }
 
-const checkPosixSubprocessActivity = Effect.fn("terminal.checkPosixSubprocessActivity")(function* (
+const checkPosixSubprocessActivity = Effect.fnUntraced(function* (
   terminalPid: number,
 ): Effect.fn.Return<boolean, TerminalSubprocessCheckError> {
   const runPgrep = Effect.tryPromise({
@@ -460,7 +462,7 @@ const checkPosixSubprocessActivity = Effect.fn("terminal.checkPosixSubprocessAct
   return false;
 });
 
-const defaultSubprocessChecker = Effect.fn("terminal.defaultSubprocessChecker")(function* (
+const defaultSubprocessChecker = Effect.fnUntraced(function* (
   terminalPid: number,
 ): Effect.fn.Return<boolean, TerminalSubprocessCheckError> {
   if (!Number.isInteger(terminalPid) || terminalPid <= 0) {
@@ -849,6 +851,10 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
     const subprocessChecker = options.subprocessChecker ?? defaultSubprocessChecker;
     const subprocessPollIntervalMs =
       options.subprocessPollIntervalMs ?? DEFAULT_SUBPROCESS_POLL_INTERVAL_MS;
+    const subprocessIdlePollIntervalMs = Math.max(
+      subprocessPollIntervalMs,
+      DEFAULT_SUBPROCESS_IDLE_POLL_INTERVAL_MS,
+    );
     const processKillGraceMs = options.processKillGraceMs ?? DEFAULT_PROCESS_KILL_GRACE_MS;
     const maxRetainedInactiveSessions =
       options.maxRetainedInactiveSessions ?? DEFAULT_MAX_RETAINED_INACTIVE_SESSIONS;
@@ -863,6 +869,16 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
     const terminalEventListeners = new Set<(event: TerminalEvent) => Effect.Effect<void>>();
     const workerScope = yield* Scope.make("sequential");
     yield* Effect.addFinalizer(() => Scope.close(workerScope, Exit.void));
+    let subprocessPollFastUntilMs = 0;
+    let nextSubprocessIdlePollAtMs = 0;
+
+    const markSubprocessPollFast = () => {
+      subprocessPollFastUntilMs = Math.max(
+        subprocessPollFastUntilMs,
+        Date.now() + DEFAULT_SUBPROCESS_RECENT_ACTIVITY_POLL_WINDOW_MS,
+      );
+      nextSubprocessIdlePollAtMs = 0;
+    };
 
     const publishEvent = (event: TerminalEvent) =>
       Effect.gen(function* () {
@@ -1024,7 +1040,7 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
         history: next.history,
         immediate: current.immediate || next.immediate,
       }),
-      process: Effect.fn("terminal.persistHistoryWorker")(function* (sessionKey, request) {
+      process: Effect.fnUntraced(function* (sessionKey, request) {
         if (!request.immediate) {
           yield* Effect.sleep(DEFAULT_PERSIST_DEBOUNCE_MS);
         }
@@ -1046,7 +1062,7 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
       }),
     });
 
-    const queuePersist = Effect.fn("terminal.queuePersist")(function* (
+    const queuePersist = Effect.fnUntraced(function* (
       threadId: string,
       terminalId: string,
       history: string,
@@ -1057,7 +1073,7 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
       });
     });
 
-    const flushPersist = Effect.fn("terminal.flushPersist")(function* (
+    const flushPersist = Effect.fnUntraced(function* (
       threadId: string,
       terminalId: string,
     ) {
@@ -1251,7 +1267,7 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
       },
     );
 
-    const drainProcessEvents = Effect.fn("terminal.drainProcessEvents")(function* (
+    const drainProcessEvents = Effect.fnUntraced(function* (
       session: TerminalSessionState,
       expectedPid: number,
     ) {
@@ -1516,6 +1532,8 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
                 return [undefined, state] as const;
               });
 
+              markSubprocessPollFast();
+
               yield* publishEvent({
                 type: eventType,
                 threadId: session.threadId,
@@ -1600,7 +1618,7 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
       }
     });
 
-    const pollSubprocessActivity = Effect.fn("terminal.pollSubprocessActivity")(function* () {
+    const pollSubprocessActivity = Effect.fnUntraced(function* () {
       const state = yield* readManagerState;
       const runningSessions = [...state.sessions.values()].filter(
         (session): session is TerminalSessionState & { pid: number } =>
@@ -1611,7 +1629,7 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
         return;
       }
 
-      const checkSubprocessActivity = Effect.fn("terminal.checkSubprocessActivity")(function* (
+      const checkSubprocessActivity = Effect.fnUntraced(function* (
         session: TerminalSessionState & { pid: number },
       ) {
         const terminalPid = session.pid;
@@ -1670,20 +1688,63 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
       });
     });
 
-    const hasRunningSessions = readManagerState.pipe(
-      Effect.map((state) =>
-        [...state.sessions.values()].some((session) => session.status === "running"),
-      ),
+    const readSubprocessPollDecision = readManagerState.pipe(
+      Effect.map((state) => {
+        if (terminalEventListeners.size === 0) {
+          return {
+            active: false,
+            delayMs: subprocessIdlePollIntervalMs,
+          };
+        }
+
+        const runningSessions = [...state.sessions.values()].filter(
+          (session) => session.status === "running",
+        );
+        if (runningSessions.length === 0) {
+          return {
+            active: false,
+            delayMs: subprocessPollIntervalMs,
+          };
+        }
+
+        if (runningSessions.some((session) => session.hasRunningSubprocess)) {
+          return {
+            active: true,
+            delayMs: subprocessPollIntervalMs,
+          };
+        }
+
+        const now = Date.now();
+        if (now < subprocessPollFastUntilMs) {
+          return {
+            active: true,
+            delayMs: subprocessPollIntervalMs,
+          };
+        }
+
+        if (now >= nextSubprocessIdlePollAtMs) {
+          nextSubprocessIdlePollAtMs = now + subprocessIdlePollIntervalMs;
+          return {
+            active: true,
+            delayMs: subprocessPollIntervalMs,
+          };
+        }
+
+        return {
+          active: false,
+          delayMs: subprocessPollIntervalMs,
+        };
+      }),
     );
 
     yield* Effect.forever(
-      hasRunningSessions.pipe(
-        Effect.flatMap((active) =>
-          active
+      readSubprocessPollDecision.pipe(
+        Effect.flatMap((decision) =>
+          decision.active
             ? pollSubprocessActivity().pipe(
-                Effect.flatMap(() => Effect.sleep(subprocessPollIntervalMs)),
+                Effect.flatMap(() => Effect.sleep(decision.delayMs)),
               )
-            : Effect.sleep(subprocessPollIntervalMs),
+            : Effect.sleep(decision.delayMs),
         ),
       ),
     ).pipe(Effect.forkIn(workerScope));
@@ -1867,6 +1928,7 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
         try: () => process.write(input.data),
         catch: toTerminalProcessOperationError("write", input.threadId, terminalId),
       });
+      markSubprocessPollFast();
     });
 
     const resize: TerminalManagerShape["resize"] = Effect.fn("terminal.resize")(function* (input) {

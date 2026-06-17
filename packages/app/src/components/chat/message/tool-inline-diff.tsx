@@ -23,14 +23,16 @@ type RenderableToolPatch =
 
 interface InlineToolDiffProps {
   artifact: ToolDiffArtifact;
+  resolvedTheme?: "light" | "dark";
 }
 
 class InlineToolPatchParseError extends Data.TaggedError("InlineToolPatchParseError")<{
   cause: unknown;
 }> {}
 
-export function InlineToolDiff({ artifact }: InlineToolDiffProps) {
-  const { resolvedTheme } = useTheme();
+export function InlineToolDiff({ artifact, resolvedTheme: resolvedThemeOverride }: InlineToolDiffProps) {
+  const { resolvedTheme: hookResolvedTheme } = useTheme();
+  const resolvedTheme = resolvedThemeOverride ?? hookResolvedTheme;
   const diffTheme = resolveDiffThemeName(resolvedTheme);
   const renderablePatch = getRenderableToolPatch(artifact.unifiedDiff);
 

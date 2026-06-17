@@ -20,9 +20,11 @@ import {
 } from "~/stores/workspace-editor-store";
 
 import {
+  computeResponsivePaneLayout,
   panelPresentation,
   SHELL_CENTER_MIN_WIDTH,
   type PanelPresentation,
+  type ResponsivePaneLayout,
   type ShellPanelMode,
 } from "./shell-layout";
 
@@ -47,10 +49,12 @@ function resolveDockedEditorPanelMaxWidth(input: {
 
 export interface ShellLayoutSnapshot {
   readonly activeAgentId: string | null;
+  readonly centerPaneWidth: number;
   readonly editorPanelFullscreen: boolean;
   readonly editorPanelPendingResize: boolean;
   readonly editorPanelVisible: boolean;
   readonly editorPanelWidth: number;
+  readonly isNarrow: boolean;
   readonly leftOpen: boolean;
   readonly leftPresentation: PanelPresentation;
   readonly leftWidth: number;
@@ -74,10 +78,12 @@ interface ShellLayoutConfig {
 
 const EMPTY_SNAPSHOT: ShellLayoutSnapshot = Object.freeze({
   activeAgentId: null,
+  centerPaneWidth: 0,
   editorPanelFullscreen: false,
   editorPanelPendingResize: false,
   editorPanelVisible: false,
   editorPanelWidth: 0,
+  isNarrow: false,
   leftOpen: true,
   leftPresentation: "inline-expanded",
   leftWidth: 260,
@@ -105,11 +111,12 @@ function resolveEffectiveRightOpen(input: {
   );
 }
 
-function getViewportWidth(root: HTMLElement | null): number {
-  if (typeof window !== "undefined" && window.innerWidth > 0) {
-    return window.innerWidth;
+function getShellWidth(root: HTMLElement | null): number {
+  const measuredWidth = root?.getBoundingClientRect().width ?? 0;
+  if (measuredWidth > 0) {
+    return measuredWidth;
   }
-  return root?.getBoundingClientRect().width ?? 0;
+  return typeof window !== "undefined" && window.innerWidth > 0 ? window.innerWidth : 0;
 }
 
 function areRecordsEqual(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
@@ -190,7 +197,7 @@ export class ShellLayoutService {
 
     const panelInputs = readShellPanelLayoutInputs(config.workspaceKey);
     const root = config.rootRef.current;
-    const shellWidth = getViewportWidth(root);
+    const shellWidth = getShellWidth(root);
     const leftPresentation = panelPresentation(config.leftMode, panelInputs.leftOpen);
     const sidebarVisible = panelInputs.leftOpen;
     const sidebarOverlayMode = config.leftMode === "overlay";
@@ -202,7 +209,8 @@ export class ShellLayoutService {
       storedRightOpen: panelInputs.storedRightOpen,
     });
     const fullscreenActive =
-      rightOpen && getWorkspaceFullscreenTarget(config.workspaceKey) === "right-workbench";
+      rightOpen &&
+      getWorkspaceFullscreenTarget(config.workspaceKey, config.routeThreadId) === "right-workbench";
     const effectiveDockedSidebarWidth =
       sidebarVisible && !sidebarOverlayMode ? panelInputs.leftWidth : 0;
     const maxEditorPanelWidth = resolveDockedEditorPanelMaxWidth({
@@ -213,16 +221,24 @@ export class ShellLayoutService {
     const editorPanelWidth = fullscreenActive
       ? Math.max(0, shellWidth - effectiveDockedSidebarWidth)
       : Math.min(panelInputs.rightWidth, maxEditorPanelWidth);
+    const responsivePaneLayout: ResponsivePaneLayout = computeResponsivePaneLayout({
+      dockedSidebarWidth: effectiveDockedSidebarWidth,
+      editorPanelVisible: rightOpen,
+      editorPanelWidth,
+      shellWidth,
+    });
     const suppressMotion =
       this.snapshot.editorPanelFullscreen !== fullscreenActive ||
       this.snapshot.activeAgentId !== config.routeThreadId;
 
     return {
       activeAgentId: config.routeThreadId,
+      centerPaneWidth: responsivePaneLayout.centerPaneWidth,
       editorPanelFullscreen: fullscreenActive,
       editorPanelPendingResize: false,
       editorPanelVisible: rightOpen,
       editorPanelWidth,
+      isNarrow: responsivePaneLayout.isNarrow,
       leftOpen: panelInputs.leftOpen,
       leftPresentation,
       leftWidth: panelInputs.leftWidth,
@@ -271,6 +287,9 @@ export class ShellLayoutService {
     root.dataset.shellLeftPresentation = snapshot.leftPresentation;
     root.dataset.shellRightIntent = snapshot.editorPanelVisible ? "expanded" : "collapsed";
     root.dataset.shellRightOpen = snapshot.editorPanelVisible ? "true" : "false";
+    root.dataset.chatPaneNarrow = snapshot.isNarrow ? "true" : "false";
+    root.dataset.chatPaneWidth = String(Math.round(snapshot.centerPaneWidth));
+    root.style.setProperty("--honk-chat-pane-width", `${snapshot.centerPaneWidth}px`);
     if (snapshot.suppressMotion) {
       root.dataset.suppressMotion = "true";
     } else {

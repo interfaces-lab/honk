@@ -18,6 +18,7 @@ import {
   type HonkRuntimeApi,
   type HonkRuntimeHostEvent,
   type HonkRuntimeHostSnapshot,
+  isOAuthAgentCredentialKind,
   type RuntimeDisplayTimelineProjection,
   type ThreadAgentRuntimeCloneInput,
   type RuntimeGetThreadSessionFileInput,
@@ -26,6 +27,7 @@ import {
   type RuntimeListSkillsResult,
   type RuntimeSkillSummary,
   type RuntimeThreadIdentity,
+  resolveAgentCredentialPreferenceForConfigure,
   type SessionTreeProjection,
   type ThreadAgentRuntimeAbortInput,
   type ThreadAgentRuntimeCompactInput,
@@ -93,15 +95,11 @@ function describeAuthSource(status: AuthStatus | undefined): string | null {
   }
 }
 
-function isOAuthCredentialKind(credentialKind: AgentCredentialKind): boolean {
-  return credentialKind === "claude-oauth" || credentialKind === "codex-oauth";
-}
-
 function credentialKindMatchesStoredCredential(
   credentialKind: AgentCredentialKind,
   storedCredential: AuthCredential | undefined,
 ): boolean {
-  const expectedType = isOAuthCredentialKind(credentialKind) ? "oauth" : "api_key";
+  const expectedType = isOAuthAgentCredentialKind(credentialKind) ? "oauth" : "api_key";
   return storedCredential?.type === expectedType;
 }
 
@@ -123,7 +121,9 @@ type RuntimeThreadSendInput = Pick<
   | "replacesClientMessageId"
   | "parentEntryId"
   | "images"
->;
+> & {
+  readonly streamingBehavior?: "followUp" | null;
+};
 
 export interface DesktopRuntimeHostOptions {
   readonly preferences?: AgentPreferences | null;
@@ -219,26 +219,27 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     if (!this.authStorage) {
       throw new Error("Pi auth storage is unavailable.");
     }
+    const credential = resolveAgentCredentialPreferenceForConfigure(this.preferences, input);
+    if (!credential) {
+      throw new Error(
+        `Unsupported credential configuration: ${input.method} ${input.authProviderId}/${input.credentialKind}.`,
+      );
+    }
 
     switch (input.method) {
       case "api-key":
-        this.authStorage.set(input.authProviderId, { type: "api_key", key: input.apiKey });
-        this.clearCredentialAuthFlow(input.authProviderId);
+        this.authStorage.set(credential.authProviderId, { type: "api_key", key: input.apiKey });
+        this.clearCredentialAuthFlow(credential.authProviderId);
         break;
       case "oauth":
-        if (input.authProviderId === "cursor" || input.credentialKind === "cursor-api-key") {
-          throw new Error(
-            "Cursor SDK authentication requires a Cursor API key; OAuth is not supported.",
-          );
-        }
         if (!callbacks) {
           throw new Error("OAuth login callbacks are unavailable.");
         }
-        await this.loginCredential(input.authProviderId, input.credentialKind ?? null, callbacks);
+        await this.loginCredential(credential.authProviderId, credential.kind, callbacks);
         break;
       case "logout":
-        this.authStorage.logout(input.authProviderId);
-        this.clearCredentialAuthFlow(input.authProviderId);
+        this.authStorage.logout(credential.authProviderId);
+        this.clearCredentialAuthFlow(credential.authProviderId);
         break;
     }
 
@@ -432,7 +433,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       images: input.images,
       expandPromptTemplates: null,
       source: null,
-      streamingBehavior: null,
+      streamingBehavior: input.streamingBehavior ?? null,
     });
   }
 
@@ -448,15 +449,21 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     if (!input.policy) {
       throw new Error("Runtime sendTurn requires AgentModelPolicy.");
     }
-    const sendInput: RuntimeThreadSendInput = {
-      threadId: input.threadId,
-      input: input.input,
-      interactionMode: input.interactionMode,
-      sourceProposedPlan: input.sourceProposedPlan,
-      clientMessageId: input.clientMessageId,
-      replacesClientMessageId: input.replacesClientMessageId,
-      ...(input.parentEntryId !== undefined ? { parentEntryId: input.parentEntryId } : {}),
-      images: input.images,
+    const sendInputForRuntime = (runtime: ThreadAgentRuntime): RuntimeThreadSendInput => {
+      const streamingBehavior = runtime.isBusy() ? "followUp" : null;
+      return {
+        threadId: input.threadId,
+        input: input.input,
+        interactionMode: input.interactionMode,
+        sourceProposedPlan: input.sourceProposedPlan,
+        clientMessageId: input.clientMessageId,
+        replacesClientMessageId: input.replacesClientMessageId,
+        ...(!streamingBehavior && input.parentEntryId !== undefined
+          ? { parentEntryId: input.parentEntryId }
+          : {}),
+        images: input.images,
+        streamingBehavior,
+      };
     };
     const startInput: RuntimeThreadStartInput = {
       threadId: input.threadId,
@@ -469,7 +476,11 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     }
 
     try {
-      return await this.send(sendInput);
+      const entry = this.runtimes.get(input.threadId);
+      if (!entry) {
+        throw new Error(`No runtime thread exists for ${input.threadId}.`);
+      }
+      return await this.send(sendInputForRuntime(entry.runtime));
     } catch (error) {
       if (!isMissingRuntimeThreadError(error)) {
         throw error;
@@ -477,7 +488,11 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     }
 
     await this.startThread(startInput);
-    return this.send(sendInput);
+    const entry = this.runtimes.get(input.threadId);
+    if (!entry) {
+      throw new Error(`No runtime thread exists for ${input.threadId}.`);
+    }
+    return this.send(sendInputForRuntime(entry.runtime));
   }
 
   async compactThread(input: ThreadAgentRuntimeCompactInput): Promise<void> {
@@ -762,16 +777,29 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     runtime: ThreadAgentRuntime,
     event: AgentRuntimeEvent,
   ): RuntimeDisplayTimelineProjection {
+    const sessionTree = this.sessionTreeForRuntimeEvent(runtime, event);
     const timeline = projectRuntimeDisplayTimelineEvent({
       previousTimeline: this.displayTimelines.get(runtime.threadId),
       threadId: runtime.threadId,
       runtimeSessionId: runtime.runtimeSessionId,
-      sessionTree: this.sessionTrees.get(runtime.threadId) ?? runtime.getSessionTree(),
+      sessionTree,
       event,
       pendingExtensionUiRequests: this.getPendingExtensionUiRequestsForRuntime(runtime),
     });
     this.displayTimelines.set(runtime.threadId, timeline);
     return timeline;
+  }
+
+  private sessionTreeForRuntimeEvent(
+    runtime: ThreadAgentRuntime,
+    event: AgentRuntimeEvent,
+  ): SessionTreeProjection {
+    if (event.type === "message.completed" && event.messageRole === "user") {
+      const tree = runtime.getSessionTree();
+      this.sessionTrees.set(runtime.threadId, tree);
+      return tree;
+    }
+    return this.sessionTrees.get(runtime.threadId) ?? runtime.getSessionTree();
   }
 
   private getPendingExtensionUiRequestsForRuntime(
@@ -829,7 +857,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       );
       const hasExternalCredential =
         storedCredential === undefined &&
-        !isOAuthCredentialKind(credential.kind) &&
+        !isOAuthAgentCredentialKind(credential.kind) &&
         status?.source !== undefined;
       const hasCredential = hasStoredCredential || hasExternalCredential;
       statuses.push({

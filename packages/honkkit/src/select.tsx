@@ -152,7 +152,7 @@ function SelectPopup({
           {...props}
         >
           <SelectPrimitive.ScrollUpArrow
-            className="top-0 z-[1] flex h-6 w-full cursor-default items-center justify-center before:pointer-events-none before:absolute before:inset-x-px before:top-px before:h-[200%] before:rounded-t-[7px] before:bg-linear-to-b before:from-50% before:from-honk-bg-elevated"
+            className="top-0 z-[1] flex h-6 w-full cursor-default items-center justify-center before:pointer-events-none before:absolute before:inset-x-px before:top-px before:h-[200%] before:rounded-t-[7px] before:bg-linear-to-b before:from-50% before:from-honk-menu"
             data-slot="select-scroll-up-arrow"
           >
             <IconChevronRightMedium className="relative size-4.5 -rotate-90 sm:size-4" />
@@ -168,7 +168,7 @@ function SelectPopup({
             </SelectPrimitive.List>
           </div>
           <SelectPrimitive.ScrollDownArrow
-            className="bottom-0 z-[1] flex h-6 w-full cursor-default items-center justify-center before:pointer-events-none before:absolute before:inset-x-px before:bottom-px before:h-[200%] before:rounded-b-[7px] before:bg-linear-to-t before:from-50% before:from-honk-bg-elevated"
+            className="bottom-0 z-[1] flex h-6 w-full cursor-default items-center justify-center before:pointer-events-none before:absolute before:inset-x-px before:bottom-px before:h-[200%] before:rounded-b-[7px] before:bg-linear-to-t before:from-50% before:from-honk-menu"
             data-slot="select-scroll-down-arrow"
           >
             <IconChevronRightMedium className="relative size-4.5 rotate-90 sm:size-4" />

@@ -9,6 +9,9 @@ import {
   TurnId,
   type AgentRuntimeEvent,
   type DesktopExtensionUiRequest,
+  type HonkRuntimeApi,
+  type HonkRuntimeHostEvent,
+  type HonkRuntimeHostSnapshot,
   type SessionTreeProjection,
   type RuntimeDisplayTimelineProjection,
 } from "@honk/contracts";
@@ -24,6 +27,8 @@ import {
   runtimeEventsIndicateActiveAgentRun,
   runtimeEventsIndicateTerminalAgentRun,
   selectIsRuntimeThread,
+  selectRuntimeEventsForThread,
+  startDesktopRuntimeHostSync,
   useAgentRuntimeStore,
 } from "./agent-runtime-store";
 import { initialState, selectEnvironmentState, useStore } from "./thread-store";
@@ -114,6 +119,47 @@ const pendingExtensionUiRequestPrototype = {
   options: ["Allow", "Deny"],
   createdAt: turnStartedAt,
 } satisfies DesktopExtensionUiRequest;
+
+function createRuntimeApi(overrides: Partial<HonkRuntimeApi> = {}): HonkRuntimeApi {
+  return {
+    getHostSnapshot: async () => emptyHostSnapshotPrototype,
+    getPreferences: async () => emptyHostSnapshotPrototype.preferences,
+    updatePreferences: async () => emptyHostSnapshotPrototype.preferences,
+    configureCredential: async () => emptyHostSnapshotPrototype,
+    hydrateThread: async () => undefined,
+    cloneThread: async () => undefined,
+    setThreadFocus: async () => undefined,
+    sendTurn: async (input) => TurnId.make(`turn:${input.threadId}`),
+    compactThread: async () => undefined,
+    abort: async () => undefined,
+    respondToExtensionUiRequest: async () => undefined,
+    listSkills: async () => ({ skills: [] }),
+    getThreadSessionFile: async () => ({ path: null }),
+    onHostEvent: () => () => undefined,
+    ...overrides,
+  };
+}
+
+function expectHostEventListener(
+  listener: ((event: HonkRuntimeHostEvent) => void) | null,
+): (event: HonkRuntimeHostEvent) => void {
+  expect(listener).not.toBeNull();
+  if (!listener) {
+    throw new Error("Host event listener was not registered.");
+  }
+  return listener;
+}
+
+function expectSnapshotResolver(
+  resolveSnapshot: ((snapshot: HonkRuntimeHostSnapshot) => void) | null,
+): (snapshot: HonkRuntimeHostSnapshot) => void {
+  expect(resolveSnapshot).not.toBeNull();
+  if (!resolveSnapshot) {
+    throw new Error("Snapshot promise was not created.");
+  }
+  return resolveSnapshot;
+}
+
 function currentThread() {
   const environmentState = selectEnvironmentState(
     useStore.getState(),
@@ -183,6 +229,91 @@ describe("agent runtime store", () => {
     });
 
     expect(useAgentRuntimeStore.getState().snapshot.credentialAuthFlows).toEqual([]);
+  });
+
+  it("buffers runtime host events until the initial host snapshot resolves", async () => {
+    let resolveSnapshot: ((snapshot: HonkRuntimeHostSnapshot) => void) | null = null;
+    let hostEventListener: ((event: HonkRuntimeHostEvent) => void) | null = null;
+    const getHostSnapshot = vi.fn(
+      () =>
+        new Promise<HonkRuntimeHostSnapshot>((resolve) => {
+          resolveSnapshot = resolve;
+        }),
+    );
+    vi.stubGlobal("window", {
+      desktopBridge: {
+        runtime: createRuntimeApi({
+          getHostSnapshot,
+          onHostEvent: (listener) => {
+            hostEventListener = listener;
+            return () => {
+              hostEventListener = null;
+            };
+          },
+        }),
+      },
+    });
+
+    const stop = startDesktopRuntimeHostSync();
+    expect(getHostSnapshot).toHaveBeenCalledTimes(1);
+    const emitHostEvent = expectHostEventListener(hostEventListener);
+
+    emitHostEvent({
+      type: "display-timeline",
+      timeline: displayTimelinePrototype,
+    });
+
+    expect(useAgentRuntimeStore.getState().snapshot.displayTimelines).toEqual([]);
+
+    expectSnapshotResolver(resolveSnapshot)(emptyHostSnapshotPrototype);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(useAgentRuntimeStore.getState().snapshot.displayTimelines).toEqual([
+      displayTimelinePrototype,
+    ]);
+
+    stop();
+  });
+
+  it("keeps buffered runtime host events if the initial host snapshot fails", async () => {
+    let hostEventListener: ((event: HonkRuntimeHostEvent) => void) | null = null;
+    vi.stubGlobal("window", {
+      desktopBridge: {
+        runtime: createRuntimeApi({
+          getHostSnapshot: async () => {
+            throw new Error("Snapshot failed");
+          },
+          onHostEvent: (listener) => {
+            hostEventListener = listener;
+            return () => {
+              hostEventListener = null;
+            };
+          },
+        }),
+      },
+    });
+
+    const stop = startDesktopRuntimeHostSync();
+    const emitHostEvent = expectHostEventListener(hostEventListener);
+
+    emitHostEvent({
+      type: "display-timeline",
+      timeline: displayTimelinePrototype,
+    });
+
+    expect(useAgentRuntimeStore.getState().snapshot.displayTimelines).toEqual([]);
+
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(useAgentRuntimeStore.getState().snapshot.displayTimelines).toEqual([
+      displayTimelinePrototype,
+    ]);
+
+    stop();
   });
 
   it("does not update pending extension UI requests when request data is unchanged", () => {
@@ -900,5 +1031,39 @@ describe("agent runtime store", () => {
       nextTurnId,
     );
     expect(latestRuntimeEventTurnId([nextTurnEvent], ThreadId.make("thread:other"))).toBeNull();
+  });
+
+  it("keeps per-thread runtime event references stable across interleaved tile reads", () => {
+    const threadA = ThreadId.make("thread:runtime-events:tile-a");
+    const threadB = ThreadId.make("thread:runtime-events:tile-b");
+    const eventA = {
+      ...turnStartedEventPrototype,
+      id: EventId.make("runtime-event:tiling:a"),
+      threadId: threadA,
+    } satisfies AgentRuntimeEvent;
+    const eventB = {
+      ...turnStartedEventPrototype,
+      id: EventId.make("runtime-event:tiling:b"),
+      threadId: threadB,
+    } satisfies AgentRuntimeEvent;
+
+    useAgentRuntimeStore.getState().setSnapshot({
+      ...emptyHostSnapshotPrototype,
+      runtimeEvents: [eventA, eventB],
+    });
+    const state = useAgentRuntimeStore.getState();
+
+    // Tiled ChatView surfaces subscribe with different thread ids. Interleaving
+    // reads must not invalidate one another's cached reference, otherwise each
+    // useSyncExternalStore getSnapshot returns a fresh array and React loops.
+    const firstA = selectRuntimeEventsForThread(state, threadA);
+    const firstB = selectRuntimeEventsForThread(state, threadB);
+    const secondA = selectRuntimeEventsForThread(state, threadA);
+    const secondB = selectRuntimeEventsForThread(state, threadB);
+
+    expect(secondA).toBe(firstA);
+    expect(secondB).toBe(firstB);
+    expect(firstA.map((event) => event.threadId)).toEqual([threadA]);
+    expect(firstB.map((event) => event.threadId)).toEqual([threadB]);
   });
 });

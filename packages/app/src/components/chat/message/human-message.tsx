@@ -23,6 +23,7 @@ import {
   EditableChatMessageBubble,
   ReadonlyActionChatMessageBubble,
 } from "./message-surface";
+import { UserMessageTurnError } from "./user-message-turn-error";
 import { HumanMessageCollapsible } from "./human-collapse";
 import {
   GIT_AGENT_ACTIONS,
@@ -110,6 +111,10 @@ export function HumanMessage({
     !editDisabled &&
     editAvailable &&
     typeof onBeginEditUserMessage === "function";
+  const turnErrorFooter =
+    message.turnFailure !== undefined ? (
+      <UserMessageTurnError message={message.turnFailure} />
+    ) : undefined;
 
   if (isGitAgentActionMessage) {
     return <ReadonlyActionChatMessageBubble body={body} />;
@@ -119,13 +124,21 @@ export function HumanMessage({
     return (
       <EditableChatMessageBubble
         body={body}
+        footer={turnErrorFooter}
         media={media}
         onActivate={() => onBeginEditUserMessage(message.id)}
       />
     );
   }
 
-  return <ChatMessageBubble messageRole="user" body={body} media={media} />;
+  return (
+    <ChatMessageBubble
+      messageRole="user"
+      body={body}
+      footer={turnErrorFooter}
+      media={media}
+    />
+  );
 }
 
 function HumanMessageImageAttachment(props: {

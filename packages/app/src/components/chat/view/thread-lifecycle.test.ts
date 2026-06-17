@@ -9,6 +9,7 @@ import {
 } from "../../../types";
 import { DraftId } from "../../../stores/chat-drafts";
 import {
+  buildLocalDraftThread,
   createLocalDispatchSnapshot,
   hasServerAcknowledgedLocalDispatch,
   resolveDraftPromotionRouteTarget,
@@ -64,6 +65,33 @@ function thread(input: Partial<Thread> = {}): Thread {
     ...input,
   };
 }
+
+describe("buildLocalDraftThread", () => {
+  it("labels new draft shells as New Agent", () => {
+    const draftThread = buildLocalDraftThread(
+      threadId,
+      {
+        branch: null,
+        createdAt,
+        environmentId,
+        envMode: "local",
+        interactionMode: DEFAULT_INTERACTION_MODE,
+        logicalProjectKey: "project:logical",
+        projectId,
+        threadId,
+        updatedAt: createdAt,
+        worktreePath: null,
+      },
+      {
+        instanceId: "codex",
+        model: "gpt-5.5",
+      },
+      null,
+    );
+
+    expect(draftThread.title).toBe("New Agent");
+  });
+});
 
 describe("threadHasRenderableUserStart", () => {
   it("does not treat an empty server thread as renderable", () => {
@@ -335,5 +363,40 @@ describe("hasServerAcknowledgedLocalDispatch", () => {
         threadError: null,
       }),
     ).toBe(true);
+  });
+
+  it("acknowledges local dispatch when a settled errored turn left thread.error set", () => {
+    expect(
+      hasServerAcknowledgedLocalDispatch({
+        localDispatch,
+        phase: "ready",
+        latestTurn: {
+          turnId,
+          state: "error",
+          requestedAt: createdAt,
+          startedAt,
+          completedAt,
+          assistantMessageId: null,
+        },
+        session: null,
+        hasPendingApproval: false,
+        hasPendingUserInput: false,
+        threadError: "Turn failed",
+      }),
+    ).toBe(true);
+  });
+
+  it("does not acknowledge local dispatch for thread.error without a settled errored turn", () => {
+    expect(
+      hasServerAcknowledgedLocalDispatch({
+        localDispatch,
+        phase: "ready",
+        latestTurn: null,
+        session: null,
+        hasPendingApproval: false,
+        hasPendingUserInput: false,
+        threadError: "Turn failed",
+      }),
+    ).toBe(false);
   });
 });

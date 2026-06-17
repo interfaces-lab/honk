@@ -29,6 +29,8 @@ export function createEnvironmentApi(rpcClient: WsRpcClient): EnvironmentApi {
       searchEntries: rpcClient.projects.searchEntries,
       writeFile: rpcClient.projects.writeFile,
       deleteFile: rpcClient.projects.deleteFile,
+      createDirectory: rpcClient.projects.createDirectory,
+      renamePath: rpcClient.projects.renamePath,
     },
     filesystem: {
       browse: rpcClient.filesystem.browse,
@@ -51,6 +53,7 @@ export function createEnvironmentApi(rpcClient: WsRpcClient): EnvironmentApi {
     },
     orchestration: {
       dispatchCommand: rpcClient.orchestration.dispatchCommand,
+      replayEvents: rpcClient.orchestration.replayEvents,
       subscribeShell: (callback, options) =>
         rpcClient.orchestration.subscribeShell(callback, options),
       subscribeThread: (input, callback, options) =>

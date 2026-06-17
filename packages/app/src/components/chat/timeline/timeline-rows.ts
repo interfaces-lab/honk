@@ -237,6 +237,7 @@ function isMessageRowMessageUnchanged(
       a.text === b.text &&
       a.richText === b.richText &&
       a.createdAt === b.createdAt &&
+      a.turnFailure === b.turnFailure &&
       areSameAttachments(a.attachments ?? [], b.attachments ?? [])
     );
   }

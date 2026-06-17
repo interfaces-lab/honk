@@ -27,8 +27,8 @@ import {
 } from "./GitStatusBroadcaster.service.ts";
 import { GitManager } from "./GitManager.service.ts";
 
-const GIT_STATUS_REFRESH_INTERVAL = Duration.seconds(30);
-const GIT_STATUS_REFRESH_FAILURE_BASE_DELAY = Duration.seconds(30);
+const GIT_STATUS_REFRESH_INTERVAL = Duration.minutes(5);
+const GIT_STATUS_REFRESH_FAILURE_BASE_DELAY = Duration.minutes(1);
 const GIT_STATUS_REFRESH_FAILURE_MAX_DELAY = Duration.minutes(15);
 
 export interface GitStatusBroadcasterOptions {

@@ -75,5 +75,19 @@ export const honkMenuPopupShellClasses = cn(honkMenuPopupSurfaceClasses, honkMen
 /** Cursor picker-menu edge: one hairline via shadow-sm, not border + shadow + inset ring. */
 export const honkMenuPickerChromeClasses = "border-0 shadow-honk-sm outline-hidden";
 
+/** Workbench picker menu shell: surface + typography + single outer hairline. */
+export const honkMenuPickerLayoutClasses =
+  "overflow-hidden rounded-honk-lg focus:outline-hidden focus-visible:outline-hidden";
+
+export const honkMenuPickerShellClasses = cn(
+  honkMenuPopupShellClasses,
+  honkMenuPickerChromeClasses,
+  honkMenuPickerLayoutClasses,
+);
+
+/** Command palette shell: border-none + shadow-xl hairline (Cursor quick-input-widget). */
+export const honkCommandPaletteChromeClasses =
+  "border-0 shadow-honk-xl outline-hidden dark:backdrop-blur-none";
+
 /** Match menu popup hairline (`shadow-honk-sm` / stroke-tertiary) on workbench surfaces. */
 export const honkMenuSeparatorClasses = "mx-0 my-1 h-px shrink-0 bg-honk-stroke-tertiary";

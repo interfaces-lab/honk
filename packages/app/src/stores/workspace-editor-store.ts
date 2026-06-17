@@ -6,6 +6,7 @@ export type WorkspacePanelFullscreenTarget = "none" | "right-workbench";
 export type WorkspaceEditorPlacement = "right-panel" | "center";
 
 const DEFAULT_WORKSPACE_KEY = "default";
+const DEFAULT_FULLSCREEN_THREAD_SCOPE = "none";
 const WORKSPACE_EDITOR_STORAGE_KEY = "honk.workspaceEditor.v1";
 const WORKSPACE_EDITOR_WORD_WRAP_STORAGE_KEY = "honk.workspaceEditor.wordWrap.v1";
 const MAX_EDITOR_HISTORY = 50;
@@ -50,13 +51,21 @@ const decodePersistedWorkspaceEditorFileStateOption = Schema.decodeUnknownOption
 );
 
 interface WorkspaceEditorStoreState {
-  fullscreenByWorkspaceKey: Record<string, WorkspacePanelFullscreenTarget>;
+  fullscreenByScopeKey: Record<string, WorkspacePanelFullscreenTarget>;
   fileStateByWorkspaceKey: Record<string, WorkspaceEditorFileState>;
   // Editor-wide preference (not per-file/per-workspace), like Cursor's word wrap.
   wordWrap: boolean;
-  enterFullscreen: (workspaceKey: string | null, target: WorkspacePanelFullscreenTarget) => void;
-  exitFullscreen: (workspaceKey: string | null) => void;
-  toggleFullscreen: (workspaceKey: string | null, target: WorkspacePanelFullscreenTarget) => void;
+  enterFullscreen: (
+    workspaceKey: string | null,
+    threadId: string | null,
+    target: WorkspacePanelFullscreenTarget,
+  ) => void;
+  exitFullscreen: (workspaceKey: string | null, threadId: string | null) => void;
+  toggleFullscreen: (
+    workspaceKey: string | null,
+    threadId: string | null,
+    target: WorkspacePanelFullscreenTarget,
+  ) => void;
   previewFile: (workspaceKey: string | null, path: string) => void;
   clearFilePreview: (workspaceKey: string | null) => void;
   openFile: (workspaceKey: string | null, path: string) => void;
@@ -66,12 +75,35 @@ interface WorkspaceEditorStoreState {
   closeEditor: (workspaceKey: string | null) => void;
   removeDirectoryFromHistory: (workspaceKey: string | null, directoryPath: string) => void;
   removeFileFromHistory: (workspaceKey: string | null, path: string) => void;
+  renameFileInHistory: (
+    workspaceKey: string | null,
+    fromPath: string,
+    toPath: string,
+    isFolder: boolean,
+  ) => void;
   setWordWrap: (wordWrap: boolean) => void;
 }
 
 function resolveWorkspaceEditorKey(workspaceKey: string | null): string {
   const trimmed = workspaceKey?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : DEFAULT_WORKSPACE_KEY;
+}
+
+function resolveFullscreenThreadScope(threadId: string | null): readonly [string, string?] {
+  const trimmed = threadId?.trim();
+  return trimmed && trimmed.length > 0
+    ? (["thread", trimmed] as const)
+    : ([DEFAULT_FULLSCREEN_THREAD_SCOPE] as const);
+}
+
+export function resolveWorkspaceThreadFullscreenKey(
+  workspaceKey: string | null,
+  threadId: string | null,
+): string {
+  return JSON.stringify([
+    resolveWorkspaceEditorKey(workspaceKey),
+    resolveFullscreenThreadScope(threadId),
+  ]);
 }
 
 function normalizeHistory(history: WorkspaceEditorHistory): WorkspaceEditorHistory {
@@ -92,6 +124,28 @@ function normalizeEditorDirectoryPath(path: string): string {
 function isEditorPathInsideDirectory(path: string, directoryPath: string): boolean {
   const normalizedDirectoryPath = normalizeEditorDirectoryPath(directoryPath);
   return normalizeEditorDirectoryPath(path).startsWith(`${normalizedDirectoryPath}/`);
+}
+
+function remapEditorPathForRename(
+  path: string,
+  fromPath: string,
+  toPath: string,
+  isFolder: boolean,
+): string {
+  const normalizedPath = path.replaceAll("\\", "/");
+  const normalizedFrom = normalizeEditorDirectoryPath(fromPath);
+  const normalizedTo = normalizeEditorDirectoryPath(toPath);
+  if (!isFolder) {
+    return normalizedPath === normalizedFrom ? normalizedTo : normalizedPath;
+  }
+  if (normalizedPath === normalizedFrom) {
+    return normalizedTo;
+  }
+  const fromPrefix = `${normalizedFrom}/`;
+  if (normalizedPath.startsWith(fromPrefix)) {
+    return `${normalizedTo}${normalizedPath.slice(normalizedFrom.length)}`;
+  }
+  return normalizedPath;
 }
 
 function pushEditorHistory(
@@ -191,33 +245,33 @@ function readFileState(
 const INITIAL_WORKSPACE_EDITORS = readPersistedWorkspaceEditors();
 
 const useWorkspaceEditorStore = create<WorkspaceEditorStoreState>((set) => ({
-  fullscreenByWorkspaceKey: {},
+  fullscreenByScopeKey: {},
   fileStateByWorkspaceKey: INITIAL_WORKSPACE_EDITORS,
   wordWrap: readPersistedWordWrap(),
-  enterFullscreen: (workspaceKey, target) => {
-    const resolvedKey = resolveWorkspaceEditorKey(workspaceKey);
+  enterFullscreen: (workspaceKey, threadId, target) => {
+    const resolvedKey = resolveWorkspaceThreadFullscreenKey(workspaceKey, threadId);
     set((state) => ({
-      fullscreenByWorkspaceKey: {
-        ...state.fullscreenByWorkspaceKey,
+      fullscreenByScopeKey: {
+        ...state.fullscreenByScopeKey,
         [resolvedKey]: target,
       },
     }));
   },
-  exitFullscreen: (workspaceKey) => {
-    const resolvedKey = resolveWorkspaceEditorKey(workspaceKey);
+  exitFullscreen: (workspaceKey, threadId) => {
+    const resolvedKey = resolveWorkspaceThreadFullscreenKey(workspaceKey, threadId);
     set((state) => ({
-      fullscreenByWorkspaceKey: {
-        ...state.fullscreenByWorkspaceKey,
+      fullscreenByScopeKey: {
+        ...state.fullscreenByScopeKey,
         [resolvedKey]: "none",
       },
     }));
   },
-  toggleFullscreen: (workspaceKey, target) => {
-    const resolvedKey = resolveWorkspaceEditorKey(workspaceKey);
+  toggleFullscreen: (workspaceKey, threadId, target) => {
+    const resolvedKey = resolveWorkspaceThreadFullscreenKey(workspaceKey, threadId);
     set((state) => ({
-      fullscreenByWorkspaceKey: {
-        ...state.fullscreenByWorkspaceKey,
-        [resolvedKey]: state.fullscreenByWorkspaceKey[resolvedKey] === target ? "none" : target,
+      fullscreenByScopeKey: {
+        ...state.fullscreenByScopeKey,
+        [resolvedKey]: state.fullscreenByScopeKey[resolvedKey] === target ? "none" : target,
       },
     }));
   },
@@ -484,6 +538,56 @@ const useWorkspaceEditorStore = create<WorkspaceEditorStoreState>((set) => ({
       return { fileStateByWorkspaceKey };
     });
   },
+  renameFileInHistory: (workspaceKey, fromPath, toPath, isFolder) => {
+    const resolvedKey = resolveWorkspaceEditorKey(workspaceKey);
+    set((state) => {
+      const current = readFileState(state.fileStateByWorkspaceKey, workspaceKey);
+      const nextActivePath =
+        current.activePath === null
+          ? null
+          : remapEditorPathForRename(current.activePath, fromPath, toPath, isFolder);
+      const nextPreviewPath =
+        current.previewPath === null
+          ? null
+          : remapEditorPathForRename(current.previewPath, fromPath, toPath, isFolder);
+      const nextHistoryPaths = current.history.paths.map((entry) =>
+        remapEditorPathForRename(entry, fromPath, toPath, isFolder),
+      );
+      const dedupedHistoryPaths = nextHistoryPaths.filter(
+        (entry, index) => nextHistoryPaths.indexOf(entry) === index,
+      );
+      if (
+        nextActivePath === current.activePath &&
+        nextPreviewPath === current.previewPath &&
+        dedupedHistoryPaths.length === current.history.paths.length &&
+        dedupedHistoryPaths.every((entry, index) => entry === current.history.paths[index])
+      ) {
+        return state;
+      }
+      const nextHistory =
+        dedupedHistoryPaths.length === 0
+          ? EMPTY_EDITOR_HISTORY
+          : normalizeHistory({
+              paths: dedupedHistoryPaths,
+              index:
+                nextActivePath !== null && dedupedHistoryPaths.includes(nextActivePath)
+                  ? dedupedHistoryPaths.indexOf(nextActivePath)
+                  : Math.min(current.history.index, dedupedHistoryPaths.length - 1),
+            });
+      const next: WorkspaceEditorFileState = {
+        ...current,
+        activePath: nextActivePath,
+        previewPath: nextPreviewPath,
+        history: nextHistory,
+      };
+      const fileStateByWorkspaceKey = {
+        ...state.fileStateByWorkspaceKey,
+        [resolvedKey]: next,
+      };
+      persistWorkspaceEditors(fileStateByWorkspaceKey);
+      return { fileStateByWorkspaceKey };
+    });
+  },
   setWordWrap: (wordWrap) => {
     set((state) => {
       if (state.wordWrap === wordWrap) {
@@ -497,17 +601,19 @@ const useWorkspaceEditorStore = create<WorkspaceEditorStoreState>((set) => ({
 
 export function useWorkspaceFullscreenTarget(
   workspaceKey: string | null,
+  threadId: string | null,
 ): WorkspacePanelFullscreenTarget {
-  const resolvedKey = resolveWorkspaceEditorKey(workspaceKey);
-  return useWorkspaceEditorStore((state) => state.fullscreenByWorkspaceKey[resolvedKey] ?? "none");
+  const resolvedKey = resolveWorkspaceThreadFullscreenKey(workspaceKey, threadId);
+  return useWorkspaceEditorStore((state) => state.fullscreenByScopeKey[resolvedKey] ?? "none");
 }
 
 /** Non-reactive read for event handlers that must not subscribe to the store. */
 export function getWorkspaceFullscreenTarget(
   workspaceKey: string | null,
+  threadId: string | null,
 ): WorkspacePanelFullscreenTarget {
-  const resolvedKey = resolveWorkspaceEditorKey(workspaceKey);
-  return useWorkspaceEditorStore.getState().fullscreenByWorkspaceKey[resolvedKey] ?? "none";
+  const resolvedKey = resolveWorkspaceThreadFullscreenKey(workspaceKey, threadId);
+  return useWorkspaceEditorStore.getState().fullscreenByScopeKey[resolvedKey] ?? "none";
 }
 
 export function subscribeWorkspaceEditor(onStoreChange: () => void): () => void {
@@ -515,12 +621,18 @@ export function subscribeWorkspaceEditor(onStoreChange: () => void): () => void 
 }
 
 export const workspaceEditorActions = {
-  enterFullscreen: (workspaceKey: string | null, target: WorkspacePanelFullscreenTarget): void =>
-    useWorkspaceEditorStore.getState().enterFullscreen(workspaceKey, target),
-  exitFullscreen: (workspaceKey: string | null): void =>
-    useWorkspaceEditorStore.getState().exitFullscreen(workspaceKey),
-  toggleFullscreen: (workspaceKey: string | null, target: WorkspacePanelFullscreenTarget): void =>
-    useWorkspaceEditorStore.getState().toggleFullscreen(workspaceKey, target),
+  enterFullscreen: (
+    workspaceKey: string | null,
+    threadId: string | null,
+    target: WorkspacePanelFullscreenTarget,
+  ): void => useWorkspaceEditorStore.getState().enterFullscreen(workspaceKey, threadId, target),
+  exitFullscreen: (workspaceKey: string | null, threadId: string | null): void =>
+    useWorkspaceEditorStore.getState().exitFullscreen(workspaceKey, threadId),
+  toggleFullscreen: (
+    workspaceKey: string | null,
+    threadId: string | null,
+    target: WorkspacePanelFullscreenTarget,
+  ): void => useWorkspaceEditorStore.getState().toggleFullscreen(workspaceKey, threadId, target),
   previewFile: (workspaceKey: string | null, path: string): void =>
     useWorkspaceEditorStore.getState().previewFile(workspaceKey, path),
   clearFilePreview: (workspaceKey: string | null): void =>
@@ -539,6 +651,15 @@ export const workspaceEditorActions = {
     useWorkspaceEditorStore.getState().removeDirectoryFromHistory(workspaceKey, directoryPath),
   removeFileFromHistory: (workspaceKey: string | null, path: string): void =>
     useWorkspaceEditorStore.getState().removeFileFromHistory(workspaceKey, path),
+  renameFileInHistory: (
+    workspaceKey: string | null,
+    fromPath: string,
+    toPath: string,
+    isFolder: boolean,
+  ): void =>
+    useWorkspaceEditorStore
+      .getState()
+      .renameFileInHistory(workspaceKey, fromPath, toPath, isFolder),
   setWordWrap: (wordWrap: boolean): void =>
     useWorkspaceEditorStore.getState().setWordWrap(wordWrap),
   toggleWordWrap: (): void => {

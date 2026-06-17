@@ -25,12 +25,16 @@ import type {
 } from "./git";
 import type { FilesystemBrowseInput, FilesystemBrowseResult } from "./filesystem";
 import type {
+  ProjectCreateDirectoryInput,
+  ProjectCreateDirectoryResult,
   ProjectDeleteFileInput,
   ProjectDeleteFileResult,
   ProjectListDirectoryInput,
   ProjectListDirectoryResult,
   ProjectReadFileInput,
   ProjectReadFileResult,
+  ProjectRenamePathInput,
+  ProjectRenamePathResult,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
   ProjectWriteFileInput,
@@ -51,6 +55,8 @@ import type { ServerUpsertKeybindingInput } from "./server";
 import type {
   DispatchResult,
   ClientOrchestrationCommand,
+  OrchestrationReplayEventsInput,
+  OrchestrationReplayEventsResult,
   OrchestrationShellStreamItem,
   OrchestrationSubscribeThreadInput,
   OrchestrationThreadStreamItem,
@@ -386,6 +392,8 @@ export interface EnvironmentApi {
     searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
     writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
     deleteFile: (input: ProjectDeleteFileInput) => Promise<ProjectDeleteFileResult>;
+    createDirectory: (input: ProjectCreateDirectoryInput) => Promise<ProjectCreateDirectoryResult>;
+    renamePath: (input: ProjectRenamePathInput) => Promise<ProjectRenamePathResult>;
   };
   filesystem: {
     browse: (input: FilesystemBrowseInput) => Promise<FilesystemBrowseResult>;
@@ -416,6 +424,7 @@ export interface EnvironmentApi {
   };
   orchestration: {
     dispatchCommand: (command: ClientOrchestrationCommand) => Promise<DispatchResult>;
+    replayEvents: (input: OrchestrationReplayEventsInput) => Promise<OrchestrationReplayEventsResult>;
     subscribeShell: (
       callback: (event: OrchestrationShellStreamItem) => void,
       options?: {

@@ -1,0 +1,114 @@
+@import "tailwindcss";
+@import "../../app/src/index.css";
+@import "../../app/src/styles/app.css";
+@import "@honk/honkkit/styles.css";
+
+@source "./**/*.{ts,tsx}";
+
+/* Geist (self-hosted from the geist package). */
+@font-face {
+  font-family: "Geist Sans";
+  src: url("../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme inline {
+  --font-geist-sans: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-geist-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+}
+
+:root {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --honk-font-ui: var(--font-geist-sans);
+  --honk-font-mono: var(--font-geist-mono);
+}
+
+/* Marketing is a scrollable landing page; undo the app shell scroll lock from index.css. */
+html,
+body {
+  height: auto;
+  min-height: 100%;
+  max-width: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
+  background-color: #f7f8fb;
+}
+
+html.dark,
+html.dark body {
+  background-color: #0a0a0a;
+}
+
+body::after {
+  content: none;
+}
+
+#root,
+#root > * {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-width: none;
+  overflow: visible;
+}
+
+@layer components {
+  .marketing-edge-mask {
+    --marketing-edge-center: rgba(247, 248, 251, 0);
+    --marketing-edge-fade: rgb(247, 248, 251);
+  }
+
+  .dark .marketing-edge-mask {
+    --marketing-edge-center: rgba(10, 10, 10, 0);
+    --marketing-edge-fade: rgb(10, 10, 10);
+  }
+
+  /*
+   * Marketing demo diff: bump the font to 2xl (1.5rem / 24px). Line-height
+   * matches the font size so there is no half-leading —
+   * (line-height - font-size) / 2 = 0px padded top/bottom. Both [data-code]
+   * line-height and [data-line] min-height consume --diffs-line-height via
+   * WORKBENCH_CODE_UNSAFE_CSS, so they stay in sync.
+   */
+  .honk-marketing-preview [data-diffs-container] {
+    --diffs-font-size: 1.5rem;
+    --diffs-line-height: 1.5rem;
+    font-size: 1.5rem;
+    line-height: 1.5rem;
+  }
+
+  @keyframes marketing-demo-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .marketing-demo-enter {
+    animation: marketing-demo-enter 0.38s ease-out both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marketing-demo-enter {
+      animation: none;
+    }
+  }
+}

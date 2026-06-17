@@ -66,9 +66,45 @@ const ClearBrowserPartitionStorageInput = Schema.Struct({
 });
 
 const HONK_BROWSER_PARTITION = "persist:honk-browser";
+const windowBackgroundColorByWindow = new WeakMap<Electron.BrowserWindow, string>();
+const windowDisplayZoomByWindow = new WeakMap<Electron.BrowserWindow, number>();
+const windowVibrancyByWindow = new WeakMap<Electron.BrowserWindow, boolean>();
 
 function uniqueLocalhostPorts(ports: readonly number[]): number[] {
   return [...new Set(ports.filter((port) => Number.isInteger(port) && port > 0 && port <= 65535))];
+}
+
+function setWindowBackgroundColorIfChanged(
+  window: Electron.BrowserWindow,
+  color: string,
+): void {
+  if (windowBackgroundColorByWindow.get(window) === color) {
+    return;
+  }
+
+  window.setBackgroundColor(color);
+  windowBackgroundColorByWindow.set(window, color);
+}
+
+function setWindowDisplayZoomIfChanged(window: Electron.BrowserWindow, factor: number): void {
+  if (windowDisplayZoomByWindow.get(window) === factor) {
+    return;
+  }
+
+  window.webContents.setZoomFactor(factor);
+  windowDisplayZoomByWindow.set(window, factor);
+}
+
+function setWindowVibrancyIfChanged(
+  window: Electron.BrowserWindow,
+  enabled: boolean,
+): void {
+  if (windowVibrancyByWindow.get(window) === enabled) {
+    return;
+  }
+
+  window.setVibrancy(enabled ? "sidebar" : null);
+  windowVibrancyByWindow.set(window, enabled);
 }
 
 function probeLocalhostPort(host: string, port: number): Promise<boolean> {
@@ -117,7 +153,8 @@ export const getBrowserWebviewPreloadPath = makeSyncIpcMethod({
 export const getLocalEnvironmentBootstrap = makeSyncIpcMethod({
   channel: IpcChannels.GET_LOCAL_ENVIRONMENT_BOOTSTRAP_CHANNEL,
   result: Schema.NullOr(DesktopEnvironmentBootstrapSchema),
-  handler: Effect.fn("desktop.ipc.window.getLocalEnvironmentBootstrap")(function* () {
+  trace: false,
+  handler: Effect.fnUntraced(function* () {
     const backendManager = yield* DesktopBackendManager.DesktopBackendManager;
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
     const config = yield* backendManager.currentConfig;
@@ -192,7 +229,8 @@ export const setActiveWorkState = makeIpcMethod({
   channel: IpcChannels.SET_ACTIVE_WORK_STATE_CHANNEL,
   payload: DesktopActiveWorkStateSchema,
   result: Schema.Void,
-  handler: Effect.fn("desktop.ipc.window.setActiveWorkState")(function* (state) {
+  trace: false,
+  handler: Effect.fnUntraced(function* (state) {
     const activeWork = yield* DesktopActiveWork.DesktopActiveWork;
     yield* activeWork.set(state);
   }),
@@ -232,14 +270,15 @@ export const setBackgroundColor = makeIpcMethod({
   channel: IpcChannels.SET_BACKGROUND_COLOR_CHANNEL,
   payload: Schema.String,
   result: Schema.Void,
-  handler: Effect.fn("desktop.ipc.window.setBackgroundColor")(function* (color) {
+  trace: false,
+  handler: Effect.fnUntraced(function* (color) {
     const electronWindow = yield* ElectronWindow.ElectronWindow;
     const window = yield* electronWindow.currentMainOrFirst;
     if (Option.isNone(window) || window.value.isDestroyed()) {
       return;
     }
 
-    window.value.setBackgroundColor(color);
+    setWindowBackgroundColorIfChanged(window.value, color);
   }),
 });
 
@@ -258,7 +297,8 @@ export const setDisplayZoom = makeIpcMethod({
   channel: IpcChannels.SET_DISPLAY_ZOOM_CHANNEL,
   payload: Schema.Number,
   result: Schema.Void,
-  handler: Effect.fn("desktop.ipc.window.setDisplayZoom")(function* (factor) {
+  trace: false,
+  handler: Effect.fnUntraced(function* (factor) {
     const electronWindow = yield* ElectronWindow.ElectronWindow;
     const window = yield* electronWindow.currentMainOrFirst;
     if (Option.isNone(window) || window.value.isDestroyed()) {
@@ -266,7 +306,7 @@ export const setDisplayZoom = makeIpcMethod({
     }
 
     const clamped = Math.min(DISPLAY_ZOOM_FACTOR_MAX, Math.max(DISPLAY_ZOOM_FACTOR_MIN, factor));
-    window.value.webContents.setZoomFactor(clamped);
+    setWindowDisplayZoomIfChanged(window.value, clamped);
   }),
 });
 
@@ -304,7 +344,8 @@ export const setVibrancy = makeIpcMethod({
   channel: IpcChannels.SET_VIBRANCY_CHANNEL,
   payload: Schema.Boolean,
   result: Schema.Void,
-  handler: Effect.fn("desktop.ipc.window.setVibrancy")(function* (enabled) {
+  trace: false,
+  handler: Effect.fnUntraced(function* (enabled) {
     if (process.platform !== "darwin") {
       return;
     }
@@ -318,13 +359,19 @@ export const setVibrancy = makeIpcMethod({
 
     const shouldUseDarkColors = yield* electronTheme.shouldUseDarkColors;
     if (enabled) {
-      window.value.setBackgroundColor(getMacGlassWindowBackgroundColor(shouldUseDarkColors));
-      window.value.setVibrancy("sidebar");
+      setWindowBackgroundColorIfChanged(
+        window.value,
+        getMacGlassWindowBackgroundColor(shouldUseDarkColors),
+      );
+      setWindowVibrancyIfChanged(window.value, true);
       return;
     }
 
-    window.value.setVibrancy(null);
-    window.value.setBackgroundColor(getMacWindowBackgroundColor(shouldUseDarkColors));
+    setWindowVibrancyIfChanged(window.value, false);
+    setWindowBackgroundColorIfChanged(
+      window.value,
+      getMacWindowBackgroundColor(shouldUseDarkColors),
+    );
   }),
 });
 

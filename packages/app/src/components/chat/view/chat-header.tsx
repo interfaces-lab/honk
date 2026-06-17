@@ -1,7 +1,11 @@
 import { IconSidebar } from "central-icons";
 import { Button } from "@honk/honkkit/button";
-import { WorkbenchChromeDivider } from "@honk/honkkit/workbench-chrome-row";
+import {
+  WorkbenchChromeDivider,
+  workbenchChromeTextControlVariants,
+} from "@honk/honkkit/workbench-chrome-row";
 import { shellPanelsActions } from "~/stores/shell-panels-store";
+import { cn } from "~/lib/utils";
 import type { ReactNode } from "react";
 
 interface ChatHeaderProps {
@@ -11,17 +15,20 @@ interface ChatHeaderProps {
 
 export function ChatHeader({ activeThreadTitle, actions }: ChatHeaderProps) {
   const title = activeThreadTitle.trim();
+  const hasActions = actions !== undefined && actions !== null;
+
   return (
-    <div className="@container/header-actions flex min-w-0 flex-1 select-none items-center gap-2 text-body">
+    <div className="@container/header-actions content-pane-top-bar__scroll-area flex min-w-0 flex-1 select-none items-center text-body">
       <div
-        className="no-drag flex min-w-0 flex-1 items-center gap-2 overflow-hidden"
+        className="no-drag flex min-w-0 flex-1 items-center overflow-hidden"
         data-shell-no-drag=""
       >
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="no-drag hidden size-(--honk-titlebar-control-height) min-w-(--honk-titlebar-control-height) shrink-0 rounded-honk-control p-0 shadow-none before:hidden in-data-[shell-left-mode=overlay]:flex"
+          className="no-drag mr-1 hidden size-(--honk-titlebar-control-height) min-w-(--honk-titlebar-control-height) shrink-0 rounded-honk-control p-0 shadow-none before:hidden in-data-[shell-left-mode=overlay]:flex"
+          data-no-drag=""
           data-shell-no-drag=""
           aria-label="Toggle sidebar"
           onClick={() => shellPanelsActions.toggleLeft()}
@@ -29,13 +36,19 @@ export function ChatHeader({ activeThreadTitle, actions }: ChatHeaderProps) {
           <IconSidebar className="size-4 shrink-0" />
         </Button>
         {title ? (
-          <div className="no-drag flex min-w-0 shrink items-center" data-shell-no-drag="">
+          <div
+            className="no-drag flex min-w-0 shrink items-center overflow-hidden"
+            data-shell-no-drag=""
+          >
             <Button
               type="button"
               variant="ghost"
               size="sm"
               aria-label={`Chat title. Right-click for more actions. ${title}`}
-              className="no-drag h-(--honk-workbench-tab-height) min-w-0 shrink justify-start rounded-sm px-0 py-0 text-left text-honk-tab font-normal text-honk-fg-primary shadow-none before:hidden hover:bg-transparent hover:text-honk-fg-primary data-pressed:bg-transparent"
+              className={cn(
+                workbenchChromeTextControlVariants({ tone: "primary" }),
+                "min-w-0 max-w-full shrink justify-start rounded-sm py-0 text-left shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
+              )}
               data-shell-no-drag=""
               title={title}
             >
@@ -43,15 +56,22 @@ export function ChatHeader({ activeThreadTitle, actions }: ChatHeaderProps) {
             </Button>
           </div>
         ) : null}
-        {title && actions ? <WorkbenchChromeDivider /> : null}
-        {actions ? (
-          <div
-            className="no-drag flex min-w-0 shrink items-center gap-2 overflow-hidden [&>div]:gap-2 [&_[data-slot=workbench-chrome-action-group]]:gap-2"
-            data-shell-no-drag=""
-          >
-            {actions}
+        <div
+          className={cn(
+            "content-pane-top-bar__trailing-wrap no-drag flex shrink-0 items-center overflow-hidden transition-[max-width,opacity] duration-150 ease-out motion-reduce:transition-none",
+            hasActions ? "max-w-[520px] opacity-100" : "pointer-events-none max-w-0 opacity-0",
+          )}
+          data-no-drag=""
+          data-shell-no-drag=""
+          aria-hidden={hasActions ? undefined : true}
+        >
+          <div className="flex w-max items-center gap-2 pl-2">
+            {title ? <WorkbenchChromeDivider /> : null}
+            <div className="content-pane-top-bar__action-group no-drag flex min-w-0 shrink items-center gap-2 overflow-hidden [&>div]:gap-2 [&_[data-slot=workbench-chrome-action-group]]:gap-2">
+              {actions}
+            </div>
           </div>
-        ) : null}
+        </div>
       </div>
     </div>
   );

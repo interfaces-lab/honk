@@ -340,15 +340,6 @@ export function useEnvironmentGitPanel(
     cwd: enabled ? cwd : null,
     status,
   });
-  const hasStatusData = status.data !== null;
-  useEffect(() => {
-    if (!cwd || !gitApi || !environmentId) {
-      return;
-    }
-    void refreshGitStatus({ environmentId, cwd }, gitApi, { force: !hasStatusData }).catch(
-      () => undefined,
-    );
-  }, [cwd, environmentId, gitApi, hasStatusData]);
   const rowReuseRef = useRef<DiffRow[]>([]);
 
   const nextRows = view.kind === "changed" ? toRowsWithReuse(status.data, rowReuseRef.current) : [];

@@ -1,5 +1,6 @@
 import { scopedProjectKey } from "~/lib/environment-scope";
 import { type ScopedProjectRef } from "@honk/contracts";
+import { projectScriptCwd } from "@honk/shared/project-scripts";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -7,18 +8,52 @@ import { type DraftThreadEnvMode, DraftId, useComposerDraftStore } from "../stor
 import { deriveLogicalProjectKey } from "../stores/project-identity";
 import { type AppState, selectProjectsAcrossEnvironments, useStore } from "../stores/thread-store";
 import { selectThreadWorkspaceSurfaceByRef } from "../stores/thread-selectors";
-import { readChatRouteTarget, useChatRouteTarget } from "~/app/chat-route-state";
+import {
+  type ChatRouteTarget,
+  readChatRouteTarget,
+  useChatRouteTarget,
+} from "~/app/chat-route-state";
 import { clearNewThreadDraftSendArtifacts, openDraft } from "~/app/chat-navigation";
 import type { AppRouter } from "~/router";
 import { useSelectedWorkspaceProject } from "../lib/selected-workspace-project";
 import { newThreadId } from "../lib/utils";
-import { DEFAULT_INTERACTION_MODE } from "../types";
+import { DEFAULT_INTERACTION_MODE, type Project } from "../types";
+import { deriveWorkspaceKey } from "~/lib/workspace-target";
+import {
+  getWorkspaceFullscreenTarget,
+  workspaceEditorActions,
+} from "~/stores/workspace-editor-store";
 
 export interface NewThreadActionOptions {
   readonly branch?: string | null;
   readonly worktreePath?: string | null;
   readonly envMode?: DraftThreadEnvMode;
   readonly logicalProjectKey?: string | null;
+}
+
+function exitFullscreenForNewThreadProject(
+  project: Pick<Project, "cwd" | "environmentId"> | undefined,
+  worktreePath: string | null,
+  threadId: string | null,
+): void {
+  if (!project) {
+    return;
+  }
+  const workspaceKey = deriveWorkspaceKey({
+    rpcEnvironmentId: project.environmentId,
+    cwd: projectScriptCwd({ project, worktreePath }),
+  });
+  if (getWorkspaceFullscreenTarget(workspaceKey, threadId) === "none") {
+    return;
+  }
+  workspaceEditorActions.exitFullscreen(workspaceKey, threadId);
+}
+
+function fullscreenThreadIdFromRouteTarget(target: ChatRouteTarget | null): string | null {
+  if (!target) {
+    return null;
+  }
+  return target.kind === "server" ? target.threadRef.threadId : target.draftId;
 }
 
 export async function openNewThreadWithRouter(
@@ -28,6 +63,7 @@ export async function openNewThreadWithRouter(
 ): Promise<void> {
   const store = useComposerDraftStore.getState();
   const currentRouteTarget = readChatRouteTarget(router);
+  const currentFullscreenThreadId = fullscreenThreadIdFromRouteTarget(currentRouteTarget);
   const projects = selectProjectsAcrossEnvironments(useStore.getState());
   const project = projects.find(
     (candidate) =>
@@ -42,6 +78,9 @@ export async function openNewThreadWithRouter(
     store.getDraftSessionByProjectRef(projectRef);
 
   if (unsentDraft && unsentDraft.promotedTo == null) {
+    const draftWorktreePath = options?.worktreePath ?? unsentDraft.worktreePath;
+    exitFullscreenForNewThreadProject(project, draftWorktreePath, currentFullscreenThreadId);
+
     const alreadyOnUnsentDraft =
       currentRouteTarget?.kind === "draft" &&
       currentRouteTarget.draftId === unsentDraft.draftId &&
@@ -63,7 +102,7 @@ export async function openNewThreadWithRouter(
         createdAt: unsentDraft.createdAt,
         interactionMode: unsentDraft.interactionMode,
         branch: options.branch ?? unsentDraft.branch,
-        worktreePath: options.worktreePath ?? unsentDraft.worktreePath,
+        worktreePath: draftWorktreePath,
         envMode: options.envMode ?? unsentDraft.envMode,
       });
     }
@@ -75,12 +114,14 @@ export async function openNewThreadWithRouter(
   const draftId = DraftId.make(
     `new-thread-draft:project:${projectRef.environmentId}:${projectRef.projectId}`,
   );
+  const draftWorktreePath = options?.worktreePath ?? null;
+  exitFullscreenForNewThreadProject(project, draftWorktreePath, currentFullscreenThreadId);
   store.setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, draftId, {
     threadId: newThreadId(),
     createdAt: new Date().toISOString(),
     interactionMode: DEFAULT_INTERACTION_MODE,
     branch: options?.branch ?? null,
-    worktreePath: options?.worktreePath ?? null,
+    worktreePath: draftWorktreePath,
     envMode: options?.envMode ?? "local",
   });
   store.clearComposerContent(draftId);

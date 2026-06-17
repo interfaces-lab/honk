@@ -1,10 +1,10 @@
 "use client";
 
 import { ContextMenu as ContextMenuPrimitive } from "@base-ui/react/context-menu";
-import { cva } from "class-variance-authority";
 import { forwardRef, type ReactNode } from "react";
 
-import { cn, controlTransitionVariants, honkMenuSeparatorClasses, interactiveControlCursorVariants } from "./utils";
+import { cn, honkMenuPickerShellClasses, honkMenuSeparatorClasses } from "./utils";
+import { workbenchMenuItemVariants } from "./menu";
 
 const ContextMenu = ContextMenuPrimitive.Root;
 
@@ -16,14 +16,6 @@ const ContextMenuTrigger = forwardRef<HTMLDivElement, ContextMenuPrimitive.Trigg
       </ContextMenuPrimitive.Trigger>
     );
   },
-);
-
-const workbenchContextMenuItemVariants = cva(
-  cn(
-    "flex w-full items-center gap-1.5 rounded-sm px-1 py-1 text-left text-foreground/82 outline-none transition-colors hover:bg-honk-hover/40 data-highlighted:bg-honk-active data-highlighted:text-foreground data-disabled:pointer-events-none data-disabled:opacity-45 focus-visible:outline-none",
-    interactiveControlCursorVariants(),
-    controlTransitionVariants(),
-  ),
 );
 
 function WorkbenchContextMenuPopup({
@@ -48,14 +40,13 @@ function WorkbenchContextMenuPopup({
         <ContextMenuPrimitive.Popup
           data-slot="context-menu-popup"
           className={cn(
-            "honk-slash-menu-popup w-72 max-w-screen origin-(--transform-origin) select-none overflow-hidden rounded-honk-lg border border-honk-stroke bg-honk-bubble text-honk-chrome shadow-honk-sm outline-hidden",
+            "honk-workbench-menu-popup w-60 max-w-[calc(100vw-16px)] origin-(--transform-origin) select-none",
+            honkMenuPickerShellClasses,
             className,
           )}
           {...props}
         >
-          <div className="flex max-h-72 min-h-0 flex-col gap-px overflow-y-auto overscroll-contain p-1">
-            {children}
-          </div>
+          <div className="max-h-72 w-full overflow-y-auto overscroll-contain p-1">{children}</div>
         </ContextMenuPrimitive.Popup>
       </ContextMenuPrimitive.Positioner>
     </ContextMenuPrimitive.Portal>
@@ -71,16 +62,13 @@ function WorkbenchContextMenuItem({
   icon?: ReactNode;
 }) {
   return (
-    <ContextMenuPrimitive.Item
-      className={cn(workbenchContextMenuItemVariants(), className)}
-      {...props}
-    >
+    <ContextMenuPrimitive.Item className={cn(workbenchMenuItemVariants(), className)} {...props}>
       {icon ? (
-        <span className="inline-flex h-4 w-3 shrink-0 items-center justify-center text-muted-foreground/60 [&>svg]:size-3 [&>svg]:shrink-0">
+        <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-honk-fg-tertiary [&>svg]:size-3 [&>svg]:shrink-0">
           {icon}
         </span>
       ) : null}
-      <span className="min-w-0 flex-1 truncate">{children}</span>
+      <span className="min-w-0 flex-1 truncate text-body">{children}</span>
     </ContextMenuPrimitive.Item>
   );
 }
@@ -103,5 +91,5 @@ export {
   WorkbenchContextMenuItem,
   WorkbenchContextMenuPopup,
   WorkbenchContextMenuSeparator,
-  workbenchContextMenuItemVariants,
+  workbenchMenuItemVariants as workbenchContextMenuItemVariants,
 };

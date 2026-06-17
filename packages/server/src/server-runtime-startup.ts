@@ -2,7 +2,10 @@ import {
   CommandId,
   DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
   DEFAULT_AGENT_INTERACTION_MODE,
+  type DispatchResult,
   type ModelSelection,
+  OrchestrationDispatchCommandError,
+  type OrchestrationCommand,
   ProjectId,
   ThreadId,
 } from "@honk/contracts";
@@ -26,6 +29,7 @@ import { ServerConfig } from "./config";
 import { Keybindings } from "./keybindings";
 import { Open } from "./open";
 import { OrchestrationEngineService } from "./orchestration/OrchestrationEngine.service";
+import { dispatchThreadArchiveLifecycle } from "./orchestration/archive-lifecycle";
 import { ThreadProjection } from "./orchestration/ThreadProjection.service";
 import { OrchestrationReactor } from "./orchestration/OrchestrationReactor.service";
 import { ServerLifecycleEvents } from "./server-lifecycle-events";
@@ -157,6 +161,18 @@ export const archiveThreadsForInaccessibleProjectRoots = Effect.gen(function* ()
   const threadProjection = yield* ThreadProjection;
   const orchestrationEngine = yield* OrchestrationEngineService;
   const fileSystem = yield* FileSystem.FileSystem;
+  const dispatchArchiveLifecycleCommand = (
+    command: OrchestrationCommand,
+  ): Effect.Effect<DispatchResult, OrchestrationDispatchCommandError> =>
+    orchestrationEngine.dispatch(command).pipe(
+      Effect.mapError(
+        (cause) =>
+          new OrchestrationDispatchCommandError({
+            message: "Failed to dispatch startup archive lifecycle command.",
+            cause,
+          }),
+      ),
+    );
 
   const snapshot = yield* threadProjection.getSnapshot().pipe(
     Effect.catch((cause) =>
@@ -205,22 +221,23 @@ export const archiveThreadsForInaccessibleProjectRoots = Effect.gen(function* ()
     yield* Effect.forEach(
       activeThreadIds,
       (threadId) =>
-        orchestrationEngine
-          .dispatch({
+        dispatchThreadArchiveLifecycle({
+          archiveCommand: {
             type: "thread.archive",
             commandId: CommandId.make(crypto.randomUUID()),
             threadId,
-          })
-          .pipe(
-            Effect.catchCause((cause) =>
-              Effect.logWarning("failed to archive thread for inaccessible project root", {
-                projectId: project.id,
-                threadId,
-                projectRoot: project.projectRoot,
-                cause,
-              }),
-            ),
+          },
+          dispatch: dispatchArchiveLifecycleCommand,
+        }).pipe(
+          Effect.catchCause((cause) =>
+            Effect.logWarning("failed to archive thread for inaccessible project root", {
+              projectId: project.id,
+              threadId,
+              projectRoot: project.projectRoot,
+              cause,
+            }),
           ),
+        ),
       { concurrency: 1 },
     );
   }

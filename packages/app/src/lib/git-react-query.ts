@@ -14,7 +14,6 @@ import { requireEnvironmentConnection } from "../environments/runtime";
 import { ensureEnvironmentGitApi } from "./environment-git-api";
 
 const GIT_BRANCHES_STALE_TIME_MS = 15_000;
-const GIT_BRANCHES_REFETCH_INTERVAL_MS = 60_000;
 const GIT_BRANCHES_PAGE_SIZE = 100;
 
 export const gitQueryKeys = {
@@ -95,7 +94,6 @@ export function gitBranchSearchInfiniteQueryOptions(input: {
     staleTime: GIT_BRANCHES_STALE_TIME_MS,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
-    refetchInterval: GIT_BRANCHES_REFETCH_INTERVAL_MS,
   });
 }
 

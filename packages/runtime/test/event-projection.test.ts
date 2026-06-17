@@ -1,5 +1,5 @@
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { AssistantMessage, ToolCall } from "@earendil-works/pi-ai";
 import { RuntimeSessionId, ThreadId } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
@@ -30,6 +30,12 @@ const failedAssistantMessage: AssistantMessage = {
   stopReason: "error",
   timestamp: 1781226634337,
   errorMessage: "400 usage limit reached",
+};
+const { errorMessage: _unusedErrorMessage, ...baseAssistantMessage } = failedAssistantMessage;
+const assistantMessage: AssistantMessage = {
+  ...baseAssistantMessage,
+  content: [],
+  stopReason: "stop",
 };
 
 function project(event: AgentSessionEvent) {
@@ -90,7 +96,7 @@ describe("Pi runtime event projection", () => {
     });
   });
 
-  it("projects provider error assistant messages as visible text", () => {
+  it("projects provider failures without assistant text and with structured data", () => {
     const event = {
       type: "message_end",
       message: failedAssistantMessage,
@@ -99,8 +105,98 @@ describe("Pi runtime event projection", () => {
     expect(project(event)).toMatchObject({
       type: "message.completed",
       messageRole: "assistant",
-      text: "Provider error: 400 usage limit reached",
-      summary: "Provider error: 400 usage limit reached",
+      summary: "400 usage limit reached",
+      data: {
+        providerFailure: "400 usage limit reached",
+      },
+    });
+    expect(project(event).text).toBeUndefined();
+  });
+
+  it("projects synthetic Cursor shell tool updates as display-only command events", () => {
+    const toolCall = {
+      type: "toolCall",
+      id: "cursor-call-1",
+      name: "bash",
+      arguments: {
+        command: "git status --short",
+        __honkCursorSyntheticToolEvent: true,
+        __honkCursorResult: {
+          status: "success",
+          value: {
+            exitCode: 0,
+            signal: "",
+            stdout: "M file.ts\n",
+            stderr: "",
+            executionTime: 12,
+          },
+        },
+      },
+    } satisfies ToolCall;
+    const partial = {
+      ...assistantMessage,
+      content: [toolCall],
+    } satisfies AssistantMessage;
+    const event = {
+      type: "message_update",
+      message: partial,
+      assistantMessageEvent: {
+        type: "toolcall_end",
+        contentIndex: 0,
+        toolCall,
+        partial,
+      },
+    } satisfies AgentSessionEvent;
+
+    expect(project(event)).toMatchObject({
+      type: "tool.completed",
+      summary: "Ran command",
+      data: {
+        toolCallId: "cursor-call-1",
+        toolName: "bash",
+        args: {
+          command: "git status --short",
+        },
+        result: {
+          content: [{ type: "text", text: "M file.ts\n" }],
+          details: {
+            status: "success",
+            exitCode: 0,
+            signal: "",
+            executionTime: 12,
+          },
+        },
+        isError: false,
+      },
+    });
+  });
+
+  it("leaves ordinary Pi tool-call message updates as message updates", () => {
+    const toolCall = {
+      type: "toolCall",
+      id: "toolu-1",
+      name: "bash",
+      arguments: {
+        command: "git status --short",
+      },
+    } satisfies ToolCall;
+    const partial = {
+      ...assistantMessage,
+      content: [toolCall],
+    } satisfies AssistantMessage;
+    const event = {
+      type: "message_update",
+      message: partial,
+      assistantMessageEvent: {
+        type: "toolcall_start",
+        contentIndex: 0,
+        partial,
+      },
+    } satisfies AgentSessionEvent;
+
+    expect(project(event)).toMatchObject({
+      type: "message.updated",
+      messageRole: "assistant",
     });
   });
 });

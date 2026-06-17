@@ -313,11 +313,11 @@ export const WORKBENCH_CODE_UNSAFE_CSS = `
   }
 
   [data-code] {
-    line-height: ${WORKBENCH_DIFF_LINE_HEIGHT}px;
+    line-height: var(--diffs-line-height, ${WORKBENCH_DIFF_LINE_HEIGHT}px);
   }
 
   [data-line] {
-    min-height: ${WORKBENCH_DIFF_LINE_HEIGHT}px;
+    min-height: var(--diffs-line-height, ${WORKBENCH_DIFF_LINE_HEIGHT}px);
   }
 
   [data-background] [data-line-type='change-addition'][data-line],

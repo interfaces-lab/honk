@@ -1,14 +1,16 @@
 import {
   AuthBootstrapInput,
   AuthBootstrapResult,
-  ClientOrchestrationCommand,
-  ClientOrchestrationCommand as ClientOrchestrationCommandSchema,
+  RuntimeIngestionRecord,
+  RuntimeIngestionRequest,
+  type RuntimeIngestionRequest as RuntimeIngestionRequestPayload,
+  type RuntimeIngestionResult,
 } from "@honk/contracts";
 import { formatSchemaError, formatSchemaIssues } from "@honk/shared/schema-json";
 import { Exit, Schema } from "effect";
 
 const decodeBootstrapResult = Schema.decodeUnknownSync(AuthBootstrapResult);
-const decodeDispatchCommand = Schema.decodeUnknownExit(ClientOrchestrationCommandSchema);
+const decodeRuntimeIngestionRequest = Schema.decodeUnknownExit(RuntimeIngestionRequest);
 
 export interface DesktopOrchestrationClientConfig {
   readonly httpBaseUrl: URL;
@@ -24,26 +26,46 @@ export class DesktopOrchestrationClient {
     this.sessionToken = await exchangeBootstrapToken(config);
   }
 
-  async dispatchCommand(command: ClientOrchestrationCommand): Promise<void> {
+  async ingestRuntimeRecords(records: RuntimeIngestionRecord[]): Promise<RuntimeIngestionResult> {
     const config = this.config;
     if (!config) {
       throw new Error("Desktop orchestration client is not configured.");
     }
 
-    const decoded = decodeDispatchCommand(command, {
+    const decoded = decodeRuntimeIngestionRequest(
+      { records },
+      {
+        errors: "all",
+        propertyOrder: "original",
+      },
+    );
+    if (Exit.isFailure(decoded)) {
+      throw new Error(
+        `Runtime record ingestion payload failed schema validation: ${formatSchemaError(decoded.cause)} (${formatSchemaIssues(decoded.cause)})`,
+      );
+    }
+
+    return this.ingestDecodedRuntimeRecords(decoded.value, config);
+  }
+
+  private async ingestDecodedRuntimeRecords(
+    request: RuntimeIngestionRequestPayload,
+    config: DesktopOrchestrationClientConfig,
+  ): Promise<RuntimeIngestionResult> {
+    const decoded = decodeRuntimeIngestionRequest(request, {
       errors: "all",
       propertyOrder: "original",
     });
     if (Exit.isFailure(decoded)) {
       throw new Error(
-        `Runtime orchestration persistence command failed schema validation: ${formatSchemaError(decoded.cause)} (${formatSchemaIssues(decoded.cause)})`,
+        `Runtime record ingestion payload failed schema validation: ${formatSchemaError(decoded.cause)} (${formatSchemaIssues(decoded.cause)})`,
       );
     }
 
     const sessionToken = this.sessionToken ?? (await exchangeBootstrapToken(config));
     this.sessionToken = sessionToken;
 
-    const response = await fetch(new URL("/api/orchestration/dispatch", config.httpBaseUrl), {
+    const response = await fetch(new URL("/api/runtime/ingest", config.httpBaseUrl), {
       method: "POST",
       headers: {
         authorization: `Bearer ${sessionToken}`,
@@ -54,7 +76,7 @@ export class DesktopOrchestrationClient {
 
     if (response.status === 401) {
       this.sessionToken = await exchangeBootstrapToken(config);
-      return this.dispatchCommand(command);
+      return this.ingestDecodedRuntimeRecords(decoded.value, config);
     }
 
     if (!response.ok) {
@@ -64,6 +86,8 @@ export class DesktopOrchestrationClient {
       );
       throw new Error(message);
     }
+
+    return (await response.json()) as RuntimeIngestionResult;
   }
 
   reset(): void {

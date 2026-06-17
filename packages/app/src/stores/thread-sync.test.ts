@@ -23,6 +23,7 @@ import { getThreadFromEnvironmentState } from "../thread-derivation";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "../types";
 import { selectSubagentProjection, useSubagentActivityStore } from "./subagent-activity-store";
 import { useSubagentTrayStore } from "./subagent-tray-store";
+import { runtimeSubagentActivitiesForToolEvent } from "./thread-sync";
 import { initialState, selectEnvironmentState, useStore } from "./thread-store";
 
 const environmentId = EnvironmentId.make("environment:pi-runtime-store");
@@ -1359,7 +1360,15 @@ describe("Pi runtime thread sync", () => {
     const updatedSnapshot = { ...snapshot, usedTokens: 61_000 };
     useStore
       .getState()
-      .applyAgentRuntimeEvent({ ...contextWindowEvent, data: updatedSnapshot }, environmentId);
+      .applyAgentRuntimeEvent(
+        {
+          ...contextWindowEvent,
+          id: EventId.make("runtime-event:context-window-later"),
+          createdAt: "2026-06-01T12:00:31.000Z",
+          data: updatedSnapshot,
+        },
+        environmentId,
+      );
     const replaced = currentThread().thread.activities.filter(
       (activity) => activity.kind === "context-window.updated",
     );
@@ -1377,6 +1386,107 @@ describe("Pi runtime thread sync", () => {
         (activity) => activity.kind === "context-window.updated",
       ),
     ).toHaveLength(1);
+  });
+
+  it("compacts live subagent item payloads before projection", () => {
+    const event: AgentRuntimeEvent = {
+      id: EventId.make("runtime-event:subagent-tool-with-item"),
+      agentRuntime: "pi",
+      threadId,
+      runtimeSessionId,
+      turnId,
+      type: "tool.completed",
+      summary: "Completed subagent",
+      createdAt: subagentUpdatedAt,
+      data: {
+        toolName: "subagent",
+        toolCallId: "tool-call-subagent",
+        isError: false,
+        result: {
+          details: {
+            activities: [
+              {
+                id: "runtime-subagent:thread",
+                kind: "subagent.thread.started",
+                summary: "Started Review",
+                createdAt: subagentUpdatedAt,
+                sequence: 1,
+                payload: {
+                  subagentThreadId,
+                  parentThreadId: threadId,
+                  parentItemId: "tool-call-subagent",
+                  agentId: "agent:review",
+                  nickname: "Review renderer",
+                  role: "reviewer",
+                  model: "gpt-5.5",
+                  prompt: "Review the renderer",
+                },
+              },
+              {
+                id: "runtime-subagent:item",
+                kind: "subagent.item.completed",
+                summary: "Completed read",
+                createdAt: subagentUpdatedAt,
+                sequence: 2,
+                payload: {
+                  subagentThreadId,
+                  parentThreadId: threadId,
+                  parentItemId: "tool-call-subagent",
+                  agentId: "agent:review",
+                  nickname: "Review renderer",
+                  role: "reviewer",
+                  model: "gpt-5.5",
+                  prompt: "Review the renderer",
+                  itemType: "file_read",
+                  itemId: "item:read",
+                  status: "completed",
+                  title: "Read",
+                  data: {
+                    type: "tool_execution_end",
+                    toolCallId: "toolu-read",
+                    toolName: "read",
+                    result: {
+                      content: [{ type: "text", text: "visible output" }],
+                      details: {
+                        truncation: {
+                          content: "visible output",
+                          totalBytes: 100,
+                          outputBytes: 14,
+                          truncated: true,
+                        },
+                      },
+                    },
+                    isError: false,
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    const activities = runtimeSubagentActivitiesForToolEvent(event);
+    const threadActivity = activities.find(
+      (activity) => activity.kind === "subagent.thread.started",
+    );
+    const itemActivity = activities.find(
+      (activity) => activity.kind === "subagent.item.completed",
+    );
+    const itemPayload = itemActivity?.payload as Record<string, unknown> | undefined;
+    const itemData = itemPayload?.data as Record<string, unknown> | undefined;
+    const itemResult = itemData?.result as Record<string, unknown> | undefined;
+    const itemDetails = itemResult?.details as Record<string, unknown> | undefined;
+    const itemTruncation = itemDetails?.truncation as Record<string, unknown> | undefined;
+
+    expect(threadActivity?.payload).toMatchObject({ prompt: "Review the renderer" });
+    expect(itemPayload?.prompt).toBeUndefined();
+    expect(itemResult?.content).toEqual([{ type: "text", text: "visible output" }]);
+    expect(itemTruncation).toEqual({
+      totalBytes: 100,
+      outputBytes: 14,
+      truncated: true,
+    });
   });
 
   it("routes live subagent tool activity outside the main thread store", () => {

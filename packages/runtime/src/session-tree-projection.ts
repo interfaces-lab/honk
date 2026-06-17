@@ -8,14 +8,13 @@ import {
   type SessionTreeProjection,
   type ThreadEntryId,
   type ThreadId,
-  type TurnId,
+  TurnId,
   threadEntryIdForMessageId,
 } from "@honk/contracts";
 import type { SessionEntry, SessionManager } from "@earendil-works/pi-coding-agent";
 import { Schema } from "effect";
 import { makeRuntimeItemId, makeRuntimeSessionId, makeThreadEntryIdForRuntimeEntry } from "./ids";
 import {
-  extractMessageErrorText,
   extractMessageText,
   extractMessageThinking,
   toUnknownRecord,
@@ -23,6 +22,7 @@ import {
 
 type RuntimeTreeNode = ReturnType<SessionManager["getTree"]>[number];
 export const CLIENT_MESSAGE_ID_SIDECAR_TYPE = "honk.client-message-id";
+export const TURN_ID_SIDECAR_TYPE = "honk.turn-id";
 
 export function clientMessageIdSidecarData(
   entry: SessionEntry,
@@ -60,8 +60,42 @@ export function collectClientMessageIdSidecars(
   return clientMessageIdByEntryId;
 }
 
-function isClientMessageIdSidecar(entry: SessionEntry): boolean {
-  return clientMessageIdSidecarData(entry) !== null;
+export function turnIdSidecarData(
+  entry: SessionEntry,
+): { readonly entryId: string; readonly turnId: TurnId } | null {
+  if (entry.type !== "custom" || entry.customType !== TURN_ID_SIDECAR_TYPE) {
+    return null;
+  }
+  const data = entry.data;
+  if (
+    typeof data !== "object" ||
+    data === null ||
+    !("entryId" in data) ||
+    !("turnId" in data) ||
+    typeof data.entryId !== "string" ||
+    typeof data.turnId !== "string"
+  ) {
+    return null;
+  }
+  return {
+    entryId: data.entryId,
+    turnId: TurnId.make(data.turnId),
+  };
+}
+
+export function collectTurnIdSidecars(entries: ReadonlyArray<SessionEntry>): Map<string, TurnId> {
+  const turnIdByEntryId = new Map<string, TurnId>();
+  for (const entry of entries) {
+    const sidecar = turnIdSidecarData(entry);
+    if (sidecar) {
+      turnIdByEntryId.set(sidecar.entryId, sidecar.turnId);
+    }
+  }
+  return turnIdByEntryId;
+}
+
+function isHonkSidecar(entry: SessionEntry): boolean {
+  return clientMessageIdSidecarData(entry) !== null || turnIdSidecarData(entry) !== null;
 }
 
 function entryKind(entry: SessionEntry): SessionTreeEntryKind {
@@ -99,11 +133,7 @@ function messageRole(entry: SessionEntry): SessionMessageRole | undefined {
 function entryText(entry: SessionEntry): string | undefined {
   if (entry.type === "message") {
     const text = extractMessageText(entry.message);
-    if (text) {
-      return text;
-    }
-    const errorText = extractMessageErrorText(entry.message);
-    return errorText ? errorText : undefined;
+    return text ? text : undefined;
   }
   if (entry.type === "compaction" || entry.type === "branch_summary") {
     return entry.summary;
@@ -145,7 +175,7 @@ function nearestProjectedRuntimeEntryId(
     if (!entry) {
       return null;
     }
-    if (!isClientMessageIdSidecar(entry)) {
+    if (!isHonkSidecar(entry)) {
       return makeRuntimeItemId(cursor);
     }
     cursor = entry.parentId;
@@ -169,7 +199,7 @@ function nearestProjectedThreadEntryId(
     if (!entry) {
       return null;
     }
-    if (!isClientMessageIdSidecar(entry)) {
+    if (!isHonkSidecar(entry)) {
       return projectedThreadEntryId(cursor, clientMessageIdByEntryId);
     }
     cursor = entry.parentId;
@@ -243,7 +273,7 @@ function pushProjectedNode(input: {
   readonly entryById: ReadonlyMap<string, SessionEntry>;
   readonly output: SessionTreeNode[];
 }): void {
-  if (isClientMessageIdSidecar(input.node.entry)) {
+  if (isHonkSidecar(input.node.entry)) {
     for (const child of input.node.children) {
       pushProjectedNode({
         node: child,
@@ -291,7 +321,7 @@ function pushProjectedNode(input: {
 function projectedChildCount(nodes: ReadonlyArray<RuntimeTreeNode>): number {
   let count = 0;
   for (const node of nodes) {
-    count += isClientMessageIdSidecar(node.entry) ? projectedChildCount(node.children) : 1;
+    count += isHonkSidecar(node.entry) ? projectedChildCount(node.children) : 1;
   }
   return count;
 }
@@ -305,11 +335,19 @@ export function projectRuntimeSessionTree(input: {
   const entries = input.sessionManager.getEntries();
   const entryById = new Map(entries.map((entry) => [entry.id, entry] as const));
   const sidecarClientMessageIds = collectClientMessageIdSidecars(entries);
+  const sidecarTurnIds = collectTurnIdSidecars(entries);
   const clientMessageIdByEntryId =
     input.clientMessageIdByEntryId || sidecarClientMessageIds.size > 0
       ? new Map([
           ...sidecarClientMessageIds,
           ...(input.clientMessageIdByEntryId ? [...input.clientMessageIdByEntryId.entries()] : []),
+        ])
+      : undefined;
+  const turnIdByEntryId =
+    input.turnIdByEntryId || sidecarTurnIds.size > 0
+      ? new Map([
+          ...sidecarTurnIds,
+          ...(input.turnIdByEntryId ? [...input.turnIdByEntryId.entries()] : []),
         ])
       : undefined;
   const leafId = input.sessionManager.getLeafId();
@@ -334,14 +372,14 @@ export function projectRuntimeSessionTree(input: {
     runtimeSessionId: makeRuntimeSessionId(input.sessionManager.getSessionId()),
     leafEntryId: leafId ? nearestProjectedRuntimeEntryId(leafId, entryById) : null,
     entries: entries
-      .filter((entry) => !isClientMessageIdSidecar(entry))
+      .filter((entry) => !isHonkSidecar(entry))
       .map((entry) =>
         projectRuntimeSessionEntry(
           entry,
-          clientMessageIdByEntryId || input.turnIdByEntryId || entryById
+          clientMessageIdByEntryId || turnIdByEntryId || entryById
             ? {
                 ...(clientMessageIdByEntryId ? { clientMessageIdByEntryId } : {}),
-                ...(input.turnIdByEntryId ? { turnIdByEntryId: input.turnIdByEntryId } : {}),
+                ...(turnIdByEntryId ? { turnIdByEntryId } : {}),
                 entryById,
               }
             : undefined,

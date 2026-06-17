@@ -4,6 +4,7 @@ import {
   type OrchestrationShellSnapshot,
   type OrchestrationShellStreamEvent,
   type TerminalEvent,
+  ORCHESTRATION_REPLAY_EVENTS_DEFAULT_LIMIT,
   ThreadId,
 } from "@honk/contracts";
 import { type QueryClient } from "@tanstack/react-query";
@@ -69,6 +70,7 @@ const environmentConnections = new Map<EnvironmentId, EnvironmentConnection>();
 const environmentConnectionListeners = new Set<() => void>();
 const threadDetailSubscriptions = new Map<string, ThreadDetailSubscriptionEntry>();
 const pendingThreadDetailEventBatches = new Map<EnvironmentId, FrameBatcher<OrchestrationEvent>>();
+const pendingGitStatusActivityRefreshes = new Map<string, ReturnType<typeof setTimeout>>();
 const lastAppliedProjectionVersionByEnvironment = new Map<
   EnvironmentId,
   {
@@ -76,6 +78,7 @@ const lastAppliedProjectionVersionByEnvironment = new Map<
     readonly updatedAt: string | null;
   }
 >();
+const pendingShellGapRepairByEnvironment = new Map<EnvironmentId, Promise<void>>();
 
 let activeService: EnvironmentServiceState | null = null;
 
@@ -93,6 +96,7 @@ interface TerminalRetentionThread {
 const THREAD_DETAIL_SUBSCRIPTION_IDLE_EVICTION_MS = 15 * 60 * 1000;
 const THREAD_DETAIL_EVENT_BATCH_TIMEOUT_MS = 16;
 const MAX_CACHED_THREAD_DETAIL_SUBSCRIPTIONS = 32;
+const GIT_STATUS_ACTIVITY_REFRESH_DEBOUNCE_MS = 2_500;
 const NOOP = () => undefined;
 
 function compareAppliedProjectionVersion(
@@ -232,6 +236,17 @@ function cancelPendingThreadDetailEventBatches(): void {
     batch.cancel();
   }
   pendingThreadDetailEventBatches.clear();
+}
+
+function getGitStatusActivityRefreshKey(environmentId: EnvironmentId, cwd: string): string {
+  return `${environmentId}:${cwd}`;
+}
+
+function cancelPendingGitStatusActivityRefreshes(): void {
+  for (const timeoutId of pendingGitStatusActivityRefreshes.values()) {
+    clearTimeout(timeoutId);
+  }
+  pendingGitStatusActivityRefreshes.clear();
 }
 
 function clearThreadDetailSubscriptionEviction(
@@ -594,10 +609,33 @@ function refreshGitStatusForThreadActivityEffects(
     refreshedCwds.add(cwd);
     const rpcEnvironmentId = project?.environmentId ?? environmentId;
     const queryClient = activeService?.queryClient ?? null;
+    scheduleGitStatusActivityRefresh(rpcEnvironmentId, cwd, queryClient);
+  }
+}
+
+function scheduleGitStatusActivityRefresh(
+  environmentId: EnvironmentId,
+  cwd: string,
+  queryClient: QueryClient | null,
+): void {
+  const key = getGitStatusActivityRefreshKey(environmentId, cwd);
+  const existing = pendingGitStatusActivityRefreshes.get(key);
+  if (existing) {
+    clearTimeout(existing);
+  }
+
+  const timeoutId = setTimeout(() => {
+    const pending = pendingGitStatusActivityRefreshes.get(key);
+    if (pending !== timeoutId) {
+      return;
+    }
+    pendingGitStatusActivityRefreshes.delete(key);
+
     void (async () => {
       try {
-        await refreshGitStatus({ environmentId: rpcEnvironmentId, cwd }, undefined, {
+        await refreshGitStatus({ environmentId, cwd }, undefined, {
           force: true,
+          scope: "local",
         });
       } finally {
         // The service can restart while the git refresh is in flight, so use
@@ -605,11 +643,13 @@ function refreshGitStatusForThreadActivityEffects(
         // rows and patch queries must move together; stale patch data can ask
         // Git for a path that no longer has a diff.
         if (queryClient) {
-          await invalidateGitPatchQueries(queryClient, { environmentId: rpcEnvironmentId, cwd });
+          await invalidateGitPatchQueries(queryClient, { environmentId, cwd });
         }
       }
     })().catch(() => undefined);
-  }
+  }, GIT_STATUS_ACTIVITY_REFRESH_DEBOUNCE_MS);
+
+  pendingGitStatusActivityRefreshes.set(key, timeoutId);
 }
 
 function collectQueueDrainThreadIds(events: ReadonlyArray<OrchestrationEvent>): ThreadId[] {
@@ -688,7 +728,67 @@ export function applyEnvironmentThreadDetailEvent(
   applyRecoveredEventBatch([event], environmentId);
 }
 
-function applyShellEvent(event: OrchestrationShellStreamEvent, environmentId: EnvironmentId) {
+async function replayProjectionGap(input: {
+  readonly environmentId: EnvironmentId;
+  readonly targetSequence: number;
+}): Promise<void> {
+  const connection = readEnvironmentConnection(input.environmentId);
+  if (!connection) {
+    return;
+  }
+
+  for (;;) {
+    const current = readLastAppliedProjectionVersion(input.environmentId);
+    if (current === null || current.sequence >= input.targetSequence - 1) {
+      return;
+    }
+
+    const replay = await connection.client.orchestration.replayEvents({
+      fromSequenceExclusive: current.sequence,
+      limit: ORCHESTRATION_REPLAY_EVENTS_DEFAULT_LIMIT,
+    });
+    if (replay.events.length === 0 || replay.nextSequence <= current.sequence) {
+      return;
+    }
+
+    applyRecoveredEventBatch(replay.events, input.environmentId);
+    markAppliedProjectionEvent(input.environmentId, replay.nextSequence);
+
+    if (replay.upToDate || replay.nextSequence >= input.targetSequence - 1) {
+      return;
+    }
+  }
+}
+
+function queueShellGapRepair(event: OrchestrationShellStreamEvent, environmentId: EnvironmentId) {
+  const previous = pendingShellGapRepairByEnvironment.get(environmentId) ?? Promise.resolve();
+  const repair = previous
+    .catch(() => undefined)
+    .then(async () => {
+      await replayProjectionGap({
+        environmentId,
+        targetSequence: event.sequence,
+      });
+      applyShellEventDirect(event, environmentId);
+    });
+
+  const queued = repair.finally(() => {
+    if (pendingShellGapRepairByEnvironment.get(environmentId) === queued) {
+      pendingShellGapRepairByEnvironment.delete(environmentId);
+    }
+  });
+  pendingShellGapRepairByEnvironment.set(environmentId, queued);
+}
+
+function shouldRepairProjectionGap(
+  event: OrchestrationShellStreamEvent,
+  environmentId: EnvironmentId,
+) {
+  const current = readLastAppliedProjectionVersion(environmentId);
+  return current !== null && event.sequence > current.sequence + 1;
+}
+
+function applyShellEventDirect(event: OrchestrationShellStreamEvent, environmentId: EnvironmentId) {
   if (
     !shouldApplyProjectionEvent({
       current: readLastAppliedProjectionVersion(environmentId),
@@ -739,6 +839,31 @@ function applyShellEvent(event: OrchestrationShellStreamEvent, environmentId: En
   }
 }
 
+function applyShellEvent(event: OrchestrationShellStreamEvent, environmentId: EnvironmentId) {
+  if (shouldRepairProjectionGap(event, environmentId)) {
+    queueShellGapRepair(event, environmentId);
+    return;
+  }
+
+  const pendingRepair = pendingShellGapRepairByEnvironment.get(environmentId);
+  if (pendingRepair) {
+    const queued = pendingRepair
+      .catch(() => undefined)
+      .then(() => {
+        applyShellEvent(event, environmentId);
+      })
+      .finally(() => {
+        if (pendingShellGapRepairByEnvironment.get(environmentId) === queued) {
+          pendingShellGapRepairByEnvironment.delete(environmentId);
+        }
+      });
+    pendingShellGapRepairByEnvironment.set(environmentId, queued);
+    return;
+  }
+
+  applyShellEventDirect(event, environmentId);
+}
+
 function createEnvironmentConnectionHandlers() {
   return {
     applyShellEvent,
@@ -755,6 +880,7 @@ function createEnvironmentConnectionHandlers() {
       useStore.getState().syncServerShellSnapshot(snapshot, environmentId);
       rememberLiveShellSnapshot(environmentId, snapshot);
       markAppliedProjectionSnapshot(environmentId, snapshot);
+      pendingShellGapRepairByEnvironment.delete(environmentId);
       reconcileThreadDetailSubscriptionsForEnvironment(
         environmentId,
         snapshot.threads.map((thread) => thread.id),
@@ -865,6 +991,8 @@ function createPrimaryEnvironmentConnection(): EnvironmentConnection {
 function stopActiveService() {
   activeService?.stop();
   activeService = null;
+  pendingShellGapRepairByEnvironment.clear();
+  cancelPendingGitStatusActivityRefreshes();
 }
 
 export function subscribeEnvironmentConnections(listener: () => void): () => void {

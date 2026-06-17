@@ -9,6 +9,8 @@ import {
   type TurnId,
 } from "@honk/contracts";
 
+import { shouldSuppressProviderFailureAssistantRow } from "../../../lib/turn-failure-index";
+
 import { resolveWaitingTimelineStatus } from "../message/waiting-status";
 import type { TimelineEntry, WorkLogEntry } from "../../../session-logic";
 import type { ChatMessage, ProposedPlan, ThreadSendIntent } from "../../../types";
@@ -20,6 +22,8 @@ import {
 } from "./timeline-entry-ids";
 import type { ThreadBranchView } from "./thread-branch-view";
 
+const RUNTIME_USER_ECHO_CREATED_AT_TOLERANCE_MS = 2_000;
+
 export function projectThreadTimeline(input: {
   readonly committedMessages: ReadonlyArray<ChatMessage>;
   readonly proposedPlans: ReadonlyArray<ProposedPlan>;
@@ -27,6 +31,7 @@ export function projectThreadTimeline(input: {
   readonly sendIntents: ReadonlyArray<ThreadSendIntent>;
   readonly runtimeAcknowledgedMessageIds?: ReadonlySet<MessageId> | undefined;
   readonly activeRuntimeDisplayTimeline: RuntimeDisplayTimelineProjection | null;
+  readonly turnFailuresByUserMessageId?: ReadonlyMap<MessageId, string> | undefined;
   readonly isWorking: boolean;
   readonly isTurnActive: boolean;
   readonly activeTurnStartedAt: string | null;
@@ -54,13 +59,23 @@ export function projectThreadTimeline(input: {
     messages: timelineMessages,
     sendIntents: transientSendIntents,
   });
-  if (!input.activeRuntimeDisplayTimeline) {
-    return appendWaitingTimelineEntry({
-      entries: committedEntriesWithTransientRows,
-      isWorking: input.isWorking,
-      isTurnActive: input.isTurnActive,
-      activeTurnStartedAt: input.activeTurnStartedAt,
+  const turnFailuresByUserMessageId = input.turnFailuresByUserMessageId ?? new Map();
+  const withTurnFailures = (entries: ReadonlyArray<TimelineEntry>) =>
+    applyTurnFailuresToTimeline({
+      entries,
+      messages: timelineMessages,
+      turnFailuresByUserMessageId,
     });
+
+  if (!input.activeRuntimeDisplayTimeline) {
+    return withTurnFailures(
+      appendWaitingTimelineEntry({
+        entries: committedEntriesWithTransientRows,
+        isWorking: input.isWorking,
+        isTurnActive: input.isTurnActive,
+        activeTurnStartedAt: input.activeTurnStartedAt,
+      }),
+    );
   }
 
   const runtimeEntries = materializeTimelineEntriesFromRuntimeDisplayTimeline({
@@ -74,12 +89,14 @@ export function projectThreadTimeline(input: {
       committedEntries: committedEntriesWithTransientRows,
     })
   ) {
-    return appendWaitingTimelineEntry({
-      entries: committedEntriesWithTransientRows,
-      isWorking: input.isWorking,
-      isTurnActive: input.isTurnActive,
-      activeTurnStartedAt: input.activeTurnStartedAt,
-    });
+    return withTurnFailures(
+      appendWaitingTimelineEntry({
+        entries: committedEntriesWithTransientRows,
+        isWorking: input.isWorking,
+        isTurnActive: input.isTurnActive,
+        activeTurnStartedAt: input.activeTurnStartedAt,
+      }),
+    );
   }
   const entries = appendMissingRuntimeTimelineMessageEntries({
     entries: mergeRunningWorkLogEntriesIntoRuntimeTimeline({
@@ -89,12 +106,54 @@ export function projectThreadTimeline(input: {
     messages: timelineMessages,
     sendIntents: transientSendIntents,
   });
-  return appendWaitingTimelineEntry({
-    entries,
-    isWorking: input.isWorking,
-    isTurnActive: input.isTurnActive,
-    activeTurnStartedAt: input.activeTurnStartedAt,
-  });
+  return withTurnFailures(
+    appendWaitingTimelineEntry({
+      entries,
+      isWorking: input.isWorking,
+      isTurnActive: input.isTurnActive,
+      activeTurnStartedAt: input.activeTurnStartedAt,
+    }),
+  );
+}
+
+function applyTurnFailuresToTimeline(input: {
+  readonly entries: ReadonlyArray<TimelineEntry>;
+  readonly messages: ReadonlyArray<ChatMessage>;
+  readonly turnFailuresByUserMessageId: ReadonlyMap<MessageId, string>;
+}): TimelineEntry[] {
+  const result: TimelineEntry[] = [];
+  for (const entry of input.entries) {
+    if (entry.kind !== "message") {
+      result.push(entry);
+      continue;
+    }
+    if (
+      shouldSuppressProviderFailureAssistantRow(
+        entry.message,
+        input.messages,
+        input.turnFailuresByUserMessageId,
+      )
+    ) {
+      continue;
+    }
+    if (entry.message.role !== "user") {
+      result.push(entry);
+      continue;
+    }
+    const turnFailure = input.turnFailuresByUserMessageId.get(entry.message.id);
+    if (!turnFailure) {
+      result.push(entry);
+      continue;
+    }
+    result.push({
+      ...entry,
+      message: {
+        ...entry.message,
+        turnFailure,
+      },
+    });
+  }
+  return result;
 }
 
 // Counts occurrences per turn so every materialization pass assigns the same
@@ -179,10 +238,22 @@ export function appendThreadSendIntentsToMessages(
     return messages;
   }
 
-  const committedMessageIds = new Set(messages.map((message) => message.id));
-  const transientMessages = sendIntents.flatMap((intent) =>
-    committedMessageIds.has(intent.clientMessageId) ? [] : [messageFromThreadSendIntent(intent)],
-  );
+  const renderedMessages = [...messages];
+  const renderedMessageIds = new Set(renderedMessages.map((message) => message.id));
+  const transientMessages: ChatMessage[] = [];
+
+  for (const intent of sendIntents) {
+    if (renderedMessageIds.has(intent.clientMessageId)) {
+      continue;
+    }
+    const message = messageFromThreadSendIntent(intent);
+    if (isEquivalentUserMessageAlreadyRendered(message, renderedMessages)) {
+      continue;
+    }
+    renderedMessageIds.add(message.id);
+    renderedMessages.push(message);
+    transientMessages.push(message);
+  }
   return transientMessages.length === 0 ? messages : [...messages, ...transientMessages];
 }
 
@@ -312,6 +383,7 @@ export function runtimeDisplayTimelineRenderableUserMessageIds(
 
 interface RuntimeTimelineMaterializationContext {
   readonly runtimeSessionId: RuntimeSessionId;
+  readonly messages: ReadonlyArray<ChatMessage>;
   readonly messagesById: ReadonlyMap<MessageId, ChatMessage>;
   readonly proposedPlansById: ReadonlyMap<OrchestrationProposedPlanId, ProposedPlan>;
   readonly nextAssistantIndex: (turnId: string) => number;
@@ -325,6 +397,7 @@ function materializeTimelineEntriesFromRuntimeDisplayTimeline(input: {
 }): TimelineEntry[] {
   const ctx: RuntimeTimelineMaterializationContext = {
     runtimeSessionId: input.timeline.runtimeSessionId,
+    messages: input.messages,
     messagesById: new Map(input.messages.map((message) => [message.id, message] as const)),
     proposedPlansById: new Map(
       input.proposedPlans.map((proposedPlan) => [proposedPlan.id, proposedPlan] as const),
@@ -370,6 +443,25 @@ function runtimeDisplayTimelineItemToTimelineEntries(
       if (!shouldMaterializeRuntimeMessageText(item, existingMessage)) {
         return entries;
       }
+      const message =
+        existingMessage ??
+        ({
+          id: messageId,
+          role,
+          text: item.text ?? "",
+          turnId: item.turnId ?? null,
+          createdAt: item.createdAt,
+          completedAt: item.streaming ? undefined : item.createdAt,
+          streaming: item.streaming ?? false,
+        } satisfies ChatMessage);
+      if (
+        existingMessage === undefined &&
+        isEquivalentUserMessageAlreadyRendered(message, ctx.messages, {
+          createdAtToleranceMs: RUNTIME_USER_ECHO_CREATED_AT_TOLERANCE_MS,
+        })
+      ) {
+        return entries;
+      }
       entries.push({
         id:
           role === "assistant" && item.turnId
@@ -377,17 +469,7 @@ function runtimeDisplayTimelineItemToTimelineEntries(
             : timelineMessageEntryId(messageId),
         kind: "message",
         createdAt: item.createdAt,
-        message:
-          existingMessage ??
-          ({
-            id: messageId,
-            role,
-            text: item.text ?? "",
-            turnId: item.turnId ?? null,
-            createdAt: item.createdAt,
-            completedAt: item.streaming ? undefined : item.createdAt,
-            streaming: item.streaming ?? false,
-          } satisfies ChatMessage),
+        message,
       });
       return entries;
     }
@@ -601,17 +683,22 @@ function appendTransientTimelineEntries(input: {
   messages: ReadonlyArray<ChatMessage>;
   sendIntents: ReadonlyArray<ThreadSendIntent>;
 }): ReadonlyArray<TimelineEntry> {
-  const existingMessageIds = new Set(
-    input.entries.flatMap((entry) => (entry.kind === "message" ? [entry.message.id] : [])),
+  const existingMessages = input.entries.flatMap((entry) =>
+    entry.kind === "message" ? [entry.message] : [],
   );
+  const existingMessageIds = new Set(existingMessages.map((message) => message.id));
   const transientEntries: TimelineEntry[] = [];
 
   if (existingMessageIds.size < input.messages.length) {
     for (const message of input.messages) {
-      if (existingMessageIds.has(message.id)) {
+      if (
+        existingMessageIds.has(message.id) ||
+        isEquivalentUserMessageAlreadyRendered(message, existingMessages)
+      ) {
         continue;
       }
       existingMessageIds.add(message.id);
+      existingMessages.push(message);
       transientEntries.push({
         id: timelineMessageEntryId(message.id),
         kind: "message",
@@ -622,11 +709,15 @@ function appendTransientTimelineEntries(input: {
   }
 
   for (const intent of input.sendIntents) {
-    if (existingMessageIds.has(intent.clientMessageId)) {
+    const message = messageFromThreadSendIntent(intent);
+    if (
+      existingMessageIds.has(intent.clientMessageId) ||
+      isEquivalentUserMessageAlreadyRendered(message, existingMessages)
+    ) {
       continue;
     }
     existingMessageIds.add(intent.clientMessageId);
-    const message = messageFromThreadSendIntent(intent);
+    existingMessages.push(message);
     transientEntries.push({
       id: timelineMessageEntryId(intent.clientMessageId),
       kind: "message",
@@ -665,7 +756,9 @@ function appendMissingRuntimeTimelineMessageEntries(input: {
     if (
       existingEntryIds.has(entryId) ||
       existingMessageIds.has(message.id) ||
-      isEquivalentRuntimeUserMessageAlreadyRendered(message, existingMessages)
+      isEquivalentUserMessageAlreadyRendered(message, existingMessages, {
+        createdAtToleranceMs: RUNTIME_USER_ECHO_CREATED_AT_TOLERANCE_MS,
+      })
     ) {
       continue;
     }
@@ -684,7 +777,7 @@ function appendMissingRuntimeTimelineMessageEntries(input: {
     const message = messageFromThreadSendIntent(intent);
     if (
       existingMessageIds.has(intent.clientMessageId) ||
-      isEquivalentRuntimeUserMessageAlreadyRendered(message, existingMessages)
+      isEquivalentUserMessageAlreadyRendered(message, existingMessages)
     ) {
       continue;
     }
@@ -707,9 +800,10 @@ function appendMissingRuntimeTimelineMessageEntries(input: {
   );
 }
 
-function isEquivalentRuntimeUserMessageAlreadyRendered(
+function isEquivalentUserMessageAlreadyRendered(
   message: ChatMessage,
   existingMessages: ReadonlyArray<ChatMessage>,
+  options?: { readonly createdAtToleranceMs?: number | undefined },
 ): boolean {
   if (message.role !== "user") {
     return false;
@@ -720,11 +814,31 @@ function isEquivalentRuntimeUserMessageAlreadyRendered(
   return existingMessages.some(
     (existingMessage) =>
       existingMessage.role === "user" &&
-      existingMessage.richText === undefined &&
-      (existingMessage.attachments?.length ?? 0) === 0 &&
-      existingMessage.createdAt === message.createdAt &&
-      existingMessage.text === message.text,
+      existingMessage.text === message.text &&
+      isEquivalentUserMessageTimestamp(message, existingMessage, options?.createdAtToleranceMs ?? 0),
   );
+}
+
+function isEquivalentUserMessageTimestamp(
+  message: ChatMessage,
+  existingMessage: ChatMessage,
+  createdAtToleranceMs: number,
+): boolean {
+  if (existingMessage.createdAt === message.createdAt) {
+    return true;
+  }
+  if (message.turnId && existingMessage.turnId && message.turnId === existingMessage.turnId) {
+    return true;
+  }
+  if (createdAtToleranceMs <= 0) {
+    return false;
+  }
+  const messageCreatedAt = Date.parse(message.createdAt);
+  const existingCreatedAt = Date.parse(existingMessage.createdAt);
+  if (!Number.isFinite(messageCreatedAt) || !Number.isFinite(existingCreatedAt)) {
+    return false;
+  }
+  return Math.abs(messageCreatedAt - existingCreatedAt) <= createdAtToleranceMs;
 }
 
 function appendWaitingTimelineEntry(input: {
@@ -779,6 +893,7 @@ function mergeTransientTimelineEntries(
   transientEntries: ReadonlyArray<TimelineEntry>,
 ): TimelineEntry[] {
   const result: TimelineEntry[] = [];
+  const emittedEntryIds = new Set(entries.map((entry) => entry.id));
   let transientIndex = 0;
 
   for (const entry of entries) {
@@ -787,14 +902,22 @@ function mergeTransientTimelineEntries(
       compareTimelineEntryCreatedAt(transientEntries[transientIndex]!.createdAt, entry.createdAt) <
         0
     ) {
-      result.push(transientEntries[transientIndex]!);
+      const transientEntry = transientEntries[transientIndex]!;
+      if (!emittedEntryIds.has(transientEntry.id)) {
+        emittedEntryIds.add(transientEntry.id);
+        result.push(transientEntry);
+      }
       transientIndex += 1;
     }
     result.push(entry);
   }
 
   while (transientIndex < transientEntries.length) {
-    result.push(transientEntries[transientIndex]!);
+    const transientEntry = transientEntries[transientIndex]!;
+    if (!emittedEntryIds.has(transientEntry.id)) {
+      emittedEntryIds.add(transientEntry.id);
+      result.push(transientEntry);
+    }
     transientIndex += 1;
   }
 

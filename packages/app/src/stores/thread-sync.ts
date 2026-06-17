@@ -41,7 +41,7 @@ import {
 } from "@honk/contracts";
 import { Schema } from "effect";
 import { normalizeModelSlug } from "@honk/shared/model";
-import { toJsonValue } from "@honk/shared/schema-json";
+import { toJsonValue, type JsonValue } from "@honk/shared/schema-json";
 import { resolveGitAgentActionFromPrompt } from "~/lib/git-agent-actions";
 import type {
   ChatMessage,
@@ -1256,6 +1256,50 @@ type RuntimeSubagentContentStreamKind = Extract<
   { kind: "subagent.content.delta" }
 >["payload"]["streamKind"];
 
+type JsonRecord = { readonly [key: string]: JsonValue };
+
+interface RuntimeSubagentIdentityPayloadOptions {
+  readonly includePrompt?: boolean;
+}
+
+function isJsonRecord(value: JsonValue | undefined): value is JsonRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function omitJsonRecordKey(record: JsonRecord, keyToOmit: string): JsonRecord {
+  return Object.fromEntries(
+    Object.entries(record).filter(([key]) => key !== keyToOmit),
+  ) as JsonRecord;
+}
+
+function pruneRuntimeSubagentItemData(data: JsonValue | undefined): JsonValue | undefined {
+  if (!isJsonRecord(data)) {
+    return data;
+  }
+  const result = data.result;
+  if (!isJsonRecord(result)) {
+    return data;
+  }
+  const details = result.details;
+  if (!isJsonRecord(details)) {
+    return data;
+  }
+  const truncation = details.truncation;
+  if (!isJsonRecord(truncation) || truncation.content === undefined) {
+    return data;
+  }
+  return {
+    ...data,
+    result: {
+      ...result,
+      details: {
+        ...details,
+        truncation: omitJsonRecordKey(truncation, "content"),
+      },
+    },
+  };
+}
+
 function isRuntimeSubagentActivityKind(value: unknown): value is RuntimeSubagentActivityKind {
   switch (value) {
     case "subagent.thread.started":
@@ -1291,6 +1335,7 @@ function isRuntimeSubagentContentStreamKind(
 function compactRuntimeSubagentIdentityPayload(
   payload: Record<string, unknown> | null,
   parentTurnId: TurnId | undefined,
+  options: RuntimeSubagentIdentityPayloadOptions = {},
 ) {
   const subagentThreadId = asTrimmedString(payload?.subagentThreadId);
   if (!subagentThreadId) {
@@ -1303,6 +1348,7 @@ function compactRuntimeSubagentIdentityPayload(
   const role = asTrimmedString(payload?.role);
   const model = asTrimmedString(payload?.model);
   const prompt = asTrimmedString(payload?.prompt);
+  const includePrompt = options.includePrompt ?? true;
   return {
     subagentThreadId,
     ...(parentThreadId ? { parentThreadId } : {}),
@@ -1312,7 +1358,7 @@ function compactRuntimeSubagentIdentityPayload(
     ...(nickname ? { nickname } : {}),
     ...(role ? { role } : {}),
     ...(model ? { model } : {}),
-    ...(prompt ? { prompt } : {}),
+    ...(includePrompt && prompt ? { prompt } : {}),
   };
 }
 
@@ -1320,7 +1366,9 @@ function compactRuntimeSubagentItemPayload(
   payload: Record<string, unknown> | null,
   parentTurnId: TurnId | undefined,
 ) {
-  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId);
+  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId, {
+    includePrompt: false,
+  });
   if (!identity) {
     return null;
   }
@@ -1329,7 +1377,7 @@ function compactRuntimeSubagentItemPayload(
   const status = asTrimmedString(payload?.status);
   const title = asTrimmedString(payload?.title);
   const detail = asTrimmedString(payload?.detail);
-  const data = toJsonValue(payload?.data);
+  const data = pruneRuntimeSubagentItemData(toJsonValue(payload?.data));
   return {
     ...identity,
     ...(itemType && isCanonicalItemType(itemType) ? { itemType } : {}),
@@ -1345,7 +1393,9 @@ function compactRuntimeSubagentContentDeltaPayload(
   payload: Record<string, unknown> | null,
   parentTurnId: TurnId | undefined,
 ) {
-  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId);
+  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId, {
+    includePrompt: false,
+  });
   if (!identity) {
     return null;
   }
@@ -1371,7 +1421,9 @@ function compactRuntimeSubagentUsagePayload(
   payload: Record<string, unknown> | null,
   parentTurnId: TurnId | undefined,
 ) {
-  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId);
+  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId, {
+    includePrompt: false,
+  });
   if (!identity) {
     return null;
   }
@@ -1574,9 +1626,26 @@ function upsertThreadActivities(
   if (replacements.length === 0) {
     return [...current];
   }
+  const contextWindowReplacements = replacements.filter(
+    (activity) => activity.kind === "context-window.updated",
+  );
+  const nonContextWindowReplacements =
+    contextWindowReplacements.length === 0
+      ? replacements
+      : replacements.filter((activity) => activity.kind !== "context-window.updated");
   let next = current;
-  for (const replacement of replacements) {
+  for (const replacement of nonContextWindowReplacements) {
     next = upsertThreadActivity(next, replacement);
+  }
+  if (contextWindowReplacements.length > 0) {
+    const latestContextWindowActivity = [
+      ...current.filter((activity) => activity.kind === "context-window.updated"),
+      ...contextWindowReplacements,
+    ].toSorted(compareActivities).at(-1);
+    next = next.filter((activity) => activity.kind !== "context-window.updated");
+    if (latestContextWindowActivity) {
+      next = upsertThreadActivity(next, latestContextWindowActivity);
+    }
   }
   return next.length > MAX_THREAD_ACTIVITIES ? next.slice(-MAX_THREAD_ACTIVITIES) : [...next];
 }

@@ -6,7 +6,7 @@ import {
   type AgentRuntimeEvent,
   type OrchestrationThreadActivity,
 } from "@honk/contracts";
-import { toJsonValue } from "@honk/shared/schema-json";
+import { toJsonValue, type JsonValue } from "@honk/shared/schema-json";
 
 import { asRecord } from "./runtime-record";
 
@@ -25,6 +25,50 @@ type RuntimeSubagentContentStreamKind = Extract<
   OrchestrationThreadActivity,
   { kind: "subagent.content.delta" }
 >["payload"]["streamKind"];
+
+type JsonRecord = { readonly [key: string]: JsonValue };
+
+interface RuntimeSubagentIdentityPayloadOptions {
+  readonly includePrompt?: boolean;
+}
+
+function isJsonRecord(value: JsonValue | undefined): value is JsonRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function omitJsonRecordKey(record: JsonRecord, keyToOmit: string): JsonRecord {
+  return Object.fromEntries(
+    Object.entries(record).filter(([key]) => key !== keyToOmit),
+  ) as JsonRecord;
+}
+
+function pruneRuntimeSubagentItemData(data: JsonValue | undefined): JsonValue | undefined {
+  if (!isJsonRecord(data)) {
+    return data;
+  }
+  const result = data.result;
+  if (!isJsonRecord(result)) {
+    return data;
+  }
+  const details = result.details;
+  if (!isJsonRecord(details)) {
+    return data;
+  }
+  const truncation = details.truncation;
+  if (!isJsonRecord(truncation) || truncation.content === undefined) {
+    return data;
+  }
+  return {
+    ...data,
+    result: {
+      ...result,
+      details: {
+        ...details,
+        truncation: omitJsonRecordKey(truncation, "content"),
+      },
+    },
+  };
+}
 
 function asTrimmedString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
@@ -127,6 +171,7 @@ function normalizeRuntimeSubagentThreadState(
 function compactRuntimeSubagentIdentityPayload(
   payload: Record<string, unknown> | null,
   parentTurnId: TurnId | undefined,
+  options: RuntimeSubagentIdentityPayloadOptions = {},
 ) {
   const subagentThreadId = asTrimmedString(payload?.subagentThreadId);
   if (!subagentThreadId) {
@@ -139,6 +184,7 @@ function compactRuntimeSubagentIdentityPayload(
   const role = asTrimmedString(payload?.role);
   const model = asTrimmedString(payload?.model);
   const prompt = asTrimmedString(payload?.prompt);
+  const includePrompt = options.includePrompt ?? true;
   return {
     subagentThreadId,
     ...(parentThreadId ? { parentThreadId } : {}),
@@ -148,7 +194,7 @@ function compactRuntimeSubagentIdentityPayload(
     ...(nickname ? { nickname } : {}),
     ...(role ? { role } : {}),
     ...(model ? { model } : {}),
-    ...(prompt ? { prompt } : {}),
+    ...(includePrompt && prompt ? { prompt } : {}),
   };
 }
 
@@ -156,7 +202,9 @@ function compactRuntimeSubagentItemPayload(
   payload: Record<string, unknown> | null,
   parentTurnId: TurnId | undefined,
 ) {
-  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId);
+  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId, {
+    includePrompt: false,
+  });
   if (!identity) {
     return null;
   }
@@ -165,7 +213,7 @@ function compactRuntimeSubagentItemPayload(
   const status = asTrimmedString(payload?.status);
   const title = asTrimmedString(payload?.title);
   const detail = asTrimmedString(payload?.detail);
-  const data = toJsonValue(payload?.data);
+  const data = pruneRuntimeSubagentItemData(toJsonValue(payload?.data));
   return {
     ...identity,
     ...(itemType && isCanonicalItemType(itemType) ? { itemType } : {}),
@@ -181,7 +229,9 @@ function compactRuntimeSubagentContentDeltaPayload(
   payload: Record<string, unknown> | null,
   parentTurnId: TurnId | undefined,
 ) {
-  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId);
+  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId, {
+    includePrompt: false,
+  });
   if (!identity) {
     return null;
   }
@@ -207,7 +257,9 @@ function compactRuntimeSubagentUsagePayload(
   payload: Record<string, unknown> | null,
   parentTurnId: TurnId | undefined,
 ) {
-  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId);
+  const identity = compactRuntimeSubagentIdentityPayload(payload, parentTurnId, {
+    includePrompt: false,
+  });
   if (!identity) {
     return null;
   }

@@ -7,7 +7,7 @@
  * @module AnalyticsServiceLive
  */
 
-import { Config, DateTime, Effect, Layer, Ref } from "effect";
+import { Config, DateTime, Effect, Exit, Layer, Ref, Scope } from "effect";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http";
 
 import { ServerConfig } from "../config.ts";
@@ -34,6 +34,7 @@ const TelemetryEnvConfig = Config.all({
     Config.withDefault(1_000),
   ),
 });
+const TELEMETRY_FLUSH_DELAY_MS = 1_000;
 
 const makeAnalyticsService = Effect.gen(function* () {
   const telemetryConfig = yield* TelemetryEnvConfig.asEffect();
@@ -41,6 +42,10 @@ const makeAnalyticsService = Effect.gen(function* () {
   const serverConfig = yield* ServerConfig;
   const identifier = yield* getTelemetryIdentifier;
   const bufferRef = yield* Ref.make<ReadonlyArray<BufferedAnalyticsEvent>>([]);
+  const flushScheduledRef = yield* Ref.make(false);
+  const flushScope = yield* Effect.acquireRelease(Scope.make(), (scope) =>
+    Scope.close(scope, Exit.void),
+  );
   const clientType = serverConfig.mode === "desktop" ? "desktop-app" : "cli-web-client";
 
   const enqueueBufferedEvent = (event: string, properties?: Readonly<Record<string, unknown>>) =>
@@ -125,11 +130,28 @@ const makeAnalyticsService = Effect.gen(function* () {
     }
   }).pipe(Effect.catch((cause) => Effect.logError("Failed to flush telemetry", { cause })));
 
+  const scheduleFlush = Effect.fn("scheduleFlush")(function* (delayMs: number) {
+    const shouldSchedule = yield* Ref.modify(flushScheduledRef, (scheduled) =>
+      scheduled ? ([false, scheduled] as const) : ([true, true] as const),
+    );
+    if (!shouldSchedule) {
+      return;
+    }
+
+    yield* Effect.sleep(delayMs).pipe(
+      Effect.andThen(flush),
+      Effect.ensuring(Ref.set(flushScheduledRef, false)),
+      Effect.forkIn(flushScope),
+      Effect.asVoid,
+    );
+  });
+
   const record: AnalyticsServiceShape["record"] = Effect.fn("record")(
     function* (event, properties) {
       if (!telemetryConfig.enabled || !identifier) return;
 
       const enqueueResult = yield* enqueueBufferedEvent(event, properties);
+      yield* scheduleFlush(TELEMETRY_FLUSH_DELAY_MS);
       if (enqueueResult.dropped) {
         yield* Effect.logDebug("analytics buffer full; dropping oldest event", {
           size: enqueueResult.size,
@@ -138,10 +160,6 @@ const makeAnalyticsService = Effect.gen(function* () {
       }
     },
   );
-
-  yield* Effect.forever(Effect.sleep(1000).pipe(Effect.flatMap(() => flush)), {
-    disableYield: true,
-  }).pipe(Effect.forkScoped);
 
   yield* Effect.addFinalizer(() => flush);
 

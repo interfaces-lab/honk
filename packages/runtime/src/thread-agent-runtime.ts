@@ -59,7 +59,9 @@ import {
 } from "./tool-call-description-extension";
 import {
   CLIENT_MESSAGE_ID_SIDECAR_TYPE,
+  TURN_ID_SIDECAR_TYPE,
   collectClientMessageIdSidecars,
+  collectTurnIdSidecars,
   projectRuntimeSessionTree,
 } from "./session-tree-projection";
 import { registerCursorComposerProvider } from "./cursor-composer-provider";
@@ -125,6 +127,7 @@ interface PendingInteractionMode {
 interface PendingPromptClientMessage {
   readonly text: string;
   readonly clientMessageId: MessageId;
+  readonly turnId: TurnId;
   readonly entryIdsBeforePrompt: ReadonlySet<string>;
 }
 
@@ -374,15 +377,123 @@ export class ThreadAgentRuntime {
       uiContext: ui.context,
       commandContextActions: {
         waitForIdle: () => this.session.agent.waitForIdle(),
-        newSession: async () => ({ cancelled: false }),
+        newSession: (options) => this.createNewSession(options),
         fork: (entryId, options) => this.forkSessionEntry(entryId, options),
-        navigateTree: async () => ({ cancelled: false }),
-        switchSession: async () => ({ cancelled: false }),
-        reload: async () => {},
+        navigateTree: (targetId, options) => this.navigateSessionTree(targetId, options),
+        switchSession: (sessionPath, options) => this.switchSession(sessionPath, options),
+        reload: () => this.reloadSession(),
       } satisfies ExtensionCommandContextActions,
     };
     await this.session.bindExtensions(bindings);
     return ui;
+  }
+
+  private async createNewSession(
+    options?: Parameters<ExtensionCommandContextActions["newSession"]>[0],
+  ): Promise<{ cancelled: boolean }> {
+    if (this.isTurnInProgress() || this.session.isStreaming) {
+      throw new Error("Cannot create a new session while a turn is running.");
+    }
+
+    const beforeResult = await this.emitBeforeSessionSwitch("new");
+    if (beforeResult.cancelled) {
+      return beforeResult;
+    }
+
+    await this.emitSessionShutdown("new");
+    this.session.sessionManager.newSession(
+      options?.parentSession ? { parentSession: options.parentSession } : undefined,
+    );
+    if (options?.setup) {
+      await options.setup(this.session.sessionManager);
+    }
+    this.syncReplacedSession("Pi session created");
+    await options?.withSession?.(this.session.createReplacedSessionContext());
+    return { cancelled: false };
+  }
+
+  private async switchSession(
+    sessionPath: string,
+    options?: Parameters<ExtensionCommandContextActions["switchSession"]>[1],
+  ): Promise<{ cancelled: boolean }> {
+    if (this.isTurnInProgress() || this.session.isStreaming) {
+      throw new Error("Cannot switch sessions while a turn is running.");
+    }
+
+    const beforeResult = await this.emitBeforeSessionSwitch("resume", sessionPath);
+    if (beforeResult.cancelled) {
+      return beforeResult;
+    }
+
+    await this.emitSessionShutdown("resume", sessionPath);
+    this.session.sessionManager.setSessionFile(sessionPath);
+    this.syncReplacedSession("Pi session switched");
+    await options?.withSession?.(this.session.createReplacedSessionContext());
+    return { cancelled: false };
+  }
+
+  private async navigateSessionTree(
+    targetId: string,
+    options?: Parameters<ExtensionCommandContextActions["navigateTree"]>[1],
+  ): Promise<{ cancelled: boolean }> {
+    if (this.isTurnInProgress() || this.session.isStreaming) {
+      throw new Error("Cannot navigate the session tree while a turn is running.");
+    }
+
+    const result = await this.session.navigateTree(targetId, options);
+    if (result.cancelled) {
+      return { cancelled: true };
+    }
+    this.session.agent.state.messages = this.session.sessionManager.buildSessionContext().messages;
+    this.pruneEntryMapsToCurrentSession();
+    this.emit(this.createEvent("tree.updated", "Session tree updated"));
+    return { cancelled: false };
+  }
+
+  private async reloadSession(): Promise<void> {
+    await this.session.reload();
+    this.refreshToolCallDescriptionSupport();
+    this.hydrateClientMessageIdSidecars();
+    this.emit(this.createEvent("session.ready", "Pi session reloaded"));
+    this.emit(this.createEvent("tree.updated", "Session tree updated"));
+  }
+
+  private async emitBeforeSessionSwitch(
+    reason: "new" | "resume",
+    targetSessionFile?: string,
+  ): Promise<{ cancelled: boolean }> {
+    if (!this.session.hasExtensionHandlers("session_before_switch")) {
+      return { cancelled: false };
+    }
+    const result = await this.session.extensionRunner.emit({
+      type: "session_before_switch",
+      reason,
+      ...(targetSessionFile ? { targetSessionFile } : {}),
+    });
+    return result?.cancel === true ? { cancelled: true } : { cancelled: false };
+  }
+
+  private async emitSessionShutdown(
+    reason: "new" | "resume" | "fork",
+    targetSessionFile?: string,
+  ): Promise<void> {
+    if (!this.session.hasExtensionHandlers("session_shutdown")) {
+      return;
+    }
+    await this.session.extensionRunner.emit({
+      type: "session_shutdown",
+      reason,
+      ...(targetSessionFile ? { targetSessionFile } : {}),
+    });
+  }
+
+  private syncReplacedSession(summary: string): void {
+    this.session.agent.state.messages = this.session.sessionManager.buildSessionContext().messages;
+    this.pruneEntryMapsToCurrentSession();
+    this.clientMessageIdByEntryId.clear();
+    this.hydrateClientMessageIdSidecars();
+    this.emit(this.createEvent("session.started", summary));
+    this.emit(this.createEvent("tree.updated", "Session tree updated"));
   }
 
   async cloneActiveBranch(targetThreadId: ThreadId): Promise<ThreadAgentRuntime> {
@@ -463,9 +574,10 @@ export class ThreadAgentRuntime {
   }
 
   async sendMessage(text: string, options: SendMessageOptions): Promise<TurnId> {
-    if (options.parentEntryId !== undefined) {
+    const queueIntoActiveRun = this.session.isStreaming && options.streamingBehavior !== null;
+    if (!queueIntoActiveRun && options.parentEntryId !== undefined) {
       this.prepareParentBranch(options.parentEntryId);
-    } else if (options.replacesClientMessageId !== null) {
+    } else if (!queueIntoActiveRun && options.replacesClientMessageId !== null) {
       this.prepareRevisionBranch(options.replacesClientMessageId);
     }
     const turnId = makeTurnId(this.threadId, ++this.turnSequence);
@@ -481,6 +593,7 @@ export class ThreadAgentRuntime {
         : {
             text,
             clientMessageId,
+            turnId,
             entryIdsBeforePrompt,
           };
     if (pendingClientMessage) {
@@ -488,7 +601,9 @@ export class ThreadAgentRuntime {
     }
     this.sourceProposedPlanByTurnId.set(turnId, options.sourceProposedPlan);
     this.emit(this.createPromptUserMessageEvent(text, turnId, clientMessageId));
-    const interactionMode = this.interactionModeQueue.enqueue(options.interactionMode);
+    const interactionMode = queueIntoActiveRun
+      ? null
+      : this.interactionModeQueue.enqueue(options.interactionMode);
     const baselineActiveToolNames = this.session.getActiveToolNames();
     const modeToolProfileApplied = applyInteractionModeToolProfile(
       this.session,
@@ -516,6 +631,9 @@ export class ThreadAgentRuntime {
       });
       void promptPromise
         .then(() => {
+          if (queueIntoActiveRun) {
+            return;
+          }
           const newEntries = this.capturePromptEntries({
             text,
             entryIdsBeforePrompt,
@@ -547,43 +665,31 @@ export class ThreadAgentRuntime {
           );
         })
         .finally(() => {
-          this.removePendingPromptClientMessage(pendingClientMessage);
-          this.interactionModeQueue.remove(interactionMode);
+          if (!queueIntoActiveRun) {
+            this.removePendingPromptClientMessage(pendingClientMessage);
+            if (interactionMode) {
+              this.interactionModeQueue.remove(interactionMode);
+            }
+          }
           if (modeToolProfileApplied) {
             this.session.setActiveToolsByName(baselineActiveToolNames);
             this.refreshToolCallDescriptionSupport();
           }
-          this.sourceProposedPlanByTurnId.delete(turnId);
-          this.proposedPlanTurnIds.delete(turnId);
-          if (this.pendingFirstTurnId === turnId) {
-            this.pendingFirstTurnId = undefined;
-          }
-          if (this.activeTurnId === turnId) {
-            this.activeTurnId = undefined;
-          }
-          if (this.activeRunFirstTurnId === turnId) {
-            this.activeRunFirstTurnId = undefined;
+          if (!queueIntoActiveRun) {
+            this.clearTurnTracking(turnId);
           }
         });
       return turnId;
     } catch (error) {
       this.removePendingPromptClientMessage(pendingClientMessage);
-      this.interactionModeQueue.remove(interactionMode);
+      if (interactionMode) {
+        this.interactionModeQueue.remove(interactionMode);
+      }
       if (modeToolProfileApplied) {
         this.session.setActiveToolsByName(baselineActiveToolNames);
         this.refreshToolCallDescriptionSupport();
       }
-      this.sourceProposedPlanByTurnId.delete(turnId);
-      this.proposedPlanTurnIds.delete(turnId);
-      if (this.pendingFirstTurnId === turnId) {
-        this.pendingFirstTurnId = undefined;
-      }
-      if (this.activeTurnId === turnId) {
-        this.activeTurnId = undefined;
-      }
-      if (this.activeRunFirstTurnId === turnId) {
-        this.activeRunFirstTurnId = undefined;
-      }
+      this.clearTurnTracking(turnId);
       this.emit(
         this.createEvent(
           "runtime.error",
@@ -630,6 +736,10 @@ export class ThreadAgentRuntime {
       clientMessageIdByEntryId: this.clientMessageIdByEntryId,
       turnIdByEntryId: this.turnIdByEntryId,
     });
+  }
+
+  isBusy(): boolean {
+    return this.isTurnInProgress() || this.session.isStreaming;
   }
 
   dispose(): void {
@@ -842,7 +952,9 @@ export class ThreadAgentRuntime {
       return;
     }
     if (event.type === "turn_end" && turnId && this.activeTurnId === turnId) {
+      this.captureQueuedPromptEntriesForTurn(turnId);
       this.activeTurnId = undefined;
+      this.clearTurnTracking(turnId);
       return;
     }
     if (event.type === "agent_end" && !event.willRetry) {
@@ -865,10 +977,9 @@ export class ThreadAgentRuntime {
     let messageTurnIndex = 0;
     for (const entry of newEntries) {
       if (entry.type === "message") {
-        this.turnIdByEntryId.set(
-          entry.id,
-          input.messageTurnIds[messageTurnIndex] ?? input.fallbackTurnId,
-        );
+        const turnId = input.messageTurnIds[messageTurnIndex] ?? input.fallbackTurnId;
+        this.turnIdByEntryId.set(entry.id, turnId);
+        this.persistTurnIdSidecar({ entryId: entry.id, turnId });
         messageTurnIndex += 1;
       }
     }
@@ -877,6 +988,7 @@ export class ThreadAgentRuntime {
       this.attachClientMessageIdToPromptEntry({
         text: input.text,
         clientMessageId: input.clientMessageId,
+        turnId: input.fallbackTurnId,
         entryIdsBeforePrompt: input.entryIdsBeforePrompt,
       });
     }
@@ -923,17 +1035,69 @@ export class ThreadAgentRuntime {
     }
 
     this.clientMessageIdByEntryId.set(matchingEntry.id, input.clientMessageId);
+    this.turnIdByEntryId.set(matchingEntry.id, input.turnId);
     this.persistClientMessageIdSidecar({
       entryId: matchingEntry.id,
       clientMessageId: input.clientMessageId,
     });
+    this.persistTurnIdSidecar({ entryId: matchingEntry.id, turnId: input.turnId });
     return true;
+  }
+
+  private captureQueuedPromptEntriesForTurn(turnId: TurnId): void {
+    const pending = this.pendingPromptClientMessages.find(
+      (message) => String(message.turnId) === String(turnId),
+    );
+    if (!pending) {
+      return;
+    }
+
+    const entries = this.session.sessionManager.getEntries();
+    const userEntryIndex = entries.findIndex(
+      (entry) =>
+        !pending.entryIdsBeforePrompt.has(entry.id) &&
+        entry.type === "message" &&
+        entry.message.role === "user" &&
+        extractMessageText(entry.message) === pending.text,
+    );
+    if (userEntryIndex === -1) {
+      return;
+    }
+
+    for (const entry of entries.slice(userEntryIndex)) {
+      if (entry.type !== "message") {
+        continue;
+      }
+      this.turnIdByEntryId.set(entry.id, turnId);
+      this.persistTurnIdSidecar({ entryId: entry.id, turnId });
+    }
+    this.attachClientMessageIdToPromptEntry(pending);
+    this.removePendingPromptClientMessage(pending);
+    this.emit(this.createEvent("tree.updated", "Session tree updated", turnId));
+  }
+
+  private clearTurnTracking(turnId: TurnId): void {
+    this.sourceProposedPlanByTurnId.delete(turnId);
+    this.proposedPlanTurnIds.delete(turnId);
+    if (this.pendingFirstTurnId === turnId) {
+      this.pendingFirstTurnId = undefined;
+    }
+    if (this.activeTurnId === turnId) {
+      this.activeTurnId = undefined;
+    }
+    if (this.activeRunFirstTurnId === turnId) {
+      this.activeRunFirstTurnId = undefined;
+    }
   }
 
   private hydrateClientMessageIdSidecars(): void {
     const sidecars = collectClientMessageIdSidecars(this.session.sessionManager.getEntries());
     for (const [entryId, clientMessageId] of sidecars) {
       this.clientMessageIdByEntryId.set(entryId, clientMessageId);
+    }
+    const turnIdSidecars = collectTurnIdSidecars(this.session.sessionManager.getEntries());
+    for (const [entryId, turnId] of turnIdSidecars) {
+      this.turnIdByEntryId.set(entryId, turnId);
     }
   }
 
@@ -963,6 +1127,37 @@ export class ThreadAgentRuntime {
     this.session.sessionManager.appendCustomEntry(CLIENT_MESSAGE_ID_SIDECAR_TYPE, {
       entryId: input.entryId,
       clientMessageId: input.clientMessageId,
+    });
+    if (leafIdBeforeSidecar) {
+      this.session.sessionManager.branch(leafIdBeforeSidecar);
+    } else {
+      this.session.sessionManager.resetLeaf();
+    }
+  }
+
+  private persistTurnIdSidecar(input: { readonly entryId: string; readonly turnId: TurnId }): void {
+    const sidecarAlreadyExists = this.session.sessionManager.getEntries().some((entry) => {
+      if (entry.type !== "custom" || entry.customType !== TURN_ID_SIDECAR_TYPE) {
+        return false;
+      }
+      const data = entry.data;
+      return (
+        typeof data === "object" &&
+        data !== null &&
+        "entryId" in data &&
+        "turnId" in data &&
+        data.entryId === input.entryId &&
+        data.turnId === String(input.turnId)
+      );
+    });
+    if (sidecarAlreadyExists) {
+      return;
+    }
+
+    const leafIdBeforeSidecar = this.session.sessionManager.getLeafId();
+    this.session.sessionManager.appendCustomEntry(TURN_ID_SIDECAR_TYPE, {
+      entryId: input.entryId,
+      turnId: String(input.turnId),
     });
     if (leafIdBeforeSidecar) {
       this.session.sessionManager.branch(leafIdBeforeSidecar);

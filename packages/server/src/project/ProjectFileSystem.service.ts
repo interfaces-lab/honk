@@ -10,11 +10,17 @@ import { Schema, Context } from "effect";
 import type { Effect } from "effect";
 
 import type {
+  ProjectCreateDirectoryError,
+  ProjectCreateDirectoryInput,
+  ProjectCreateDirectoryResult,
   ProjectDeleteFileError,
   ProjectDeleteFileInput,
   ProjectDeleteFileResult,
   ProjectReadFileInput,
   ProjectReadFileResult,
+  ProjectRenamePathError,
+  ProjectRenamePathInput,
+  ProjectRenamePathResult,
   ProjectWriteConflictError,
   ProjectWriteFileInput,
   ProjectWriteFileResult,
@@ -82,6 +88,34 @@ export interface ProjectFileSystemShape {
     | ProjectPathOutsideRootError
     | ProjectRootNormalizeError
     | ProjectDeleteFileError
+  >;
+
+  /**
+   * Create an empty directory relative to the project root.
+   *
+   * Fails when the directory already exists. Parent directories must exist.
+   */
+  readonly createDirectory: (
+    input: ProjectCreateDirectoryInput,
+  ) => Effect.Effect<
+    ProjectCreateDirectoryResult,
+    | ProjectFileSystemError
+    | ProjectPathOutsideRootError
+    | ProjectRootNormalizeError
+    | ProjectCreateDirectoryError
+  >;
+
+  /**
+   * Rename a file or directory relative to the project root.
+   */
+  readonly renamePath: (
+    input: ProjectRenamePathInput,
+  ) => Effect.Effect<
+    ProjectRenamePathResult,
+    | ProjectFileSystemError
+    | ProjectPathOutsideRootError
+    | ProjectRootNormalizeError
+    | ProjectRenamePathError
   >;
 }
 

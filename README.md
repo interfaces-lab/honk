@@ -19,9 +19,10 @@ Download the desktop app for your platform from [GitHub Releases](https://github
 Connect at least one Pi-backed account in Settings before starting a thread:
 
 - **Claude API key**
+- **Claude OAuth**
 - **Codex OAuth**
 - **Codex API key**
-- **xAI API key**
+- **Cursor API key**
 
 ## Runtime Access
 

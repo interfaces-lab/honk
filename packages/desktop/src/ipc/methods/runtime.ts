@@ -105,6 +105,7 @@ export const getRuntimeHostSnapshot = makeIpcMethod({
   channel: IpcChannels.RUNTIME_GET_HOST_SNAPSHOT_CHANNEL,
   payload: Schema.Void,
   result: HonkRuntimeHostSnapshot,
+  trace: false,
   handler: () =>
     Effect.flatMap(requireRuntimeHost, (host) => Effect.promise(() => host.getHostSnapshot())),
 });
@@ -217,6 +218,7 @@ export const setRuntimeThreadFocus = makeIpcMethod({
   channel: IpcChannels.RUNTIME_SET_THREAD_FOCUS_CHANNEL,
   payload: ThreadAgentRuntimeSetThreadFocusInput,
   result: Schema.Void,
+  trace: false,
   handler: (input) =>
     Effect.gen(function* () {
       const host = yield* requireRuntimeHost;

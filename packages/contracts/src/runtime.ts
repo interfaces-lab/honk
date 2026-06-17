@@ -197,19 +197,55 @@ export const AgentCredentialConfigureInput = Schema.Union([
   Schema.Struct({
     authProviderId: AuthProviderId,
     method: Schema.Literal("api-key"),
+    credentialKind: AgentCredentialKind,
     apiKey: TrimmedNonEmptyString,
   }),
   Schema.Struct({
     authProviderId: AuthProviderId,
     method: Schema.Literal("oauth"),
-    credentialKind: AgentCredentialKind.pipe(Schema.optional),
+    credentialKind: AgentCredentialKind,
   }),
   Schema.Struct({
     authProviderId: AuthProviderId,
     method: Schema.Literal("logout"),
+    credentialKind: AgentCredentialKind,
   }),
 ]);
 export type AgentCredentialConfigureInput = typeof AgentCredentialConfigureInput.Type;
+
+export function isOAuthAgentCredentialKind(credentialKind: AgentCredentialKind): boolean {
+  return credentialKind === "claude-oauth" || credentialKind === "codex-oauth";
+}
+
+export function agentCredentialKindSupportsConfigureMethod(
+  credentialKind: AgentCredentialKind,
+  method: AgentCredentialConfigureInput["method"],
+): boolean {
+  if (method === "logout") {
+    return true;
+  }
+  return method === "oauth"
+    ? isOAuthAgentCredentialKind(credentialKind)
+    : !isOAuthAgentCredentialKind(credentialKind);
+}
+
+export function resolveAgentCredentialPreferenceForConfigure(
+  preferences: Pick<AgentPreferences, "credentials">,
+  input: Pick<AgentCredentialConfigureInput, "authProviderId" | "credentialKind" | "method">,
+): AgentCredentialPreference | null {
+  const credential =
+    preferences.credentials.find(
+      (candidate) =>
+        candidate.authProviderId === input.authProviderId &&
+        candidate.kind === input.credentialKind,
+    ) ?? null;
+  if (!credential) {
+    return null;
+  }
+  return agentCredentialKindSupportsConfigureMethod(input.credentialKind, input.method)
+    ? credential
+    : null;
+}
 
 export const AgentResourcePreferences = Schema.Struct({
   workspaceFiles: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),

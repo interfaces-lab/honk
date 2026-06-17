@@ -3,7 +3,10 @@
 import { useNavigate } from "@tanstack/react-router";
 import { createContext, useContext, useRef, type ReactNode } from "react";
 
-import { DEFAULT_SETTINGS_ROUTE } from "~/components/settings/settings-sections";
+import {
+  DEFAULT_SETTINGS_ROUTE,
+  DEFAULT_SETTINGS_SEARCH,
+} from "~/components/settings/settings-sections";
 
 const ShellSettingsContext = createContext<{
   openSettings: () => void;
@@ -15,7 +18,10 @@ export function ShellSettingsProvider(props: { children: ReactNode }) {
   navigateRef.current = navigate;
   const contextValueRef = useRef({
     openSettings: () => {
-      void navigateRef.current({ to: DEFAULT_SETTINGS_ROUTE });
+      void navigateRef.current({
+        to: DEFAULT_SETTINGS_ROUTE,
+        search: DEFAULT_SETTINGS_SEARCH,
+      });
     },
   });
 

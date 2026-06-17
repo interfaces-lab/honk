@@ -71,6 +71,40 @@ describe("projectThreadTimeline", () => {
     });
   });
 
+  it("stamps user messages with turnFailure and suppresses provider-failure assistant rows", () => {
+    const turnId = TurnId.make("turn:timeline-projector:failure");
+    const userWithFailure = {
+      ...userMessage,
+      turnId,
+    } satisfies ChatMessage;
+    const failures = new Map([[userMessageId, "The usage limit has been reached"]]);
+    const entries = project({
+      committedMessages: [
+        userWithFailure,
+        {
+          id: MessageId.make("message:timeline-projector:assistant-failure"),
+          role: "assistant",
+          text: "Provider error: Codex error: overloaded",
+          turnId,
+          createdAt: "2026-06-05T16:00:01.000Z",
+          streaming: false,
+        },
+      ],
+      turnFailuresByUserMessageId: failures,
+    });
+
+    const messageEntries = entries.filter((entry) => entry.kind === "message");
+    expect(messageEntries).toHaveLength(1);
+    expect(messageEntries[0]).toMatchObject({
+      kind: "message",
+      message: {
+        id: userMessageId,
+        role: "user",
+        turnFailure: "The usage limit has been reached",
+      },
+    });
+  });
+
   it("appends the waiting row while a follow-up turn is active before work is visible", () => {
     const entries = project({
       committedMessages: [
@@ -425,6 +459,57 @@ describe("projectThreadTimeline", () => {
     ]);
   });
 
+  it("does not duplicate a committed extension UI row when the runtime timeline has the same request", () => {
+    const requestId = "timeline-projector:request";
+    const entryId = `extension-ui:${requestId}`;
+    const createdAt = "2026-06-05T16:00:02.000Z";
+    const runtimeTimeline = {
+      threadId,
+      runtimeSessionId,
+      items: [
+        {
+          id: entryId,
+          kind: "extension-ui-request",
+          orderKey: `${createdAt}:${entryId}`,
+          createdAt,
+          requestId,
+          requestKind: "select",
+          status: "pending",
+          threadId,
+          runtimeSessionId,
+          eventIds: [],
+          title: "Allow?",
+          message: "Run command?",
+        },
+      ],
+    } satisfies RuntimeDisplayTimelineProjection;
+    const committedEntry = {
+      id: entryId,
+      label: "Allow?",
+      tone: "info",
+      status: "running",
+      createdAt,
+      extensionUiRequestId: requestId,
+      extensionUiRequestKind: "select",
+    } satisfies WorkLogEntry;
+
+    const entries = project({
+      committedMessages: [],
+      workLogEntries: [committedEntry],
+      activeRuntimeDisplayTimeline: runtimeTimeline,
+      isWorking: true,
+      isTurnActive: true,
+      activeTurnStartedAt: turnStartedAt,
+    });
+
+    expect(entries.filter((entry) => entry.id === entryId)).toEqual([
+      expect.objectContaining({
+        id: entryId,
+        kind: "runtime-extension-ui-request",
+      }),
+    ]);
+  });
+
   it("appends the waiting row after stale running work when the turn is no longer active", () => {
     const staleWorkEntry = {
       id: "work:timeline-projector:stale-running",
@@ -535,6 +620,34 @@ describe("projectThreadTimeline", () => {
       (entry) => entry.kind === "message" && entry.message.id === pendingSendMessageId,
     );
     expect(pendingEntries).toHaveLength(1);
+  });
+
+  it("does not duplicate a committed followup saved with a different id than its pending send", () => {
+    const committedFollowupMessage = {
+      id: MessageId.make("message:timeline-projector:saved-followup"),
+      role: "user",
+      text: "Follow up",
+      createdAt: pendingSendCreatedAt,
+      streaming: false,
+    } satisfies ChatMessage;
+
+    const entries = project({
+      committedMessages: [userMessage, committedFollowupMessage],
+      sendIntents: [pendingSendIntent],
+    });
+
+    const followupEntries = entries.filter(
+      (entry) =>
+        entry.kind === "message" &&
+        entry.message.role === "user" &&
+        entry.message.text === "Follow up",
+    );
+    expect(followupEntries).toEqual([
+      expect.objectContaining({
+        id: timelineMessageEntryId(committedFollowupMessage.id),
+        message: committedFollowupMessage,
+      }),
+    ]);
   });
 
   it("keeps running committed work entries until runtime projects the same tool", () => {
@@ -747,6 +860,7 @@ describe("projectThreadTimeline", () => {
   });
 
   it("does not append a send intent row when runtime renders the same user text under its own id", () => {
+    const runtimeEchoCreatedAt = "2026-06-05T16:00:01.900Z";
     const runtimeTimeline = {
       threadId,
       runtimeSessionId,
@@ -754,11 +868,24 @@ describe("projectThreadTimeline", () => {
         {
           id: "message:timeline-projector:runtime-user-echo",
           kind: "message",
-          orderKey: `${pendingSendCreatedAt}:message:timeline-projector:runtime-user-echo`,
-          createdAt: pendingSendCreatedAt,
+          orderKey: `${runtimeEchoCreatedAt}:message:timeline-projector:runtime-user-echo`,
+          createdAt: runtimeEchoCreatedAt,
           role: "user",
           text: "Follow up",
           streaming: false,
+          source: "live-event",
+          eventIds: [],
+        },
+        {
+          id: "message:timeline-projector:runtime-thinking",
+          kind: "message",
+          orderKey: "2026-06-05T16:00:02.000Z:message:timeline-projector:runtime-thinking",
+          createdAt: "2026-06-05T16:00:02.000Z",
+          turnId: TurnId.make("turn:timeline-projector"),
+          role: "assistant",
+          text: "",
+          thinking: "Thinking",
+          streaming: true,
           source: "live-event",
           eventIds: [],
         },
@@ -780,5 +907,69 @@ describe("projectThreadTimeline", () => {
         entry.message.text === "Follow up",
     );
     expect(followUpUserEntries).toHaveLength(1);
+  });
+
+  it("does not duplicate a committed user message with attachments when runtime renders a text-only echo", () => {
+    const committedMessageWithAttachments = {
+      id: pendingSendMessageId,
+      role: "user",
+      text: "remove these two sections",
+      attachments: [
+        {
+          type: "image",
+          id: "attachment:first",
+          name: "first.png",
+          mimeType: "image/png",
+          sizeBytes: 1,
+        },
+        {
+          type: "image",
+          id: "attachment:second",
+          name: "second.png",
+          mimeType: "image/png",
+          sizeBytes: 1,
+        },
+      ],
+      createdAt: pendingSendCreatedAt,
+      streaming: false,
+    } satisfies ChatMessage;
+    const runtimeTimeline = {
+      threadId,
+      runtimeSessionId,
+      items: [
+        {
+          id: "message:timeline-projector:runtime-user-echo",
+          kind: "message",
+          orderKey: `${pendingSendCreatedAt}:message:timeline-projector:runtime-user-echo`,
+          createdAt: pendingSendCreatedAt,
+          role: "user",
+          text: "remove these two sections",
+          streaming: false,
+          source: "live-event",
+          eventIds: [],
+        },
+      ],
+    } satisfies RuntimeDisplayTimelineProjection;
+
+    const entries = project({
+      committedMessages: [committedMessageWithAttachments],
+      activeRuntimeDisplayTimeline: runtimeTimeline,
+      isWorking: true,
+      isTurnActive: true,
+      activeTurnStartedAt: turnStartedAt,
+    });
+
+    const userEntries = entries.filter(
+      (entry) =>
+        entry.kind === "message" &&
+        entry.message.role === "user" &&
+        entry.message.text === "remove these two sections",
+    );
+    expect(userEntries).toEqual([
+      expect.objectContaining({
+        id: timelineMessageEntryId(committedMessageWithAttachments.id),
+        message: committedMessageWithAttachments,
+      }),
+    ]);
   });
 });

@@ -5,6 +5,7 @@ import { cn } from "../../lib/utils";
 import { Button } from "@honk/honkkit/button";
 import { Text, textVariants } from "@honk/honkkit/text";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
+import { settingsPreferenceDomId } from "./settings-preference-index";
 
 export function SettingsSection({
   title,
@@ -39,6 +40,7 @@ export function SettingsSection({
 }
 
 export function SettingsRow({
+  preferenceId,
   title,
   description,
   status,
@@ -46,6 +48,7 @@ export function SettingsRow({
   control,
   children,
 }: {
+  preferenceId?: string;
   title: ReactNode;
   description: string;
   status?: ReactNode;
@@ -55,8 +58,10 @@ export function SettingsRow({
 }) {
   return (
     <div
+      id={preferenceId ? settingsPreferenceDomId(preferenceId) : undefined}
+      data-settings-preference-id={preferenceId}
       className={cn(
-        "border-t border-honk-stroke-quaternary px-2.5 first:border-t-0 sm:px-3",
+        "scroll-mt-24 border-t border-honk-stroke-quaternary px-2.5 first:border-t-0 sm:px-3",
         children ? "py-3" : "py-2.5",
       )}
     >

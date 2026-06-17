@@ -19,6 +19,7 @@ import {
   type SimpleStreamOptions,
   type TextContent,
   type ThinkingContent,
+  type ToolCall,
   type Usage,
 } from "@earendil-works/pi-ai";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
@@ -33,10 +34,20 @@ const CURSOR_API = "cursor-sdk";
 const CURSOR_API_KEY_ENV_VAR = "CURSOR_API_KEY";
 const CURSOR_MODEL_CONTEXT_WINDOW = 128_000;
 const CURSOR_MODEL_MAX_TOKENS = 16_384;
+const CURSOR_APPROX_CHARS_PER_TOKEN = 4;
+const CURSOR_IMAGE_TOKEN_ESTIMATE = 1_200;
+const CURSOR_SYNTHETIC_TOOL_EVENT_ARG = "__honkCursorSyntheticToolEvent";
+const CURSOR_SYNTHETIC_TOOL_RESULT_ARG = "__honkCursorResult";
 
 interface CursorComposerProviderOptions {
   readonly cwd: string;
   readonly fastEnabled?: boolean;
+}
+
+interface CursorToolEventState {
+  readonly contentIndexByCallId: Map<string, number>;
+  readonly completedCallIds: Set<string>;
+  readonly completedFingerprints: Set<string>;
 }
 
 class CursorComposerAbortError extends Error {
@@ -122,6 +133,7 @@ async function runCursorComposerStream(input: {
 
   let run: Run | null = null;
   let agent: Awaited<ReturnType<typeof Agent.create>> | null = null;
+  const toolEventState = createCursorToolEventState();
   const abortRun = () => {
     void run?.cancel().catch(() => undefined);
   };
@@ -140,11 +152,16 @@ async function runCursorComposerStream(input: {
       },
     });
     throwIfAborted(input.options);
-    run = await agent.send(buildCursorUserMessage(input.context), {
+    const cursorPrompt = buildCursorUserMessage(input.context);
+    const promptInputTokens = estimateCursorPromptTokens(cursorPrompt);
+    run = await agent.send(cursorPrompt, {
       mode: "agent",
       model: modelSelection,
       onDelta: async ({ update }) => {
-        applyCursorInteractionUpdate(input.stream, input.message, update);
+        applyCursorInteractionUpdate(input.stream, input.message, update, toolEventState);
+      },
+      onStep: async ({ step }) => {
+        applyCursorInteractionStep(input.stream, input.message, step, toolEventState);
       },
     });
     const result = await run.wait();
@@ -163,6 +180,7 @@ async function runCursorComposerStream(input: {
     }
     appendFinalTextIfNeeded(input.stream, input.message, result.result);
     endOpenContent(input.stream, input.message);
+    applyCursorApproximateUsage(input.message, promptInputTokens);
     input.message.stopReason = "stop";
     input.stream.push({
       type: "done",
@@ -214,6 +232,50 @@ function createUsage(input = 0, output = 0, cacheRead = 0, cacheWrite = 0): Usag
       total: 0,
     },
   };
+}
+
+function estimateTextTokens(text: string): number {
+  return text.length > 0 ? Math.ceil(text.length / CURSOR_APPROX_CHARS_PER_TOKEN) : 0;
+}
+
+function estimateCursorPromptTokens(prompt: SDKUserMessage): number {
+  return (
+    estimateTextTokens(prompt.text) + (prompt.images?.length ?? 0) * CURSOR_IMAGE_TOKEN_ESTIMATE
+  );
+}
+
+function stringifyUsageValue(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? "";
+  } catch {
+    return String(value);
+  }
+}
+
+function estimateCursorAssistantOutputTokens(message: AssistantMessage): number {
+  const text = message.content
+    .map((block) => {
+      switch (block.type) {
+        case "text":
+          return block.text;
+        case "thinking":
+          return block.thinking;
+        case "toolCall":
+          return `Tool call (${block.name}, call ${block.id}): ${stringifyUsageValue(block.arguments)}`;
+      }
+    })
+    .filter((part) => part.length > 0)
+    .join("\n");
+  return estimateTextTokens(text);
+}
+
+function applyCursorApproximateUsage(message: AssistantMessage, promptInputTokens: number): void {
+  message.usage = createUsage(
+    Math.max(0, Math.round(promptInputTokens)),
+    estimateCursorAssistantOutputTokens(message),
+    0,
+    0,
+  );
 }
 
 function resolveCursorApiKey(rawApiKey: string | undefined): string | undefined {
@@ -328,6 +390,7 @@ function applyCursorInteractionUpdate(
   stream: AssistantMessageEventStream,
   message: AssistantMessage,
   update: InteractionUpdate,
+  toolEventState: CursorToolEventState,
 ): void {
   switch (update.type) {
     case "text-delta":
@@ -337,18 +400,172 @@ function applyCursorInteractionUpdate(
       appendThinkingDelta(stream, message, update.text);
       break;
     case "turn-ended":
-      if (update.usage) {
-        message.usage = createUsage(
-          update.usage.inputTokens,
-          update.usage.outputTokens,
-          update.usage.cacheReadTokens,
-          update.usage.cacheWriteTokens,
-        );
-      }
+      break;
+    case "tool-call-started":
+      appendCursorToolStarted(stream, message, update.callId, update.toolCall, toolEventState);
+      break;
+    case "tool-call-completed":
+      appendCursorToolCompleted(stream, message, update.callId, update.toolCall, toolEventState);
       break;
     default:
       break;
   }
+}
+
+function applyCursorInteractionStep(
+  stream: AssistantMessageEventStream,
+  message: AssistantMessage,
+  stepEnvelope: unknown,
+  toolEventState: CursorToolEventState,
+): void {
+  const step = toRecord(stepEnvelope);
+  if (!step || step.type !== "toolCall") {
+    return;
+  }
+  const rawToolCall = step.message;
+  const toolRecord = toRecord(rawToolCall);
+  const stepId =
+    stringField(step, "id") ??
+    (toolRecord ? (stringField(toolRecord, "id") ?? stringField(toolRecord, "callId")) : undefined);
+  if (!rawToolCall) {
+    return;
+  }
+  const callId = stepId ?? `cursor-step:${cursorToolFingerprint(rawToolCall)}`;
+  appendCursorToolCompleted(stream, message, callId, rawToolCall, toolEventState);
+}
+
+function createCursorToolEventState(): CursorToolEventState {
+  return {
+    contentIndexByCallId: new Map<string, number>(),
+    completedCallIds: new Set<string>(),
+    completedFingerprints: new Set<string>(),
+  };
+}
+
+function appendCursorToolStarted(
+  stream: AssistantMessageEventStream,
+  message: AssistantMessage,
+  callId: string,
+  rawToolCall: unknown,
+  state: CursorToolEventState,
+): void {
+  if (state.contentIndexByCallId.has(callId)) {
+    return;
+  }
+  const toolCall = cursorSyntheticToolCall(callId, rawToolCall);
+  if (!toolCall) {
+    return;
+  }
+  const contentIndex = message.content.length;
+  message.content.push(toolCall);
+  stream.push({
+    type: "toolcall_start",
+    contentIndex,
+    partial: message,
+  });
+  state.contentIndexByCallId.set(callId, contentIndex);
+}
+
+function appendCursorToolCompleted(
+  stream: AssistantMessageEventStream,
+  message: AssistantMessage,
+  callId: string,
+  rawToolCall: unknown,
+  state: CursorToolEventState,
+): void {
+  const fingerprint = cursorToolFingerprint(rawToolCall);
+  if (state.completedCallIds.has(callId) || state.completedFingerprints.has(fingerprint)) {
+    return;
+  }
+  const toolCall = cursorSyntheticToolCall(callId, rawToolCall);
+  if (!toolCall) {
+    return;
+  }
+  let contentIndex = state.contentIndexByCallId.get(callId);
+  if (contentIndex === undefined) {
+    contentIndex = message.content.length;
+    message.content.push(toolCall);
+    stream.push({
+      type: "toolcall_start",
+      contentIndex,
+      partial: message,
+    });
+    state.contentIndexByCallId.set(callId, contentIndex);
+  } else {
+    message.content[contentIndex] = toolCall;
+  }
+  stream.push({
+    type: "toolcall_end",
+    contentIndex,
+    toolCall,
+    partial: message,
+  });
+  state.completedCallIds.add(callId);
+  state.completedFingerprints.add(fingerprint);
+}
+
+function cursorSyntheticToolCall(callId: string, rawToolCall: unknown): ToolCall | null {
+  const record = toRecord(rawToolCall);
+  if (!record) {
+    return null;
+  }
+  const rawName =
+    stringField(record, "name") ?? stringField(record, "type") ?? stringField(record, "toolName");
+  if (!rawName) {
+    return null;
+  }
+  return {
+    type: "toolCall",
+    id: callId,
+    name: piToolNameForCursorTool(rawName),
+    arguments: {
+      ...cursorToolArguments(record),
+      [CURSOR_SYNTHETIC_TOOL_EVENT_ARG]: true,
+      ...(record.result !== undefined ? { [CURSOR_SYNTHETIC_TOOL_RESULT_ARG]: record.result } : {}),
+    },
+  };
+}
+
+function cursorToolFingerprint(rawToolCall: unknown): string {
+  const record = toRecord(rawToolCall);
+  if (!record) {
+    return stringifyUsageValue(rawToolCall);
+  }
+  const name =
+    stringField(record, "name") ??
+    stringField(record, "type") ??
+    stringField(record, "toolName") ??
+    "";
+  return [
+    name,
+    stringifyUsageValue(record.args),
+    stringifyUsageValue(record.input),
+    stringifyUsageValue(record.result),
+  ].join("\n");
+}
+
+function piToolNameForCursorTool(toolName: string): string {
+  return toolName === "shell" ? "bash" : toolName;
+}
+
+function cursorToolArguments(toolCall: Record<string, unknown>): Record<string, unknown> {
+  return recordField(toolCall, "args") ?? recordField(toolCall, "input") ?? {};
+}
+
+function toRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+function recordField(
+  record: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | undefined {
+  return toRecord(record[key]) ?? undefined;
+}
+
+function stringField(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
 function appendTextDelta(
@@ -391,10 +608,7 @@ function appendFinalTextIfNeeded(
   appendTextDelta(stream, message, text);
 }
 
-function ensureTextContent(
-  stream: AssistantMessageEventStream,
-  message: AssistantMessage,
-): number {
+function ensureTextContent(stream: AssistantMessageEventStream, message: AssistantMessage): number {
   const existingIndex = message.content.findIndex((item) => item.type === "text");
   if (existingIndex !== -1) {
     return existingIndex;

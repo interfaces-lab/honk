@@ -3,8 +3,13 @@ import { Spinner } from "@honk/honkkit/spinner";
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 
-import ChatView from "~/components/chat/view/chat-view";
-import { finalizePromotedDraftThreadByRef, useComposerDraftStore } from "~/stores/chat-drafts";
+import { ChatPaneTilingSurface } from "~/components/chat/view/chat-pane-tiling-surface";
+import { chatPaneTilingActions } from "~/components/chat/view/chat-pane-tiling-store";
+import {
+  finalizePromotedDraftThreadByRef,
+  listPromotedDraftIdsByRef,
+  useComposerDraftStore,
+} from "~/stores/chat-drafts";
 import {
   selectEnvironmentSnapshotSource,
   selectEnvironmentState,
@@ -32,7 +37,7 @@ type ThreadRouteRef = NonNullable<ReturnType<typeof threadRefFromRouteParams>>;
 function ChatThreadMainPanel(props: { readonly threadRef: ThreadRouteRef }) {
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <ChatView
+      <ChatPaneTilingSurface
         environmentId={props.threadRef.environmentId}
         threadId={props.threadRef.threadId}
         reserveTitleBarControlInset={false}
@@ -210,6 +215,10 @@ function ChatThreadRouteSync(props: {
 
 function PromotedDraftFinalizer(props: { readonly threadRef: ThreadRouteRef }) {
   useMountEffect(() => {
+    const promotedDraftIds = listPromotedDraftIdsByRef(props.threadRef);
+    for (const draftId of promotedDraftIds) {
+      chatPaneTilingActions.promoteDraftTilesets(draftId, props.threadRef);
+    }
     const finalizedDraftRefs = finalizePromotedDraftThreadByRef(props.threadRef);
     const threadSendIntentStore = useThreadSendIntentStore.getState();
     for (const draftThreadRef of finalizedDraftRefs) {

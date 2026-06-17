@@ -927,6 +927,45 @@ export const workbenchTabPersistenceActions = {
     });
     activateManagedTab(workspaceKey, tabId);
   },
+  renameFilePath: (
+    workspaceKey: string | null,
+    fromRelativePath: string,
+    toRelativePath: string,
+  ): void => {
+    const fromPath = fromRelativePath.trim();
+    const toPath = toRelativePath.trim();
+    if (!fromPath || !toPath || fromPath === toPath) return;
+    const fromTabId = fileTabId(fromPath);
+    const toTabId = fileTabId(toPath);
+    updateWorkspaceState(workspaceKey, (current) => {
+      let changed = false;
+      const tabs = current.tabs.map((tab) => {
+        if (tab.kind !== "files" || tab.filePath !== fromPath) {
+          return tab;
+        }
+        changed = true;
+        return fileWorkbenchTab({
+          id: toTabId,
+          relativePath: toPath,
+          preview: tab.preview,
+        });
+      });
+      if (!changed) {
+        return current;
+      }
+      const dedupedTabs = tabs.filter(
+        (tab, index) => tabs.findIndex((candidate) => candidate.id === tab.id) === index,
+      );
+      return {
+        ...current,
+        tabs: dedupedTabs,
+        activeTabId: current.activeTabId === fromTabId ? toTabId : current.activeTabId,
+        visitedTabIds: current.visitedTabIds.map((tabId) =>
+          tabId === fromTabId ? toTabId : tabId,
+        ),
+      };
+    });
+  },
   closeTab: (workspaceKey: string | null, tabId: string): void => {
     const workspace = readWorkspaceState(
       useWorkbenchTabStore.getState().byWorkspaceKey,

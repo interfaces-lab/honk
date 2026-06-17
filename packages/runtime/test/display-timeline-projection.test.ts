@@ -89,6 +89,94 @@ describe("runtime display timeline projection", () => {
     ]);
   });
 
+  it("prunes abandoned session messages before merging edited prompt events", () => {
+    const oldUserEntryId = RuntimeItemId.make("runtime:old-user-entry");
+    const oldAssistantEntryId = RuntimeItemId.make("runtime:old-assistant-entry");
+    const oldTree = sessionTree([
+      {
+        id: oldUserEntryId,
+        threadEntryId: ThreadEntryId.make("message:client:old-prompt"),
+        parentId: null,
+        parentThreadEntryId: null,
+        kind: "message",
+        role: "user",
+        clientMessageId: MessageId.make("client:old-prompt"),
+        turnId,
+        text: "old prompt",
+        createdAt,
+        rawEntry: { type: "message" },
+      },
+      {
+        id: oldAssistantEntryId,
+        threadEntryId: ThreadEntryId.make("message:runtime:old-assistant-entry"),
+        parentId: oldUserEntryId,
+        parentThreadEntryId: ThreadEntryId.make("message:client:old-prompt"),
+        kind: "message",
+        role: "assistant",
+        turnId,
+        text: "old response",
+        createdAt: "2026-06-05T20:30:01.000Z",
+        rawEntry: { type: "message" },
+      },
+    ]);
+    const previousTimeline = projectRuntimeDisplayTimeline({
+      threadId,
+      runtimeSessionId,
+      sessionTree: oldTree,
+    });
+    const previousTimelineWithTool = {
+      ...previousTimeline,
+      items: [
+        ...previousTimeline.items,
+        {
+          id: "tool:old-branch",
+          kind: "tool",
+          orderKey: "2026-06-05T20:30:01.500Z:tool:old-branch",
+          createdAt: "2026-06-05T20:30:01.500Z",
+          toolCallId: "toolu-old-branch",
+          toolName: "bash",
+          turnId,
+          status: "completed",
+          eventIds: [EventId.make("runtime-event:old-tool")],
+          display: { kind: "bash", command: "echo old" },
+        },
+      ],
+    } satisfies ReturnType<typeof projectRuntimeDisplayTimeline>;
+    const currentTree: SessionTreeProjection = {
+      ...oldTree,
+      leafEntryId: null,
+      nodes: oldTree.nodes.map((node) => ({
+        ...node,
+        isActivePath: false,
+        isActiveLeaf: false,
+      })),
+    };
+
+    const projection = projectRuntimeDisplayTimelineEvent({
+      previousTimeline: previousTimelineWithTool,
+      threadId,
+      runtimeSessionId,
+      sessionTree: currentTree,
+      event: runtimeEvent({
+        id: "runtime-event:edited-prompt",
+        type: "message.completed",
+        summary: "User message sent",
+        data: { clientMessageId: "client:edited-prompt" },
+        messageRole: "user",
+        text: "edited prompt",
+        turnId: secondTurnId,
+        createdAt: "2026-06-05T20:30:02.000Z",
+      }),
+    });
+
+    expect(projection.items.map((item) => (item.kind === "message" ? item.text : null))).toEqual([
+      "edited prompt",
+    ]);
+    expect(projection.items).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ toolCallId: "toolu-old-branch" })]),
+    );
+  });
+
   it("collapses live tool lifecycle events by toolCallId", () => {
     const events = [
       runtimeEvent({

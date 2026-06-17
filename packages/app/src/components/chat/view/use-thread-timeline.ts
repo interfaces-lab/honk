@@ -42,6 +42,7 @@ export function useThreadTimeline(
     input.activeRuntimeDisplayTimeline,
     input.isWorking,
     input.isTurnActive,
+    input.turnFailuresByUserMessageId,
     input.activeTurnStartedAt,
   ]);
 }

@@ -54,7 +54,7 @@ describe("splitPromptIntoComposerSegments", () => {
     });
   });
 
-  describe("mention tokens (regression)", () => {
+  describe("mention tokens", () => {
     it("parses '@path ' mentions", () => {
       expect(splitPromptIntoComposerSegments("@src/index.ts ")).toEqual([
         { type: "mention", path: "src/index.ts" },
@@ -71,7 +71,7 @@ describe("splitPromptIntoComposerSegments", () => {
     });
   });
 
-  describe("inline tokens (regression)", () => {
+  describe("inline tokens", () => {
     it("parses '[@Label](file:///x) ' inline tokens", () => {
       expect(splitPromptIntoComposerSegments("[@Label](file:///x) ")).toEqual([
         {

@@ -110,11 +110,15 @@ const DEFAULT_SCROLL_MASK_STATE: ScrollMaskState = Object.freeze({
   hasOverflow: false,
 });
 
-function readDraggedTabId(event: DragEvent<HTMLElement>): string | null {
+function readDraggedTabId(
+  event: DragEvent<HTMLElement>,
+  localDraggingTabId: string | null,
+): string | null {
   const typed = event.dataTransfer.getData(WORKBENCH_TAB_DRAG_MIME_TYPE);
   if (typed) return typed;
+  if (!localDraggingTabId) return null;
   const plain = event.dataTransfer.getData("text/plain");
-  return plain.startsWith("workbench-tab:") ? plain.slice("workbench-tab:".length) : null;
+  return plain === `workbench-tab:${localDraggingTabId}` ? localDraggingTabId : null;
 }
 
 function tabElements(viewport: HTMLElement): HTMLElement[] {
@@ -351,7 +355,7 @@ function WorkbenchTabClusters(props: {
   const onScrollableDragOver = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       const viewport = viewportRef.current;
-      const tabId = draggingTabId ?? readDraggedTabId(event);
+      const tabId = readDraggedTabId(event, draggingTabId);
       if (!viewport || !tabId || !props.tabs.some((tab) => tab.id === tabId)) {
         setNextDropTarget(null);
         return;
@@ -367,7 +371,7 @@ function WorkbenchTabClusters(props: {
   const onScrollableDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       const viewport = viewportRef.current;
-      const tabId = draggingTabId ?? readDraggedTabId(event);
+      const tabId = readDraggedTabId(event, draggingTabId);
       if (!viewport || !tabId) {
         resetDragState();
         return;
@@ -543,7 +547,7 @@ function FullscreenChatTitle(props: { title: string | null }) {
         data-shell-no-drag=""
         data-shell-fullscreen-chat-title=""
       >
-        <span className="chat-title-tab-trigger px-(--honk-spacing-2)">
+        <span className="chat-title-tab-trigger">
           <span className="chat-title-tab-title text-honk-tab text-honk-fg-primary">{title}</span>
         </span>
       </span>

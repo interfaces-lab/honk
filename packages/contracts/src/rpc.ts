@@ -46,6 +46,9 @@ import {
   OrchestrationRpcSchemas,
 } from "./orchestration";
 import {
+  ProjectCreateDirectoryError,
+  ProjectCreateDirectoryInput,
+  ProjectCreateDirectoryResult,
   ProjectDeleteFileError,
   ProjectDeleteFileInput,
   ProjectDeleteFileResult,
@@ -55,6 +58,9 @@ import {
   ProjectReadFileError,
   ProjectReadFileInput,
   ProjectReadFileResult,
+  ProjectRenamePathError,
+  ProjectRenamePathInput,
+  ProjectRenamePathResult,
   ProjectSearchEntriesError,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
@@ -93,6 +99,8 @@ export const WS_METHODS = {
   projectsSearchEntries: "projects.searchEntries",
   projectsWriteFile: "projects.writeFile",
   projectsDeleteFile: "projects.deleteFile",
+  projectsCreateDirectory: "projects.createDirectory",
+  projectsRenamePath: "projects.renamePath",
 
   // Shell methods
   shellOpenInEditor: "shell.openInEditor",
@@ -190,6 +198,18 @@ export const WsProjectsDeleteFileRpc = Rpc.make(WS_METHODS.projectsDeleteFile, {
   payload: ProjectDeleteFileInput,
   success: ProjectDeleteFileResult,
   error: ProjectDeleteFileError,
+});
+
+export const WsProjectsCreateDirectoryRpc = Rpc.make(WS_METHODS.projectsCreateDirectory, {
+  payload: ProjectCreateDirectoryInput,
+  success: ProjectCreateDirectoryResult,
+  error: ProjectCreateDirectoryError,
+});
+
+export const WsProjectsRenamePathRpc = Rpc.make(WS_METHODS.projectsRenamePath, {
+  payload: ProjectRenamePathInput,
+  success: ProjectRenamePathResult,
+  error: ProjectRenamePathError,
 });
 
 export const WsShellOpenInEditorRpc = Rpc.make(WS_METHODS.shellOpenInEditor, {
@@ -391,6 +411,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsProjectsSearchEntriesRpc,
   WsProjectsWriteFileRpc,
   WsProjectsDeleteFileRpc,
+  WsProjectsCreateDirectoryRpc,
+  WsProjectsRenamePathRpc,
   WsShellOpenInEditorRpc,
   WsFilesystemBrowseRpc,
   WsSubscribeGitStatusRpc,

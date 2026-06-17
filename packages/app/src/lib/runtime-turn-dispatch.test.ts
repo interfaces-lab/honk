@@ -7,6 +7,7 @@ import {
   type LocalApi,
   type HonkRuntimeApi,
   type HonkRuntimeHostSnapshot,
+  type ThreadAgentRuntimeHydrateInput,
   type ThreadAgentRuntimeSendTurnInput,
 } from "@honk/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -25,21 +26,24 @@ async function notCalled(): Promise<never> {
   throw new Error("Unexpected local API call.");
 }
 
-function createRuntimeApi(input: {
+function createRuntimeApi(options: {
   snapshot: HonkRuntimeHostSnapshot;
   getPreferences?: () => Promise<AgentPreferences>;
+  onHydrateThread?: (input: ThreadAgentRuntimeHydrateInput) => void;
   onSendTurn?: (turn: ThreadAgentRuntimeSendTurnInput) => void;
 }): HonkRuntimeApi {
   return {
-    getHostSnapshot: async () => input.snapshot,
-    getPreferences: input.getPreferences ?? (async () => input.snapshot.preferences),
-    updatePreferences: async () => input.snapshot.preferences,
-    configureCredential: async () => input.snapshot,
-    hydrateThread: async () => undefined,
+    getHostSnapshot: async () => options.snapshot,
+    getPreferences: options.getPreferences ?? (async () => options.snapshot.preferences),
+    updatePreferences: async () => options.snapshot.preferences,
+    configureCredential: async () => options.snapshot,
+    hydrateThread: async (input) => {
+      options.onHydrateThread?.(input);
+    },
     cloneThread: async () => undefined,
     setThreadFocus: async () => undefined,
     sendTurn: async (turn) => {
-      input.onSendTurn?.(turn);
+      options.onSendTurn?.(turn);
       return TurnId.make(`turn:${turn.threadId}`);
     },
     compactThread: async () => undefined,
@@ -207,6 +211,41 @@ describe("sendRuntimeTurn", () => {
         }),
       }),
     ]);
+  });
+
+  it("marks a successfully sent runtime thread as hydrated", async () => {
+    let hydrateCount = 0;
+    const threadId = ThreadId.make("thread:send-marks-hydrated");
+    vi.stubGlobal("window", {
+      nativeApi: createLocalApi(
+        createRuntimeApi({
+          snapshot: createEmptyRuntimeHostSnapshot(),
+          onHydrateThread: () => {
+            hydrateCount += 1;
+          },
+        }),
+      ),
+    });
+
+    await sendRuntimeTurn({
+      threadId,
+      cwd: "/tmp",
+      text: "hi",
+      interactionMode: "agent",
+      sourceProposedPlan: null,
+      clientMessageId: MessageId.make("message:send-marks-hydrated"),
+      replacesClientMessageId: null,
+      images: [],
+      modelSelection: codexModelSelection,
+    });
+    await hydrateRuntimeThread({
+      threadId,
+      cwd: "/tmp",
+      interactionMode: "agent",
+      modelSelection: codexModelSelection,
+    });
+
+    expect(hydrateCount).toBe(0);
   });
 
   it("uses the pinned model selection even when preferences are Smart", async () => {

@@ -49,6 +49,15 @@ function asContextUsageCategories(value: unknown): ThreadTokenUsageCategory[] | 
   return categories.length > 0 ? categories : null;
 }
 
+const MAX_REASONABLE_CONTEXT_WINDOW_USAGE_RATIO = 1.25;
+
+function isReasonableContextWindowUsage(usedTokens: number, maxTokens: number | null): boolean {
+  if (maxTokens === null || maxTokens <= 0) {
+    return true;
+  }
+  return usedTokens <= Math.ceil(maxTokens * MAX_REASONABLE_CONTEXT_WINDOW_USAGE_RATIO);
+}
+
 type NullableContextWindowUsage = {
   readonly [Key in keyof ThreadTokenUsageSnapshot]: undefined extends ThreadTokenUsageSnapshot[Key]
     ? Exclude<ThreadTokenUsageSnapshot[Key], undefined> | null
@@ -78,6 +87,10 @@ export function deriveLatestContextWindowSnapshot(
     }
 
     const maxTokens = asFiniteNumber(payload?.maxTokens);
+    if (!isReasonableContextWindowUsage(usedTokens, maxTokens)) {
+      continue;
+    }
+
     const usedPercentage =
       maxTokens !== null && maxTokens > 0 ? Math.min(100, (usedTokens / maxTokens) * 100) : null;
     const remainingTokens =

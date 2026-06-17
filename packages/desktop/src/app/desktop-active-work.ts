@@ -22,7 +22,10 @@ export const layer = Layer.effect(
 
     return DesktopActiveWork.of({
       get: Ref.get(stateRef),
-      set: (state) => Ref.set(stateRef, state),
+      set: (state) =>
+        Ref.update(stateRef, (current) =>
+          current.runningThreadCount === state.runningThreadCount ? current : state,
+        ),
     });
   }),
 );

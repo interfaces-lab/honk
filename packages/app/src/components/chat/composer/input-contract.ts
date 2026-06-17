@@ -32,6 +32,7 @@ export type ComposerMenuPlacement =
 
 export interface ComposerInputHandle {
   focus: () => void;
+  blur: () => void;
   focusAtEnd: () => void;
   focusAt: (cursor: number) => void;
   readSnapshot: () => {
@@ -71,6 +72,7 @@ export interface ComposerInputProps {
   activeThreadId: ThreadId | null;
 
   phase: SessionPhase;
+  inactive?: boolean | undefined;
   isTurnRunning: boolean;
   isConnecting: boolean;
   isSendBusy: boolean;

@@ -1,4 +1,8 @@
-import { makeLocalFileTracer, makeTraceSink } from "@honk/shared/observability";
+import {
+  makeLocalFileTracer,
+  makeTraceSink,
+  type EffectTraceRecord,
+} from "@honk/shared/observability";
 import {
   configureHonkEvlog,
   configureHonkProcessMetadata,
@@ -22,6 +26,7 @@ import * as DesktopEnvironment from "./desktop-environment";
 const DESKTOP_LOG_FILE_MAX_BYTES = 10 * 1024 * 1024;
 const DESKTOP_LOG_FILE_MAX_FILES = 10;
 const DESKTOP_TRACE_BATCH_WINDOW_MS = 200;
+const LOW_VALUE_SUCCESS_TRACE_PREFIXES = ["desktop.ipc."];
 
 export interface DesktopBackendOutputLogShape {
   readonly writeSessionBoundary: (input: {
@@ -46,6 +51,13 @@ export const desktopProcessMetadata = configureHonkProcessMetadata("desktop-main
 export * as EffectLogger from "@honk/shared/effect-logger";
 
 const sanitizeLogValue = (value: string): string => value.replace(/\s+/g, " ").trim();
+
+export function shouldRecordDesktopLocalTrace(record: EffectTraceRecord): boolean {
+  return (
+    record.exit._tag !== "Success" ||
+    !LOW_VALUE_SUCCESS_TRACE_PREFIXES.some((prefix) => record.name.startsWith(prefix))
+  );
+}
 
 const backendChildLog = EffectLogger.create({ service: "desktop-backend-child" });
 
@@ -96,16 +108,16 @@ export const backendOutputLogLayer = Layer.effect(
             .pipe(Effect.withTracerEnabled(false));
         },
       ),
-      writeOutputChunk: Effect.fn("desktop.observability.backendOutput.writeOutputChunk")(
-        function* (streamName, chunk) {
-          yield* writeConsoleOutput(streamName, chunk);
-          const log = streamName === "stderr" ? backendChildLog.error : backendChildLog.info;
-          yield* log("backend child process output", {
-            stream: streamName,
-            text: textDecoder.decode(chunk),
-          }).pipe(Effect.withTracerEnabled(false));
-        },
-      ),
+      writeOutputChunk: Effect.fnUntraced(function* (streamName, chunk) {
+        yield* writeConsoleOutput(streamName, chunk);
+        if (streamName === "stdout") {
+          return;
+        }
+        yield* backendChildLog.error("backend child process output", {
+          stream: streamName,
+          text: textDecoder.decode(chunk),
+        }).pipe(Effect.withTracerEnabled(false));
+      }),
     } satisfies DesktopBackendOutputLogShape;
   }),
 );
@@ -170,6 +182,7 @@ const tracerLayer = Layer.unwrap(
       maxFiles: DESKTOP_LOG_FILE_MAX_FILES,
       batchWindowMs: DESKTOP_TRACE_BATCH_WINDOW_MS,
       sink,
+      recordFilter: shouldRecordDesktopLocalTrace,
       ...(delegate ? { delegate } : {}),
     });
 

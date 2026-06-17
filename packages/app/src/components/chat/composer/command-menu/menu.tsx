@@ -659,7 +659,7 @@ export function ComposerCommandMenu(props: {
         data-menu-kind={props.menuKind}
         data-variant="surface"
       >
-        {/* 340px = 342px popup shell cap minus the 1px top/bottom border. */}
+        {/* 340px max height matches the popup shell cap (shadow hairline, no CSS border). */}
         <CommandList className="max-h-[min(340px,var(--available-height))] overflow-x-hidden overflow-y-auto">
           {groups.map((group, groupIndex) => (
             <div key={group.id}>

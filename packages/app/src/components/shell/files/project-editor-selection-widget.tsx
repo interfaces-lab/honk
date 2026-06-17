@@ -30,7 +30,7 @@ class ProjectEditorSelectionContentWidget implements monaco.editor.IContentWidge
     this.element = document.createElement("button");
     this.element.type = "button";
     this.element.className =
-      "rounded-full border border-honk-stroke-tertiary bg-(--honk-workbench-panel-background) px-2 py-1 text-detail text-honk-fg-primary shadow-md";
+      "inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-honk-stroke-tertiary bg-(--honk-workbench-panel-background) px-2 py-1 text-detail text-honk-fg-primary shadow-md";
     this.element.addEventListener("mousedown", (event) => {
       event.preventDefault();
     });

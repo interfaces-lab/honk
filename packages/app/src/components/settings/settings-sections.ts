@@ -1,5 +1,6 @@
 import {
   IconArchive1,
+  IconBuildingBlocks,
   IconCollaborationPointerRight,
   IconColorSwatch,
   IconSettingsGear2,
@@ -9,7 +10,7 @@ import type { ComponentType } from "react";
 
 type SettingsSectionIcon = ComponentType<CentralIconBaseProps>;
 
-export type SettingsSectionId = "general" | "appearance" | "agents" | "archived";
+export type SettingsSectionId = "general" | "appearance" | "agents" | "skills" | "archived";
 
 export type SettingsPreferenceDomain =
   | "application"
@@ -19,11 +20,10 @@ export type SettingsPreferenceDomain =
 
 export interface SettingsSectionDescriptor {
   readonly id: SettingsSectionId;
-  readonly to:
-    | "/settings/general"
-    | "/settings/appearance"
-    | "/settings/agents"
-    | "/settings/archived";
+  readonly to: "/settings";
+  readonly search: {
+    readonly section: SettingsSectionId;
+  };
   readonly label: string;
   readonly icon: SettingsSectionIcon;
   readonly domain: SettingsPreferenceDomain;
@@ -33,7 +33,8 @@ export interface SettingsSectionDescriptor {
 export const SETTINGS_SECTIONS = [
   {
     id: "general",
-    to: "/settings/general",
+    to: "/settings",
+    search: { section: "general" },
     label: "General",
     icon: IconSettingsGear2,
     domain: "application",
@@ -41,7 +42,8 @@ export const SETTINGS_SECTIONS = [
   },
   {
     id: "appearance",
-    to: "/settings/appearance",
+    to: "/settings",
+    search: { section: "appearance" },
     label: "Appearance",
     icon: IconColorSwatch,
     domain: "appearance",
@@ -56,7 +58,8 @@ export const SETTINGS_SECTIONS = [
   },
   {
     id: "agents",
-    to: "/settings/agents",
+    to: "/settings",
+    search: { section: "agents" },
     label: "Agents",
     icon: IconCollaborationPointerRight,
     domain: "agent-runtime",
@@ -69,8 +72,18 @@ export const SETTINGS_SECTIONS = [
     ],
   },
   {
+    id: "skills",
+    to: "/settings",
+    search: { section: "skills" },
+    label: "Skills, Subagents",
+    icon: IconBuildingBlocks,
+    domain: "agent-runtime",
+    cursorPreferenceScopes: ["skills", "subagents"],
+  },
+  {
     id: "archived",
-    to: "/settings/archived",
+    to: "/settings",
+    search: { section: "archived" },
     label: "Archived",
     icon: IconArchive1,
     domain: "conversation-history",
@@ -80,4 +93,8 @@ export const SETTINGS_SECTIONS = [
 
 export type SettingsRoutePath = (typeof SETTINGS_SECTIONS)[number]["to"];
 
-export const DEFAULT_SETTINGS_ROUTE = "/settings/general" satisfies SettingsRoutePath;
+export const DEFAULT_SETTINGS_SECTION = "general" satisfies SettingsSectionId;
+export const DEFAULT_SETTINGS_ROUTE = "/settings" satisfies SettingsRoutePath;
+export const DEFAULT_SETTINGS_SEARCH = {
+  section: DEFAULT_SETTINGS_SECTION,
+} as const;

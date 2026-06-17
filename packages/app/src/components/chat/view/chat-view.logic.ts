@@ -34,22 +34,29 @@ export type ComposerSendSnapshot = {
 
 export type ChatViewRouteKind = "server" | "draft";
 
-export function assertActiveThread(
+export type MissingActiveThreadDiagnostics = {
+  readonly routeKind: ChatViewRouteKind;
+  readonly environmentId: EnvironmentId;
+  readonly threadId: ThreadId;
+  readonly draftId: ComposerDraftId | null;
+  readonly serverThreadExists: boolean;
+};
+
+export function missingActiveThreadMessage(input: MissingActiveThreadDiagnostics): string {
+  return `ChatView rendered without an active thread for ${input.routeKind} route ${input.environmentId}/${input.threadId}${
+    input.draftId ? ` (${input.draftId})` : ""
+  }.`;
+}
+
+export function reportMissingActiveThread(
   activeThread: Thread | undefined,
-  input: {
-    routeKind: ChatViewRouteKind;
-    environmentId: EnvironmentId;
-    threadId: ThreadId;
-    draftId: ComposerDraftId | null;
-  },
-): asserts activeThread is Thread {
+  input: MissingActiveThreadDiagnostics,
+): activeThread is Thread {
   if (activeThread) {
-    return;
+    return true;
   }
 
-  throw new Error(
-    `ChatView rendered without an active thread for ${input.routeKind} route ${input.environmentId}/${input.threadId}${
-      input.draftId ? ` (${input.draftId})` : ""
-    }.`,
-  );
+  const message = missingActiveThreadMessage(input);
+  console.warn(message, input);
+  return false;
 }

@@ -1086,6 +1086,7 @@ function PrimaryActionControls(props: {
   isSendBusy: boolean;
   isConnecting: boolean;
   isPreparingWorktree: boolean;
+  submitDisabled: boolean;
   hasSendableContent: boolean;
   sendWhileStreamingBehavior: UnifiedSettings["agentWindowSendWhileStreamingBehavior"];
   submitActionLabel?: string | undefined;
@@ -1177,7 +1178,12 @@ function PrimaryActionControls(props: {
         type="submit"
         action="submit"
         state={dataState}
-        disabled={props.isSendBusy || props.isConnecting || !props.hasSendableContent}
+        disabled={
+          props.submitDisabled ||
+          props.isSendBusy ||
+          props.isConnecting ||
+          !props.hasSendableContent
+        }
         aria-label={runningSendLabel}
         title={runningSendLabel}
       >
@@ -1193,7 +1199,7 @@ function PrimaryActionControls(props: {
         size="sm"
         variant="ghost"
         className="h-6 gap-1 rounded-full bg-transparent px-2.5 text-detail font-medium text-(--honk-bg-yellow-primary) hover:opacity-85 disabled:opacity-30 [&_svg]:size-3.5 [&_svg]:shrink-0"
-        disabled={props.isSendBusy || props.isConnecting}
+        disabled={props.submitDisabled || props.isSendBusy || props.isConnecting}
         aria-label="Refine plan"
         title="Refine plan"
       >
@@ -1208,7 +1214,12 @@ function PrimaryActionControls(props: {
       type="submit"
       action="submit"
       state={dataState}
-      disabled={props.isSendBusy || props.isConnecting || !props.hasSendableContent}
+      disabled={
+        props.submitDisabled ||
+        props.isSendBusy ||
+        props.isConnecting ||
+        !props.hasSendableContent
+      }
       aria-label={
         props.isConnecting
           ? "Connecting"
@@ -1323,6 +1334,7 @@ function ComposerFooter(props: {
           isSendBusy={props.primaryActionState.isSendBusy}
           isConnecting={props.primaryActionState.isConnecting}
           isPreparingWorktree={props.primaryActionState.isPreparingWorktree}
+          submitDisabled={props.primaryActionState.submitDisabled}
           hasSendableContent={
             props.primaryActionState.hasSendableContent && !props.primaryActionState.submitDisabled
           }
@@ -1351,6 +1363,7 @@ export const ComposerInput = memo(
       draftId,
       activeThreadId,
       phase,
+      inactive = false,
       isTurnRunning,
       isConnecting,
       isSendBusy,
@@ -1462,7 +1475,6 @@ export const ComposerInput = memo(
     const composerImages = composerDraft.images;
     const runtimePreferences = useAgentRuntimeStore((state) => state.snapshot.preferences);
     const runtimeAuthStatuses = useAgentRuntimeStore((state) => state.snapshot.authStatuses);
-    const setRuntimeSnapshot = useAgentRuntimeStore((state) => state.setSnapshot);
     const agentModeAvailability = deriveAgentModeAvailability(runtimeAuthStatuses);
     const [isAgentModeSaving, setIsAgentModeSaving] = useState(false);
 
@@ -1567,8 +1579,8 @@ export const ComposerInput = memo(
 
     // Warm the slash (skills) and `@` (default files) menus before the first
     // trigger so opening them does not block on a cold runtime/index scan.
-    // Fires on the composer's first focus per project; the 15s query staleTime
-    // dedupes repeats and the live menus reuse these exact cache keys.
+    // Fires on the composer's first focus per project; the query staleTime dedupes
+    // repeats and the live menus reuse these exact cache keys.
     const prefetchComposerMenuData = () => {
       if (!isDesktopRuntimeApiAvailable() || !gitCwd) {
         return;
@@ -1600,9 +1612,7 @@ export const ComposerInput = memo(
       const runtimeApi = readHonkRuntimeApi();
       void runtimeApi
         .updatePreferences(patch)
-        .then(async () => {
-          const snapshot = await runtimeApi.getHostSnapshot();
-          setRuntimeSnapshot(snapshot);
+        .then(() => {
           scheduleComposerFocus();
         })
         .catch((error: unknown) => {
@@ -1866,14 +1876,17 @@ export const ComposerInput = memo(
 
     const isComposerApprovalState = activePendingApproval !== null;
     useComposerFocusOnType({
-      enabled: !isInlineEditComposer && !isConnecting && !isComposerApprovalState,
+      enabled: !inactive && !isInlineEditComposer && !isConnecting && !isComposerApprovalState,
       promptInputRef: composerEditorRef,
     });
     const activePendingUserInput = pendingUserInputs[0] ?? null;
     const hasQueuedComposerItems = queuedComposerItems.length > 0;
-    const queuedComposerActionsBusy = isConnecting || isSendBusy || isTurnRunning;
+    const queuedComposerActionsBusy = isConnecting || isSendBusy;
     const canSubmitQueuedComposerItem =
-      hasQueuedComposerItems && !isEditingQueuedComposerItem && !queuedComposerActionsBusy;
+      hasQueuedComposerItems &&
+      !isEditingQueuedComposerItem &&
+      !queuedComposerActionsBusy &&
+      !isTurnRunning;
     const hasComposerHeader = isComposerApprovalState || pendingUserInputs.length > 0;
 
     useLayoutSyncEffect(() => {
@@ -2505,6 +2518,9 @@ export const ComposerInput = memo(
         }
       }
       if (command === "composer.send" || (command === null && key === "Enter" && !event.shiftKey)) {
+        if (inactive) {
+          return true;
+        }
         onSend();
         return true;
       }
@@ -2520,6 +2536,10 @@ export const ComposerInput = memo(
     };
 
     const handleComposerSubmit = (event?: { preventDefault: () => void }) => {
+      if (inactive) {
+        event?.preventDefault();
+        return;
+      }
       onSend(event);
     };
 
@@ -2538,6 +2558,9 @@ export const ComposerInput = memo(
       () => ({
         focus: () => {
           composerEditorRef.current?.focus();
+        },
+        blur: () => {
+          composerEditorRef.current?.blur();
         },
         focusAtEnd: () => {
           composerEditorRef.current?.focusAtEnd();

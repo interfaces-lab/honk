@@ -6,7 +6,7 @@ export function getRouter() {
   return createRouter({
     routeTree,
     defaultPreload: "intent",
-    scrollRestoration: true,
+    scrollRestoration: false,
   });
 }
 

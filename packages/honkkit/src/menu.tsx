@@ -5,7 +5,13 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { IconCheckmark1, IconChevronRightMedium } from "central-icons";
 import type * as React from "react";
 
-import { cn, controlTransitionVariants, honkMenuSeparatorClasses, interactiveControlCursorVariants } from "./utils";
+import {
+  cn,
+  controlTransitionVariants,
+  honkMenuPickerShellClasses,
+  honkMenuSeparatorClasses,
+  interactiveControlCursorVariants,
+} from "./utils";
 
 const MenuCreateHandle = MenuPrimitive.createHandle;
 
@@ -21,8 +27,10 @@ const menuPopupVariants = cva("", {
     variant: {
       default:
         "relative flex not-[class*='w-']:min-w-32 origin-(--transform-origin) rounded-lg border bg-popover not-dark:bg-clip-padding shadow-lg/5 outline-hidden before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] focus:outline-hidden dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
-      workbench:
-        "honk-workbench-menu-popup honk-glass-inset-ring flex max-h-[min(var(--available-height),20rem)] min-w-48 flex-col overflow-hidden rounded-honk-lg border border-honk-stroke-tertiary bg-honk-menu font-honk text-honk-chrome text-honk-fg-primary shadow-honk-sm outline-hidden backdrop-blur-[length:var(--honk-glass-blur-surface)] focus:outline-hidden focus-visible:outline-hidden",
+      workbench: cn(
+        "honk-workbench-menu-popup flex max-h-[min(var(--available-height),20rem)] min-w-48 flex-col origin-(--transform-origin)",
+        honkMenuPickerShellClasses,
+      ),
     },
   },
 });

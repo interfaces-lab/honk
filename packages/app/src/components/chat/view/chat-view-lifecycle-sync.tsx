@@ -44,6 +44,21 @@ import { readHonkRuntimeApi } from "../../../lib/honk-runtime-api";
 import { hydrateRuntimeThread } from "../../../lib/runtime-turn-dispatch";
 
 const RUNTIME_HYDRATION_IDLE_TIMEOUT_MS = 1200;
+const RUNTIME_THREAD_FOCUS_RELEASE_DELAY_MS = 100;
+
+interface RuntimeThreadFocusRecord {
+  count: number;
+  focused: boolean;
+  releaseTimeoutId: number | null;
+}
+
+interface RuntimeThreadFocusRegistry {
+  records: Map<ThreadId, RuntimeThreadFocusRecord>;
+}
+
+type WindowWithRuntimeThreadFocusRegistry = Window & {
+  __honkRuntimeThreadFocusRegistry?: RuntimeThreadFocusRegistry;
+};
 
 /**
  * Lifecycle effect components used by `ChatView`. Each component runs a single
@@ -117,11 +132,11 @@ export function RuntimeThreadHydrationSync({
   isDraftBoundThread?: boolean;
 }) {
   useMountEffect(() => {
-    setRuntimeThreadFocus(threadId, true);
+    const releaseRuntimeThreadFocus = acquireRuntimeThreadFocus(threadId);
 
     if (routeKind !== "server" || !cwd || isDraftBoundThread) {
       return () => {
-        setRuntimeThreadFocus(threadId, false);
+        releaseRuntimeThreadFocus();
       };
     }
     const cancelHydration = scheduleRuntimeHydrationAfterFirstPaint(() => {
@@ -134,14 +149,78 @@ export function RuntimeThreadHydrationSync({
     });
     return () => {
       cancelHydration();
-      setRuntimeThreadFocus(threadId, false);
+      releaseRuntimeThreadFocus();
     };
   });
 
   return null;
 }
 
-function setRuntimeThreadFocus(threadId: ThreadId, focused: boolean): void {
+function getRuntimeThreadFocusRegistry(): RuntimeThreadFocusRegistry {
+  const targetWindow = window as WindowWithRuntimeThreadFocusRegistry;
+  targetWindow.__honkRuntimeThreadFocusRegistry ??= {
+    records: new Map(),
+  };
+  return targetWindow.__honkRuntimeThreadFocusRegistry;
+}
+
+function acquireRuntimeThreadFocus(threadId: ThreadId): () => void {
+  const registry = getRuntimeThreadFocusRegistry();
+  let record = registry.records.get(threadId);
+  if (!record) {
+    record = {
+      count: 0,
+      focused: false,
+      releaseTimeoutId: null,
+    };
+    registry.records.set(threadId, record);
+  }
+
+  if (record.releaseTimeoutId !== null) {
+    window.clearTimeout(record.releaseTimeoutId);
+    record.releaseTimeoutId = null;
+  }
+
+  record.count += 1;
+  if (!record.focused) {
+    record.focused = true;
+    publishRuntimeThreadFocus(threadId, true);
+  }
+
+  return () => {
+    releaseRuntimeThreadFocus(registry, threadId);
+  };
+}
+
+function releaseRuntimeThreadFocus(
+  registry: RuntimeThreadFocusRegistry,
+  threadId: ThreadId,
+): void {
+  const record = registry.records.get(threadId);
+  if (!record) {
+    return;
+  }
+
+  record.count = Math.max(0, record.count - 1);
+  if (record.count > 0 || record.releaseTimeoutId !== null) {
+    return;
+  }
+
+  record.releaseTimeoutId = window.setTimeout(() => {
+    record.releaseTimeoutId = null;
+    if (record.count > 0) {
+      return;
+    }
+
+    registry.records.delete(threadId);
+    if (record.focused) {
+      record.focused = false;
+      publishRuntimeThreadFocus(threadId, false);
+    }
+  }, RUNTIME_THREAD_FOCUS_RELEASE_DELAY_MS);
+}
+
+function publishRuntimeThreadFocus(threadId: ThreadId, focused: boolean): void {
   try {
     void readHonkRuntimeApi()
       .setThreadFocus({ threadId, focused })

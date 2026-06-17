@@ -60,9 +60,9 @@ const PROJECT_GIT_HARDENED_CONFIG_ARGS = [
   "-c",
   "core.untrackedCache=false",
 ] as const;
-const STATUS_UPSTREAM_REFRESH_INTERVAL = Duration.seconds(15);
+const STATUS_UPSTREAM_REFRESH_INTERVAL = Duration.minutes(5);
 const STATUS_UPSTREAM_REFRESH_TIMEOUT = Duration.seconds(5);
-const STATUS_UPSTREAM_REFRESH_FAILURE_COOLDOWN = Duration.seconds(5);
+const STATUS_UPSTREAM_REFRESH_FAILURE_COOLDOWN = Duration.seconds(30);
 const STATUS_UPSTREAM_REFRESH_CACHE_CAPACITY = 2_048;
 const DEFAULT_BASE_BRANCH_CANDIDATES = ["main", "master"] as const;
 const GIT_LIST_BRANCHES_DEFAULT_LIMIT = 100;
@@ -702,7 +702,7 @@ function trace2ChildKey(record: Record<string, unknown>): string | null {
 
 const Trace2Record = Schema.Record(Schema.String, Schema.Unknown);
 
-const createTrace2Monitor = Effect.fn("createTrace2Monitor")(function* (
+const createTrace2Monitor = Effect.fnUntraced(function* (
   input: Pick<ExecuteGitInput, "operation" | "cwd" | "args">,
   progress: ExecuteGitProgress | undefined,
 ): Effect.fn.Return<
@@ -729,7 +729,7 @@ const createTrace2Monitor = Effect.fn("createTrace2Monitor")(function* (
     remainder: "",
   });
 
-  const handleTraceLine = Effect.fn("handleTraceLine")(function* (line: string) {
+  const handleTraceLine = Effect.fnUntraced(function* (line: string) {
     const trimmedLine = line.trim();
     if (trimmedLine.length === 0) {
       return;
@@ -833,7 +833,7 @@ const createTrace2Monitor = Effect.fn("createTrace2Monitor")(function* (
     return readTraceDelta;
   }).pipe(Effect.ignoreCause({ log: true }), Effect.forkScoped);
 
-  const finalizeTrace2Monitor = Effect.fn("finalizeTrace2Monitor")(function* () {
+  const finalizeTrace2Monitor = Effect.fnUntraced(function* () {
     yield* readTraceDelta;
     const finalLine = yield* Ref.modify(traceTailState, ({ processedChars, remainder }) => [
       remainder.trim(),
@@ -857,7 +857,7 @@ const createTrace2Monitor = Effect.fn("createTrace2Monitor")(function* (
   };
 });
 
-const collectOutput = Effect.fn("collectOutput")(function* <E>(
+const collectOutput = Effect.fnUntraced(function* <E>(
   input: Pick<ExecuteGitInput, "operation" | "cwd" | "args">,
   stream: Stream.Stream<Uint8Array, E>,
   maxOutputBytes: number,
@@ -870,7 +870,7 @@ const collectOutput = Effect.fn("collectOutput")(function* <E>(
   let lineBuffer = "";
   let truncated = false;
 
-  const emitCompleteLines = Effect.fn("emitCompleteLines")(function* (flush: boolean) {
+  const emitCompleteLines = Effect.fnUntraced(function* (flush: boolean) {
     let newlineIndex = lineBuffer.indexOf("\n");
     while (newlineIndex >= 0) {
       const line = lineBuffer.slice(0, newlineIndex).replace(/\r$/, "");
@@ -890,7 +890,7 @@ const collectOutput = Effect.fn("collectOutput")(function* <E>(
     }
   });
 
-  const processChunk = Effect.fn("processChunk")(function* (chunk: Uint8Array) {
+  const processChunk = Effect.fnUntraced(function* (chunk: Uint8Array) {
     if (truncateOutputAtMaxBytes && truncated) {
       return;
     }
@@ -953,7 +953,7 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
       const maxOutputBytes = input.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
       const truncateOutputAtMaxBytes = input.truncateOutputAtMaxBytes ?? false;
 
-      const runGitCommand = Effect.fn("runGitCommand")(function* () {
+      const runGitCommand = Effect.fnUntraced(function* () {
         const trace2Monitor = yield* createTrace2Monitor(commandInput, input.progress).pipe(
           Effect.provideService(Path.Path, path),
           Effect.provideService(FileSystem.FileSystem, fileSystem),

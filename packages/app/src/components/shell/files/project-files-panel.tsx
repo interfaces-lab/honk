@@ -153,6 +153,7 @@ function ProjectFilesPanelContent(props: {
   const tree = useMemo(
     () => (
       <ProjectFileTree
+        key={`${props.environmentId ?? "none"}:${props.cwd ?? "none"}`}
         ref={fileTreeRef}
         cwd={props.cwd}
         workspaceKey={props.workspaceKey}

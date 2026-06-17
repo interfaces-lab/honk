@@ -204,9 +204,7 @@ export const makeProjectEntries = Effect.gen(function* () {
       onNone: () => Effect.succeed(relativePaths),
     });
 
-  const buildProjectIndexFromGit = Effect.fn("ProjectEntries.buildProjectIndexFromGit")(function* (
-    cwd: string,
-  ) {
+  const buildProjectIndexFromGit = Effect.fnUntraced(function* (cwd: string) {
     if (Option.isNone(gitOption)) {
       return null;
     }
@@ -265,7 +263,7 @@ export const makeProjectEntries = Effect.gen(function* () {
     };
   });
 
-  const readDirectoryEntries = Effect.fn("ProjectEntries.readDirectoryEntries")(function* (
+  const readDirectoryEntries = Effect.fnUntraced(function* (
     cwd: string,
     relativeDir: string,
   ): Effect.fn.Return<
@@ -293,9 +291,9 @@ export const makeProjectEntries = Effect.gen(function* () {
     );
   });
 
-  const buildProjectIndexFromFilesystem = Effect.fn(
-    "ProjectEntries.buildProjectIndexFromFilesystem",
-  )(function* (cwd: string): Effect.fn.Return<ProjectIndex, ProjectEntriesError> {
+  const buildProjectIndexFromFilesystem = Effect.fnUntraced(function* (
+    cwd: string,
+  ): Effect.fn.Return<ProjectIndex, ProjectEntriesError> {
     const shouldFilterWithGitIgnore = yield* isInsideGitWorkTree(cwd);
 
     let pendingDirectories: string[] = [""];
@@ -383,7 +381,7 @@ export const makeProjectEntries = Effect.gen(function* () {
     };
   });
 
-  const buildProjectIndex = Effect.fn("ProjectEntries.buildProjectIndex")(function* (
+  const buildProjectIndex = Effect.fnUntraced(function* (
     cwd: string,
   ): Effect.fn.Return<ProjectIndex, ProjectEntriesError> {
     const gitIndexed = yield* buildProjectIndexFromGit(cwd);

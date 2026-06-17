@@ -160,14 +160,20 @@ function activeSessionTreeEntryIds(
 export function projectRuntimeDisplayTimelineEvent(
   input: RuntimeDisplayTimelineEventProjectionInput,
 ): RuntimeDisplayTimelineProjection {
-  const previousTimeline =
+  const previousTimeline = pruneInactiveTimelineItems(
     input.previousTimeline ??
-    projectRuntimeDisplayTimeline({
-      threadId: input.threadId,
-      runtimeSessionId: input.runtimeSessionId,
-      sessionTree: input.sessionTree,
-      pendingExtensionUiRequests: input.pendingExtensionUiRequests,
-    });
+      projectRuntimeDisplayTimeline({
+        threadId: input.threadId,
+        runtimeSessionId: input.runtimeSessionId,
+        sessionTree: input.sessionTree,
+        pendingExtensionUiRequests: input.pendingExtensionUiRequests,
+      }),
+    input.sessionTree,
+    {
+      pruneInactiveTurnItems:
+        input.event.type === "message.completed" && input.event.messageRole === "user",
+    },
+  );
   const eventProjection = projectRuntimeDisplayTimeline({
     threadId: input.threadId,
     runtimeSessionId: input.runtimeSessionId,
@@ -187,6 +193,53 @@ export function projectRuntimeDisplayTimelineEvent(
     runtimeSessionId: previousTimeline.runtimeSessionId,
     items: mergeRuntimeDisplayTimelineItems(previousTimeline.items, eventItems),
   };
+}
+
+function pruneInactiveTimelineItems(
+  timeline: RuntimeDisplayTimelineProjection,
+  sessionTree: SessionTreeProjection | null | undefined,
+  options: { readonly pruneInactiveTurnItems: boolean },
+): RuntimeDisplayTimelineProjection {
+  const activeEntryIds = activeSessionTreeEntryIds(sessionTree);
+  if (!activeEntryIds) {
+    return timeline;
+  }
+  const activeTurnIds = options.pruneInactiveTurnItems
+    ? activeSessionTreeTurnIds(sessionTree)
+    : null;
+
+  const items = timeline.items.filter((item) => {
+    if (
+      item.kind !== "message" ||
+      item.source !== "session-entry" ||
+      item.entryId === undefined
+    ) {
+      if (activeTurnIds && item.turnId !== undefined && !activeTurnIds.has(item.turnId)) {
+        return false;
+      }
+      return true;
+    }
+    return activeEntryIds.has(item.entryId);
+  });
+
+  return items.length === timeline.items.length ? timeline : { ...timeline, items };
+}
+
+function activeSessionTreeTurnIds(
+  sessionTree: SessionTreeProjection | null | undefined,
+): ReadonlySet<string> {
+  if (!sessionTree) {
+    return new Set();
+  }
+  const activeEntryIds = activeSessionTreeEntryIds(sessionTree);
+  if (!activeEntryIds) {
+    return new Set();
+  }
+  return new Set(
+    sessionTree.entries.flatMap((entry) =>
+      activeEntryIds.has(entry.id) && entry.turnId !== undefined ? [entry.turnId] : [],
+    ),
+  );
 }
 
 function normalizeIncrementalRuntimeDisplayTimelineEventItem(

@@ -28,7 +28,16 @@ import { Debouncer } from "@tanstack/react-pacer";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@honk/honkkit/alert";
 import { Button } from "@honk/honkkit/button";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Spinner } from "@honk/honkkit/spinner";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+} from "react";
 import { useRouter } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -83,6 +92,7 @@ import { useUiStateStore } from "../../../stores/ui-state-store";
 import {
   selectIsRuntimeThread,
   selectPendingExtensionUiRequestsForThread,
+  selectRuntimeEventsForThread,
   selectRuntimeThreadActivity,
   useAgentRuntimeStore,
 } from "../../../stores/agent-runtime-store";
@@ -185,6 +195,7 @@ import {
   threadHasRenderableUserStart,
 } from "./thread-lifecycle";
 import { useLocalStorage } from "~/hooks/use-local-storage";
+import { useMountEffect } from "~/hooks/use-mount-effect";
 import { useComposerHandleContext } from "../composer/context/handle-context";
 import {
   useServerAvailableEditors,
@@ -202,7 +213,7 @@ import {
   applyLocalThreadCreated,
   applyLocalThreadTurnStartRequested,
 } from "~/stores/local-orchestration-events";
-import { type ComposerSendSnapshot, assertActiveThread } from "./chat-view.logic";
+import { type ComposerSendSnapshot, reportMissingActiveThread } from "./chat-view.logic";
 import {
   containsThreadEntry,
   deriveThreadBranchView,
@@ -238,6 +249,10 @@ import {
 } from "./thread-timeline-projector";
 import { useThreadTimeline } from "./use-thread-timeline";
 import {
+  threadErrorShownOnUserMessage,
+  useTurnFailuresByUserMessageId,
+} from "~/lib/turn-failure-index";
+import {
   createThreadSendIntent,
   EMPTY_THREAD_SEND_INTENTS,
   useThreadSendIntentStore,
@@ -250,6 +265,23 @@ const EMPTY_TIMELINE_PROPOSED_PLANS: Thread["proposedPlans"] = [];
 const EMPTY_THREAD_KEYS: readonly string[] = [];
 const EMPTY_WORK_LOG_ENTRIES: WorkLogEntry[] = [];
 const DOCKED_COMPOSER_TIMELINE_RESERVE_PX = 96;
+
+function MissingActiveThreadFallback(props: {
+  readonly diagnostics: Parameters<typeof reportMissingActiveThread>[1];
+}) {
+  useMountEffect(() => {
+    reportMissingActiveThread(undefined, props.diagnostics);
+  });
+
+  return (
+    <div
+      className="flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden"
+      aria-busy="true"
+    >
+      <Spinner className="size-5 text-muted-foreground" />
+    </div>
+  );
+}
 
 type NewAgentFooterTipSegment =
   | {
@@ -363,21 +395,30 @@ function keybindingsConfigKey(keybindings: ResolvedKeybindingsConfig): string {
   return JSON.stringify(keybindings);
 }
 
-type ChatViewProps =
-  | {
+interface ChatViewSharedProps {
+  readonly autoFocusComposer?: boolean;
+  readonly contentPaneTopBarActions?: ReactNode;
+  readonly contentPaneTopBarTitle?: string;
+  readonly hideContentPaneTopBar?: boolean;
+  readonly isActiveSurface?: boolean;
+  readonly isTiledSurface?: boolean;
+  readonly onContentPaneTopBarDragStart?: (event: DragEvent<HTMLElement>) => void;
+  readonly reserveTitleBarControlInset?: boolean;
+}
+
+export type ChatViewProps =
+  | (ChatViewSharedProps & {
       environmentId: EnvironmentId;
       threadId: ThreadId;
-      reserveTitleBarControlInset?: boolean;
       routeKind: "server";
       draftId?: never;
-    }
-  | {
+    })
+  | (ChatViewSharedProps & {
       environmentId: EnvironmentId;
       threadId: ThreadId;
-      reserveTitleBarControlInset?: boolean;
       routeKind: "draft";
       draftId: ComposerDraftId;
-    };
+    });
 
 function useLocalDispatchState(input: {
   threadKey: string;
@@ -423,11 +464,18 @@ function useLocalDispatchState(input: {
     hasPendingUserInput: input.activePendingUserInput !== null,
     threadError: input.threadError,
   });
+  const clearingLocalDispatchRef = useRef(false);
 
   useEffect(() => {
-    if (serverAcknowledgedLocalDispatch && localDispatch !== null) {
-      clearStoredLocalDispatch(input.threadKey);
+    if (!serverAcknowledgedLocalDispatch || localDispatch === null) {
+      clearingLocalDispatchRef.current = false;
+      return;
     }
+    if (clearingLocalDispatchRef.current) {
+      return;
+    }
+    clearingLocalDispatchRef.current = true;
+    clearStoredLocalDispatch(input.threadKey);
   }, [clearStoredLocalDispatch, input.threadKey, localDispatch, serverAcknowledgedLocalDispatch]);
 
   return {
@@ -441,6 +489,10 @@ function useLocalDispatchState(input: {
 
 export default function ChatView(props: ChatViewProps) {
   const { environmentId, threadId, routeKind, reserveTitleBarControlInset = true } = props;
+  const isActiveSurface = props.isActiveSurface ?? true;
+  const isTiledSurface = props.isTiledSurface ?? false;
+  const isInactiveTiledSurface = isTiledSurface && !isActiveSurface;
+  const autoFocusComposer = props.autoFocusComposer ?? true;
   const draftId = routeKind === "draft" ? props.draftId : null;
   const routeThreadRef = useMemo(
     () => scopeThreadRef(environmentId, threadId),
@@ -455,6 +507,9 @@ export default function ChatView(props: ChatViewProps) {
     [routeKind, routeThreadRef],
   );
   const serverThread = useStore(serverThreadSelector);
+  const serverThreadExists = useStore((store) =>
+    routeKind === "server" ? selectThreadExistsByRef(store, routeThreadRef) : false,
+  );
   const setStoreThreadError = useStore((store) => store.setError);
   const markThreadVisited = useUiStateStore((store) => store.markThreadVisited);
   const activeThreadLastVisitedAt = useUiStateStore((store) =>
@@ -507,7 +562,13 @@ export default function ChatView(props: ChatViewProps) {
   });
   const composerImagesRef = useRef<ComposerImageAttachment[]>([]);
   const localComposerRef = useRef<ComposerInputHandle | null>(null);
-  const composerRef = useComposerHandleContext() ?? localComposerRef;
+  const ambientComposerRef = useComposerHandleContext();
+  const composerRef = isTiledSurface ? localComposerRef : (ambientComposerRef ?? localComposerRef);
+  useEffect(() => {
+    if (isInactiveTiledSurface) {
+      composerRef.current?.blur();
+    }
+  }, [composerRef, isInactiveTiledSurface]);
   const [editingUserMessageId, setEditingUserMessageId] = useState<MessageId | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [expandedImage, setExpandedImage] = useState<ExpandedImagePreview | null>(null);
@@ -682,6 +743,9 @@ export default function ChatView(props: ChatViewProps) {
     [mountedTerminalThreadKeys],
   );
   const runtimeThreadId = isNewThreadHero ? null : activeThreadId;
+  const activeRuntimeEvents = useAgentRuntimeStore((state) =>
+    selectRuntimeEventsForThread(state, runtimeThreadId),
+  );
   const activeRuntimeDisplayTimeline = useAgentRuntimeStore((state) =>
     runtimeThreadId
       ? (state.snapshot.displayTimelines.find(
@@ -832,8 +896,7 @@ export default function ChatView(props: ChatViewProps) {
     activeLatestTurn !== null &&
     activeLatestTurn.state === "running" &&
     activeLatestTurn.completedAt === null &&
-    (activeSession.activeTurnId == null ||
-      activeSession.activeTurnId === activeLatestTurn.turnId)
+    (activeSession.activeTurnId == null || activeSession.activeTurnId === activeLatestTurn.turnId)
       ? activeLatestTurn.turnId
       : null;
   const derivedWorkLogEntries = useMemo(
@@ -964,6 +1027,29 @@ export default function ChatView(props: ChatViewProps) {
     cancelEditingQueuedComposerItem,
     replaceEditingQueuedComposerItem,
   } = useThreadComposerQueue(routeThreadKey);
+  const forceSendQueuedItemRef = useRef<QueuedComposerItem | null>(null);
+  const forceSendRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const forceSendReadinessRef = useRef({
+    isTurnRunning,
+    isConnecting,
+    isSendBusy,
+  });
+  forceSendReadinessRef.current = {
+    isTurnRunning,
+    isConnecting,
+    isSendBusy,
+  };
+  const clearForceSendRetryTimeout = () => {
+    if (forceSendRetryTimeoutRef.current === null) {
+      return;
+    }
+    clearTimeout(forceSendRetryTimeoutRef.current);
+    forceSendRetryTimeoutRef.current = null;
+  };
+  useMountEffect(() => () => {
+    clearForceSendRetryTimeout();
+    forceSendQueuedItemRef.current = null;
+  });
   const activeWorkStartedAt = useMemo(
     () =>
       deriveActiveWorkStartedAt(
@@ -1008,7 +1094,10 @@ export default function ChatView(props: ChatViewProps) {
   const activeTimelineTailLeaseTurnKey =
     activeRuntimeActivity.lifecycle === "active"
       ? (activeRuntimeActivity.latestTurnId ?? "runtime-run-pending")
-      : (activeRunningTurnId ?? activeRuntimeActivity.latestTurnId ?? activeLatestTurn?.turnId ?? "");
+      : (activeRunningTurnId ??
+        activeRuntimeActivity.latestTurnId ??
+        activeLatestTurn?.turnId ??
+        "");
   const activeTimelineTailLeaseKey = [activeThread?.id ?? "", activeTimelineTailLeaseTurnKey].join(
     "\0",
   );
@@ -1017,6 +1106,19 @@ export default function ChatView(props: ChatViewProps) {
     [applyAttachmentPreviewHandoff, serverMessages],
   );
   const proposedPlansForTimeline = activeThread?.proposedPlans ?? EMPTY_TIMELINE_PROPOSED_PLANS;
+  const turnFailuresByUserMessageId = useTurnFailuresByUserMessageId({
+    messages: committedTimelineMessages,
+    activities: visibleThreadActivities,
+    runtimeEvents: activeRuntimeEvents,
+    latestTurn: activeLatestTurn,
+    threadError: activeThread?.error ?? null,
+  });
+  const suppressThreadErrorBanner = threadErrorShownOnUserMessage({
+    threadError: activeThread?.error ?? null,
+    turnFailuresByUserMessageId,
+    latestTurn: activeLatestTurn,
+    messages: committedTimelineMessages,
+  });
   const timelineEntries = useThreadTimeline(
     {
       committedMessages: committedTimelineMessages,
@@ -1025,6 +1127,7 @@ export default function ChatView(props: ChatViewProps) {
       sendIntents: visibleThreadSendIntents,
       runtimeAcknowledgedMessageIds: runtimeRenderableUserMessageIds,
       activeRuntimeDisplayTimeline,
+      turnFailuresByUserMessageId,
       isWorking,
       isTurnActive: timelineTurnActive,
       activeTurnStartedAt: activeWorkStartedAt,
@@ -1616,7 +1719,7 @@ export default function ChatView(props: ChatViewProps) {
   });
   const workspaceTopnavActions =
     showWorkspaceToolbar || workspaceProject ? (
-      <div className="flex min-w-0 items-center gap-2 overflow-hidden [&_[data-slot=workbench-chrome-action-group]]:gap-2">
+      <div className="flex min-w-0 items-center gap-2 overflow-hidden **:data-[slot=workbench-chrome-action-group]:gap-2">
         {showWorkspaceToolbar ? (
           <WorkspaceToolbarWithGitStatus
             environmentId={gitEnvironmentId ?? environmentId}
@@ -1653,6 +1756,22 @@ export default function ChatView(props: ChatViewProps) {
         ) : null}
       </div>
     ) : null;
+  const contentPaneTopBarActions = props.contentPaneTopBarActions ? (
+    workspaceTopnavActions ? (
+      <div className="flex min-w-0 items-center gap-2 overflow-hidden **:data-[slot=workbench-chrome-action-group]:gap-2">
+        {workspaceTopnavActions}
+        {props.contentPaneTopBarActions}
+      </div>
+    ) : (
+      props.contentPaneTopBarActions
+    )
+  ) : (
+    workspaceTopnavActions
+  );
+  const contentPaneTopBarTitle =
+    props.contentPaneTopBarTitle?.trim() ||
+    activeThread?.title.trim() ||
+    (routeKind === "draft" ? "New Agent" : "Agent");
   const newAgentFooterTip = useMemo(
     () =>
       getNewAgentFooterTip({
@@ -1727,7 +1846,10 @@ export default function ChatView(props: ChatViewProps) {
     }
     const runtimeCwd = workspaceTarget.cwd;
     if (!runtimeCwd) {
-      setThreadError(threadIdForCompact, "Pi runtime requires an active project before compacting.");
+      setThreadError(
+        threadIdForCompact,
+        "Pi runtime requires an active project before compacting.",
+      );
       return;
     }
     if (!requireAvailableModelSelectionForSend(threadIdForCompact, activeThread.modelSelection)) {
@@ -1827,6 +1949,7 @@ export default function ChatView(props: ChatViewProps) {
 
     sendInFlightRef.current = true;
     try {
+      setThreadError(threadIdForSend, null);
       beginLocalDispatch({ preparingWorktree: false });
       isAtBottomRef.current = true;
       showScrollDebouncer.current.cancel();
@@ -1834,7 +1957,6 @@ export default function ChatView(props: ChatViewProps) {
       messagesTimelineControllerRef.current?.scrollToBottom({ animated: false });
 
       markLocalRuntimeThread(threadIdForSend);
-      setThreadError(threadIdForSend, null);
       applyLocalThreadTurnStartRequested({
         environmentId,
         threadId: threadIdForSend,
@@ -1930,7 +2052,28 @@ export default function ChatView(props: ChatViewProps) {
 
   const submitComposerSendSnapshot = async (snapshot: ComposerSendSnapshot) => {
     const api = readEnvironmentApi(environmentId);
-    if (!activeThread || isSendBusy || isConnecting || sendInFlightRef.current) return;
+    if (isInactiveTiledSurface) {
+      console.debug("[chat-view] send ignored from inactive tiled surface", {
+        environmentId,
+        routeKind,
+        threadId,
+        draftId,
+      });
+      return;
+    }
+    if (!activeThread || isSendBusy || isConnecting || sendInFlightRef.current) {
+      console.debug("[chat-view] send ignored while blocked", {
+        environmentId,
+        routeKind,
+        threadId,
+        draftId,
+        hasActiveThread: Boolean(activeThread),
+        isSendBusy,
+        isConnecting,
+        sendInFlight: sendInFlightRef.current,
+      });
+      return;
+    }
     const {
       sendContext: sendCtx,
       interactionMode: interactionModeForSend,
@@ -2040,6 +2183,7 @@ export default function ChatView(props: ChatViewProps) {
       isFirstMessage &&
       currentSendEnvMode === "worktree" &&
       !activeThread.worktreePath;
+    const initialRuntimeCwd = workspaceTarget.cwd;
     if (shouldCreateWorktree && !activeThreadBranch) {
       setThreadError(threadIdForSend, "Select a base branch before sending in New worktree mode.");
       return;
@@ -2058,7 +2202,6 @@ export default function ChatView(props: ChatViewProps) {
       );
       return;
     }
-    const initialRuntimeCwd = workspaceTarget.cwd;
     if (!initialRuntimeCwd) {
       setThreadError(threadIdForSend, "Pi runtime requires an active project before sending.");
       return;
@@ -2081,11 +2224,22 @@ export default function ChatView(props: ChatViewProps) {
     }
 
     sendInFlightRef.current = true;
+    setThreadError(threadIdForSend, null);
     beginLocalDispatch({ preparingWorktree: Boolean(baseBranchForWorktree) });
     const composerImagesSnapshot = [...composerImages];
     const messageIdForSend = snapshot.messageId ?? newMessageId();
     const messageCreatedAt = snapshot.createdAt ?? new Date().toISOString();
     const parentEntryIdForSend = activeThread.leafId ?? null;
+    console.debug("[chat-view] send start", {
+      environmentId,
+      routeKind,
+      routeThreadId: threadId,
+      activeThreadId: threadIdForSend,
+      draftId,
+      messageId: messageIdForSend,
+      parentEntryId: parentEntryIdForSend,
+      isTiledSurface,
+    });
     const readTurnAttachments = (() => {
       const preparedAttachments = prepareComposerTurnAttachments(composerImagesSnapshot);
       return () => preparedAttachments;
@@ -2110,8 +2264,11 @@ export default function ChatView(props: ChatViewProps) {
         parentEntryId: parentEntryIdForSend,
       }),
     );
-
-    setThreadError(threadIdForSend, null);
+    console.debug("[chat-view] optimistic send intent appended", {
+      routeThreadKey,
+      messageId: messageIdForSend,
+      activeThreadId: threadIdForSend,
+    });
 
     let promotedDraftOptimistically = false;
     let promotedLocalSendThreadKey: string | null = null;
@@ -2299,6 +2456,13 @@ export default function ChatView(props: ChatViewProps) {
 
       serverTurnStartSucceeded = turnResult.serverTurnStartSucceeded;
       runtimeSendSucceeded = turnResult.runtimeSendSucceeded;
+      console.debug("[chat-view] send result", {
+        routeThreadKey,
+        messageId: messageIdForSend,
+        serverTurnStartSucceeded,
+        runtimeSendSucceeded,
+        promotedDraftOptimistically,
+      });
       if (localTurnStartAnnounced && !serverTurnStartSucceeded) {
         clearUnconfirmedLocalTurnStart(environmentId, threadIdForSend, messageIdForSend);
         removeOptimisticSendIntent();
@@ -2396,6 +2560,39 @@ export default function ChatView(props: ChatViewProps) {
     });
   };
 
+  const trySubmitForcedQueuedItem = (attempt = 0) => {
+    const item = forceSendQueuedItemRef.current;
+    if (!item) {
+      return;
+    }
+
+    const readiness = forceSendReadinessRef.current;
+    const blocked =
+      readiness.isTurnRunning ||
+      readiness.isConnecting ||
+      readiness.isSendBusy ||
+      sendInFlightRef.current;
+    if (blocked) {
+      if (attempt >= 120) {
+        forceSendQueuedItemRef.current = null;
+        clearForceSendRetryTimeout();
+        enqueueComposerItem(item.threadKey, item);
+        return;
+      }
+
+      clearForceSendRetryTimeout();
+      forceSendRetryTimeoutRef.current = setTimeout(() => {
+        forceSendRetryTimeoutRef.current = null;
+        trySubmitForcedQueuedItem(attempt + 1);
+      }, 100);
+      return;
+    }
+
+    forceSendQueuedItemRef.current = null;
+    clearForceSendRetryTimeout();
+    void submitQueuedComposerItem(item);
+  };
+
   const clearLiveComposer = () => {
     composerRef.current?.clearComposer();
   };
@@ -2421,6 +2618,15 @@ export default function ChatView(props: ChatViewProps) {
 
   const onSend = async (e?: { preventDefault: () => void }) => {
     e?.preventDefault();
+    if (isInactiveTiledSurface) {
+      console.debug("[chat-view] composer onSend ignored from inactive tiled surface", {
+        environmentId,
+        routeKind,
+        threadId,
+        draftId,
+      });
+      return;
+    }
     if (activePendingProgress) {
       onAdvanceActivePendingUserInput();
       return;
@@ -2455,27 +2661,6 @@ export default function ChatView(props: ChatViewProps) {
     if (hasUnresolvedSlashCommand) {
       return;
     }
-    if (
-      !currentComposerSendState.hasSendableContent &&
-      planFollowUp === null &&
-      !editingQueuedComposerItemId &&
-      queuedComposerItems.length > 0 &&
-      !isTurnRunning &&
-      !isConnecting &&
-      !isSendBusy &&
-      !sendInFlightRef.current
-    ) {
-      const firstQueuedItem = queuedComposerItems[0];
-      if (!firstQueuedItem) {
-        return;
-      }
-      const nextQueuedItem = takeQueuedComposerItem(routeThreadKey, firstQueuedItem.id);
-      if (nextQueuedItem) {
-        await submitQueuedComposerItem(nextQueuedItem);
-      }
-      return;
-    }
-
     if (editingQueuedComposerItemId) {
       const existingQueuedItem =
         queuedComposerItems.find((item) => item.id === editingQueuedComposerItemId) ?? null;
@@ -2494,6 +2679,10 @@ export default function ChatView(props: ChatViewProps) {
       });
       replaceEditingQueuedComposerItem(routeThreadKey, queuedItem);
       clearLiveComposer();
+      return;
+    }
+
+    if (!currentComposerSendState.hasSendableContent && planFollowUp === null) {
       return;
     }
 
@@ -2632,7 +2821,7 @@ export default function ChatView(props: ChatViewProps) {
   };
 
   const onSendQueuedComposerItemNow = (itemId: MessageId) => {
-    if (isTurnRunning || isConnecting || isSendBusy || sendInFlightRef.current) {
+    if (isConnecting || isSendBusy || sendInFlightRef.current) {
       return;
     }
     const item = takeQueuedComposerItem(routeThreadKey, itemId);
@@ -2641,6 +2830,12 @@ export default function ChatView(props: ChatViewProps) {
     }
     if (editingQueuedComposerItemId === itemId) {
       clearLiveComposer();
+    }
+    if (isTurnRunning) {
+      forceSendQueuedItemRef.current = item;
+      trySubmitForcedQueuedItem();
+      void onInterrupt();
+      return;
     }
     void submitQueuedComposerItem(item);
   };
@@ -2763,8 +2958,8 @@ export default function ChatView(props: ChatViewProps) {
     let localTurnStartAnnounced = false;
 
     sendInFlightRef.current = true;
-    beginLocalDispatch({ preparingWorktree: false });
     setThreadError(threadIdForSend, null);
+    beginLocalDispatch({ preparingWorktree: false });
 
     // Scroll to the current end *before* adding the optimistic message.
     isAtBottomRef.current = true;
@@ -2969,31 +3164,35 @@ export default function ChatView(props: ChatViewProps) {
           routeKind={routeKind}
           threadId={threadId}
         />
-        <RuntimeThreadHydrationSync
-          key={["runtime-hydration", routeKind, threadId, activeProjectCwd ?? gitCwd ?? ""].join(
-            "\0",
-          )}
-          cwd={activeProjectCwd ?? gitCwd}
-          interactionMode={interactionMode}
-          modelSelection={threadCreateModelSelection}
-          routeKind={routeKind}
-          threadId={threadId}
-        />
-        <MarkSettledServerThreadVisitedSync
-          key={[
-            activeLatestTurn?.completedAt ?? "",
-            activeThreadLastVisitedAt ?? "",
-            latestTurnSettled,
-            serverThread?.environmentId ?? "",
-            serverThread?.id ?? "",
-          ].join("\0")}
-          activeThreadLastVisitedAt={activeThreadLastVisitedAt}
-          completedAt={activeLatestTurn?.completedAt}
-          environmentId={serverThread?.environmentId}
-          latestTurnSettled={latestTurnSettled}
-          markThreadVisited={markThreadVisited}
-          threadId={serverThread?.id}
-        />
+        {isActiveSurface ? (
+          <RuntimeThreadHydrationSync
+            key={["runtime-hydration", routeKind, threadId, activeProjectCwd ?? gitCwd ?? ""].join(
+              "\0",
+            )}
+            cwd={activeProjectCwd ?? gitCwd}
+            interactionMode={interactionMode}
+            modelSelection={threadCreateModelSelection}
+            routeKind={routeKind}
+            threadId={threadId}
+          />
+        ) : null}
+        {isActiveSurface ? (
+          <MarkSettledServerThreadVisitedSync
+            key={[
+              activeLatestTurn?.completedAt ?? "",
+              activeThreadLastVisitedAt ?? "",
+              latestTurnSettled,
+              serverThread?.environmentId ?? "",
+              serverThread?.id ?? "",
+            ].join("\0")}
+            activeThreadLastVisitedAt={activeThreadLastVisitedAt}
+            completedAt={activeLatestTurn?.completedAt}
+            environmentId={serverThread?.environmentId}
+            latestTurnSettled={latestTurnSettled}
+            markThreadVisited={markThreadVisited}
+            threadId={serverThread?.id}
+          />
+        ) : null}
       </>
     ) : null;
   const activeThreadLifecycleSync = isNewThreadHero ? null : (
@@ -3009,58 +3208,64 @@ export default function ChatView(props: ChatViewProps) {
         threadSendIntents={threadSendIntents}
         threadKey={routeThreadKey}
       />
-      <TerminalLaunchActiveThreadSync
-        key={[activeThreadId ?? "", routeThreadKey].join("\0")}
-        activeThreadId={activeThreadId}
-        routeThreadRef={routeThreadRef}
-        setTerminalLaunchContext={setTerminalLaunchContext}
-        storeClearTerminalLaunchContext={storeClearTerminalLaunchContext}
-      />
-      <TerminalLaunchLocalSettledSync
-        key={[
-          activeProjectCwd ?? "",
-          activeThreadId ?? "",
-          activeThreadKey ?? "",
-          activeThreadWorktreePath ?? "",
-        ].join("\0")}
-        activeProjectCwd={activeProjectCwd}
-        activeThreadId={activeThreadId}
-        activeThreadRef={activeThreadRef}
-        activeThreadWorktreePath={activeThreadWorktreePath}
-        setTerminalLaunchContext={setTerminalLaunchContext}
-        storeClearTerminalLaunchContext={storeClearTerminalLaunchContext}
-      />
-      <TerminalLaunchStoredSettledSync
-        key={[
-          activeProjectCwd ?? "",
-          activeThreadId ?? "",
-          activeThreadKey ?? "",
-          activeThreadWorktreePath ?? "",
-          storeServerTerminalLaunchContextKey,
-        ].join("\0")}
-        activeProjectCwd={activeProjectCwd}
-        activeThreadId={activeThreadId}
-        activeThreadRef={activeThreadRef}
-        activeThreadWorktreePath={activeThreadWorktreePath}
-        storeClearTerminalLaunchContext={storeClearTerminalLaunchContext}
-        storeServerTerminalLaunchContext={storeServerTerminalLaunchContext}
-      />
-      <TerminalLaunchClosedSync
-        key={[activeThreadId ?? "", activeThreadKey ?? "", terminalState.terminalOpen].join("\0")}
-        activeThreadId={activeThreadId}
-        activeThreadRef={activeThreadRef}
-        setTerminalLaunchContext={setTerminalLaunchContext}
-        storeClearTerminalLaunchContext={storeClearTerminalLaunchContext}
-        terminalOpen={Boolean(terminalState.terminalOpen)}
-      />
-      <TerminalOpenFocusSync
-        key={[activeThreadKey ?? "", terminalState.terminalOpen].join("\0")}
-        activeThreadKey={activeThreadKey}
-        focusComposer={focusComposer}
-        setTerminalFocusRequestId={setTerminalFocusRequestId}
-        terminalOpen={Boolean(terminalState.terminalOpen)}
-        terminalOpenByThreadRef={terminalOpenByThreadRef}
-      />
+      {isActiveSurface ? (
+        <>
+          <TerminalLaunchActiveThreadSync
+            key={[activeThreadId ?? "", routeThreadKey].join("\0")}
+            activeThreadId={activeThreadId}
+            routeThreadRef={routeThreadRef}
+            setTerminalLaunchContext={setTerminalLaunchContext}
+            storeClearTerminalLaunchContext={storeClearTerminalLaunchContext}
+          />
+          <TerminalLaunchLocalSettledSync
+            key={[
+              activeProjectCwd ?? "",
+              activeThreadId ?? "",
+              activeThreadKey ?? "",
+              activeThreadWorktreePath ?? "",
+            ].join("\0")}
+            activeProjectCwd={activeProjectCwd}
+            activeThreadId={activeThreadId}
+            activeThreadRef={activeThreadRef}
+            activeThreadWorktreePath={activeThreadWorktreePath}
+            setTerminalLaunchContext={setTerminalLaunchContext}
+            storeClearTerminalLaunchContext={storeClearTerminalLaunchContext}
+          />
+          <TerminalLaunchStoredSettledSync
+            key={[
+              activeProjectCwd ?? "",
+              activeThreadId ?? "",
+              activeThreadKey ?? "",
+              activeThreadWorktreePath ?? "",
+              storeServerTerminalLaunchContextKey,
+            ].join("\0")}
+            activeProjectCwd={activeProjectCwd}
+            activeThreadId={activeThreadId}
+            activeThreadRef={activeThreadRef}
+            activeThreadWorktreePath={activeThreadWorktreePath}
+            storeClearTerminalLaunchContext={storeClearTerminalLaunchContext}
+            storeServerTerminalLaunchContext={storeServerTerminalLaunchContext}
+          />
+          <TerminalLaunchClosedSync
+            key={[activeThreadId ?? "", activeThreadKey ?? "", terminalState.terminalOpen].join(
+              "\0",
+            )}
+            activeThreadId={activeThreadId}
+            activeThreadRef={activeThreadRef}
+            setTerminalLaunchContext={setTerminalLaunchContext}
+            storeClearTerminalLaunchContext={storeClearTerminalLaunchContext}
+            terminalOpen={Boolean(terminalState.terminalOpen)}
+          />
+          <TerminalOpenFocusSync
+            key={[activeThreadKey ?? "", terminalState.terminalOpen].join("\0")}
+            activeThreadKey={activeThreadKey}
+            focusComposer={focusComposer}
+            setTerminalFocusRequestId={setTerminalFocusRequestId}
+            terminalOpen={Boolean(terminalState.terminalOpen)}
+            terminalOpenByThreadRef={terminalOpenByThreadRef}
+          />
+        </>
+      ) : null}
     </>
   );
   const chatViewLifecycleSync = (
@@ -3084,64 +3289,89 @@ export default function ChatView(props: ChatViewProps) {
         setShowScrollToBottom={setShowScrollToBottom}
         showScrollDebouncer={showScrollDebouncer}
       />
-      <ActiveThreadComposerFocusSync
-        key={[activeThread?.id ?? "", terminalState.terminalOpen].join("\0")}
-        activeThreadId={activeThread?.id ?? null}
-        focusComposer={focusComposer}
-        terminalOpen={Boolean(terminalState.terminalOpen)}
-      />
+      {isActiveSurface && autoFocusComposer ? (
+        <ActiveThreadComposerFocusSync
+          key={[activeThread?.id ?? "", terminalState.terminalOpen].join("\0")}
+          activeThreadId={activeThread?.id ?? null}
+          focusComposer={focusComposer}
+          terminalOpen={Boolean(terminalState.terminalOpen)}
+        />
+      ) : null}
       <ThreadMediaResetSync
         key={[draftId ?? "", threadId].join("\0")}
         clearAttachmentPreviewHandoffs={clearAttachmentPreviewHandoffs}
         setExpandedImage={setExpandedImage}
       />
-      <ChatViewKeyboardShortcutsSync
-        key={[
-          activeProjectScriptsKey,
-          activeThreadId ?? "",
-          keybindingsKey,
-          terminalState.activeTerminalId,
-          terminalState.terminalOpen,
-        ].join("\0")}
-        activeProjectScripts={workspaceProject?.scripts ?? null}
-        activeThreadId={activeThreadId}
-        closeTerminal={closeTerminal}
-        createNewTerminal={createNewTerminal}
-        keybindings={keybindings}
-        runProjectScript={runProjectScript}
-        setTerminalOpen={setTerminalOpen}
-        splitTerminal={splitTerminal}
-        terminalActiveTerminalId={terminalState.activeTerminalId}
-        terminalOpen={Boolean(terminalState.terminalOpen)}
-        toggleTerminalVisibility={toggleTerminalVisibility}
-      />
+      {isActiveSurface ? (
+        <ChatViewKeyboardShortcutsSync
+          key={[
+            activeProjectScriptsKey,
+            activeThreadId ?? "",
+            keybindingsKey,
+            terminalState.activeTerminalId,
+            terminalState.terminalOpen,
+          ].join("\0")}
+          activeProjectScripts={workspaceProject?.scripts ?? null}
+          activeThreadId={activeThreadId}
+          closeTerminal={closeTerminal}
+          createNewTerminal={createNewTerminal}
+          keybindings={keybindings}
+          runProjectScript={runProjectScript}
+          setTerminalOpen={setTerminalOpen}
+          splitTerminal={splitTerminal}
+          terminalActiveTerminalId={terminalState.activeTerminalId}
+          terminalOpen={Boolean(terminalState.terminalOpen)}
+          toggleTerminalVisibility={toggleTerminalVisibility}
+        />
+      ) : null}
     </>
   );
 
-  assertActiveThread(activeThread, { routeKind, environmentId, threadId, draftId });
+  if (!activeThread) {
+    return (
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
+        {serverThreadLifecycleSync}
+        <MissingActiveThreadFallback
+          diagnostics={{
+            routeKind,
+            environmentId,
+            threadId,
+            draftId,
+            serverThreadExists,
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-transparent">
       {chatViewLifecycleSync}
       {attachmentPreviewHandoffSync}
       {/* Top bar */}
-      {isHeroComposer ? null : (
+      {props.hideContentPaneTopBar ? null : (
         <header
           className={cn(
-            "agent-window-chat-header drag-region box-border flex h-(--honk-workbench-chrome-row-height) select-none items-center px-(--honk-workbench-chrome-padding-inline)",
+            "agent-window-chat-header content-pane-top-bar drag-region box-border flex h-(--honk-workbench-chrome-row-height) select-none items-center px-(--honk-workbench-chrome-padding-inline)",
             isElectron &&
               reserveTitleBarControlInset &&
               "wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
           )}
+          data-chat-pane-drag-source={props.onContentPaneTopBarDragStart ? "true" : undefined}
           data-shell-drag-region=""
+          draggable={props.onContentPaneTopBarDragStart ? true : undefined}
+          onDragStart={props.onContentPaneTopBarDragStart}
         >
-          <ChatHeader activeThreadTitle={activeThread.title} actions={workspaceTopnavActions} />
+          <ChatHeader
+            activeThreadTitle={contentPaneTopBarTitle}
+            actions={contentPaneTopBarActions}
+          />
         </header>
       )}
 
       {/* Error banner */}
       <ThreadErrorBanner
-        error={activeThread.error}
+        error={suppressThreadErrorBanner ? null : activeThread.error}
         onDismiss={() => setThreadError(activeThread.id, null)}
       />
       {/* Main content area with optional plan sidebar */}
@@ -3193,7 +3423,7 @@ export default function ChatView(props: ChatViewProps) {
                 />
 
                 {showScrollToBottom && (
-                  <div className="pointer-events-none absolute bottom-[calc(44px_+_1.25rem)] left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
+                  <div className="pointer-events-none absolute bottom-[calc(44px+1.25rem)] left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
                     <Button
                       type="button"
                       size="icon"
@@ -3231,7 +3461,13 @@ export default function ChatView(props: ChatViewProps) {
                 ? "[&_[data-chat-input-footer=true]_*]:opacity-60 **:data-[testid=composer-editor]:cursor-default **:data-[testid=composer-editor]:opacity-60"
                 : undefined,
               !isHeroComposer
-                ? "pointer-events-none absolute bottom-0 left-0 right-0 isolate z-30 before:pointer-events-none before:absolute before:bottom-[-12px] before:left-1/2 before:top-1/2 before:z-0 before:ml-[-50vw] before:w-screen before:bg-(--honk-shell-center-surface-background) *:pointer-events-auto *:relative *:z-1"
+                ? cn(
+                    "pointer-events-none absolute bottom-0 left-0 right-0 isolate z-30 before:pointer-events-none before:absolute before:bottom-[-12px] before:top-1/2 before:z-0 before:bg-(--honk-shell-center-surface-background) *:pointer-events-auto *:relative *:z-1",
+                    // Tiled panes must not paint this backdrop into siblings.
+                    isTiledSurface
+                      ? "before:inset-x-0"
+                      : "before:left-1/2 before:ml-[-50vw] before:w-screen",
+                  )
                 : undefined,
             )}
             data-new-agent-empty-state={isHeroComposer ? "" : undefined}
@@ -3248,14 +3484,6 @@ export default function ChatView(props: ChatViewProps) {
               }
               onRespond={onRespondToExtensionUiRequest}
             />
-            {isHeroComposer && workspaceTopnavActions ? (
-              <div
-                className="@container/header-actions pointer-events-auto flex items-center gap-2 overflow-hidden"
-                data-new-agent-env-row=""
-              >
-                {workspaceTopnavActions}
-              </div>
-            ) : null}
             <ComposerInput
               ref={composerRef}
               variant={isHeroComposer ? "expanded" : "compact"}
@@ -3267,6 +3495,7 @@ export default function ChatView(props: ChatViewProps) {
               phase={phase}
               isTurnRunning={isTurnRunning}
               isConnecting={isConnecting}
+              inactive={isInactiveTiledSurface}
               isSendBusy={isSendBusy}
               isPreparingWorktree={isPreparingWorktree}
               queuedComposerItems={queuedComposerItems}
@@ -3319,7 +3548,9 @@ export default function ChatView(props: ChatViewProps) {
               onExpandImage={onExpandTimelineImage}
             />
             {heroComposerActions}
-            {isHeroComposer ? <NewAgentFooterTip tip={newAgentFooterTip} /> : null}
+            {isHeroComposer && !isTiledSurface ? (
+              <NewAgentFooterTip tip={newAgentFooterTip} />
+            ) : null}
           </div>
 
           {pullRequestDialogState ? (

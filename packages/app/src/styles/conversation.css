@@ -299,9 +299,9 @@
 
 .plan-tray__markdown {
   max-height: 7rem;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 24px), transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 24px), transparent 100%);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 [data-queued-composer-panel-stack] {

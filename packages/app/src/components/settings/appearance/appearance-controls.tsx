@@ -290,6 +290,7 @@ export function CodeFontFamilySettingsRow(props: { codeFont: string }) {
 
   return (
     <SettingsRow
+      preferenceId="appearance.code-font-family"
       title="Code Font Family"
       description="Editor font."
       control={

@@ -3,6 +3,7 @@ import type { ScopedThreadRef } from "@honk/contracts";
 import { SidebarButton, SidebarItem } from "@honk/honkkit/sidebar";
 import { IconArchive1, IconPin, IconUnpin } from "central-icons";
 import {
+  type DragEvent,
   type KeyboardEvent,
   memo,
   type MouseEvent,
@@ -16,6 +17,10 @@ import { resolveThreadCopyId } from "~/routes/-thread-route-targets";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { useUiStateStore } from "~/stores/ui-state-store";
 import { ThreadContextMenu } from "./context-menu";
+import {
+  SIDEBAR_CHAT_DRAG_MIME_TYPE,
+  type SidebarChatDragPayload,
+} from "./drag-and-drop";
 import { SidebarIconButton, SidebarItemTime, SidebarItemTitle } from "./item-parts";
 import { StatusSlot } from "./status";
 import type { SidebarChatItem } from "./types";
@@ -48,6 +53,59 @@ function useDraftSidebarTitle(item: DraftSidebarChatItem): string {
   });
 }
 
+function sidebarChatDragPayload(item: SidebarChatItem): SidebarChatDragPayload {
+  return item.kind === "thread"
+    ? {
+        environmentId: item.environmentId,
+        kind: "thread",
+        threadId: item.id,
+      }
+    : {
+        draftId: item.id,
+        kind: "draft",
+      };
+}
+
+function attachSidebarChatDragPreview(event: DragEvent<HTMLElement>): void {
+  const source = event.currentTarget;
+  source.dataset.dragging = "true";
+
+  const clearDragging = () => {
+    delete source.dataset.dragging;
+    window.removeEventListener("dragend", clearDragging, true);
+    window.removeEventListener("drop", clearDragging, true);
+  };
+  window.addEventListener("dragend", clearDragging, true);
+  window.addEventListener("drop", clearDragging, true);
+
+  const preview = source.cloneNode(true);
+  if (!(preview instanceof HTMLElement)) return;
+
+  preview.classList.add("glass-sidebar-agent-drag-preview");
+  preview.dataset.dragPreview = "true";
+  preview.style.left = "0";
+  preview.style.position = "fixed";
+  preview.style.top = "-1000px";
+  preview.style.width = `${source.getBoundingClientRect().width}px`;
+  document.body.append(preview);
+  event.dataTransfer.setDragImage(preview, 12, 12);
+  window.setTimeout(() => preview.remove(), 0);
+}
+
+function writeSidebarChatDragPayload(event: DragEvent<HTMLElement>, item: SidebarChatItem): void {
+  const target = event.target instanceof Element ? event.target : null;
+  if (target?.closest("[data-no-drag]")) {
+    event.preventDefault();
+    return;
+  }
+  const payload = sidebarChatDragPayload(item);
+  event.stopPropagation();
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData(SIDEBAR_CHAT_DRAG_MIME_TYPE, JSON.stringify(payload));
+  event.dataTransfer.setData("text/plain", item.title);
+  attachSidebarChatDragPreview(event);
+}
+
 const AgentSidebarDraftItem = memo(function AgentSidebarDraftItem(props: {
   item: DraftSidebarChatItem;
   selected: boolean;
@@ -62,9 +120,12 @@ const AgentSidebarDraftItem = memo(function AgentSidebarDraftItem(props: {
   return (
     <SidebarButton
       variant="item"
+      draggable
+      className="[-webkit-user-drag:element]"
       data-selected={props.selected}
       data-chat-item=""
       data-agent-sidebar-cell=""
+      onDragStart={(event) => writeSidebarChatDragPayload(event, props.item)}
       onFocus={() => props.onPrefetchAgent?.(props.item.id)}
       onPointerEnter={() => props.onPrefetchAgent?.(props.item.id)}
       onClick={selectThread}
@@ -297,9 +358,11 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
       <SidebarItem
         render={<div />}
         selected={props.selected}
-        className="group/sidebar-item data-popup-open:bg-honk-bg-quaternary data-[selected=true]:focus-within:bg-honk-bg-tertiary data-[selected=true]:data-popup-open:bg-honk-bg-tertiary"
+        draggable
+        className="group/sidebar-item data-popup-open:bg-honk-bg-quaternary data-[selected=true]:focus-within:bg-honk-bg-tertiary data-[selected=true]:data-popup-open:bg-honk-bg-tertiary [-webkit-user-drag:element]"
         data-agent-sidebar-cell=""
         data-agent-sidebar-row-shell=""
+        onDragStart={(event) => writeSidebarChatDragPayload(event, props.item)}
         onClick={selectThread}
         tabIndex={-1}
       >
@@ -322,6 +385,7 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
             label={threadItem.pinned ? "Unpin" : "Pin"}
             onClick={togglePinnedThread}
             data-agent-sidebar-pin-action=""
+            data-no-drag=""
           >
             {threadItem.pinned ? (
               <IconUnpin className="size-4 shrink-0" aria-hidden />
@@ -333,6 +397,7 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
             label={threadItem.archived ? "Unarchive" : "Archive"}
             onClick={archiveCurrentThread}
             data-agent-sidebar-archive-action=""
+            data-no-drag=""
           >
             <IconArchive1 className="size-4 shrink-0" aria-hidden />
           </SidebarIconButton>

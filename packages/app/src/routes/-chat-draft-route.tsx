@@ -1,10 +1,12 @@
 import type { EnvironmentId, ScopedThreadRef } from "@honk/contracts";
 import { getRouteApi, useRouter } from "@tanstack/react-router";
+import { Spinner } from "@honk/honkkit/spinner";
 import { useShallow } from "zustand/react/shallow";
-import ChatView from "~/components/chat/view/chat-view";
+import { ChatPaneTilingSurface } from "~/components/chat/view/chat-pane-tiling-surface";
+import { chatPaneTilingActions } from "~/components/chat/view/chat-pane-tiling-store";
 import { useComposerDraftStore, DraftId } from "~/stores/chat-drafts";
 import { selectThreadRouteLifecycleSurfaceByRef } from "~/stores/thread-selectors";
-import { selectEnvironmentState, useStore } from "~/stores/thread-store";
+import { selectEnvironmentState, selectThreadExistsByRef, useStore } from "~/stores/thread-store";
 import { writeLastChatRouteTarget } from "~/routes/-chat-route-persistence";
 import { openThread } from "~/app/chat-navigation";
 import {
@@ -87,15 +89,33 @@ export function DraftChatThreadRouteView() {
     promotedThreadRef !== null && serverThreadLifecycle?.hasRenderableUserStart === true
       ? promotedThreadRef
       : null;
+  const canonicalThreadExists = useStore((store) =>
+    canonicalThreadRef ? selectThreadExistsByRef(store, canonicalThreadRef) : false,
+  );
   if (canonicalThreadRef) {
+    if (!canonicalThreadExists) {
+      return (
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <CanonicalDraftThreadRouteSync
+            key={`${draftId}:server:${scopedThreadRefKey(canonicalThreadRef)}:loading`}
+            canonicalThreadRef={canonicalThreadRef}
+            draftId={draftId}
+            router={router}
+          />
+          <ChatThreadRouteLoadingPanel />
+        </div>
+      );
+    }
+
     return (
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <CanonicalDraftThreadRouteSync
           key={`${draftId}:server:${scopedThreadRefKey(canonicalThreadRef)}`}
           canonicalThreadRef={canonicalThreadRef}
+          draftId={draftId}
           router={router}
         />
-        <ChatView
+        <ChatPaneTilingSurface
           environmentId={canonicalThreadRef.environmentId}
           threadId={canonicalThreadRef.threadId}
           reserveTitleBarControlInset={false}
@@ -112,7 +132,7 @@ export function DraftChatThreadRouteView() {
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <DraftThreadRouteSync key={`${draftId}:draft`} draftId={draftId} />
-      <ChatView
+      <ChatPaneTilingSurface
         draftId={draftId}
         environmentId={draftSession.environmentId}
         threadId={draftSession.threadId}
@@ -123,11 +143,24 @@ export function DraftChatThreadRouteView() {
   );
 }
 
+function ChatThreadRouteLoadingPanel() {
+  return (
+    <div
+      className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden"
+      aria-busy="true"
+    >
+      <Spinner className="size-5 text-muted-foreground" />
+    </div>
+  );
+}
+
 function CanonicalDraftThreadRouteSync(props: {
   readonly canonicalThreadRef: ScopedThreadRef;
+  readonly draftId: DraftId;
   readonly router: ReturnType<typeof useRouter>;
 }) {
   useMountEffect(() => {
+    chatPaneTilingActions.promoteDraftTilesets(props.draftId, props.canonicalThreadRef);
     writeLastChatRouteTarget({ kind: "server", threadRef: props.canonicalThreadRef });
     void openThread(props.router, props.canonicalThreadRef, { replace: true });
   });

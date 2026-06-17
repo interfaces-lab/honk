@@ -1,8 +1,10 @@
 import {
   ClientOrchestrationCommand,
+  type DispatchResult,
   OrchestrationDispatchCommandError,
   type OrchestrationHttpErrorResponse,
   OrchestrationGetSnapshotError,
+  type OrchestrationCommand,
   type OrchestrationReadModel,
 } from "@honk/contracts";
 import * as EffectLogger from "@honk/shared/effect-logger";
@@ -10,6 +12,7 @@ import { Effect } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 
 import { ServerAuth } from "../auth/ServerAuth.service.ts";
+import { dispatchThreadArchiveLifecycle } from "./archive-lifecycle.ts";
 import { normalizeDispatchCommand } from "./Normalizer.ts";
 import { OrchestrationEngineService } from "./OrchestrationEngine.service.ts";
 import { ThreadProjection } from "./ThreadProjection.service.ts";
@@ -89,15 +92,25 @@ export const orchestrationDispatchRouteLayer = HttpRouter.add(
       ),
     );
     const normalizedCommand = yield* normalizeDispatchCommand(command);
-    const result = yield* orchestrationEngine.dispatch(normalizedCommand).pipe(
-      Effect.mapError(
-        (cause) =>
-          new OrchestrationDispatchCommandError({
-            message: "Failed to dispatch orchestration command.",
-            cause,
-          }),
-      ),
-    );
+    const dispatch = (
+      dispatchCommand: OrchestrationCommand,
+    ): Effect.Effect<DispatchResult, OrchestrationDispatchCommandError> =>
+      orchestrationEngine.dispatch(dispatchCommand).pipe(
+        Effect.mapError(
+          (cause) =>
+            new OrchestrationDispatchCommandError({
+              message: "Failed to dispatch orchestration command.",
+              cause,
+            }),
+        ),
+      );
+    const result =
+      normalizedCommand.type === "thread.archive"
+        ? yield* dispatchThreadArchiveLifecycle({
+            archiveCommand: normalizedCommand,
+            dispatch,
+          })
+        : yield* dispatch(normalizedCommand);
     return HttpServerResponse.jsonUnsafe(result, { status: 200 });
   }).pipe(Effect.catchTag("OrchestrationDispatchCommandError", respondToOrchestrationHttpError)),
 );

@@ -107,6 +107,7 @@ export type GitResolvedPullRequest = typeof GitResolvedPullRequest.Type;
 
 export const GitStatusInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
+  scope: Schema.optional(Schema.Literals(["full", "local"])),
 });
 export type GitStatusInput = typeof GitStatusInput.Type;
 

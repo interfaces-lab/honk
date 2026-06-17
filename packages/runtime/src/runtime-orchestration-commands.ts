@@ -1,7 +1,10 @@
 import {
-  ClientOrchestrationCommand,
   CommandId,
   EventId,
+  type InternalOrchestrationCommand,
+  type RuntimeIngestionRecord,
+  RuntimeIngestionRecordId,
+  MessageId,
   runtimeSessionEntryMessageId,
   ThreadTokenUsageSnapshot,
   TurnId,
@@ -19,6 +22,11 @@ import { Schema } from "effect";
 import { runtimeSubagentActivitiesForToolEvent } from "./runtime-subagent-activities";
 import { asRecord } from "./runtime-record";
 import { runtimeToolItemTypeForName } from "./runtime-tool-item-type";
+import { extractProviderFailureMessage } from "./message-text";
+import {
+  isProviderFailureAssistantMessageText,
+  providerFailureFromAssistantMessageText,
+} from "./provider-error";
 
 const isThreadTokenUsageSnapshot = Schema.is(ThreadTokenUsageSnapshot);
 
@@ -94,6 +102,7 @@ function hasRenderableToolEventData(
 function shouldOmitMetadataOnlyToolCompletedActivity(input: {
   readonly record: Record<string, unknown>;
   readonly summary: string;
+  readonly isError: boolean;
   readonly subagentActivities: ReadonlyArray<OrchestrationThreadActivity>;
   readonly subagentParentItem: Record<string, unknown> | null;
 }): boolean {
@@ -102,6 +111,9 @@ function shouldOmitMetadataOnlyToolCompletedActivity(input: {
   }
   if (hasRenderableToolEventData(input.record, input.subagentParentItem)) {
     return false;
+  }
+  if (!input.isError) {
+    return true;
   }
   return metadataOnlyToolActivitySummaries.has(input.summary);
 }
@@ -137,11 +149,164 @@ function runtimeAssistantCompleteCommandId(
   return CommandId.make(`runtime-assistant:${tree.threadId}:${tree.runtimeSessionId}:${entry.id}`);
 }
 
+function runtimeAssistantCompleteRecordId(
+  tree: SessionTreeProjection,
+  entry: SessionTreeEntry,
+): RuntimeIngestionRecordId {
+  return RuntimeIngestionRecordId.make(
+    `runtime-assistant:${tree.threadId}:${tree.runtimeSessionId}:${entry.id}`,
+  );
+}
+
 export function runtimeToolActivityCommandId(
   event: AgentRuntimeEvent,
   activity: OrchestrationThreadActivity,
 ): CommandId {
   return CommandId.make(`runtime-tool:${event.threadId}:${event.runtimeSessionId}:${activity.id}`);
+}
+
+function runtimeToolActivityRecordId(
+  event: AgentRuntimeEvent,
+  activity: OrchestrationThreadActivity,
+): RuntimeIngestionRecordId {
+  return RuntimeIngestionRecordId.make(
+    `runtime-tool:${event.threadId}:${event.runtimeSessionId}:${activity.id}`,
+  );
+}
+
+function findSessionTreeUserAncestorClientMessageId(
+  entry: SessionTreeEntry,
+  entryById: ReadonlyMap<SessionTreeEntry["id"], SessionTreeEntry>,
+): MessageId | null {
+  const seen = new Set<SessionTreeEntry["id"]>();
+  let cursor = entry.parentId;
+  while (cursor) {
+    if (seen.has(cursor)) {
+      return null;
+    }
+    seen.add(cursor);
+    const parent = entryById.get(cursor);
+    if (!parent) {
+      return null;
+    }
+    if (parent.role === "user" && parent.clientMessageId) {
+      return parent.clientMessageId;
+    }
+    cursor = parent.parentId;
+  }
+  return null;
+}
+
+function sessionTreeEntryProviderFailure(entry: SessionTreeEntry): string | null {
+  if (entry.role !== "assistant") {
+    return null;
+  }
+  const rawEntry = asRecord(entry.rawEntry);
+  const rawMessage = rawEntry?.message ?? rawEntry;
+  const providerFailure = extractProviderFailureMessage(rawMessage);
+  if (providerFailure) {
+    return providerFailure;
+  }
+  return providerFailureFromAssistantMessageText(entry.text ?? "");
+}
+
+function isProviderFailureAssistantEntry(entry: SessionTreeEntry): boolean {
+  if (entry.role !== "assistant") {
+    return false;
+  }
+  const failure = sessionTreeEntryProviderFailure(entry);
+  if (!failure) {
+    return false;
+  }
+  const text = entry.text?.trim() ?? "";
+  if (text.length === 0) {
+    return true;
+  }
+  return isProviderFailureAssistantMessageText(entry.text ?? "");
+}
+
+function runtimeProviderFailureActivityId(
+  tree: SessionTreeProjection,
+  entry: SessionTreeEntry,
+): EventId {
+  return EventId.make(`runtime-provider-failure:${tree.threadId}:${tree.runtimeSessionId}:${entry.id}`);
+}
+
+function runtimeProviderFailureRecordId(
+  tree: SessionTreeProjection,
+  entry: SessionTreeEntry,
+): RuntimeIngestionRecordId {
+  return RuntimeIngestionRecordId.make(
+    `runtime-provider-failure:${tree.threadId}:${tree.runtimeSessionId}:${entry.id}`,
+  );
+}
+
+export function runtimeSessionTreeProviderFailureActivity(input: {
+  readonly tree: SessionTreeProjection;
+  readonly entry: SessionTreeEntry;
+  readonly entryById: ReadonlyMap<SessionTreeEntry["id"], SessionTreeEntry>;
+}): OrchestrationThreadActivity | null {
+  if (!isProviderFailureAssistantEntry(input.entry) || !input.entry.turnId) {
+    return null;
+  }
+  const detail = sessionTreeEntryProviderFailure(input.entry);
+  if (!detail) {
+    return null;
+  }
+  const messageId = findSessionTreeUserAncestorClientMessageId(input.entry, input.entryById);
+  if (!messageId) {
+    return null;
+  }
+  return {
+    id: runtimeProviderFailureActivityId(input.tree, input.entry),
+    tone: "error",
+    kind: "runtime.turn.provider.failed",
+    summary: "Provider request failed",
+    payload: {
+      detail,
+      messageId,
+    },
+    turnId: TurnId.make(input.entry.turnId),
+    createdAt: input.entry.createdAt,
+  };
+}
+
+export function runtimeSessionTreeProviderFailureRecord(input: {
+  readonly tree: SessionTreeProjection;
+  readonly entry: SessionTreeEntry;
+  readonly entryById: ReadonlyMap<SessionTreeEntry["id"], SessionTreeEntry>;
+}): RuntimeIngestionRecord | null {
+  const activity = runtimeSessionTreeProviderFailureActivity(input);
+  if (!activity) {
+    return null;
+  }
+  return {
+    recordId: runtimeProviderFailureRecordId(input.tree, input.entry),
+    threadId: input.tree.threadId,
+    runtimeSessionId: input.tree.runtimeSessionId,
+    sourceEventId: input.entry.id,
+    kind: "thread.activity",
+    createdAt: input.entry.createdAt,
+    payload: { activity },
+  };
+}
+
+export function runtimeSessionTreeProviderFailureRecords(input: {
+  readonly tree: SessionTreeProjection;
+}): RuntimeIngestionRecord[] {
+  const entryById = new Map(input.tree.entries.map((entry) => [entry.id, entry] as const));
+  const records: RuntimeIngestionRecord[] = [];
+  for (const entry of input.tree.entries) {
+    const record = runtimeSessionTreeProviderFailureRecord({
+      tree: input.tree,
+      entry,
+      entryById,
+    });
+    if (record) {
+      records.push(record);
+    }
+  }
+  return records;
 }
 
 function findSessionTreeUserAncestorEntryId(
@@ -172,10 +337,11 @@ export function runtimeSessionTreeAssistantCompleteCommand(input: {
   readonly entry: SessionTreeEntry;
   readonly entryById: ReadonlyMap<SessionTreeEntry["id"], SessionTreeEntry>;
   readonly context?: RuntimeOrchestrationCommandContext;
-}): ClientOrchestrationCommand | null {
+}): InternalOrchestrationCommand | null {
   if (
     input.entry.role !== "assistant" ||
     !input.entry.turnId ||
+    isProviderFailureAssistantEntry(input.entry) ||
     (input.entry.text?.trim().length ?? 0) === 0
   ) {
     return null;
@@ -205,9 +371,9 @@ export function runtimeSessionTreeAssistantCompleteCommand(input: {
 export function runtimeSessionTreeAssistantCompleteCommands(input: {
   readonly tree: SessionTreeProjection;
   readonly context?: RuntimeOrchestrationCommandContext;
-}): ClientOrchestrationCommand[] {
+}): InternalOrchestrationCommand[] {
   const entryById = new Map(input.tree.entries.map((entry) => [entry.id, entry] as const));
-  const commands: ClientOrchestrationCommand[] = [];
+  const commands: InternalOrchestrationCommand[] = [];
   for (const entry of input.tree.entries) {
     const command = runtimeSessionTreeAssistantCompleteCommand({
       tree: input.tree,
@@ -220,6 +386,55 @@ export function runtimeSessionTreeAssistantCompleteCommands(input: {
     }
   }
   return commands;
+}
+
+export function runtimeSessionTreeAssistantCompleteRecord(input: {
+  readonly tree: SessionTreeProjection;
+  readonly entry: SessionTreeEntry;
+  readonly entryById: ReadonlyMap<SessionTreeEntry["id"], SessionTreeEntry>;
+  readonly context?: RuntimeOrchestrationCommandContext;
+}): RuntimeIngestionRecord | null {
+  const command = runtimeSessionTreeAssistantCompleteCommand(input);
+  if (!command) {
+    return null;
+  }
+  if (command.type !== "thread.message.assistant.complete") {
+    return null;
+  }
+  return {
+    recordId: runtimeAssistantCompleteRecordId(input.tree, input.entry),
+    threadId: input.tree.threadId,
+    runtimeSessionId: input.tree.runtimeSessionId,
+    sourceEventId: input.entry.id,
+    kind: "assistant.completion",
+    createdAt: command.createdAt,
+    payload: {
+      messageId: command.messageId,
+      text: command.text,
+      turnId: command.turnId,
+      parentEntryId: command.parentEntryId,
+    },
+  };
+}
+
+export function runtimeSessionTreeAssistantCompleteRecords(input: {
+  readonly tree: SessionTreeProjection;
+  readonly context?: RuntimeOrchestrationCommandContext;
+}): RuntimeIngestionRecord[] {
+  const entryById = new Map(input.tree.entries.map((entry) => [entry.id, entry] as const));
+  const records: RuntimeIngestionRecord[] = [];
+  for (const entry of input.tree.entries) {
+    const record = runtimeSessionTreeAssistantCompleteRecord({
+      tree: input.tree,
+      entry,
+      entryById,
+      ...(input.context ? { context: input.context } : {}),
+    });
+    if (record) {
+      records.push(record);
+    }
+  }
+  return records;
 }
 
 function compactSubagentParentRun(
@@ -303,6 +518,7 @@ export function runtimeToolCompletedActivities(
     shouldOmitMetadataOnlyToolCompletedActivity({
       record,
       summary: summary.summary,
+      isError,
       subagentActivities,
       subagentParentItem,
     })
@@ -357,7 +573,7 @@ export function runtimeContextWindowActivities(
 
 export function runtimeContextWindowActivityCommands(
   event: AgentRuntimeEvent,
-): ClientOrchestrationCommand[] {
+): InternalOrchestrationCommand[] {
   return runtimeContextWindowActivities(event).map((activity) => ({
     type: "thread.activity.append",
     commandId: CommandId.make(
@@ -371,7 +587,7 @@ export function runtimeContextWindowActivityCommands(
 
 export function runtimeToolCompletedActivityCommands(
   event: AgentRuntimeEvent,
-): ClientOrchestrationCommand[] {
+): InternalOrchestrationCommand[] {
   if (event.type !== "tool.completed") {
     return [];
   }
@@ -382,5 +598,35 @@ export function runtimeToolCompletedActivityCommands(
     threadId: event.threadId,
     activity,
     createdAt: event.createdAt,
+  }));
+}
+
+export function runtimeContextWindowActivityRecords(event: AgentRuntimeEvent): RuntimeIngestionRecord[] {
+  return runtimeContextWindowActivities(event).map((activity) => ({
+    recordId: RuntimeIngestionRecordId.make(
+      `runtime-context-window:${event.threadId}:${event.runtimeSessionId}:${event.id}`,
+    ),
+    threadId: event.threadId,
+    runtimeSessionId: event.runtimeSessionId,
+    sourceEventId: event.id,
+    kind: "thread.activity",
+    createdAt: event.createdAt,
+    payload: { activity },
+  }));
+}
+
+export function runtimeToolCompletedActivityRecords(event: AgentRuntimeEvent): RuntimeIngestionRecord[] {
+  if (event.type !== "tool.completed") {
+    return [];
+  }
+  const activities = runtimeToolCompletedActivities(event);
+  return activities.map((activity) => ({
+    recordId: runtimeToolActivityRecordId(event, activity),
+    threadId: event.threadId,
+    runtimeSessionId: event.runtimeSessionId,
+    sourceEventId: event.id,
+    kind: "thread.activity",
+    createdAt: event.createdAt,
+    payload: { activity },
   }));
 }

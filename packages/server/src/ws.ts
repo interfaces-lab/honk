@@ -2,7 +2,6 @@ import { Cause, Effect, Layer, Option, Queue, Ref, Schema, Stream } from "effect
 import {
   type AuthAccessStreamEvent,
   AuthSessionId,
-  CommandId,
   type DispatchResult,
   type OrchestrationCommand,
   type GitActionProgressEvent,
@@ -12,10 +11,13 @@ import {
   type OrchestrationShellStreamEvent,
   type OrchestrationThreadStreamItem,
   OrchestrationGetSnapshotError,
+  ORCHESTRATION_REPLAY_EVENTS_DEFAULT_LIMIT,
   ORCHESTRATION_WS_METHODS,
   ProjectDeleteFileError,
+  ProjectCreateDirectoryError,
   ProjectListDirectoryError,
   ProjectReadFileError,
+  ProjectRenamePathError,
   ProjectSearchEntriesError,
   ProjectWriteConflictError,
   ProjectWriteFileError,
@@ -66,6 +68,7 @@ import {
   type SessionCredentialChange,
 } from "./auth/SessionCredentialService.service";
 import { respondToAuthError } from "./auth/http";
+import { dispatchThreadArchiveLifecycle } from "./orchestration/archive-lifecycle";
 
 function isThreadDetailEvent(event: OrchestrationEvent): event is Extract<
   OrchestrationEvent,
@@ -100,6 +103,8 @@ const isOrchestrationDispatchCommandError = Schema.is(OrchestrationDispatchComma
 const isProjectPathOutsideRootError = Schema.is(ProjectPathOutsideRootError);
 const isProjectWriteConflictError = Schema.is(ProjectWriteConflictError);
 const isProjectDeleteFileError = Schema.is(ProjectDeleteFileError);
+const isProjectCreateDirectoryError = Schema.is(ProjectCreateDirectoryError);
+const isProjectRenamePathError = Schema.is(ProjectRenamePathError);
 
 function toAuthAccessStreamEvent(
   change: BootstrapCredentialChange | SessionCredentialChange,
@@ -330,20 +335,13 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
             ORCHESTRATION_WS_METHODS.dispatchCommand,
             Effect.gen(function* () {
               const normalizedCommand = yield* normalizeDispatchCommand(command);
-              const shouldStopSessionAfterArchive =
+              const result =
                 normalizedCommand.type === "thread.archive"
-                  ? yield* threadProjection.getThreadShellById(normalizedCommand.threadId).pipe(
-                      Effect.map(
-                        Option.match({
-                          onNone: () => false,
-                          onSome: (thread) =>
-                            thread.session !== null && thread.session.status !== "stopped",
-                        }),
-                      ),
-                      Effect.catch(() => Effect.succeed(false)),
-                    )
-                  : false;
-              const result = yield* dispatchNormalizedCommand(normalizedCommand);
+                  ? yield* dispatchThreadArchiveLifecycle({
+                      archiveCommand: normalizedCommand,
+                      dispatch: dispatchNormalizedCommand,
+                    })
+                  : yield* dispatchNormalizedCommand(normalizedCommand);
               yield* elog.debug("orchestration dispatch completed", {
                 commandType: normalizedCommand.type,
                 sequence: result.sequence,
@@ -356,38 +354,6 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
               ) {
                 yield* refreshGitStatus(normalizedCommand.bootstrap.prepareWorktree.projectCwd);
                 yield* refreshGitStatus(result.preparedWorktree.worktreePath);
-              }
-              if (normalizedCommand.type === "thread.archive") {
-                if (shouldStopSessionAfterArchive) {
-                  yield* Effect.gen(function* () {
-                    const stopCommand = yield* normalizeDispatchCommand({
-                      type: "thread.session.stop",
-                      commandId: CommandId.make(
-                        `session-stop-for-archive:${normalizedCommand.commandId}`,
-                      ),
-                      threadId: normalizedCommand.threadId,
-                      createdAt: new Date().toISOString(),
-                    });
-
-                    yield* dispatchNormalizedCommand(stopCommand);
-                  }).pipe(
-                    Effect.catchCause((cause) =>
-                      elog.warn("failed to stop runtime session during archive", {
-                        threadId: normalizedCommand.threadId,
-                        cause,
-                      }),
-                    ),
-                  );
-                }
-
-                yield* terminalManager.close({ threadId: normalizedCommand.threadId }).pipe(
-                  Effect.catch((error) =>
-                    elog.warn("failed to close thread terminals after archive", {
-                      threadId: normalizedCommand.threadId,
-                      error: error.message,
-                    }),
-                  ),
-                );
               }
               return result;
             }).pipe(
@@ -405,16 +371,27 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
         [ORCHESTRATION_WS_METHODS.replayEvents]: (input) =>
           observeRpcEffect(
             ORCHESTRATION_WS_METHODS.replayEvents,
-            Stream.runCollect(
-              orchestrationEngine.readEvents(
-                clamp(input.fromSequenceExclusive, {
-                  maximum: Number.MAX_SAFE_INTEGER,
-                  minimum: 0,
-                }),
-              ),
-            ).pipe(
-              Effect.map((events) => Array.from(events)),
-              Effect.flatMap(enrichOrchestrationEvents),
+            Effect.gen(function* () {
+              const fromSequenceExclusive = clamp(input.fromSequenceExclusive, {
+                maximum: Number.MAX_SAFE_INTEGER,
+                minimum: 0,
+              });
+              const limit = input.limit ?? ORCHESTRATION_REPLAY_EVENTS_DEFAULT_LIMIT;
+              const readModelSequence = yield* orchestrationEngine
+                .getReadModel()
+                .pipe(Effect.map((readModel) => readModel.snapshotSequence));
+              const events = yield* Stream.runCollect(
+                orchestrationEngine.readEvents(fromSequenceExclusive, limit),
+              ).pipe(Effect.map((chunk): OrchestrationEvent[] => Array.from(chunk)));
+              const enrichedEvents = yield* enrichOrchestrationEvents(events);
+              const nextSequence =
+                enrichedEvents.at(-1)?.sequence ?? fromSequenceExclusive;
+              return {
+                events: enrichedEvents,
+                nextSequence,
+                upToDate: nextSequence >= readModelSequence,
+              };
+            }).pipe(
               Effect.mapError(
                 (cause) =>
                   new OrchestrationReplayEventsError({
@@ -606,6 +583,44 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
             ),
             { "rpc.aggregate": "project" },
           ),
+        [WS_METHODS.projectsCreateDirectory]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.projectsCreateDirectory,
+            projectFileSystem.createDirectory(input).pipe(
+              Effect.mapError((cause) => {
+                if (isProjectCreateDirectoryError(cause)) {
+                  return cause;
+                }
+                const message = isProjectPathOutsideRootError(cause)
+                  ? "Project file path must stay within the project root."
+                  : "Failed to create project directory";
+                return new ProjectCreateDirectoryError({
+                  message,
+                  cause,
+                });
+              }),
+            ),
+            { "rpc.aggregate": "project" },
+          ),
+        [WS_METHODS.projectsRenamePath]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.projectsRenamePath,
+            projectFileSystem.renamePath(input).pipe(
+              Effect.mapError((cause) => {
+                if (isProjectRenamePathError(cause)) {
+                  return cause;
+                }
+                const message = isProjectPathOutsideRootError(cause)
+                  ? "Project file path must stay within the project root."
+                  : "Failed to rename project entry";
+                return new ProjectRenamePathError({
+                  message,
+                  cause,
+                });
+              }),
+            ),
+            { "rpc.aggregate": "project" },
+          ),
         [WS_METHODS.shellOpenInEditor]: (input) =>
           observeRpcEffect(WS_METHODS.shellOpenInEditor, open.openInEditor(input), {
             "rpc.aggregate": "project",
@@ -635,7 +650,11 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
         [WS_METHODS.gitRefreshStatus]: (input) =>
           observeRpcEffect(
             WS_METHODS.gitRefreshStatus,
-            gitStatusBroadcaster.refreshStatus(input.cwd),
+            input.scope === "local"
+              ? gitStatusBroadcaster
+                  .refreshLocalStatus(input.cwd)
+                  .pipe(Effect.flatMap(() => gitStatusBroadcaster.getStatus(input)))
+              : gitStatusBroadcaster.refreshStatus(input.cwd),
             {
               "rpc.aggregate": "git",
             },

@@ -28,11 +28,13 @@ export interface DesktopIpcMain {
 export interface DesktopIpcMethod<E, R> {
   readonly channel: string;
   readonly handler: (raw: unknown) => Effect.Effect<unknown, E, R>;
+  readonly trace?: boolean;
 }
 
 export interface DesktopSyncIpcMethod<E, R> {
   readonly channel: string;
   readonly handler: () => Effect.Effect<unknown, E, R>;
+  readonly trace?: boolean;
 }
 
 export interface DesktopIpcShape {
@@ -53,6 +55,7 @@ export const make = (ipcMain: DesktopIpcMain): DesktopIpcShape =>
     handle: Effect.fn("desktop.ipc.registerInvoke")(function* <E, R>({
       channel,
       handler,
+      trace = true,
     }: DesktopIpcMethod<E, R>) {
       yield* Effect.annotateCurrentSpan({ channel });
       const context = yield* Effect.context<R>();
@@ -64,9 +67,14 @@ export const make = (ipcMain: DesktopIpcMain): DesktopIpcShape =>
           ipcMain.handle(channel, (_event, raw) =>
             runPromise(
               Effect.gen(function* () {
-                yield* Effect.annotateCurrentSpan({ channel });
+                if (trace) {
+                  yield* Effect.annotateCurrentSpan({ channel });
+                }
                 return yield* handler(raw);
-              }).pipe(Effect.annotateLogs({ channel }), Effect.withSpan("desktop.ipc.invoke")),
+              }).pipe(
+                Effect.annotateLogs({ channel }),
+                trace ? Effect.withSpan("desktop.ipc.invoke") : (effect) => effect,
+              ),
             ),
           );
         }),
@@ -77,6 +85,7 @@ export const make = (ipcMain: DesktopIpcMain): DesktopIpcShape =>
     handleSync: Effect.fn("desktop.ipc.registerSync")(function* <E, R>({
       channel,
       handler,
+      trace = true,
     }: DesktopSyncIpcMethod<E, R>) {
       yield* Effect.annotateCurrentSpan({ channel });
       const context = yield* Effect.context<R>();
@@ -88,9 +97,14 @@ export const make = (ipcMain: DesktopIpcMain): DesktopIpcShape =>
           ipcMain.on(channel, (event) => {
             event.returnValue = runSync(
               Effect.gen(function* () {
-                yield* Effect.annotateCurrentSpan({ channel });
+                if (trace) {
+                  yield* Effect.annotateCurrentSpan({ channel });
+                }
                 return yield* handler();
-              }).pipe(Effect.annotateLogs({ channel }), Effect.withSpan("desktop.ipc.invokeSync")),
+              }).pipe(
+                Effect.annotateLogs({ channel }),
+                trace ? Effect.withSpan("desktop.ipc.invokeSync") : (effect) => effect,
+              ),
             );
           });
         }),
@@ -129,6 +143,7 @@ export interface DesktopIpcMethodRegistration<
     ResultEncodingServices
   >;
   readonly handler: (input: Payload) => Effect.Effect<Result, E, R>;
+  readonly trace?: boolean;
 }
 
 export const makeIpcMethod = <
@@ -162,14 +177,21 @@ export const makeIpcMethod = <
   const decode = Schema.decodeUnknownEffect(method.payload);
   const encode = Schema.encodeUnknownEffect(method.result);
 
+  const methodEffect = (raw: unknown) =>
+    decode(raw).pipe(Effect.flatMap(method.handler), Effect.flatMap(encode));
+
   return {
     channel: method.channel,
-    handler: (raw) =>
-      decode(raw).pipe(
-        Effect.flatMap(method.handler),
-        Effect.flatMap(encode),
+    ...(method.trace === undefined ? {} : { trace: method.trace }),
+    handler: (raw) => {
+      const effect = methodEffect(raw);
+      if (method.trace === false) {
+        return effect;
+      }
+      return effect.pipe(
         Effect.withSpan("desktop.ipc.method", { attributes: { channel: method.channel } }),
-      ),
+      );
+    },
   };
 };
 
@@ -189,6 +211,7 @@ export interface DesktopSyncIpcMethodRegistration<
     ResultEncodingServices
   >;
   readonly handler: () => Effect.Effect<Result, E, R>;
+  readonly trace?: boolean;
 }
 
 export const makeSyncIpcMethod = <
@@ -212,12 +235,15 @@ export const makeSyncIpcMethod = <
 
   return {
     channel: method.channel,
-    handler: () =>
-      method
-        .handler()
-        .pipe(
-          Effect.flatMap(encode),
-          Effect.withSpan("desktop.ipc.method", { attributes: { channel: method.channel } }),
-        ),
+    ...(method.trace === undefined ? {} : { trace: method.trace }),
+    handler: () => {
+      const effect = method.handler().pipe(Effect.flatMap(encode));
+      if (method.trace === false) {
+        return effect;
+      }
+      return effect.pipe(
+        Effect.withSpan("desktop.ipc.method", { attributes: { channel: method.channel } }),
+      );
+    },
   };
 };

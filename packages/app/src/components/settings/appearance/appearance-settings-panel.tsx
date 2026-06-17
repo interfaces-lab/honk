@@ -48,6 +48,7 @@ function AppIconSettingsRow() {
 
   return (
     <SettingsRow
+      preferenceId="appearance.app-icon"
       title="App Icon"
       description="Dock icon shown while the app is running."
       resetAction={
@@ -122,6 +123,7 @@ export function AppearanceSettingsPanel() {
     <SettingsPageContainer>
       <SettingsSection title="Appearance">
         <SettingsRow
+          preferenceId="appearance.theme"
           title="Theme"
           description="Choose between light, dark, or system themes."
           resetAction={
@@ -161,6 +163,7 @@ export function AppearanceSettingsPanel() {
 
       <SettingsSection title="Colors">
         <SettingsRow
+          preferenceId="appearance.tint-hue"
           title="Tint Hue"
           description="Shell and accent hue."
           control={
@@ -178,6 +181,7 @@ export function AppearanceSettingsPanel() {
           }
         />
         <SettingsRow
+          preferenceId="appearance.tint-intensity"
           title="Tint Intensity"
           description="Shell tint strength."
           control={
@@ -195,6 +199,7 @@ export function AppearanceSettingsPanel() {
           }
         />
         <SettingsRow
+          preferenceId="appearance.reduce-transparency"
           title="Reduce Transparency"
           description="Use solid backgrounds."
           control={
@@ -218,6 +223,7 @@ export function AppearanceSettingsPanel() {
         }
       >
         <SettingsRow
+          preferenceId="appearance.ui-font-size"
           title="UI Font Size"
           description="Interface text size."
           control={
@@ -231,6 +237,7 @@ export function AppearanceSettingsPanel() {
           }
         />
         <SettingsRow
+          preferenceId="appearance.code-font-size"
           title="Code Font Size"
           description="Editor text size."
           control={
@@ -244,6 +251,7 @@ export function AppearanceSettingsPanel() {
           }
         />
         <SettingsRow
+          preferenceId="appearance.ui-font-family"
           title="UI Font Family"
           description="Interface font."
           control={
@@ -261,6 +269,7 @@ export function AppearanceSettingsPanel() {
 
       <SettingsSection title="Agent Window">
         <SettingsRow
+          preferenceId="appearance.font-smoothing"
           title="Font Smoothing"
           description="Mac text smoothing."
           control={
@@ -274,6 +283,7 @@ export function AppearanceSettingsPanel() {
           }
         />
         <SettingsRow
+          preferenceId="appearance.pointer-cursors"
           title="Use pointer cursors"
           description="Pointer on controls."
           resetAction={
@@ -302,6 +312,7 @@ export function AppearanceSettingsPanel() {
 
       <SettingsSection title="Chat">
         <SettingsRow
+          preferenceId="appearance.tool-call-density"
           title="Tool Call Density"
           description="Adjust how much detail is shown for tool calls"
           control={

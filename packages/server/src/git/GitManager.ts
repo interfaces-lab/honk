@@ -4,6 +4,7 @@ import { realpathSync } from "node:fs";
 import {
   Cache,
   Cause,
+  Data,
   Duration,
   Effect,
   Exit,
@@ -63,6 +64,7 @@ const MAX_PROGRESS_TEXT_LENGTH = 500;
 const SHORT_SHA_LENGTH = 7;
 const TOAST_DESCRIPTION_MAX = 72;
 const STATUS_RESULT_CACHE_TTL = Duration.seconds(1);
+const STATUS_LATEST_PR_CACHE_TTL = Duration.minutes(2);
 const STATUS_RESULT_CACHE_CAPACITY = 2_048;
 type StripProgressContext<T> = T extends any ? Omit<T, "actionId" | "cwd" | "action"> : never;
 type GitActionProgressPayload = StripProgressContext<GitActionProgressEvent>;
@@ -111,6 +113,12 @@ interface BranchHeadContext {
   headRepositoryOwnerLogin: string | null;
   isCrossRepository: boolean;
 }
+
+class LatestPrCacheKey extends Data.Class<{
+  cwd: string;
+  branch: string;
+  upstreamRef: string | null;
+}> {}
 
 function parseRepositoryNameFromPullRequestUrl(url: string): string | null {
   const trimmed = url.trim();
@@ -862,17 +870,17 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
     return null;
   });
 
-  const findLatestPr = Effect.fn("findLatestPr")(function* (
-    cwd: string,
-    details: { branch: string; upstreamRef: string | null },
-  ) {
-    const headContext = yield* resolveBranchHeadContext(cwd, details);
+  const readLatestPr = Effect.fn("readLatestPr")(function* (cacheKey: LatestPrCacheKey) {
+    const headContext = yield* resolveBranchHeadContext(cacheKey.cwd, {
+      branch: cacheKey.branch,
+      upstreamRef: cacheKey.upstreamRef,
+    });
     const parsedByNumber = new Map<number, PullRequestInfo>();
 
     for (const headSelector of headContext.headSelectors) {
       const stdout = yield* gitHubCli
         .execute({
-          cwd,
+          cwd: cacheKey.cwd,
           args: [
             "pr",
             "list",
@@ -928,6 +936,25 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
       return latestOpenPr;
     }
     return parsed[0] ?? null;
+  });
+
+  const latestPrCache = yield* Cache.makeWith(readLatestPr, {
+    capacity: STATUS_RESULT_CACHE_CAPACITY,
+    timeToLive: (exit) => (Exit.isSuccess(exit) ? STATUS_LATEST_PR_CACHE_TTL : Duration.zero),
+  });
+
+  const findLatestPr = Effect.fn("findLatestPr")(function* (
+    cwd: string,
+    details: { branch: string; upstreamRef: string | null },
+  ) {
+    return yield* Cache.get(
+      latestPrCache,
+      new LatestPrCacheKey({
+        cwd: normalizeStatusCacheKey(cwd),
+        branch: details.branch,
+        upstreamRef: details.upstreamRef,
+      }),
+    );
   });
 
   const buildCompletionToast = Effect.fn("buildCompletionToast")(function* (

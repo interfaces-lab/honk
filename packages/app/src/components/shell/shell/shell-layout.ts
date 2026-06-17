@@ -14,6 +14,8 @@ export const SHELL_BREAKPOINTS = {
   secondaryRailOverlay: 980,
 } as const;
 
+export const CHAT_NARROW_THRESHOLD = 448;
+
 /**
  * Space the center chat column should keep when the workbench force-expands.
  * Cursor parity: its fill pane min is 384px, and opening the editor panel on
@@ -34,6 +36,12 @@ export interface ShellPresentation {
   left: PanelPresentation;
   right: PanelPresentation;
   secondaryRail: PanelPresentation;
+}
+
+export interface ResponsivePaneLayout {
+  readonly centerPaneWidth: number;
+  readonly isNarrow: boolean;
+  readonly narrowThreshold: number;
 }
 
 function modeForWidth(shellWidth: number, breakpoint: number): ShellPanelMode {
@@ -71,5 +79,35 @@ export function resolveShellPresentation(input: {
     left: panelPresentation(modes.left, input.leftOpen),
     right: input.rightOpen ? "inline-expanded" : "collapsed",
     secondaryRail: panelPresentation(modes.secondaryRail, input.secondaryRailOpen),
+  };
+}
+
+export function computeResponsivePaneLayout(input: {
+  readonly dockedSidebarWidth: number;
+  readonly editorPanelDisallowed?: boolean | undefined;
+  readonly editorPanelVisible: boolean;
+  readonly editorPanelWidth: number;
+  readonly narrowThreshold?: number | undefined;
+  readonly shellWidth: number;
+}): ResponsivePaneLayout {
+  const narrowThreshold = input.narrowThreshold ?? CHAT_NARROW_THRESHOLD;
+  if (input.shellWidth <= 0) {
+    return {
+      centerPaneWidth: 0,
+      isNarrow: false,
+      narrowThreshold,
+    };
+  }
+
+  const editorPanelWidth =
+    input.editorPanelVisible && !input.editorPanelDisallowed ? input.editorPanelWidth : 0;
+  const centerPaneWidth = Math.max(
+    0,
+    input.shellWidth - input.dockedSidebarWidth - editorPanelWidth,
+  );
+  return {
+    centerPaneWidth,
+    isNarrow: centerPaneWidth > 0 && centerPaneWidth < narrowThreshold,
+    narrowThreshold,
   };
 }

@@ -8,6 +8,7 @@
 @import "./markdown.css";
 @import "./shell.css";
 
+/* Tray / hover-card tier only — not picker menus (those use shadow-honk-sm hairline). */
 .honk-glass-inset-ring {
   position: relative;
 }

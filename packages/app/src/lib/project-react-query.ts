@@ -1,7 +1,9 @@
 import type {
   EnvironmentId,
+  ProjectCreateDirectoryInput,
   ProjectDeleteFileInput,
   ProjectListDirectoryResult,
+  ProjectRenamePathInput,
   ProjectSearchEntriesResult,
   ProjectWriteFileInput,
 } from "@honk/contracts";
@@ -169,4 +171,20 @@ export async function deleteProjectFile(input: {
 }) {
   const api = ensureEnvironmentApi(input.environmentId);
   return api.projects.deleteFile(input.file);
+}
+
+export async function createProjectDirectory(input: {
+  environmentId: EnvironmentId;
+  directory: ProjectCreateDirectoryInput;
+}) {
+  const api = ensureEnvironmentApi(input.environmentId);
+  return api.projects.createDirectory(input.directory);
+}
+
+export async function renameProjectPath(input: {
+  environmentId: EnvironmentId;
+  paths: ProjectRenamePathInput;
+}) {
+  const api = ensureEnvironmentApi(input.environmentId);
+  return api.projects.renamePath(input.paths);
 }

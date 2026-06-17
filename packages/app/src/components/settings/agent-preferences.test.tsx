@@ -63,7 +63,6 @@ describe("AgentRuntimeSettingsSections", () => {
 
     expect(html).not.toContain("No accounts connected");
     expect(html).toContain("Claude API Key");
-    expect(html).toContain("Available");
     expect(html).toContain("Update key");
     expect(html).toContain("Remove");
     expect(html).not.toContain("Login");
@@ -169,7 +168,6 @@ describe("AgentRuntimeSettingsSections", () => {
     });
 
     expect(html).toContain("Waiting for login");
-    expect(html).toContain("Login pending");
     expect(html).toContain("Waiting for browser login.");
     expect(html).toContain("Open login page");
     expect(html).toContain("ABCD-1234");

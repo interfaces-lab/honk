@@ -3,7 +3,7 @@
 import { Dialog as CommandDialogPrimitive } from "@base-ui/react/dialog";
 import { IconMagnifyingGlass } from "central-icons";
 import type * as React from "react";
-import { cn, honkMenuSeparatorClasses } from "./utils";
+import { cn, honkCommandPaletteChromeClasses, honkMenuPopupFontClasses, honkMenuSeparatorClasses } from "./utils";
 import {
   Autocomplete,
   AutocompleteCollection,
@@ -61,7 +61,9 @@ function CommandDialogPopup({ className, children, ...props }: CommandDialogPrim
       <CommandDialogViewport>
         <CommandDialogPrimitive.Popup
           className={cn(
-            "relative flex max-h-[min(28rem,calc(100vh-2rem))] min-h-0 w-full min-w-0 max-w-[640px] flex-col overflow-hidden rounded-honk-xl border border-honk-stroke-tertiary bg-(--honk-command-palette-surface-background) font-honk text-honk-chrome text-honk-fg-primary shadow-honk-xl outline-hidden backdrop-blur-[length:var(--honk-glass-blur-floating)] transition-[scale,opacity,translate] duration-(--motion-duration-ui) ease-(--ease-shell) data-ending-style:-translate-y-3 data-ending-style:scale-[0.98] data-ending-style:opacity-0 data-starting-style:-translate-y-3 data-starting-style:scale-[0.98] data-starting-style:opacity-0 **:data-[slot=scroll-area-viewport]:data-has-overflow-y:pe-1",
+            "relative flex max-h-[min(28rem,calc(100vh-2rem))] min-h-0 w-full min-w-0 max-w-[640px] flex-col overflow-hidden rounded-honk-xl bg-(--honk-command-palette-surface-background) backdrop-blur-[length:var(--honk-glass-blur-floating)] transition-[scale,opacity,translate] duration-(--motion-duration-ui) ease-(--ease-shell) data-ending-style:-translate-y-3 data-ending-style:scale-[0.98] data-ending-style:opacity-0 data-starting-style:-translate-y-3 data-starting-style:scale-[0.98] data-starting-style:opacity-0 **:data-[slot=scroll-area-viewport]:data-has-overflow-y:pe-1",
+            honkMenuPopupFontClasses,
+            honkCommandPaletteChromeClasses,
             className,
           )}
           data-slot="command-dialog-popup"

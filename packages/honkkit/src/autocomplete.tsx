@@ -3,7 +3,12 @@
 import { Autocomplete as AutocompletePrimitive } from "@base-ui/react/autocomplete";
 import { IconChevronRightMedium, IconCrossMediumDefault } from "central-icons";
 
-import { cn, honkMenuSeparatorClasses, interactiveControlCursorVariants } from "./utils";
+import {
+  cn,
+  honkMenuPickerShellClasses,
+  honkMenuSeparatorClasses,
+  interactiveControlCursorVariants,
+} from "./utils";
 import { InputControlSizeContext, NativeInputRender, type InputControlSize } from "./input";
 import { ScrollArea } from "./scroll-area";
 
@@ -108,7 +113,8 @@ function AutocompletePopup({
       >
         <span
           className={cn(
-            "relative flex max-h-full min-w-(--anchor-width) max-w-(--available-width) origin-(--transform-origin) overflow-hidden rounded-honk-lg border border-honk-stroke-tertiary bg-honk-bg-elevated font-honk text-honk-chrome text-honk-fg-primary shadow-honk-sm outline-none backdrop-blur-[length:var(--honk-glass-blur-surface)] transition-[scale,opacity] duration-(--motion-duration-ui) ease-(--ease-shell) data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none",
+            "honk-workbench-menu-popup relative flex max-h-full min-w-(--anchor-width) max-w-(--available-width) origin-(--transform-origin) outline-none transition-[scale,opacity] duration-(--motion-duration-ui) ease-(--ease-shell) data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none",
+            honkMenuPickerShellClasses,
             className,
           )}
         >

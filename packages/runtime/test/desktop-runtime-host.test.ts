@@ -13,8 +13,11 @@ import {
   type HonkRuntimeHostEvent,
   MessageId,
   ModelId,
+  RuntimeItemId,
   RuntimeSessionId,
   type RuntimeDisplayTimelineProjection,
+  type SessionTreeProjection,
+  ThreadEntryId,
   ThreadId,
   TurnId,
 } from "@honk/contracts";
@@ -22,6 +25,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuthStorage } from "@earendil-works/pi-coding-agent";
 import { registerOAuthProvider, unregisterOAuthProvider } from "@earendil-works/pi-ai/oauth";
 import { DesktopRuntimeHost } from "../src/desktop-runtime-host";
+import { projectRuntimeDisplayTimeline } from "../src/display-timeline-projection";
 import { DesktopExtensionUiController } from "../src/extension-ui";
 import type { ThreadAgentRuntime } from "../src/thread-agent-runtime";
 
@@ -93,6 +97,29 @@ describe("DesktopRuntimeHost", () => {
         readonly displayTimelines: Map<string, RuntimeDisplayTimelineProjection>;
       }
     ).displayTimelines;
+  }
+
+  function sessionTreeMapForTest(host: DesktopRuntimeHost): Map<string, SessionTreeProjection> {
+    return (
+      host as unknown as {
+        readonly sessionTrees: Map<string, SessionTreeProjection>;
+      }
+    ).sessionTrees;
+  }
+
+  function applyRuntimeEventToDisplayTimelineForTest(
+    host: DesktopRuntimeHost,
+    runtime: ThreadAgentRuntime,
+    event: AgentRuntimeEvent,
+  ): RuntimeDisplayTimelineProjection {
+    return (
+      host as unknown as {
+        applyRuntimeEventToDisplayTimeline(
+          runtime: ThreadAgentRuntime,
+          event: AgentRuntimeEvent,
+        ): RuntimeDisplayTimelineProjection;
+      }
+    ).applyRuntimeEventToDisplayTimeline(runtime, event);
   }
 
   function createRuntimeEvent(
@@ -191,6 +218,7 @@ describe("DesktopRuntimeHost", () => {
     const snapshot = await host.configureCredential({
       authProviderId: AuthProviderId.make("anthropic"),
       method: "api-key",
+      credentialKind: "claude-api-key",
       apiKey: "test-key",
     });
 
@@ -212,7 +240,32 @@ describe("DesktopRuntimeHost", () => {
         method: "oauth",
         credentialKind: "cursor-api-key",
       }),
-    ).rejects.toThrow("Cursor SDK authentication requires a Cursor API key");
+    ).rejects.toThrow("Unsupported credential configuration");
+
+    host.dispose();
+  });
+
+  it("rejects credential provider, method, and kind mismatches", async () => {
+    const authStorage = AuthStorage.inMemory();
+    const host = new DesktopRuntimeHost({ agentDir: createAgentDir(), authStorage });
+
+    await expect(
+      host.configureCredential({
+        authProviderId: AuthProviderId.make("anthropic"),
+        method: "oauth",
+        credentialKind: "claude-api-key",
+      }),
+    ).rejects.toThrow("Unsupported credential configuration");
+    await expect(
+      host.configureCredential({
+        authProviderId: AuthProviderId.make("openai"),
+        method: "api-key",
+        credentialKind: "cursor-api-key",
+        apiKey: "test-key",
+      }),
+    ).rejects.toThrow("Unsupported credential configuration");
+    expect(authStorage.get("anthropic")).toBeUndefined();
+    expect(authStorage.get("openai")).toBeUndefined();
 
     host.dispose();
   });
@@ -226,6 +279,7 @@ describe("DesktopRuntimeHost", () => {
     const snapshot = await host.configureCredential({
       authProviderId: AuthProviderId.make("anthropic"),
       method: "logout",
+      credentialKind: "claude-api-key",
     });
 
     expect(authStorage.get("anthropic")).toBeUndefined();
@@ -295,6 +349,7 @@ describe("DesktopRuntimeHost", () => {
         {
           authProviderId: providerId,
           method: "oauth",
+          credentialKind: "codex-oauth",
         },
         {
           onAuth: () => undefined,
@@ -313,7 +368,7 @@ describe("DesktopRuntimeHost", () => {
           expect.arrayContaining([
             expect.objectContaining({
               authProviderId: providerId,
-              credentialKind: null,
+              credentialKind: "codex-oauth",
               state: "pending",
               kind: "oauth-browser",
               verificationUri: "https://example.com/login",
@@ -386,6 +441,7 @@ describe("DesktopRuntimeHost", () => {
           {
             authProviderId: providerId,
             method: "oauth",
+            credentialKind: "codex-oauth",
           },
           {
             onAuth: () => undefined,
@@ -402,7 +458,7 @@ describe("DesktopRuntimeHost", () => {
       expect(snapshot.credentialAuthFlows).toEqual([
         expect.objectContaining({
           authProviderId: providerId,
-          credentialKind: null,
+          credentialKind: "codex-oauth",
           state: "error",
           kind: "oauth-device-code",
           message: "Device login expired.",
@@ -571,6 +627,7 @@ describe("DesktopRuntimeHost", () => {
         });
         return TurnId.make("turn:pinned-provider-existing-runtime");
       },
+      isBusy: () => false,
       dispose: () => {
         disposed = true;
       },
@@ -616,6 +673,51 @@ describe("DesktopRuntimeHost", () => {
     host.dispose();
     expect(disposed).toBe(true);
     expect(unsubscribed).toBe(true);
+  });
+
+  it("queues follow-up sends on busy runtimes without branching", async () => {
+    const tempDir = createTempDir();
+    const threadId = ThreadId.make("thread:busy-follow-up");
+    const messageId = MessageId.make("message:busy-follow-up");
+    const parentEntryId = ThreadEntryId.make("message:assistant-leaf");
+    const sentOptions: unknown[] = [];
+    const runtime = {
+      threadId,
+      sendMessage: async (_text: string, options: unknown) => {
+        sentOptions.push(options);
+        return TurnId.make("turn:busy-follow-up");
+      },
+      isBusy: () => true,
+      dispose: () => undefined,
+    } as unknown as ThreadAgentRuntime;
+    const host = new DesktopRuntimeHost({ agentDir: join(tempDir, "pi-agent") });
+    runtimeMapForTest(host).set(threadId, {
+      runtime,
+      ui: new DesktopExtensionUiController(),
+      unsubscribe: () => undefined,
+    });
+
+    await host.sendTurn({
+      threadId,
+      cwd: tempDir,
+      input: "queued follow-up",
+      interactionMode: "agent",
+      sourceProposedPlan: null,
+      clientMessageId: messageId,
+      parentEntryId,
+      images: [],
+      policy: testPolicy,
+    });
+
+    expect(sentOptions).toEqual([
+      expect.objectContaining({
+        clientMessageId: messageId,
+        streamingBehavior: "followUp",
+      }),
+    ]);
+    expect(sentOptions[0]).not.toHaveProperty("parentEntryId");
+
+    host.dispose();
   });
 
   it("caps raw runtime events in host snapshots", async () => {
@@ -688,6 +790,130 @@ describe("DesktopRuntimeHost", () => {
 
     expect(snapshot.displayTimelines).toEqual([cachedTimeline]);
     expect(getSessionTreeCalls).toBe(0);
+
+    host.dispose();
+  });
+
+  it("rebases runtime event display timelines against the live runtime tree", async () => {
+    const tempDir = createTempDir();
+    const threadId = ThreadId.make("thread:edited-prompt-live-tree");
+    const runtimeSessionId = RuntimeSessionId.make("runtime-session:edited-prompt-live-tree");
+    const oldUserEntryId = RuntimeItemId.make("runtime:old-user");
+    const oldAssistantEntryId = RuntimeItemId.make("runtime:old-assistant");
+    const oldTree: SessionTreeProjection = {
+      threadId,
+      runtimeSessionId,
+      leafEntryId: oldAssistantEntryId,
+      entries: [
+        {
+          id: oldUserEntryId,
+          threadEntryId: ThreadEntryId.make("message:client:old-prompt"),
+          parentId: null,
+          parentThreadEntryId: null,
+          kind: "message",
+          role: "user",
+          clientMessageId: MessageId.make("client:old-prompt"),
+          turnId: TurnId.make("turn:old-prompt"),
+          text: "old prompt",
+          createdAt: "2026-06-12T12:00:00.000Z",
+          rawEntry: { type: "message" },
+        },
+        {
+          id: oldAssistantEntryId,
+          threadEntryId: ThreadEntryId.make("message:runtime:old-assistant"),
+          parentId: oldUserEntryId,
+          parentThreadEntryId: ThreadEntryId.make("message:client:old-prompt"),
+          kind: "message",
+          role: "assistant",
+          turnId: TurnId.make("turn:old-prompt"),
+          text: "old response",
+          createdAt: "2026-06-12T12:00:01.000Z",
+          rawEntry: { type: "message" },
+        },
+      ],
+      nodes: [
+        {
+          entryId: oldUserEntryId,
+          threadEntryId: ThreadEntryId.make("message:client:old-prompt"),
+          parentEntryId: null,
+          depth: 0,
+          isActivePath: true,
+          isActiveLeaf: false,
+          childCount: 1,
+        },
+        {
+          entryId: oldAssistantEntryId,
+          threadEntryId: ThreadEntryId.make("message:runtime:old-assistant"),
+          parentEntryId: oldUserEntryId,
+          depth: 1,
+          isActivePath: true,
+          isActiveLeaf: true,
+          childCount: 0,
+        },
+      ],
+    };
+    const liveTree: SessionTreeProjection = {
+      ...oldTree,
+      leafEntryId: null,
+      nodes: oldTree.nodes.map((node) => ({
+        ...node,
+        isActivePath: false,
+        isActiveLeaf: false,
+      })),
+    };
+    let getSessionTreeCalls = 0;
+    const runtime = {
+      threadId,
+      runtimeSessionId,
+      getSessionTree: () => {
+        getSessionTreeCalls += 1;
+        return liveTree;
+      },
+    } as unknown as ThreadAgentRuntime;
+    const host = new DesktopRuntimeHost({ agentDir: join(tempDir, "pi-agent") });
+    sessionTreeMapForTest(host).set(threadId, oldTree);
+    displayTimelineMapForTest(host).set(
+      threadId,
+      projectRuntimeDisplayTimeline({
+        threadId,
+        runtimeSessionId,
+        sessionTree: oldTree,
+      }),
+    );
+
+    const timeline = applyRuntimeEventToDisplayTimelineForTest(
+      host,
+      runtime,
+      createRuntimeEvent({
+        type: "message.completed",
+        threadId,
+        runtimeSessionId,
+        turnId: TurnId.make("turn:edited-prompt"),
+        messageRole: "user",
+        text: "edited prompt",
+        data: { clientMessageId: "client:edited-prompt" },
+      }),
+    );
+
+    expect(timeline.items.map((item) => (item.kind === "message" ? item.text : null))).toEqual([
+      "edited prompt",
+    ]);
+    expect(getSessionTreeCalls).toBe(1);
+
+    applyRuntimeEventToDisplayTimelineForTest(
+      host,
+      runtime,
+      createRuntimeEvent({
+        type: "message.updated",
+        threadId,
+        runtimeSessionId,
+        turnId: TurnId.make("turn:edited-prompt"),
+        messageRole: "assistant",
+        text: "streaming response",
+      }),
+    );
+
+    expect(getSessionTreeCalls).toBe(1);
 
     host.dispose();
   });

@@ -59,6 +59,20 @@ export const MAX_LIVE_SUBAGENT_ACTIVITIES = 500;
 // and tool output keeps its tail (the most recent output).
 const MAX_SUBAGENT_TEXT_DETAIL_CHARS = 16_000;
 const MAX_SUBAGENT_OUTPUT_DETAIL_CHARS = 8_000;
+const MAX_SUBAGENT_DATA_STRING_CHARS = 4_000;
+const MAX_SUBAGENT_DATA_ARRAY_ITEMS = 50;
+const MAX_SUBAGENT_DATA_DEPTH = 3;
+const SUBAGENT_ACTIVITY_DATA_BODY_KEYS = new Set([
+  "activities",
+  "content",
+  "messages",
+  "output",
+  "partialResult",
+  "result",
+  "stderr",
+  "stdout",
+  "text",
+]);
 const AGENT_THINKING_LEVEL_SET: ReadonlySet<ThinkingLevel> = new Set(AGENT_THINKING_LEVELS);
 
 function isAgentThinkingLevel(level: ThinkingLevel): level is AgentThinkingLevel {
@@ -404,6 +418,81 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return Object.fromEntries(Object.entries(value));
 }
 
+function asObjectRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+  return Object.fromEntries(Object.entries(value));
+}
+
+function compactSubagentDataString(value: string): string {
+  if (value.length <= MAX_SUBAGENT_DATA_STRING_CHARS) {
+    return value;
+  }
+  return `${value.slice(0, MAX_SUBAGENT_DATA_STRING_CHARS)}\n… [truncated]`;
+}
+
+function compactSubagentMetadataValue(value: unknown, depth: number): unknown {
+  if (typeof value === "string") {
+    return compactSubagentDataString(value);
+  }
+  if (typeof value === "number" || typeof value === "boolean" || value === null) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    if (depth >= MAX_SUBAGENT_DATA_DEPTH) {
+      return undefined;
+    }
+    const compacted = value
+      .slice(0, MAX_SUBAGENT_DATA_ARRAY_ITEMS)
+      .map((entry) => compactSubagentMetadataValue(entry, depth + 1))
+      .filter((entry) => entry !== undefined);
+    return compacted.length > 0 ? compacted : undefined;
+  }
+  const record = asObjectRecord(value);
+  if (!record || depth >= MAX_SUBAGENT_DATA_DEPTH) {
+    return undefined;
+  }
+  const entries = Object.entries(record)
+    .filter(([key]) => !SUBAGENT_ACTIVITY_DATA_BODY_KEYS.has(key))
+    .map(([key, entry]) => [key, compactSubagentMetadataValue(entry, depth + 1)] as const)
+    .filter((entry): entry is readonly [string, unknown] => entry[1] !== undefined);
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function compactSubagentToolResult(value: unknown): unknown {
+  const record = asObjectRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const entries = Object.entries(record)
+    .filter(([key]) => !SUBAGENT_ACTIVITY_DATA_BODY_KEYS.has(key))
+    .map(([key, entry]) => [key, compactSubagentMetadataValue(entry, 1)] as const)
+    .filter((entry): entry is readonly [string, unknown] => entry[1] !== undefined);
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+export function compactSubagentActivityData(data: unknown): Record<string, unknown> | null {
+  const record = asObjectRecord(data);
+  if (!record) {
+    return null;
+  }
+  const entries = Object.entries(record)
+    .filter(([key]) => key !== "result" && key !== "partialResult")
+    .map(([key, entry]) => [key, compactSubagentMetadataValue(entry, 0)] as const)
+    .filter((entry): entry is readonly [string, unknown] => entry[1] !== undefined);
+
+  const result = compactSubagentToolResult(record.result);
+  const partialResult = compactSubagentToolResult(record.partialResult);
+  if (result !== undefined) {
+    entries.push(["result", result]);
+  }
+  if (partialResult !== undefined) {
+    entries.push(["partialResult", partialResult]);
+  }
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
+}
+
 function toolResultText(value: unknown): string | null {
   if (typeof value === "string" && value.trim().length > 0) {
     return value.trim();
@@ -524,7 +613,7 @@ function captureChildEvent(
         status: event.type === "tool.completed" ? "completed" : "running",
         title: toolName,
         detail,
-        data,
+        data: compactSubagentActivityData(data),
       },
     );
   }

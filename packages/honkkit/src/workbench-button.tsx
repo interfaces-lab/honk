@@ -73,6 +73,7 @@ function WorkbenchIconButton(props: {
   children: ReactNode;
   className?: string | undefined;
   chrome?: WorkbenchIconButtonChrome | undefined;
+  "data-shell-fullscreen-toggle"?: "" | undefined;
   disabled?: boolean | undefined;
   onClick?: MouseEventHandler<HTMLButtonElement> | undefined;
   tabSystem?: boolean | undefined;
@@ -89,6 +90,7 @@ function WorkbenchIconButton(props: {
       title={props.title ?? props["aria-label"]}
       data-active={props.active ?? false}
       data-chrome={props.chrome ?? "tool"}
+      data-shell-fullscreen-toggle={props["data-shell-fullscreen-toggle"]}
       data-shell-no-drag=""
       data-slot="workbench-icon-button"
       data-tab-system={props.tabSystem ?? false}

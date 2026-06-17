@@ -29,6 +29,8 @@ const TITLEBAR_DARK_SYMBOL_COLOR = "#f8fafc";
 const DEFAULT_WINDOW_WIDTH = 1280;
 const DEFAULT_WINDOW_HEIGHT = 800;
 const TRUSTED_RENDERER_PERMISSIONS = new Set(["clipboard-sanitized-write", "notifications"]);
+const RENDERER_CONSOLE_REPEAT_LOG_WINDOW_MS = 30_000;
+const RENDERER_CONSOLE_REPEAT_LOG_MAX_ENTRIES = 256;
 
 type WindowTitleBarOptions = Pick<
   Electron.BrowserWindowConstructorOptions,
@@ -73,6 +75,7 @@ export class DesktopWindow extends Context.Service<DesktopWindow, DesktopWindowS
 const elog = EffectLogger.create({ service: "desktop-window" });
 
 const DESKTOP_RENDERER_ORIGIN = `${DESKTOP_SCHEME}://desktop`;
+const rendererConsoleMessageLastSeen = new Map<string, number>();
 
 function resolveDesktopDevServerUrl(
   environment: DesktopEnvironment.DesktopEnvironmentShape,
@@ -81,6 +84,43 @@ function resolveDesktopDevServerUrl(
     onNone: () => Effect.fail(new DesktopWindowDevServerUrlMissingError()),
     onSome: (url) => Effect.succeed(url.href),
   });
+}
+
+function shouldLogRendererConsoleMessage(
+  level: number,
+  message: string,
+  line: number,
+  sourceId: string,
+): boolean {
+  const now = Date.now();
+  const key = [level, sourceId, line, message].join("\0");
+  const lastSeenAt = rendererConsoleMessageLastSeen.get(key);
+
+  rendererConsoleMessageLastSeen.set(key, now);
+
+  if (
+    lastSeenAt !== undefined &&
+    now - lastSeenAt < RENDERER_CONSOLE_REPEAT_LOG_WINDOW_MS
+  ) {
+    return false;
+  }
+
+  if (rendererConsoleMessageLastSeen.size > RENDERER_CONSOLE_REPEAT_LOG_MAX_ENTRIES) {
+    const staleBefore = now - RENDERER_CONSOLE_REPEAT_LOG_WINDOW_MS;
+    for (const [entryKey, entryLastSeenAt] of rendererConsoleMessageLastSeen) {
+      if (
+        entryLastSeenAt < staleBefore ||
+        rendererConsoleMessageLastSeen.size > RENDERER_CONSOLE_REPEAT_LOG_MAX_ENTRIES
+      ) {
+        rendererConsoleMessageLastSeen.delete(entryKey);
+      }
+      if (rendererConsoleMessageLastSeen.size <= RENDERER_CONSOLE_REPEAT_LOG_MAX_ENTRIES) {
+        break;
+      }
+    }
+  }
+
+  return true;
 }
 
 function getIconOption(
@@ -344,6 +384,9 @@ const make = Effect.gen(function* () {
     });
     window.webContents.on("console-message", (_event, level, message, line, sourceId) => {
       if (level < 2) {
+        return;
+      }
+      if (!shouldLogRendererConsoleMessage(level, message, line, sourceId)) {
         return;
       }
       const log = level >= 3 ? elog.error : elog.warn;

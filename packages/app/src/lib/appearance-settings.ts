@@ -18,6 +18,8 @@ export const STORAGE_CODE_FONT = "honk:mono-font";
 export const APPEARANCE_SETTINGS_CHANGED = "appearance-settings-changed" as const;
 
 let listeners: Array<() => void> = [];
+let lastDesktopVibrancy: boolean | null = null;
+let lastDesktopDisplayZoom: number | null = null;
 const keys = new Set([
   STORAGE_REDUCE_TRANSPARENCY,
   STORAGE_TINT_HUE,
@@ -90,7 +92,13 @@ function syncVibrancy() {
 
   const bridge = window.desktopBridge;
   if (!bridge?.setVibrancy) return;
-  void bridge.setVibrancy(wantsVibrancy);
+  if (lastDesktopVibrancy === wantsVibrancy) return;
+  lastDesktopVibrancy = wantsVibrancy;
+  void bridge.setVibrancy(wantsVibrancy).catch(() => {
+    if (lastDesktopVibrancy === wantsVibrancy) {
+      lastDesktopVibrancy = null;
+    }
+  });
 }
 
 function readStoredUiFontSizePx() {
@@ -109,7 +117,13 @@ export function syncAppearanceDisplayZoom() {
 
   const bridge = window.desktopBridge;
   if (!bridge?.setDisplayZoom) return;
-  void bridge.setDisplayZoom(zoomFactor);
+  if (lastDesktopDisplayZoom === zoomFactor) return;
+  lastDesktopDisplayZoom = zoomFactor;
+  void bridge.setDisplayZoom(zoomFactor).catch(() => {
+    if (lastDesktopDisplayZoom === zoomFactor) {
+      lastDesktopDisplayZoom = null;
+    }
+  });
 }
 
 export function syncAppearanceVibrancy() {

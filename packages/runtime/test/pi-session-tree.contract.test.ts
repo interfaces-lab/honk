@@ -104,7 +104,7 @@ describe("Pi session tree contract", () => {
     ).toEqual(expect.objectContaining({ childCount: 1 }));
   });
 
-  it("projects provider error messages as visible session tree text", () => {
+  it("does not project provider error messages as assistant session tree text", () => {
     const entry = {
       type: "message",
       id: "assistant-error",
@@ -113,10 +113,9 @@ describe("Pi session tree contract", () => {
       message: failedAssistantMessage,
     } satisfies SessionEntry;
 
-    expect(projectRuntimeSessionEntry(entry)).toMatchObject({
-      role: "assistant",
-      text: "Provider error: 400 usage limit reached",
-    });
+    const projected = projectRuntimeSessionEntry(entry);
+    expect(projected.role).toBe("assistant");
+    expect(projected.text).toBeUndefined();
   });
 
   it("branches edited prompts from the replaced user message parent", async () => {
@@ -385,8 +384,13 @@ describe("Pi session tree contract", () => {
     const userEntry = tree.entries.find(
       (entry) => entry.role === "user" && entry.text === "persisted prompt",
     );
+    const assistantEntry = tree.entries.find(
+      (entry) => entry.role === "assistant" && entry.text === "persisted response",
+    );
     expect(userEntry?.clientMessageId).toBe(clientMessageId);
     expect(userEntry?.threadEntryId).toBe(threadEntryIdForMessageId(clientMessageId));
+    expect(userEntry?.turnId).toBeDefined();
+    expect(assistantEntry?.turnId).toBe(userEntry?.turnId);
     expect(tree.entries).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ kind: "custom" })]),
     );

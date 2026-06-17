@@ -215,6 +215,62 @@ export function selectRuntimeThreadActivity(
   return state.runtimeActivityByThreadId.get(threadId) ?? EMPTY_RUNTIME_THREAD_ACTIVITY;
 }
 
+const EMPTY_RUNTIME_THREAD_EVENTS: AgentRuntimeEvent[] = [];
+
+// Cache one filtered array per thread keyed by the source `runtimeEvents`
+// reference. A single shared slot thrashes when multiple ChatView surfaces
+// (tiled panes) subscribe with different thread ids: each `useSyncExternalStore`
+// getSnapshot would return a fresh `.filter()` array, fail Object.is, and force
+// an infinite re-render. Keying by thread id keeps every surface stable.
+interface CachedRuntimeThreadEvents {
+  readonly source: ReadonlyArray<AgentRuntimeEvent>;
+  readonly events: ReadonlyArray<AgentRuntimeEvent>;
+}
+
+const cachedRuntimeThreadEventsByThreadId = new Map<ThreadId, CachedRuntimeThreadEvents>();
+
+function areSameRuntimeEventReferences(
+  left: ReadonlyArray<AgentRuntimeEvent>,
+  right: ReadonlyArray<AgentRuntimeEvent>,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function selectRuntimeEventsForThread(
+  state: AgentRuntimeState,
+  threadId: ThreadId | null | undefined,
+): ReadonlyArray<AgentRuntimeEvent> {
+  if (!threadId) {
+    return EMPTY_RUNTIME_THREAD_EVENTS;
+  }
+
+  const source = state.snapshot.runtimeEvents;
+  const cached = cachedRuntimeThreadEventsByThreadId.get(threadId);
+  if (cached && cached.source === source) {
+    return cached.events;
+  }
+
+  const next = source.filter((event) => event.threadId === threadId);
+  if (cached && areSameRuntimeEventReferences(cached.events, next)) {
+    cachedRuntimeThreadEventsByThreadId.set(threadId, { source, events: cached.events });
+    return cached.events;
+  }
+
+  cachedRuntimeThreadEventsByThreadId.set(threadId, { source, events: next });
+  return next;
+}
+
 function hostOwnedRuntimeThreadIds(snapshot: HonkRuntimeHostSnapshot): Set<ThreadId> {
   const threadIds = new Set<ThreadId>();
   for (const tree of snapshot.sessionTrees) {
@@ -995,19 +1051,22 @@ export function startDesktopRuntimeHostSync(): () => void {
   let disposed = false;
   let snapshotApplied = false;
   const bufferedEvents: HonkRuntimeHostEvent[] = [];
+  const applyBufferedEvents = () => {
+    for (const event of bufferedEvents.splice(0)) {
+      useAgentRuntimeStore.getState().applyHostEvent(event);
+    }
+  };
 
   void api.getHostSnapshot().then((snapshot) => {
     if (!disposed) {
       useAgentRuntimeStore.getState().setSnapshot(snapshot);
       snapshotApplied = true;
-      for (const event of bufferedEvents.splice(0)) {
-        useAgentRuntimeStore.getState().applyHostEvent(event);
-      }
+      applyBufferedEvents();
     }
   }, () => {
     if (!disposed) {
       snapshotApplied = true;
-      bufferedEvents.length = 0;
+      applyBufferedEvents();
     }
   });
 
@@ -1015,6 +1074,7 @@ export function startDesktopRuntimeHostSync(): () => void {
     if (!disposed) {
       if (!snapshotApplied) {
         bufferedEvents.push(event);
+        return;
       }
       useAgentRuntimeStore.getState().applyHostEvent(event);
     }

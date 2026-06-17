@@ -164,6 +164,7 @@ export interface ToolCallRendererProps {
   defaultExpanded?: boolean | undefined;
   defaultEditExpanded?: boolean | undefined;
   conversationDensity?: ConversationDensity | undefined;
+  resolvedTheme?: "light" | "dark" | undefined;
 }
 
 const thinkingStatusTaskVariants = cva(cn("min-w-0", "text-conversation text-honk-fg-tertiary"), {
@@ -238,6 +239,7 @@ export function ToolCallRenderer({
   defaultExpanded = false,
   defaultEditExpanded,
   conversationDensity = "compact-all-grouped",
+  resolvedTheme,
 }: ToolCallRendererProps) {
   const { action, details, command, output, path, stats, artifacts } = toolCall.tool.value;
   const artifactLookup = useMemo(() => collectToolArtifacts(artifacts), [artifacts]);
@@ -324,6 +326,7 @@ export function ToolCallRenderer({
           callId={callId}
           showIcon={showDetailedIcons}
           compactLayout={compactEdits}
+          resolvedTheme={resolvedTheme}
         />
       );
     case "taskToolCall":
@@ -1349,6 +1352,7 @@ function EditToolCall({
   callId,
   showIcon,
   compactLayout,
+  resolvedTheme,
 }: {
   action: string;
   path: string;
@@ -1363,6 +1367,7 @@ function EditToolCall({
   callId: string | undefined;
   showIcon: boolean;
   compactLayout: boolean;
+  resolvedTheme?: "light" | "dark" | undefined;
 }) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const hasContent = hasEditExpandableContent(detail, path, diffArtifact);
@@ -1454,7 +1459,10 @@ function EditToolCall({
             }
           >
             {diffArtifact ? (
-              <InlineToolDiff artifact={diffArtifact} />
+              <InlineToolDiff
+                artifact={diffArtifact}
+                {...(resolvedTheme ? { resolvedTheme } : {})}
+              />
             ) : (
               <pre className="m-0 overflow-hidden whitespace-pre-wrap px-(--conversation-tool-card-padding-x) py-1.5">
                 {detail}
@@ -1488,8 +1496,21 @@ function AwaitDetails({ details, startedAtMs }: { details: string; startedAtMs: 
 }
 
 function useNowMs(intervalMs: number): number {
-  const store = useMemo(() => createNowMsStore(intervalMs), [intervalMs]);
+  const store = useMemo(() => getNowMsStore(intervalMs), [intervalMs]);
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
+
+const nowMsStores = new Map<number, ReturnType<typeof createNowMsStore>>();
+
+function getNowMsStore(intervalMs: number): ReturnType<typeof createNowMsStore> {
+  const existing = nowMsStores.get(intervalMs);
+  if (existing) {
+    return existing;
+  }
+
+  const store = createNowMsStore(intervalMs);
+  nowMsStores.set(intervalMs, store);
+  return store;
 }
 
 function createNowMsStore(intervalMs: number) {

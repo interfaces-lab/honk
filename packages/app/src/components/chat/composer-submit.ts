@@ -240,7 +240,7 @@ function resolveComposerThreadTitleSeed(input: {
     return `Image: ${firstComposerImage.name}`;
   }
 
-  return "New thread";
+  return "New Agent";
 }
 
 function trimThreadTitle(text: string): string {

@@ -6,9 +6,8 @@ import {
   IconMinimize45,
   IconSidebar,
   IconSidebarHiddenLeftWide,
-  IconSidebarHiddenRightWide,
 } from "central-icons";
-import { workbenchIconButtonVariants } from "@honk/honkkit/workbench-button";
+import { WorkbenchIconButton } from "@honk/honkkit/workbench-button";
 import { TabsPanel, TabsRoot } from "@honk/honkkit/tabs";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { cva } from "class-variance-authority";
@@ -269,27 +268,23 @@ function LeftAside(props: { children: ReactNode; mode: ShellPanelMode }) {
 // Both glyphs stay mounted; ShellLayoutService flips the root attribute and
 // a11y state imperatively so this button does not subscribe to fullscreen.
 const RightWorkbenchFullscreenToggle = memo(function RightWorkbenchFullscreenToggle(props: {
+  threadId: string | null;
   workspaceKey: string | null;
 }) {
   const onClick = useCallback(() => {
-    workspaceEditorActions.toggleFullscreen(props.workspaceKey, "right-workbench");
-  }, [props.workspaceKey]);
+    workspaceEditorActions.toggleFullscreen(props.workspaceKey, props.threadId, "right-workbench");
+  }, [props.threadId, props.workspaceKey]);
 
   return (
-    <button
-      type="button"
+    <WorkbenchIconButton
       aria-label="Toggle editor panel fullscreen"
-      aria-pressed="false"
-      data-active="false"
-      data-chrome="tool"
-      data-shell-no-drag=""
+      aria-pressed={false}
       data-shell-fullscreen-toggle=""
-      data-tab-system="false"
       title="Toggle editor panel fullscreen"
       onClick={onClick}
-      className={cn(
-        workbenchIconButtonVariants({ active: false, chrome: "tool", tabSystem: false }),
-      )}
+      active={false}
+      chrome="tool"
+      tabSystem={false}
     >
       <span data-fullscreen-toggle-icon="expand">
         <IconExpand45 className="size-4 shrink-0" aria-hidden />
@@ -297,12 +292,13 @@ const RightWorkbenchFullscreenToggle = memo(function RightWorkbenchFullscreenTog
       <span data-fullscreen-toggle-icon="minimize">
         <IconMinimize45 className="size-4 shrink-0" aria-hidden />
       </span>
-    </button>
+    </WorkbenchIconButton>
   );
 });
 
 const RightAsideHeader = memo(function RightAsideHeader(props: {
   workspaceKey: string | null;
+  routeThreadId: string | null;
   activeTabId: string;
   onCloseTab?: ((tab: WorkbenchTabMeta) => void) | undefined;
   tabs: readonly WorkbenchTabMeta[];
@@ -349,8 +345,13 @@ const RightAsideHeader = memo(function RightAsideHeader(props: {
   const onHidePanel = useCallback(() => setRightPanelOpen(false, workspaceKey), [workspaceKey]);
 
   const fullscreenControl = useMemo(
-    () => <RightWorkbenchFullscreenToggle workspaceKey={workspaceKey} />,
-    [workspaceKey],
+    () => (
+      <RightWorkbenchFullscreenToggle
+        workspaceKey={workspaceKey}
+        threadId={props.routeThreadId}
+      />
+    ),
+    [props.routeThreadId, workspaceKey],
   );
 
   return (
@@ -476,6 +477,7 @@ function RightAsideFrame(props: { workspaceKey: string | null; children: ReactNo
 // changes — never on width / fullscreen / drag (those live in the Frame).
 function RightWorkbenchContent(props: {
   workspaceKey: string | null;
+  routeThreadId: string | null;
   right: RightWorkbenchDefinition;
   keybindings: ReturnType<typeof useServerKeybindings>;
   threadTitle: string | null;
@@ -489,6 +491,10 @@ function RightWorkbenchContent(props: {
   const navigate = useNavigate();
   const visibleTabIds = useMemo(
     () => new Set(props.right.tabs.map((tab) => tab.id)),
+    [props.right.tabs],
+  );
+  const visibleTabKinds = useMemo(
+    () => new Set(props.right.tabs.map((tab) => tab.kind)),
     [props.right.tabs],
   );
   const effectiveActiveTab =
@@ -505,13 +511,21 @@ function RightWorkbenchContent(props: {
     if (!searchActiveTab) {
       return;
     }
+    if (!visibleTabKinds.has(searchActiveTab)) {
+      void navigate({
+        replace: true,
+        to: ".",
+        search: ({ panel: _panel, ...search }) => search,
+      });
+      return;
+    }
     workbenchTabPersistenceActions.activateKind(props.workspaceKey, searchActiveTab);
     void navigate({
       replace: true,
       to: ".",
       search: ({ panel: _panel, ...search }) => search,
     });
-  }, [navigate, props.workspaceKey, searchActiveTab]);
+  }, [navigate, props.workspaceKey, searchActiveTab, visibleTabKinds]);
 
   // `open` is sticky: this subtree only mounts once the Frame has opened and is
   // never unmounted on collapse, so `open` is constant `true` for its lifetime
@@ -533,6 +547,7 @@ function RightWorkbenchContent(props: {
       >
         <RightAsideHeader
           workspaceKey={props.workspaceKey}
+          routeThreadId={props.routeThreadId}
           activeTabId={effectiveActiveTab.id}
           onCloseTab={props.right.onCloseTab}
           tabs={props.right.tabs}
@@ -565,6 +580,7 @@ function RightWorkbenchContent(props: {
 const RightAside = memo(function RightAside(props: {
   cwd: string | null;
   workspaceKey: string | null;
+  routeThreadId: string | null;
   right: RightWorkbenchDefinition;
   keybindings: ReturnType<typeof useServerKeybindings>;
   threadTitle: string | null;
@@ -573,12 +589,13 @@ const RightAside = memo(function RightAside(props: {
     () => (
       <RightWorkbenchContent
         workspaceKey={props.workspaceKey}
+        routeThreadId={props.routeThreadId}
         right={props.right}
         keybindings={props.keybindings}
         threadTitle={props.threadTitle}
       />
     ),
-    [props.workspaceKey, props.right, props.keybindings, props.threadTitle],
+    [props.workspaceKey, props.routeThreadId, props.right, props.keybindings, props.threadTitle],
   );
 
   return <RightAsideFrame workspaceKey={props.workspaceKey}>{content}</RightAsideFrame>;
@@ -663,7 +680,7 @@ const ShellHeaderControls = memo(function ShellHeaderControls(props: {
   const commandPaletteTitle = commandPaletteShortcutLabel
     ? `Search (${commandPaletteShortcutLabel})`
     : "Search";
-  const rightPanelLabel = rightOpen ? "Hide project panel" : SHOW_RIGHT_WORKBENCH_LABEL;
+  const rightPanelLabel = SHOW_RIGHT_WORKBENCH_LABEL;
 
   return (
     <>
@@ -683,26 +700,20 @@ const ShellHeaderControls = memo(function ShellHeaderControls(props: {
           <IconMagnifyingGlass className="size-3.5 shrink-0" />
         </button>
       </div>
-      {props.showRight ? (
+      {props.showRight && !rightOpen ? (
         <div
-          className="honk-shell-titlebar-right-toggle pointer-events-auto no-drag absolute z-(--z-index-shell-titlebar-controls) flex h-(--honk-titlebar-control-height) shrink-0 items-center"
+          className="honk-shell-titlebar-right-toggle pointer-events-auto no-drag absolute z-(--z-index-shell-titlebar-controls) flex h-(--honk-workbench-action-size) shrink-0 items-center"
           data-shell-no-drag=""
         >
-          <button
-            type="button"
-            onClick={() => setRightPanelOpen(!rightOpen, props.workspaceKey)}
-            data-shell-no-drag=""
-            className="flex h-(--honk-titlebar-control-height) w-(--honk-titlebar-control-height) shrink-0 items-center justify-center rounded-honk-control bg-transparent p-0 text-honk-fg-secondary transition-[background-color,color] hover:bg-honk-bg-quaternary hover:text-honk-fg-primary [&_svg]:block"
+          <WorkbenchIconButton
+            onClick={() => setRightPanelOpen(true, props.workspaceKey)}
             aria-label={rightPanelLabel}
-            aria-pressed={rightOpen}
+            aria-pressed={false}
             title={rightPanelLabel}
+            chrome="tool"
           >
-            {rightOpen ? (
-              <IconSidebarHiddenRightWide className="size-4 shrink-0" />
-            ) : (
-              <IconSidebar className="size-4 shrink-0" />
-            )}
-          </button>
+            <IconSidebar className="size-4 shrink-0" aria-hidden />
+          </WorkbenchIconButton>
         </div>
       ) : null}
     </>
@@ -812,6 +823,7 @@ export function AppShell(props: {
   const electron = isElectronHost();
   const showRight = props.right !== null;
   const workspaceKey = props.workspaceKey ?? null;
+  const routeThreadId = props.routeThreadId ?? null;
   const keybindings = useServerKeybindings();
   const agentWindowFontSmoothingAntialiased = useSettings(
     (settings) => settings.agentWindowFontSmoothingAntialiased,
@@ -823,7 +835,7 @@ export function AppShell(props: {
     gitFocusId: props.gitFocusId ?? null,
     leftMode: modes.left,
     rootRef: agentWindowRef,
-    routeThreadId: props.routeThreadId ?? null,
+    routeThreadId,
     showRight,
     workspaceKey,
   });
@@ -839,16 +851,16 @@ export function AppShell(props: {
       if (event.key !== "Escape" || event.defaultPrevented || isTerminalFocused()) {
         return;
       }
-      if (getWorkspaceFullscreenTarget(workspaceKey) === "none") {
+      if (getWorkspaceFullscreenTarget(workspaceKey, routeThreadId) === "none") {
         return;
       }
       event.preventDefault();
       event.stopPropagation();
-      workspaceEditorActions.exitFullscreen(workspaceKey);
+      workspaceEditorActions.exitFullscreen(workspaceKey, routeThreadId);
     };
     window.addEventListener("keydown", exitFullscreen);
     return () => window.removeEventListener("keydown", exitFullscreen);
-  }, [workspaceKey]);
+  }, [routeThreadId, workspaceKey]);
 
   useEffect(() => {
     const toggleFullscreen = (event: KeyboardEvent) => {
@@ -869,11 +881,11 @@ export function AppShell(props: {
       }
       event.preventDefault();
       event.stopPropagation();
-      workspaceEditorActions.toggleFullscreen(workspaceKey, "right-workbench");
+      workspaceEditorActions.toggleFullscreen(workspaceKey, routeThreadId, "right-workbench");
     };
     window.addEventListener("keydown", toggleFullscreen);
     return () => window.removeEventListener("keydown", toggleFullscreen);
-  }, [keybindings, shellLayoutService, workspaceKey]);
+  }, [keybindings, routeThreadId, shellLayoutService, workspaceKey]);
 
   const shellStyle: ShellRootStyle = {
     "--honk-shell-left-collapsed-width": "0px",
@@ -931,6 +943,7 @@ export function AppShell(props: {
               <RightAside
                 cwd={props.cwd}
                 workspaceKey={workspaceKey}
+                routeThreadId={routeThreadId}
                 right={props.right}
                 keybindings={keybindings}
                 threadTitle={props.threadTitle ?? null}

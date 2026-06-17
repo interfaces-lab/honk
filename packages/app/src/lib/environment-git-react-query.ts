@@ -6,6 +6,8 @@ import { ensureEnvironmentGitApi } from "~/lib/environment-git-api";
 
 const GIT_PATCH_CACHE_GC_TIME_MS = 2 * 60 * 1000;
 const GIT_IMAGE_CACHE_GC_TIME_MS = 2 * 60 * 1000;
+const GIT_PATCH_CACHE_STALE_TIME_MS = 15 * 1000;
+const GIT_IMAGE_CACHE_STALE_TIME_MS = 15 * 1000;
 
 export const gitQueryKeys = {
   patchesForCwd: (environmentId: EnvironmentId | null, cwd: string) =>
@@ -80,7 +82,7 @@ export function gitPatchQueryOptions(input: {
       return result satisfies GitFilePatchResult;
     },
     enabled: (input.enabled ?? true) && input.environmentId !== null && input.cwd !== null,
-    staleTime: 0,
+    staleTime: GIT_PATCH_CACHE_STALE_TIME_MS,
     gcTime: GIT_PATCH_CACHE_GC_TIME_MS,
   });
 }
@@ -105,7 +107,7 @@ export function gitImageQueryOptions(input: {
       return result satisfies GitFileImageResult;
     },
     enabled: (input.enabled ?? true) && input.environmentId !== null && input.cwd !== null,
-    staleTime: 0,
+    staleTime: GIT_IMAGE_CACHE_STALE_TIME_MS,
     gcTime: GIT_IMAGE_CACHE_GC_TIME_MS,
   });
 }

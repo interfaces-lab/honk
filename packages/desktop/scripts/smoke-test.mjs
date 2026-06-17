@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -6,6 +7,24 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const desktopDir = resolve(__dirname, "..");
 const electronBin = resolve(desktopDir, "node_modules/.bin/electron");
 const mainJs = resolve(desktopDir, "out/main/index.js");
+const cursorSdkBundleMarkers = ["node_modules/.pnpm/@cursor+sdk", "@cursor/sdk/dist/esm/index.js"];
+
+let mainBundle = "";
+try {
+  mainBundle = await readFile(mainJs, "utf8");
+} catch (error) {
+  console.error(`\nDesktop smoke test failed: could not read ${mainJs}.`);
+  console.error(error);
+  process.exit(1);
+}
+
+const cursorSdkBundleMarker = cursorSdkBundleMarkers.find((marker) => mainBundle.includes(marker));
+if (cursorSdkBundleMarker) {
+  console.error("\nDesktop smoke test failed: @cursor/sdk was bundled into out/main/index.js.");
+  console.error(`Found marker: ${cursorSdkBundleMarker}`);
+  console.error("Keep @cursor/sdk externalized so its lazy webpack chunks load from node_modules.");
+  process.exit(1);
+}
 
 console.log("\nLaunching Electron smoke test...");
 

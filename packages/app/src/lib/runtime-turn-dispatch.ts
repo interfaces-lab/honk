@@ -70,6 +70,7 @@ export async function sendRuntimeTurnWithPreparedPolicy(
     images: [...input.images],
     policy: await input.preparedPolicy.policy,
   });
+  hydratedRuntimeThreadIds.add(String(input.threadId));
 }
 
 export async function sendRuntimeTurn(input: RuntimeTurnInput): Promise<void> {

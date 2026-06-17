@@ -1944,3 +1944,18 @@ export function finalizePromotedDraftThreadByRef(threadRef: ScopedThreadRef): Sc
   }
   return finalizedDraftRefs;
 }
+
+export function listPromotedDraftIdsByRef(threadRef: ScopedThreadRef): DraftId[] {
+  const draftStore = useComposerDraftStore.getState();
+  const draftIds: DraftId[] = [];
+  for (const [draftId, draftThread] of Object.entries(draftStore.draftThreadsByThreadKey)) {
+    if (
+      draftThread.promotedTo &&
+      draftThread.promotedTo.environmentId === threadRef.environmentId &&
+      draftThread.promotedTo.threadId === threadRef.threadId
+    ) {
+      draftIds.push(DraftId.make(draftId));
+    }
+  }
+  return draftIds;
+}

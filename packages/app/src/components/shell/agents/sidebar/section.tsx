@@ -266,6 +266,10 @@ export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
             {props.onNewAgent && canCreateAgent ? (
               <button
                 type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
                 onClick={(event) => {
                   event.stopPropagation();
                   props.onNewAgent?.(section.cwd);

@@ -49,6 +49,7 @@ import {
   orchestrationDispatchRouteLayer,
   orchestrationSnapshotRouteLayer,
 } from "./orchestration/http.ts";
+import { runtimeIngestionRouteLayer } from "./runtime/runtime-ingestion-http.ts";
 
 export const PtyAdapterLive = Layer.unwrap(
   Effect.gen(function* () {
@@ -168,6 +169,7 @@ export const makeRoutesLayer = Layer.mergeAll(
   attachmentsRouteLayer,
   orchestrationDispatchRouteLayer,
   orchestrationSnapshotRouteLayer,
+  runtimeIngestionRouteLayer,
   projectFaviconRouteLayer,
   serverEnvironmentRouteLayer,
   staticAndDevRouteLayer,

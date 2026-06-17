@@ -13,6 +13,7 @@ import { useSettings } from "~/hooks/use-settings";
 import { APPEARANCE_SETTINGS_CHANGED } from "~/lib/appearance-settings";
 import { startEnvironmentConnectionService } from "~/environments/runtime";
 import { startDesktopRuntimeHostSync } from "~/stores/agent-runtime-store";
+import { readDesktopLocalEnvironmentBootstrap } from "~/environments/primary/target";
 import { RootStatusPage } from "./-root-status-page";
 
 const routeApi = getRouteApi("__root__");
@@ -202,7 +203,7 @@ function AuthenticationRequiredView({
 }
 
 function readDesktopBrowserBootstrapUrl(): string | null {
-  return window.desktopBridge?.getLocalEnvironmentBootstrap()?.browserBootstrapUrl ?? null;
+  return readDesktopLocalEnvironmentBootstrap()?.browserBootstrapUrl ?? null;
 }
 
 function openBrowserBootstrapUrl(url: string): void {

@@ -38,7 +38,7 @@ export function buildLocalDraftThread(
     environmentId: draftThread.environmentId,
     codexThreadId: null,
     projectId: draftThread.projectId,
-    title: "New thread",
+    title: "New Agent",
     modelSelection: fallbackModelSelection,
     runtimeMode: DEFAULT_RUNTIME_MODE,
     interactionMode: draftThread.interactionMode,
@@ -270,7 +270,14 @@ export function hasServerAcknowledgedLocalDispatch(input: {
   if (!input.localDispatch) {
     return false;
   }
-  if (input.hasPendingApproval || input.hasPendingUserInput || Boolean(input.threadError)) {
+  if (input.hasPendingApproval || input.hasPendingUserInput) {
+    return true;
+  }
+  if (
+    input.threadError &&
+    input.latestTurn?.state === "error" &&
+    input.latestTurn.completedAt !== null
+  ) {
     return true;
   }
 

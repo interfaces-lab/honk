@@ -8,7 +8,7 @@ export const runtimeSkillsQueryKeys = {
   list: (cwd: string | null) => ["runtime-skills", "list", cwd] as const,
 };
 
-const DEFAULT_RUNTIME_SKILLS_STALE_TIME = 15_000;
+const DEFAULT_RUNTIME_SKILLS_STALE_TIME = 60_000;
 
 export function runtimeSkillsQueryOptions(input: { cwd: string | null; enabled: boolean }) {
   return queryOptions({
