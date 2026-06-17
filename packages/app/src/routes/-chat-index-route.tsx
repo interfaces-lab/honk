@@ -179,11 +179,11 @@ interface ChatIndexDraftRenderState extends DraftThreadState {
   readonly draftId: ProjectDraftSession["draftId"];
 }
 
-export function prepareChatIndexRouteDraft(): void {
+export function prepareChatIndexRouteDraft(): ProjectDraftSession["draftId"] | null {
   const state = useStore.getState();
   const activeEnvironmentId = state.activeEnvironmentId;
   if (activeEnvironmentId === null) {
-    return;
+    return null;
   }
 
   const { logicalProjectKey, projectRef: selectedProjectRef } = readSelectedWorkspaceProject();
@@ -198,7 +198,7 @@ export function prepareChatIndexRouteDraft(): void {
         selectedProjectRef,
       })
     ) {
-      return;
+      return initialRouteTarget.draftId;
     }
   }
 
@@ -208,7 +208,7 @@ export function prepareChatIndexRouteDraft(): void {
     environment.snapshotSource === "server" &&
     environment.projectIds.length === 0;
   if (selectedProjectRef === null && !canCreateProjectlessDraft) {
-    return;
+    return null;
   }
 
   const draftStore = useComposerDraftStore.getState();
@@ -218,7 +218,7 @@ export function prepareChatIndexRouteDraft(): void {
         ? draftStore.getDraftSessionByLogicalProjectKey(logicalProjectKey)
         : null) ?? draftStore.getDraftSessionByProjectRef(selectedProjectRef);
     if (unsentDraft && unsentDraft.promotedTo == null) {
-      return;
+      return unsentDraft.draftId;
     }
     const draftId = DraftId.make(
       `new-thread-draft:project:${selectedProjectRef.environmentId}:${selectedProjectRef.projectId}`,
@@ -235,12 +235,12 @@ export function prepareChatIndexRouteDraft(): void {
       },
     );
     draftStore.clearComposerContent(draftId);
-    return;
+    return draftId;
   }
 
   const projectlessDraft = draftStore.getProjectlessDraftSession(activeEnvironmentId);
   if (projectlessDraft && projectlessDraft.promotedTo == null) {
-    return;
+    return projectlessDraft.draftId;
   }
   const projectlessDraftId = DraftId.make(`new-thread-draft:projectless:${activeEnvironmentId}`);
   draftStore.setProjectlessDraftThreadId(activeEnvironmentId, projectlessDraftId, {
@@ -249,6 +249,7 @@ export function prepareChatIndexRouteDraft(): void {
     interactionMode: DEFAULT_INTERACTION_MODE,
   });
   draftStore.clearComposerContent(projectlessDraftId);
+  return projectlessDraftId;
 }
 
 function readChatIndexDraftRenderState(
