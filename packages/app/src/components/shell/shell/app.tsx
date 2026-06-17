@@ -30,8 +30,6 @@ import {
   resolveShortcutCommand,
   shortcutLabelForCommand,
 } from "~/keybindings";
-import { syncAppearanceVibrancy } from "~/lib/appearance-settings";
-import { useMountEffect } from "~/hooks/use-mount-effect";
 import { useSettings } from "~/hooks/use-settings";
 import { useServerKeybindings } from "~/rpc/server-state";
 import { useCommandPaletteStore } from "~/stores/ui/command-palette-store";
@@ -898,20 +896,6 @@ export function AppShell(props: {
     "--honk-shell-titlebar-control-y": "var(--honk-titlebar-control-row-top)",
     "--honk-shell-titlebar-gutter": "8px",
   };
-
-  useMountEffect(() => {
-    const previousValue = document.body.getAttribute("data-honk-glass-mode");
-    document.body.setAttribute("data-honk-glass-mode", "true");
-    syncAppearanceVibrancy();
-    return () => {
-      if (previousValue === null) {
-        document.body.removeAttribute("data-honk-glass-mode");
-      } else {
-        document.body.setAttribute("data-honk-glass-mode", previousValue);
-      }
-      syncAppearanceVibrancy();
-    };
-  });
 
   return (
     <ShellLayoutProvider service={shellLayoutService}>
