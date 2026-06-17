@@ -597,7 +597,7 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
                 }
                 const message = isProjectPathOutsideRootError(cause)
                   ? "Project file path must stay within the project root."
-                  : "Failed to delete project file";
+                  : "Failed to delete project entry";
                 return new ProjectDeleteFileError({
                   message,
                   cause,

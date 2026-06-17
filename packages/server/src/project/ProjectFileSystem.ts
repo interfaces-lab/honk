@@ -216,8 +216,8 @@ export const makeProjectFileSystem = Effect.gen(function* () {
     });
 
     // lstat (not stat) so a symlink leaf is never followed/classified as a
-    // regular file — fileSystem.remove then unlinks the symlink itself rather
-    // than its target.
+    // file or directory — fileSystem.remove then unlinks the symlink itself
+    // rather than its target.
     const stat = yield* Effect.tryPromise({
       try: () => fsPromises.lstat(target.absolutePath),
       catch: (cause) =>
@@ -230,13 +230,13 @@ export const makeProjectFileSystem = Effect.gen(function* () {
         }),
     });
 
-    if (!stat.isFile() && !stat.isSymbolicLink()) {
+    if (!stat.isFile() && !stat.isDirectory() && !stat.isSymbolicLink()) {
       return yield* new ProjectDeleteFileError({
-        message: "Not a file.",
+        message: "Not a file or directory.",
       });
     }
 
-    yield* fileSystem.remove(target.absolutePath).pipe(
+    yield* fileSystem.remove(target.absolutePath, { recursive: stat.isDirectory() }).pipe(
       Effect.mapError(
         (cause) =>
           new ProjectFileSystemError({

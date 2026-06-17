@@ -64,6 +64,7 @@ interface WorkspaceEditorStoreState {
   setEditorPlacement: (workspaceKey: string | null, placement: WorkspaceEditorPlacement) => void;
   navigateFileHistory: (workspaceKey: string | null, delta: -1 | 1) => void;
   closeEditor: (workspaceKey: string | null) => void;
+  removeDirectoryFromHistory: (workspaceKey: string | null, directoryPath: string) => void;
   removeFileFromHistory: (workspaceKey: string | null, path: string) => void;
   setWordWrap: (wordWrap: boolean) => void;
 }
@@ -82,6 +83,15 @@ function normalizeHistory(history: WorkspaceEditorHistory): WorkspaceEditorHisto
     index: Math.min(paths.length - 1, Math.max(0, Math.trunc(history.index))),
     paths,
   };
+}
+
+function normalizeEditorDirectoryPath(path: string): string {
+  return path.replaceAll("\\", "/").replace(/\/+$/g, "");
+}
+
+function isEditorPathInsideDirectory(path: string, directoryPath: string): boolean {
+  const normalizedDirectoryPath = normalizeEditorDirectoryPath(directoryPath);
+  return normalizeEditorDirectoryPath(path).startsWith(`${normalizedDirectoryPath}/`);
 }
 
 function pushEditorHistory(
@@ -363,6 +373,61 @@ const useWorkspaceEditorStore = create<WorkspaceEditorStoreState>((set) => ({
       return { fileStateByWorkspaceKey };
     });
   },
+  // Drop all paths in a directory from back/forward history (e.g. after folder
+  // delete) so navigation can't resurrect files that no longer exist, and stale
+  // paths don't persist across reloads. If the active file was inside the
+  // directory, the editor closes.
+  removeDirectoryFromHistory: (workspaceKey, directoryPath) => {
+    const resolvedKey = resolveWorkspaceEditorKey(workspaceKey);
+    set((state) => {
+      const current = readFileState(state.fileStateByWorkspaceKey, workspaceKey);
+      const activePathDeleted =
+        current.activePath !== null &&
+        isEditorPathInsideDirectory(current.activePath, directoryPath);
+      const nextPreviewPath =
+        current.previewPath !== null &&
+        isEditorPathInsideDirectory(current.previewPath, directoryPath)
+          ? null
+          : current.previewPath;
+      const remainingPaths = current.history.paths.filter(
+        (entry) => !isEditorPathInsideDirectory(entry, directoryPath),
+      );
+      if (
+        remainingPaths.length === current.history.paths.length &&
+        !activePathDeleted &&
+        nextPreviewPath === current.previewPath
+      ) {
+        return state;
+      }
+      const nextActivePath = activePathDeleted ? null : current.activePath;
+      const next: WorkspaceEditorFileState =
+        remainingPaths.length === 0
+          ? {
+              ...current,
+              activePath: nextActivePath,
+              previewPath: nextPreviewPath,
+              history: EMPTY_EDITOR_HISTORY,
+            }
+          : {
+              ...current,
+              activePath: nextActivePath,
+              previewPath: nextPreviewPath,
+              history: {
+                paths: remainingPaths,
+                index:
+                  nextActivePath !== null && remainingPaths.includes(nextActivePath)
+                    ? remainingPaths.indexOf(nextActivePath)
+                    : Math.min(current.history.index, remainingPaths.length - 1),
+              },
+            };
+      const fileStateByWorkspaceKey = {
+        ...state.fileStateByWorkspaceKey,
+        [resolvedKey]: next,
+      };
+      persistWorkspaceEditors(fileStateByWorkspaceKey);
+      return { fileStateByWorkspaceKey };
+    });
+  },
   // Drop a path from back/forward history (e.g. after delete) so navigation
   // can't resurrect a file that no longer exists, and the stale path doesn't
   // persist across reloads. If it was the active file, the editor closes.
@@ -470,6 +535,8 @@ export const workspaceEditorActions = {
     useWorkspaceEditorStore.getState().navigateFileHistory(workspaceKey, delta),
   closeEditor: (workspaceKey: string | null): void =>
     useWorkspaceEditorStore.getState().closeEditor(workspaceKey),
+  removeDirectoryFromHistory: (workspaceKey: string | null, directoryPath: string): void =>
+    useWorkspaceEditorStore.getState().removeDirectoryFromHistory(workspaceKey, directoryPath),
   removeFileFromHistory: (workspaceKey: string | null, path: string): void =>
     useWorkspaceEditorStore.getState().removeFileFromHistory(workspaceKey, path),
   setWordWrap: (wordWrap: boolean): void =>

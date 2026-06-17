@@ -1,8 +1,8 @@
 /**
  * ProjectFileSystem - Effect service contract for project file mutations.
  *
- * Owns project-root-relative file write operations and their associated
- * safety checks and cache invalidation hooks.
+ * Owns project-root-relative file operations and their associated safety checks
+ * and cache invalidation hooks.
  *
  * @module ProjectFileSystem
  */
@@ -69,10 +69,10 @@ export interface ProjectFileSystemShape {
   >;
 
   /**
-   * Delete a file relative to the project root.
+   * Delete a file or directory relative to the project root.
    *
-   * Rejects paths that escape the project root and refuses to delete
-   * directories.
+   * Rejects paths that escape the project root. Directories are removed
+   * recursively.
    */
   readonly deleteFile: (
     input: ProjectDeleteFileInput,

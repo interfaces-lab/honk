@@ -57,6 +57,10 @@ import { resolveFileTreeContextMenuPosition } from "./project-file-tree-context-
 
 const DIRECTORY_PLACEHOLDER_FILE_NAME = "Loading...";
 type ProjectTreeModel = ReturnType<typeof useTreeModel>["model"];
+type PendingDeleteEntry = {
+  kind: "directory" | "file";
+  path: string;
+};
 
 function projectEntryToTreePath(entry: ProjectEntry): string {
   const p = normalizeTreePath(entry.path);
@@ -84,6 +88,48 @@ function isDirectoryPlaceholderPath(path: string): boolean {
 
 function isDirectoryHandle(item: FileTreeItemHandle | null): item is FileTreeDirectoryHandle {
   return item?.isDirectory() === true;
+}
+
+function canDeleteTreeItem(
+  item: ContextMenuItem,
+  filePathSet: ReadonlySet<string> | null,
+): boolean {
+  const normalizedPath = normalizeTreePath(item.path);
+  if (isDirectoryPlaceholderPath(normalizedPath)) {
+    return false;
+  }
+  return item.kind === "directory" || filePathSet?.has(normalizedPath) === true;
+}
+
+function isTreePathInsideDeletedEntry(
+  treePath: string,
+  deletedEntry: PendingDeleteEntry,
+): boolean {
+  const normalizedTreePath = normalizeTreePath(treePath);
+  const normalizedDeletedPath = normalizeTreePath(deletedEntry.path).replace(/\/+$/g, "");
+  if (deletedEntry.kind === "file") {
+    return normalizedTreePath === normalizedDeletedPath;
+  }
+  return (
+    normalizedTreePath === `${normalizedDeletedPath}/` ||
+    normalizedTreePath.startsWith(`${normalizedDeletedPath}/`)
+  );
+}
+
+function filePathsForDeletedEntry(
+  filePathSet: ReadonlySet<string> | null,
+  deletedEntry: PendingDeleteEntry,
+): string[] {
+  const normalizedDeletedPath = normalizeTreePath(deletedEntry.path).replace(/\/+$/g, "");
+  if (deletedEntry.kind === "file") {
+    return [normalizedDeletedPath];
+  }
+  if (!filePathSet) {
+    return [];
+  }
+  return [...filePathSet].filter((path) =>
+    normalizeTreePath(path).startsWith(`${normalizedDeletedPath}/`),
+  );
 }
 
 function entriesToTreePaths(
@@ -214,8 +260,9 @@ function FileTreeContextMenu(props: {
   context: ContextMenuOpenContext;
   cwd: string | null;
   availableEditors: readonly EditorId[];
+  canDeleteEntry: boolean;
   canRevealInFinder: boolean;
-  onRequestDelete: (path: string) => void;
+  onRequestDelete: (entry: PendingDeleteEntry) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [position, setPosition] = useState(() =>
@@ -286,7 +333,7 @@ function FileTreeContextMenu(props: {
           Open in Finder
         </button>
       ) : null}
-      {props.item.kind === "file" ? (
+      {props.canDeleteEntry ? (
         <>
           <div role="separator" className="my-1 h-px bg-honk-border/70" />
           <button
@@ -295,10 +342,10 @@ function FileTreeContextMenu(props: {
             className="flex min-h-6 w-full items-center rounded-xs px-2 text-left text-destructive outline-hidden hover:bg-destructive/10 hover:text-destructive focus-visible:bg-destructive/10 focus-visible:text-destructive"
             onClick={() => {
               props.context.close();
-              props.onRequestDelete(props.item.path);
+              props.onRequestDelete({ kind: props.item.kind, path: props.item.path });
             }}
           >
-            Delete
+            Delete {props.item.kind === "directory" ? "Folder" : "File"}
           </button>
         </>
       ) : null}
@@ -463,7 +510,7 @@ const ProjectFileTreeComponent = forwardRef<
   const queryClient = useQueryClient();
   const [treePaths, setTreePaths] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<unknown>(null);
-  const [pendingDeletePath, setPendingDeletePath] = useState<string | null>(null);
+  const [pendingDeleteEntry, setPendingDeleteEntry] = useState<PendingDeleteEntry | null>(null);
   const [deletingPath, setDeletingPath] = useState<string | null>(null);
   const environmentApiReady = useEnvironmentApiReady(props.environmentId);
   const isActive = props.active !== false;
@@ -475,8 +522,18 @@ const ProjectFileTreeComponent = forwardRef<
     isElectronHost() &&
     typeof window !== "undefined" &&
     typeof window.desktopBridge?.showItemInFolder === "function";
-  const pendingDeleteFileName = pendingDeletePath ? projectFileName(pendingDeletePath) : "file";
-  const deletingPendingFile = pendingDeletePath !== null && deletingPath === pendingDeletePath;
+  const pendingDeletePath = pendingDeleteEntry?.path ?? null;
+  const pendingDeleteKind = pendingDeleteEntry?.kind ?? "file";
+  const pendingDeleteLabel = pendingDeleteKind === "directory" ? "folder" : "file";
+  const pendingDeleteFileName = pendingDeletePath
+    ? projectFileName(pendingDeletePath)
+    : pendingDeleteLabel;
+  const pendingDeleteDescriptionPath = pendingDeletePath ?? pendingDeleteFileName;
+  const pendingDeleteDescription =
+    pendingDeleteKind === "directory"
+      ? `This removes "${pendingDeleteDescriptionPath}" and all of its contents from the project. This action cannot be undone.`
+      : `This removes "${pendingDeleteDescriptionPath}" from the project. This action cannot be undone.`;
+  const deletingPendingEntry = pendingDeletePath !== null && deletingPath === pendingDeletePath;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -491,18 +548,18 @@ const ProjectFileTreeComponent = forwardRef<
     filePathSetRef.current?.clear();
     lastOpenedPathRef.current = null;
     suppressSelectionOpenRef.current = null;
-    setPendingDeletePath(null);
+    setPendingDeleteEntry(null);
     setDeletingPath(null);
     setTreePaths([]);
     setLoadError(null);
   }, [props.cwd, props.environmentId]);
 
-  const confirmDeletePendingFile = async () => {
+  const confirmDeletePendingEntry = async () => {
     const cwd = props.cwd;
     const environmentId = props.environmentId;
     const relativePath = pendingDeletePath;
     if (!cwd || !environmentId || !relativePath) {
-      setPendingDeletePath(null);
+      setPendingDeleteEntry(null);
       return;
     }
 
@@ -515,31 +572,43 @@ const ProjectFileTreeComponent = forwardRef<
           relativePath,
         },
       });
-      const deletedRelativePath = normalizeTreePath(result.relativePath);
-      // Always dispose the deleted file's Monaco model — even a dirty,
-      // currently-inactive one — so a later reopen can't resurrect stale
+      const deletedEntry: PendingDeleteEntry = {
+        kind: pendingDeleteKind,
+        path: normalizeTreePath(result.relativePath),
+      };
+      const deletedFilePaths = filePathsForDeletedEntry(filePathSetRef.current, deletedEntry);
+      // Always dispose deleted files' Monaco models — even dirty,
+      // currently-inactive ones — so a later reopen can't resurrect stale
       // contents.
-      markProjectModelClosed({ environmentId, cwd, relativePath: deletedRelativePath });
+      for (const deletedFilePath of deletedFilePaths) {
+        markProjectModelClosed({ environmentId, cwd, relativePath: deletedFilePath });
+      }
       // Prune the path from back/forward history (closes the editor if it was
-      // active) so navigation and persisted state can't resurrect the gone file.
-      workspaceEditorActions.removeFileFromHistory(props.workspaceKey, deletedRelativePath);
+      // active) so navigation and persisted state can't resurrect gone files.
+      if (deletedEntry.kind === "directory") {
+        workspaceEditorActions.removeDirectoryFromHistory(props.workspaceKey, deletedEntry.path);
+      } else {
+        workspaceEditorActions.removeFileFromHistory(props.workspaceKey, deletedEntry.path);
+      }
       await Promise.all([
-        invalidateProjectFile(queryClient, {
-          environmentId,
-          cwd,
-          relativePath: deletedRelativePath,
-        }),
+        ...deletedFilePaths.map((relativePath) =>
+          invalidateProjectFile(queryClient, {
+            environmentId,
+            cwd,
+            relativePath,
+          }),
+        ),
         invalidateProjectEntries(queryClient, {
           environmentId,
           cwd,
         }),
       ]);
       setTreePaths((currentPaths) =>
-        currentPaths.filter((path) => normalizeTreePath(path) !== deletedRelativePath),
+        currentPaths.filter((path) => !isTreePathInsideDeletedEntry(path, deletedEntry)),
       );
-      setPendingDeletePath(null);
+      setPendingDeleteEntry(null);
     } catch (error) {
-      toast.error(formatProjectErrorDescription(error, "Unable to delete file."));
+      toast.error(formatProjectErrorDescription(error, `Unable to delete ${pendingDeleteLabel}.`));
     } finally {
       setDeletingPath(null);
     }
@@ -728,8 +797,9 @@ const ProjectFileTreeComponent = forwardRef<
                 context={context}
                 cwd={props.cwd}
                 availableEditors={props.availableEditors}
+                canDeleteEntry={canDeleteTreeItem(item, filePathSetRef.current)}
                 canRevealInFinder={canRevealInFinder}
-                onRequestDelete={setPendingDeletePath}
+                onRequestDelete={setPendingDeleteEntry}
               />
             )}
           />
@@ -748,28 +818,27 @@ const ProjectFileTreeComponent = forwardRef<
       <AlertDialog
         open={pendingDeletePath !== null}
         onOpenChange={(open) => {
-          if (!open && !deletingPendingFile) {
-            setPendingDeletePath(null);
+          if (!open && !deletingPendingEntry) {
+            setPendingDeleteEntry(null);
           }
         }}
       >
         <AlertDialogPopup>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{pendingDeleteFileName}"?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes "{pendingDeletePath ?? pendingDeleteFileName}" from the project. This
-              action cannot be undone.
-            </AlertDialogDescription>
+            <AlertDialogTitle>
+              Delete {pendingDeleteLabel} "{pendingDeleteFileName}"?
+            </AlertDialogTitle>
+            <AlertDialogDescription>{pendingDeleteDescription}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogClose render={<Button variant="outline" disabled={deletingPendingFile} />}>
+            <AlertDialogClose render={<Button variant="outline" disabled={deletingPendingEntry} />}>
               Cancel
             </AlertDialogClose>
             <Button
               variant="destructive"
-              disabled={deletingPendingFile}
+              disabled={deletingPendingEntry}
               onClick={() => {
-                void confirmDeletePendingFile();
+                void confirmDeletePendingEntry();
               }}
             >
               Delete
