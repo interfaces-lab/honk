@@ -24,6 +24,7 @@ import { refreshGitStatus } from "~/lib/git-status-state";
 import { invalidateGitPatchQueries } from "~/lib/environment-git-react-query";
 import { getPrimaryKnownEnvironment } from "../primary";
 import { resolveAuthenticatedServerBearerToken } from "../primary/auth";
+import { hasActiveOrchestrationTurn } from "~/session-logic";
 import { createEnvironmentConnection, type EnvironmentConnection } from "./connection";
 import {
   forgetLiveShellSnapshot,
@@ -259,16 +260,7 @@ function isNonIdleThreadDetailSubscription(entry: ThreadDetailSubscriptionEntry)
       return true;
     }
 
-    const orchestrationStatus = sidebarThread.session?.orchestrationStatus;
-    if (
-      orchestrationStatus &&
-      orchestrationStatus !== "idle" &&
-      orchestrationStatus !== "stopped"
-    ) {
-      return true;
-    }
-
-    if (sidebarThread.latestTurn?.state === "running") {
+    if (hasActiveOrchestrationTurn(sidebarThread.latestTurn, sidebarThread.session)) {
       return true;
     }
   }
@@ -278,12 +270,8 @@ function isNonIdleThreadDetailSubscription(entry: ThreadDetailSubscriptionEntry)
     return false;
   }
 
-  const orchestrationStatus = thread.session?.orchestrationStatus;
   return (
-    Boolean(
-      orchestrationStatus && orchestrationStatus !== "idle" && orchestrationStatus !== "stopped",
-    ) ||
-    thread.latestTurn?.state === "running" ||
+    hasActiveOrchestrationTurn(thread.latestTurn, thread.session) ||
     thread.pendingSourceProposedPlan !== undefined
   );
 }

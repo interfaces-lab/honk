@@ -160,6 +160,39 @@ export const AgentCredentialPreference = Schema.Struct({
 });
 export type AgentCredentialPreference = typeof AgentCredentialPreference.Type;
 
+export const DEFAULT_AGENT_CREDENTIAL_PREFERENCES: readonly AgentCredentialPreference[] = [
+  {
+    kind: "claude-api-key",
+    label: "Claude API Key",
+    authProviderId: AuthProviderId.make("anthropic"),
+    accountId: null,
+  },
+  {
+    kind: "claude-oauth",
+    label: "Claude OAuth",
+    authProviderId: AuthProviderId.make("anthropic"),
+    accountId: null,
+  },
+  {
+    kind: "codex-oauth",
+    label: "Codex OAuth",
+    authProviderId: AuthProviderId.make("openai-codex"),
+    accountId: null,
+  },
+  {
+    kind: "codex-api-key",
+    label: "Codex API Key",
+    authProviderId: AuthProviderId.make("openai"),
+    accountId: null,
+  },
+  {
+    kind: "cursor-api-key",
+    label: "Cursor API Key",
+    authProviderId: AuthProviderId.make("cursor"),
+    accountId: null,
+  },
+];
+
 export const AgentCredentialConfigureInput = Schema.Union([
   Schema.Struct({
     authProviderId: AuthProviderId,
@@ -213,6 +246,22 @@ export const AgentPreferences = Schema.Struct({
   ),
 });
 export type AgentPreferences = typeof AgentPreferences.Type;
+
+export function createDefaultAgentPreferences(): AgentPreferences {
+  return {
+    agentMode: "deep",
+    interactionMode: "agent",
+    modelSelection: { ...DEFAULT_AGENT_POLICY_MODEL_SELECTION },
+    modelSettingsByModelId: {},
+    fast: false,
+    thinkingLevel: "high",
+    resources: { ...DEFAULT_AGENT_RESOURCE_PREFERENCES },
+    credentials: DEFAULT_AGENT_CREDENTIAL_PREFERENCES.map((credential) => ({ ...credential })),
+  };
+}
+
+export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = createDefaultAgentPreferences();
+
 export const decodeAgentPreferences = Schema.decodeUnknownSync(AgentPreferences);
 export const AgentPreferencesPatch = Schema.Struct({
   agentMode: Schema.optionalKey(AgentMode),

@@ -146,10 +146,69 @@ function readNonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
+const PLAN_MARKDOWN_CONTAINER_KEYS = [
+  "details",
+  "result",
+  "toolResult",
+  "value",
+  "data",
+  "output",
+  "args",
+] as const;
+
+function findCreatePlanMarkdown(
+  value: unknown,
+  depth: number,
+  visited: WeakSet<object>,
+): string | null {
+  if (depth > 4) {
+    return null;
+  }
+  const record = readRecord(value);
+  if (!record) {
+    return null;
+  }
+  if (visited.has(record)) {
+    return null;
+  }
+  visited.add(record);
+
+  const direct = readNonEmptyString(record.planMarkdown) ?? readNonEmptyString(record.plan);
+  if (direct) {
+    return direct;
+  }
+
+  for (const key of PLAN_MARKDOWN_CONTAINER_KEYS) {
+    const nested = record[key];
+    if (nested === undefined || nested === value) {
+      continue;
+    }
+    const markdown = findCreatePlanMarkdown(nested, depth + 1, visited);
+    if (markdown) {
+      return markdown;
+    }
+  }
+
+  return null;
+}
+
 export function extractCreatePlanToolResultMarkdown(result: unknown): string | null {
-  const resultRecord = readRecord(result);
-  const details = readRecord(resultRecord?.details);
-  return readNonEmptyString(details?.planMarkdown) ?? readNonEmptyString(details?.plan);
+  return findCreatePlanMarkdown(result, 0, new WeakSet());
+}
+
+export function extractCreatePlanToolEventMarkdown(event: unknown): string | null {
+  const eventRecord = readRecord(event);
+  if (!eventRecord) {
+    return extractCreatePlanToolResultMarkdown(event);
+  }
+
+  return (
+    extractCreatePlanToolResultMarkdown(eventRecord.result) ??
+    extractCreatePlanToolResultMarkdown(eventRecord.toolResult) ??
+    extractCreatePlanToolResultMarkdown(eventRecord.details) ??
+    extractCreatePlanToolResultMarkdown(eventRecord.args) ??
+    extractCreatePlanToolResultMarkdown(event)
+  );
 }
 
 export const createPlanExtension: ExtensionFactory = (pi) => {

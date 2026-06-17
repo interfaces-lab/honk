@@ -1,22 +1,34 @@
 import { type ReactNode } from "react";
 
 /**
- * Cursor parity: `composer-questionnaire-toolbar` (workbench.desktop.main.css).
- * One questionnaire surface for every pending-question panel: option rows with
- * letter chips (selected chip flips to the yellow accent), a quiet header, and
- * an opaque background so the question never blends into the timeline behind
- * the composer.
+ * Compact questionnaire surface for pending ask panels. The shell mirrors the
+ * product editor card: quiet header, numbered option rows, and a small primary
+ * action without letting the prompt blend into the timeline behind the composer.
  */
 
 export function questionnaireOptionLetter(index: number): string {
-  return String.fromCharCode(65 + (index % 26));
+  return String(index + 1);
 }
 
-export function QuestionnaireSurface(props: { children: ReactNode }) {
+export function questionnaireOptionIndexForKey(key: string): number | null {
+  if (key.length !== 1) return null;
+  if (key >= "1" && key <= "9") return Number(key) - 1;
+  if (key === "0") return 9;
+
+  const upperKey = key.toUpperCase();
+  if (upperKey < "A" || upperKey > "Z") return null;
+  return upperKey.charCodeAt(0) - 65;
+}
+
+export function QuestionnaireSurface(props: { children: ReactNode; embedded?: boolean }) {
   return (
     <div
       data-questionnaire-surface=""
-      className="flex flex-col gap-3 rounded-[inherit] bg-(--honk-composer-surface-opaque-background) p-1.5 px-4 py-3 sm:px-5"
+      className={
+        props.embedded
+          ? "grid w-full bg-honk-bubble-opaque"
+          : "grid w-full rounded-lg border border-honk-stroke-tertiary bg-honk-bubble-opaque"
+      }
     >
       {props.children}
     </div>
@@ -29,13 +41,13 @@ export function QuestionnaireHeader(props: {
   trailing?: ReactNode;
 }) {
   return (
-    <div className="relative ml-1 flex items-center gap-2 text-conversation">
-      {props.icon ? <span className="mt-0.5 inline-block opacity-70">{props.icon}</span> : null}
-      <span className="inline-block min-w-0 truncate text-honk-fg-primary">{props.title}</span>
+    <div className="flex items-center justify-between pt-1.5 pr-1.5 pb-0 pl-1">
+      <div className="flex min-w-0 items-center gap-1.5 px-1 text-detail text-honk-fg-secondary">
+        {props.icon ? <span className="shrink-0 opacity-70">{props.icon}</span> : null}
+        <span className="min-w-0 truncate">{props.title}</span>
+      </div>
       {props.trailing ? (
-        <span className="ml-auto mr-0.5 inline-flex items-center gap-1 text-caption tabular-nums text-honk-fg-secondary">
-          {props.trailing}
-        </span>
+        <div className="ml-auto flex items-center gap-0.5">{props.trailing}</div>
       ) : null}
     </div>
   );
@@ -46,9 +58,9 @@ export function QuestionnaireQuestionLabel(props: {
   children: ReactNode;
 }) {
   return (
-    <div className="ml-1.5 flex items-start gap-2 text-conversation font-[590] leading-[135%] text-honk-fg-primary">
+    <div className="mb-2 flex items-start gap-2 text-body font-medium text-honk-fg-primary">
       {props.number ? (
-        <span className="w-3 min-w-3 shrink-0 text-left text-honk-fg-secondary">
+        <span className="w-4 shrink-0 text-left tabular-nums text-honk-fg-secondary">
           {props.number}
         </span>
       ) : null}
@@ -66,7 +78,7 @@ export function QuestionnaireOptions(props: {
     <div
       role={props.multiSelect ? "group" : "radiogroup"}
       aria-label={props.label}
-      className="-ml-1 mt-1 flex flex-col overflow-hidden"
+      className="space-y-0.5"
     >
       {props.children}
     </div>
@@ -78,8 +90,8 @@ export function QuestionnaireOptionLetter(props: { selected: boolean; children: 
     <span
       className={
         props.selected
-          ? "inline-flex h-[19px] min-w-[19px] cursor-pointer items-center justify-center rounded-[3px] border border-(--honk-tone-yellow,var(--warning)) bg-(--honk-tone-yellow,var(--warning)) p-px font-sans text-[10px] font-bold leading-none text-(--honk-base-editor,var(--background))"
-          : "inline-flex h-[19px] min-w-[19px] cursor-pointer items-center justify-center rounded-[3px] border border-honk-stroke-tertiary bg-transparent p-px font-sans text-[10px] font-bold leading-none text-honk-fg-secondary"
+          ? "flex size-4.5 shrink-0 cursor-pointer items-center justify-center rounded border border-honk-action bg-honk-action text-[0.6875rem] font-medium leading-none text-primary-foreground tabular-nums"
+          : "flex size-4.5 shrink-0 cursor-pointer items-center justify-center rounded border border-honk-stroke-tertiary text-[0.6875rem] font-medium leading-none text-honk-fg-secondary tabular-nums"
       }
       aria-hidden="true"
     >
@@ -105,25 +117,18 @@ export function QuestionnaireOptionButton(props: {
       aria-checked={props.selected}
       onClick={props.onSelect}
       className={[
-        "flex cursor-pointer items-start gap-2 overflow-hidden rounded-[4px] border border-transparent px-1 py-[3px] text-left",
-        "hover:bg-honk-bg-tertiary",
-        "focus-visible:bg-honk-bg-tertiary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--honk-stroke-focused)",
+        "flex w-full cursor-pointer items-center gap-2 rounded py-1 pr-1.5 pl-0 text-left text-honk-fg-secondary",
+        "hover:bg-honk-bg-quaternary hover:text-honk-fg-primary",
+        "focus-visible:bg-honk-bg-quaternary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-honk-stroke-focused",
+        props.selected ? "bg-honk-bg-tertiary text-honk-fg-primary" : "",
         props.disabled ? "cursor-not-allowed opacity-60" : "",
       ].join(" ")}
     >
       <QuestionnaireOptionLetter selected={props.selected}>
         {props.letter}
       </QuestionnaireOptionLetter>
-      <span className="min-w-0 flex-1">
-        <span
-          className={
-            props.selected
-              ? "text-conversation text-honk-fg-primary"
-              : "text-conversation text-honk-fg-secondary"
-          }
-        >
-          {props.label}
-        </span>
+      <span className="min-w-0 flex-1 text-body">
+        {props.label}
         {props.description ? (
           <span className="ml-2 text-caption text-honk-fg-tertiary">{props.description}</span>
         ) : null}
@@ -142,7 +147,7 @@ export function QuestionnaireFreeformRow(props: {
   onSubmit: () => void;
 }) {
   return (
-    <div className="-ml-1 mt-1 flex items-start gap-2 rounded-[4px] border border-transparent px-1 py-[3px]">
+    <div className="mt-0.5 flex items-start gap-2 rounded py-1 pr-1.5 pl-0 text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary focus-within:bg-honk-bg-quaternary focus-within:text-honk-fg-primary">
       <QuestionnaireOptionLetter selected={props.value.trim().length > 0}>
         {props.letter}
       </QuestionnaireOptionLetter>
@@ -158,12 +163,12 @@ export function QuestionnaireFreeformRow(props: {
           event.preventDefault();
           props.onSubmit();
         }}
-        className="min-w-0 flex-1 resize-none overflow-hidden border-none bg-transparent p-0 text-conversation leading-[1.4] text-honk-fg-primary outline-none placeholder:text-honk-fg-quaternary"
+        className="min-w-0 flex-1 resize-none overflow-hidden border-none bg-transparent p-0 text-body text-honk-fg-primary outline-none placeholder:text-honk-fg-quaternary"
       />
     </div>
   );
 }
 
 export function QuestionnaireActions(props: { children: ReactNode }) {
-  return <div className="flex justify-end gap-2">{props.children}</div>;
+  return <div className="mt-1.5 flex items-center justify-end gap-2">{props.children}</div>;
 }

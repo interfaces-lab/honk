@@ -315,20 +315,41 @@ type LatestTurnTiming = Pick<
   OrchestrationLatestTurn,
   "turnId" | "state" | "startedAt" | "completedAt"
 >;
-type SessionActivityState = Pick<ThreadSession, "orchestrationStatus" | "activeTurnId">;
+type SessionActivityState = Pick<ThreadSession, "orchestrationStatus"> &
+  Partial<Pick<ThreadSession, "activeTurnId" | "status">>;
 
-export function isLatestTurnSettled(
+export function hasActiveOrchestrationTurn(
   latestTurn: LatestTurnTiming | null,
   session: SessionActivityState | null,
 ): boolean {
-  if (!latestTurn?.startedAt) return false;
-  if (!latestTurn.completedAt) return false;
-  if (latestTurn.state === "interrupted" || latestTurn.state === "error") {
+  if (session?.status === "connecting") {
     return true;
   }
-  if (!session) return true;
-  if (session.orchestrationStatus === "running") return false;
-  return true;
+  if (latestTurn?.state === "running" && latestTurn.completedAt === null) {
+    return true;
+  }
+
+  if (
+    session?.orchestrationStatus !== "starting" &&
+    session?.orchestrationStatus !== "running"
+  ) {
+    return false;
+  }
+
+  const activeTurnId = session.activeTurnId ?? null;
+  if (activeTurnId === null) {
+    return false;
+  }
+
+  return latestTurn?.turnId !== activeTurnId || latestTurn.completedAt === null;
+}
+
+export function isLatestTurnSettled(
+  latestTurn: LatestTurnTiming | null,
+  _session: SessionActivityState | null,
+): boolean {
+  if (!latestTurn?.startedAt) return false;
+  return latestTurn.completedAt !== null;
 }
 
 export function hasLiveLatestTurn(
@@ -338,7 +359,7 @@ export function hasLiveLatestTurn(
   if (!latestTurn?.startedAt) {
     return false;
   }
-  return !isLatestTurnSettled(latestTurn, session);
+  return hasActiveOrchestrationTurn(latestTurn, session) && latestTurn.completedAt === null;
 }
 
 export function deriveActiveWorkStartedAt(
@@ -348,7 +369,11 @@ export function deriveActiveWorkStartedAt(
 ): string | null {
   const runningTurnId =
     session?.orchestrationStatus === "running" ? (session.activeTurnId ?? null) : null;
-  if (runningTurnId !== null && runningTurnId === latestTurn?.turnId) {
+  if (
+    runningTurnId !== null &&
+    runningTurnId === latestTurn?.turnId &&
+    latestTurn.completedAt === null
+  ) {
     return latestTurn?.startedAt ?? sendStartedAt;
   }
   if (runningTurnId !== null) {

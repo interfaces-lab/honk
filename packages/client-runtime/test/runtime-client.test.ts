@@ -1,4 +1,5 @@
 import {
+  AuthProviderId,
   ThreadId,
   TurnId,
   type LocalApi,
@@ -170,6 +171,35 @@ describe("readHonkRuntimeApi", () => {
     expect(setThreadFocus).toHaveBeenCalledWith({
       threadId: ThreadId.make("thread:client-focus"),
       focused: true,
+    });
+  });
+
+  it("decodes Codex credential snapshots that include Cursor credentials", async () => {
+    const snapshot = {
+      ...createEmptyRuntimeHostSnapshot(),
+      diagnostics: [],
+    };
+    vi.stubGlobal("window", {
+      desktopBridge: {
+        runtime: createRuntimeApi(snapshot),
+      },
+    });
+
+    await expect(
+      readHonkRuntimeApi().configureCredential({
+        authProviderId: AuthProviderId.make("openai-codex"),
+        method: "oauth",
+        credentialKind: "codex-oauth",
+      }),
+    ).resolves.toMatchObject({
+      preferences: {
+        credentials: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "cursor-api-key",
+            authProviderId: "cursor",
+          }),
+        ]),
+      },
     });
   });
 

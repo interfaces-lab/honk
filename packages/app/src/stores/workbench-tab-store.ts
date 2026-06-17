@@ -145,7 +145,7 @@ const DEFAULT_WORKBENCH_TABS: readonly WorkbenchManagedTab[] = Object.freeze([
     kind: "terminal",
     label: inferLoginShellCaption(),
     iconKey: "terminal",
-    closable: false,
+    closable: true,
     terminalId: DEFAULT_TERMINAL_ID,
   }),
   Object.freeze(defaultBrowserTab()),
@@ -402,6 +402,14 @@ function upsertTab(
   return [...tabs.slice(0, clampedIndex), tab, ...tabs.slice(clampedIndex)];
 }
 
+function upsertTabAtIndex(
+  tabs: readonly WorkbenchManagedTab[],
+  tab: WorkbenchManagedTab,
+  insertIndex: number,
+): readonly WorkbenchManagedTab[] {
+  return moveTabToIndex(upsertTab(tabs, tab, insertIndex), tab.id, insertIndex);
+}
+
 function removeTab(
   tabs: readonly WorkbenchManagedTab[],
   tabId: string,
@@ -420,16 +428,13 @@ function planTab(label: string): WorkbenchManagedTab {
   };
 }
 
-function terminalSessionTab(
-  session: TerminalSessionEntry,
-  sessionCount: number,
-): WorkbenchManagedTab {
+function terminalSessionTab(session: TerminalSessionEntry): WorkbenchManagedTab {
   return {
     id: terminalTabId(session.id),
     kind: "terminal",
     label: terminalTabLabel(session.label),
     iconKey: "terminal",
-    closable: sessionCount > 1,
+    closable: true,
     terminalId: session.id,
   };
 }
@@ -444,7 +449,7 @@ function applyPlanRuntimeTabs(
     return removeTab(tabs, PLAN_TAB_ID);
   }
 
-  return upsertTab(tabs, planTab(plan.label), tabs.length);
+  return upsertTabAtIndex(tabs, planTab(plan.label), 0);
 }
 
 function applyTerminalRuntimeTabs(
@@ -459,7 +464,7 @@ function applyTerminalRuntimeTabs(
     .map((tab) => {
       if (tab.kind !== "terminal" || !tab.terminalId) return tab;
       const session = terminal.sessions.find((entry) => entry.id === tab.terminalId);
-      return session ? terminalSessionTab(session, terminal.sessions.length) : tab;
+      return session ? terminalSessionTab(session) : tab;
     });
 
   const presentTerminalIds = new Set(
@@ -469,7 +474,7 @@ function applyTerminalRuntimeTabs(
 
   for (const session of terminal.sessions) {
     if (presentTerminalIds.has(session.id)) continue;
-    result = upsertTab(result, terminalSessionTab(session, terminal.sessions.length), insertIndex);
+    result = upsertTab(result, terminalSessionTab(session), insertIndex);
     insertIndex += 1;
     presentTerminalIds.add(session.id);
   }
@@ -691,9 +696,14 @@ function upsertPlanTab(workspaceKey: string | null, label: string): void {
   updateWorkspaceState(workspaceKey, (current) => {
     return {
       ...current,
-      tabs: upsertTab(current.tabs, planTab(label), current.tabs.length),
+      tabs: upsertTabAtIndex(current.tabs, planTab(label), 0),
     };
   });
+}
+
+function activatePlanTab(workspaceKey: string | null, label = "Plan"): void {
+  upsertPlanTab(workspaceKey, label);
+  activateManagedTab(workspaceKey, PLAN_TAB_ID);
 }
 
 export function useWorkbenchTabSnapshot(
@@ -722,9 +732,17 @@ export function useWorkbenchTabSnapshot(
 
 export const workbenchTabPersistenceActions = {
   activateTab: (workspaceKey: string | null, tabId: string): void => {
+    if (tabId === PLAN_TAB_ID) {
+      activatePlanTab(workspaceKey);
+      return;
+    }
     activateManagedTab(workspaceKey, tabId);
   },
   activateKind: (workspaceKey: string | null, kind: WorkbenchTab): void => {
+    if (kind === "plan") {
+      activatePlanTab(workspaceKey);
+      return;
+    }
     const workspace = readWorkspaceState(
       useWorkbenchTabStore.getState().byWorkspaceKey,
       workspaceKey,
@@ -741,8 +759,7 @@ export const workbenchTabPersistenceActions = {
     activateManagedTab(workspaceKey, CHANGES_TAB_ID);
   },
   activatePlan: (workspaceKey: string | null, label = "Plan"): void => {
-    upsertPlanTab(workspaceKey, label);
-    activateManagedTab(workspaceKey, PLAN_TAB_ID);
+    activatePlanTab(workspaceKey, label);
   },
   activateDev: (workspaceKey: string | null): void => {
     updateWorkspaceState(workspaceKey, (current) => {
@@ -779,7 +796,7 @@ export const workbenchTabPersistenceActions = {
       ...current,
       tabs: upsertTab(
         current.tabs,
-        terminalSessionTab(session, terminal.sessions.length),
+        terminalSessionTab(session),
         current.tabs.length,
       ),
     }));

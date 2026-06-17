@@ -1,8 +1,9 @@
 import type { RuntimeRequestKind } from "@honk/contracts";
-import type { Thread, ThreadSession } from "../types";
+import type { Thread } from "../types";
 import {
   derivePendingApprovals,
   derivePendingUserInputs,
+  hasActiveOrchestrationTurn,
   hasLiveLatestTurn,
 } from "../session-logic";
 
@@ -27,12 +28,6 @@ export interface ThreadAttentionCandidate {
   summary?: string;
 }
 
-type ThreadSessionStatus = ThreadSession["status"];
-
-function isRunningStatus(status: ThreadSessionStatus | null | undefined): boolean {
-  return status === "running" || status === "connecting";
-}
-
 function summarizeLatestAssistantMessage(thread: Thread): string | null {
   for (let index = thread.messages.length - 1; index >= 0; index -= 1) {
     const message = thread.messages[index];
@@ -55,17 +50,14 @@ function hadUnsettledTurn(thread: Thread | undefined): boolean {
   if (hasLiveLatestTurn(thread.latestTurn, thread.session)) {
     return true;
   }
-  return !thread.latestTurn?.completedAt && isRunningStatus(thread.session?.status);
+  return hasActiveOrchestrationTurn(thread.latestTurn, thread.session);
 }
 
 function isCompletionNotificationSettled(thread: Thread | undefined): boolean {
   if (!thread?.latestTurn?.startedAt || !thread.latestTurn.completedAt) {
     return false;
   }
-  if (!thread.session) {
-    return true;
-  }
-  return thread.session.orchestrationStatus !== "running";
+  return !hasActiveOrchestrationTurn(thread.latestTurn, thread.session);
 }
 
 export function collectCompletedThreadCandidates(

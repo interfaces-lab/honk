@@ -1,7 +1,6 @@
 import { type DesktopExtensionUiRequest } from "@honk/contracts";
-import { Button } from "@honk/honkkit/button";
-import { IconBubbleQuestion } from "central-icons";
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { IconChevronLeftMedium, IconChevronRightMedium } from "central-icons";
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
   QuestionnaireActions,
   QuestionnaireFreeformRow,
@@ -10,6 +9,7 @@ import {
   QuestionnaireOptions,
   QuestionnaireQuestionLabel,
   QuestionnaireSurface,
+  questionnaireOptionIndexForKey,
   questionnaireOptionLetter,
 } from "./questionnaire";
 
@@ -66,6 +66,49 @@ function requestKindLabel(kind: DesktopExtensionUiRequest["kind"]): string {
     case "custom":
       return "Request";
   }
+}
+
+function QuestionnaireNavigationButton(props: {
+  label: string;
+  disabled: boolean;
+  direction: "previous" | "next";
+  onClick: () => void;
+}) {
+  const Icon = props.direction === "previous" ? IconChevronLeftMedium : IconChevronRightMedium;
+
+  return (
+    <button
+      type="button"
+      aria-label={props.label}
+      disabled={props.disabled}
+      onClick={props.onClick}
+      className="cursor-pointer p-0.5 text-honk-fg-secondary hover:text-honk-fg-primary disabled:cursor-default disabled:opacity-30"
+    >
+      <Icon className="size-3.5" aria-hidden="true" />
+    </button>
+  );
+}
+
+function QuestionnairePanelActionButton(props: {
+  children: ReactNode;
+  disabled?: boolean;
+  primary?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={props.disabled}
+      onClick={props.onClick}
+      className={
+        props.primary
+          ? "flex cursor-pointer items-center rounded px-1.5 py-0.5 text-body font-medium text-primary-foreground bg-honk-action hover:brightness-110 disabled:cursor-default disabled:opacity-40"
+          : "flex cursor-pointer items-center rounded px-1.5 py-0.5 text-body text-honk-fg-secondary hover:text-honk-fg-primary disabled:cursor-default disabled:opacity-40"
+      }
+    >
+      {props.children}
+    </button>
+  );
 }
 
 export function ComposerPendingExtensionUiRequestPanel({
@@ -197,9 +240,8 @@ export function ComposerPendingExtensionUiRequestPanel({
       }
       return;
     }
-    const key = event.key.toUpperCase();
-    if (key.length !== 1 || key < "A" || key > "Z") return;
-    const actionIndex = key.charCodeAt(0) - 65;
+    const actionIndex = questionnaireOptionIndexForKey(event.key);
+    if (actionIndex === null) return;
     if (isQuestionRequest) {
       const option = activeQuestion?.options[actionIndex];
       if (!activeQuestion || !option) return;
@@ -214,143 +256,153 @@ export function ComposerPendingExtensionUiRequestPanel({
 
   return (
     <div
-      className="mx-auto mb-2 w-full max-w-agent-chat rounded-[22px]"
+      className="relative z-10 mt-2 mb-2 px-3"
       onKeyDownCapture={handleKeyDownCapture}
     >
-      <QuestionnaireSurface>
-        <QuestionnaireHeader
-          icon={<IconBubbleQuestion className="size-3.5" aria-hidden="true" />}
-          title={requestKindLabel(request.kind)}
-          trailing={pendingCount > 1 ? <span>1/{pendingCount}</span> : undefined}
-        />
-        <div className="ml-1 flex flex-col gap-0.5">
-          <QuestionnaireQuestionLabel>{request.title}</QuestionnaireQuestionLabel>
-          {request.message ? (
-            <p className="ml-1.5 mt-0.5 select-text text-caption text-honk-fg-tertiary">
-              {request.message}
-            </p>
-          ) : null}
-          {isQuestionRequest && activeQuestion ? (
-            <>
-              <QuestionnaireQuestionLabel
-                number={questions.length > 1 ? `${questionIndex + 1}.` : undefined}
-              >
-                {activeQuestion.text}
-              </QuestionnaireQuestionLabel>
-              {activeQuestion.allowMultiple ? (
-                <p className="ml-1.5 mt-0.5 select-text text-caption text-honk-fg-tertiary">
-                  Select one or more options.
-                </p>
-              ) : null}
-              <QuestionnaireOptions
-                label={activeQuestion.text}
-                multiSelect={activeQuestion.allowMultiple}
-              >
-                {activeQuestion.options.map((option, index) => (
-                  <QuestionnaireOptionButton
-                    key={`${activeQuestion.id}:${option.label}`}
-                    letter={questionnaireOptionLetter(index)}
-                    label={option.label}
-                    selected={activeQuestionSelectedOptions.includes(option.id)}
-                    disabled={isResponding}
-                    multiSelect={activeQuestion.allowMultiple}
-                    onSelect={() => toggleQuestionOption(activeQuestion.id, option.id)}
-                  />
-                ))}
-              </QuestionnaireOptions>
-              <QuestionnaireFreeformRow
-                letter={questionnaireOptionLetter(activeQuestion.options.length)}
-                value={activeQuestionCustomAnswer}
-                placeholder="Other..."
-                disabled={isResponding}
-                autoFocus={false}
-                onChange={(value) => {
-                  setSelectedQuestionOptions((existing) => ({
-                    ...existing,
-                    [activeQuestion.id]: [],
-                  }));
-                  setCustomQuestionAnswers((existing) => ({
-                    ...existing,
-                    [activeQuestion.id]: value,
-                  }));
-                }}
-                onSubmit={advanceQuestion}
-              />
-              <QuestionnaireActions>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={isResponding}
-                  onClick={() => onRespond(request, { answers: [], cancelled: true })}
-                >
-                  Skip
-                </Button>
-                {questionIndex > 0 ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={isResponding}
+      <div className="mx-auto w-full max-w-[580px]">
+        <QuestionnaireSurface>
+          <QuestionnaireHeader
+            title={isQuestionRequest ? request.title : requestKindLabel(request.kind)}
+            trailing={
+              isQuestionRequest ? (
+                <>
+                  <QuestionnaireNavigationButton
+                    label="Previous question"
+                    direction="previous"
+                    disabled={isResponding || questionIndex === 0}
                     onClick={() => setQuestionIndex((current) => Math.max(0, current - 1))}
-                  >
-                    Back
-                  </Button>
-                ) : null}
-                <Button
-                  size="sm"
-                  disabled={isResponding || !activeQuestionAnswered}
-                  onClick={advanceQuestion}
-                >
-                  {isResponding ? "Submitting..." : questionIsLast ? "Continue" : "Next"}
-                </Button>
-              </QuestionnaireActions>
-            </>
-          ) : isOptionsRequest ? (
-            <>
-              <QuestionnaireOptions label={request.title}>
-                {responseActions.map((action, index) => (
-                  <QuestionnaireOptionButton
-                    key={action.label}
-                    letter={questionnaireOptionLetter(index)}
-                    label={action.label}
-                    selected={selectedActionIndex === index}
-                    disabled={isResponding}
-                    onSelect={() => setSelectedActionIndex(index)}
                   />
-                ))}
-              </QuestionnaireOptions>
-              <QuestionnaireActions>
-                <Button
-                  size="sm"
-                  disabled={isResponding || selectedAction === null}
-                  onClick={submitSelectedAction}
+                  <QuestionnaireNavigationButton
+                    label={questionIsLast ? "Submit answers" : "Next question"}
+                    direction="next"
+                    disabled={isResponding || !activeQuestionAnswered}
+                    onClick={advanceQuestion}
+                  />
+                </>
+              ) : pendingCount > 1 ? (
+                <span className="px-1 text-caption tabular-nums text-honk-fg-secondary">
+                  1/{pendingCount}
+                </span>
+              ) : undefined
+            }
+          />
+          <div className="pt-1 pr-2 pb-2 pl-2">
+            {!isQuestionRequest ? (
+              <>
+                <QuestionnaireQuestionLabel>{request.title}</QuestionnaireQuestionLabel>
+                {request.message ? (
+                  <p className="mb-2 select-text text-caption text-honk-fg-tertiary">
+                    {request.message}
+                  </p>
+                ) : null}
+              </>
+            ) : null}
+            {isQuestionRequest && activeQuestion ? (
+              <>
+                <QuestionnaireQuestionLabel>{activeQuestion.text}</QuestionnaireQuestionLabel>
+                {activeQuestion.allowMultiple ? (
+                  <p className="mb-2 select-text text-caption text-honk-fg-tertiary">
+                    Select one or more options.
+                  </p>
+                ) : null}
+                <QuestionnaireOptions
+                  label={activeQuestion.text}
+                  multiSelect={activeQuestion.allowMultiple}
                 >
-                  {isResponding ? "Submitting..." : "Continue"}
-                </Button>
-              </QuestionnaireActions>
-            </>
-          ) : (
-            <>
-              <QuestionnaireFreeformRow
-                letter="A"
-                value={draftValue}
-                placeholder={request.placeholder ?? "Type your answer"}
-                disabled={isResponding}
-                onChange={setDraftValue}
-                onSubmit={() => onRespond(request, draftValue)}
-              />
-              <QuestionnaireActions>
-                <Button
-                  size="sm"
+                  {activeQuestion.options.map((option, index) => (
+                    <QuestionnaireOptionButton
+                      key={`${activeQuestion.id}:${option.label}`}
+                      letter={questionnaireOptionLetter(index)}
+                      label={option.label}
+                      selected={activeQuestionSelectedOptions.includes(option.id)}
+                      disabled={isResponding}
+                      multiSelect={activeQuestion.allowMultiple}
+                      onSelect={() => toggleQuestionOption(activeQuestion.id, option.id)}
+                    />
+                  ))}
+                </QuestionnaireOptions>
+                <QuestionnaireFreeformRow
+                  letter={questionnaireOptionLetter(activeQuestion.options.length)}
+                  value={activeQuestionCustomAnswer}
+                  placeholder="Other..."
                   disabled={isResponding}
-                  onClick={() => onRespond(request, responseActions[0]?.value ?? "")}
-                >
-                  {responseActions[0]?.label ?? "Send"}
-                </Button>
-              </QuestionnaireActions>
-            </>
-          )}
-        </div>
-      </QuestionnaireSurface>
+                  autoFocus={false}
+                  onChange={(value) => {
+                    setSelectedQuestionOptions((existing) => ({
+                      ...existing,
+                      [activeQuestion.id]: [],
+                    }));
+                    setCustomQuestionAnswers((existing) => ({
+                      ...existing,
+                      [activeQuestion.id]: value,
+                    }));
+                  }}
+                  onSubmit={advanceQuestion}
+                />
+                <QuestionnaireActions>
+                  <QuestionnairePanelActionButton
+                    disabled={isResponding}
+                    onClick={() => onRespond(request, { answers: [], cancelled: true })}
+                  >
+                    Skip
+                  </QuestionnairePanelActionButton>
+                  <QuestionnairePanelActionButton
+                    primary
+                    disabled={isResponding || !activeQuestionAnswered}
+                    onClick={advanceQuestion}
+                  >
+                    {isResponding ? "Submitting..." : questionIsLast ? "Continue" : "Next"}
+                  </QuestionnairePanelActionButton>
+                </QuestionnaireActions>
+              </>
+            ) : isOptionsRequest ? (
+              <>
+                <QuestionnaireOptions label={request.title}>
+                  {responseActions.map((action, index) => (
+                    <QuestionnaireOptionButton
+                      key={action.label}
+                      letter={questionnaireOptionLetter(index)}
+                      label={action.label}
+                      selected={selectedActionIndex === index}
+                      disabled={isResponding}
+                      onSelect={() => setSelectedActionIndex(index)}
+                    />
+                  ))}
+                </QuestionnaireOptions>
+                <QuestionnaireActions>
+                  <QuestionnairePanelActionButton
+                    primary
+                    disabled={isResponding || selectedAction === null}
+                    onClick={submitSelectedAction}
+                  >
+                    {isResponding ? "Submitting..." : "Continue"}
+                  </QuestionnairePanelActionButton>
+                </QuestionnaireActions>
+              </>
+            ) : (
+              <>
+                <QuestionnaireFreeformRow
+                  letter={questionnaireOptionLetter(0)}
+                  value={draftValue}
+                  placeholder={request.placeholder ?? "Type your answer"}
+                  disabled={isResponding}
+                  onChange={setDraftValue}
+                  onSubmit={() => onRespond(request, draftValue)}
+                />
+                <QuestionnaireActions>
+                  <QuestionnairePanelActionButton
+                    primary
+                    disabled={isResponding}
+                    onClick={() => onRespond(request, responseActions[0]?.value ?? "")}
+                  >
+                    {responseActions[0]?.label ?? "Send"}
+                  </QuestionnairePanelActionButton>
+                </QuestionnaireActions>
+              </>
+            )}
+          </div>
+        </QuestionnaireSurface>
+      </div>
     </div>
   );
 }

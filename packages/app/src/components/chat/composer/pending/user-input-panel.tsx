@@ -9,6 +9,7 @@ import {
   QuestionnaireOptions,
   QuestionnaireQuestionLabel,
   QuestionnaireSurface,
+  questionnaireOptionIndexForKey,
   questionnaireOptionLetter,
 } from "./questionnaire";
 
@@ -77,9 +78,9 @@ function ComposerPendingUserInputCard({
     ) {
       return;
     }
-    const key = event.key.toUpperCase();
-    if (key.length !== 1 || key < "A" || key > "Z") return;
-    const option = activeQuestion.options[key.charCodeAt(0) - 65];
+    const optionIndex = questionnaireOptionIndexForKey(event.key);
+    if (optionIndex === null) return;
+    const option = activeQuestion.options[optionIndex];
     if (!option) return;
     event.preventDefault();
     handleOptionSelection(activeQuestion.id, option.label);
@@ -91,7 +92,7 @@ function ComposerPendingUserInputCard({
 
   return (
     <div onKeyDownCapture={handleKeyDownCapture}>
-      <QuestionnaireSurface>
+      <QuestionnaireSurface embedded>
         <QuestionnaireHeader
           icon={<IconBubbleQuestion className="size-3.5" aria-hidden="true" />}
           title={activeQuestion.header}
@@ -105,18 +106,21 @@ function ComposerPendingUserInputCard({
             ) : undefined
           }
         />
-        <div className="ml-1 flex flex-col gap-0.5">
+        <div className="pt-1 pr-2 pb-2 pl-2">
           <QuestionnaireQuestionLabel
             number={prompt.questions.length > 1 ? `${questionIndex + 1}.` : undefined}
           >
             {activeQuestion.question}
           </QuestionnaireQuestionLabel>
           {activeQuestion.multiSelect ? (
-            <p className="ml-1.5 mt-0.5 select-text text-caption text-honk-fg-tertiary">
+            <p className="mb-2 select-text text-caption text-honk-fg-tertiary">
               Select one or more options.
             </p>
           ) : null}
-          <QuestionnaireOptions label={activeQuestion.header}>
+          <QuestionnaireOptions
+            label={activeQuestion.header}
+            multiSelect={activeQuestion.multiSelect ?? false}
+          >
             {activeQuestion.options.map((option, index) => {
               const isSelected = progress.selectedOptionLabels.includes(option.label);
               return (

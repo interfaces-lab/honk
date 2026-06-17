@@ -1,10 +1,10 @@
 import { Button } from "@honk/honkkit/button";
-import { Textarea } from "@honk/honkkit/textarea";
 import { IconCheckmark1, IconCrossSmall, IconPencilLine } from "central-icons";
 import { useState, type FormEvent } from "react";
 
 import type { ProposedPlan } from "../../../types";
 import ChatMarkdown from "../markdown/chat-markdown";
+import { TipTapPlanEditor } from "~/components/shell/plan/editor/tiptap-editor";
 import { proposedPlanTitle, stripDisplayedPlanMarkdown } from "~/plan/proposed-plan";
 
 export function ProposedPlanMessage({
@@ -67,14 +67,17 @@ export function ProposedPlanMessage({
         </div>
         {editing ? (
           <form onSubmit={submit} className="flex min-w-0 flex-col gap-2 pt-2">
-            <Textarea
-              value={draft}
-              onChange={(event) => setDraft(event.currentTarget.value)}
-              controlClassName="min-h-48 resize-y px-2 py-2 font-honk-mono text-detail leading-relaxed"
+            <div
+              className="min-w-0 rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary px-1 py-1"
               data-proposed-plan-editor=""
-              aria-label="Edit plan"
-              spellCheck={false}
-            />
+            >
+              <TipTapPlanEditor
+                ariaLabel="Edit proposed plan"
+                disabled={saving}
+                onChange={setDraft}
+                value={draft}
+              />
+            </div>
             <div className="flex justify-end gap-2">
               <Button
                 type="button"

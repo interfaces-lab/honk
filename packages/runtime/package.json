@@ -15,13 +15,13 @@
   },
   "dependencies": {
     "@cursor/sdk": "1.0.18",
-    "@earendil-works/pi-agent-core": "^0.79.2",
-    "@earendil-works/pi-ai": "^0.79.2",
-    "@earendil-works/pi-coding-agent": "^0.79.2",
+    "@earendil-works/pi-agent-core": "^0.79.4",
+    "@earendil-works/pi-ai": "^0.79.4",
+    "@earendil-works/pi-coding-agent": "^0.79.4",
     "@honk/contracts": "workspace:*",
     "@honk/shared": "workspace:*",
     "effect": "catalog:",
-    "typebox": "^1.2.8"
+    "typebox": "^1.2.12"
   },
   "devDependencies": {
     "@types/node": "catalog:",

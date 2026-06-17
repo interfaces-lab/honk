@@ -179,7 +179,7 @@ describe("DesktopRuntimeHost", () => {
 
     expect(anthropicStatus?.state).toBe("available");
     expect(anthropicStatus?.credentialKind).toBe("claude-api-key");
-    expect(anthropicStatus?.message).toBe("Stored in Pi auth storage.");
+    expect(anthropicStatus?.message).toBe("Credential saved.");
 
     host.dispose();
   });

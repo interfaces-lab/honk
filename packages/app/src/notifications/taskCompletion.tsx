@@ -16,6 +16,7 @@ import {
   type CompletedThreadCandidate,
   type ThreadAttentionCandidate,
 } from "./task-completion-candidates";
+import { hasActiveOrchestrationTurn } from "~/session-logic";
 
 export type BrowserNotificationPermissionState =
   | NotificationPermission
@@ -158,27 +159,18 @@ function isPlanReviewAttentionSummary(summary: SidebarThreadSummary): boolean {
   return summary.hasActionableProposedPlan;
 }
 
-function isRunningSummary(summary: SidebarThreadSummary | undefined): boolean {
-  const status = summary?.session?.status;
-  return status === "running" || status === "connecting";
-}
-
 function hadUnsettledSummary(summary: SidebarThreadSummary | undefined): boolean {
   if (!summary) {
     return false;
   }
-  const latestTurn = summary.latestTurn;
-  if (latestTurn?.state === "running") {
-    return true;
-  }
-  return !latestTurn?.completedAt && isRunningSummary(summary);
+  return hasActiveOrchestrationTurn(summary.latestTurn, summary.session);
 }
 
 function isCompletionSummarySettled(summary: SidebarThreadSummary | undefined): boolean {
   if (!summary?.latestTurn?.startedAt || !summary.latestTurn.completedAt) {
     return false;
   }
-  return summary.session?.orchestrationStatus !== "running";
+  return !hasActiveOrchestrationTurn(summary.latestTurn, summary.session);
 }
 
 function collectCompletedSummaryCandidates(

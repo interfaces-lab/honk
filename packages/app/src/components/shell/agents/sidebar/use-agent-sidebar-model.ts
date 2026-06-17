@@ -21,6 +21,7 @@ import {
   startNewThreadFromContext,
   startNewThreadInProjectFromContext,
 } from "~/lib/chat-thread-actions";
+import { hasActiveOrchestrationTurn } from "~/session-logic";
 import { writeStoredProjectSelection } from "~/lib/project-state";
 import {
   findWorkspaceProjectForSource,
@@ -101,21 +102,6 @@ export function composerDraftHasVisibleContent(
   return Boolean(draft && (draft.prompt.trim().length > 0 || draft.images.length > 0));
 }
 
-function sidebarThreadHasActiveTurn(sidebarThread: StoreSidebarThreadSummary): boolean {
-  const latestTurnRunning =
-    sidebarThread.latestTurn?.state === "running" &&
-    sidebarThread.latestTurn.completedAt === null;
-  if (sidebarThread.session?.status === "connecting" || latestTurnRunning) {
-    return true;
-  }
-
-  const orchestrationStatus = sidebarThread.session?.orchestrationStatus ?? null;
-  return (
-    (orchestrationStatus === "starting" || orchestrationStatus === "running") &&
-    sidebarThread.session?.activeTurnId != null
-  );
-}
-
 export function needsSidebarAttention(
   sidebarThread: StoreSidebarThreadSummary | undefined,
 ): boolean {
@@ -123,7 +109,7 @@ export function needsSidebarAttention(
   if (sidebarThread.hasPendingApprovals || sidebarThread.hasPendingUserInput) {
     return true;
   }
-  if (sidebarThreadHasActiveTurn(sidebarThread)) {
+  if (hasActiveOrchestrationTurn(sidebarThread.latestTurn, sidebarThread.session)) {
     return false;
   }
   return sidebarThread.hasActionableProposedPlan;
@@ -194,7 +180,7 @@ function toSummaryFromSidebarThread(
     latestReadableAt: thread.latestTurn?.completedAt ?? null,
     messageCount: 0,
     firstMessage: thread.title,
-    isStreaming: sidebarThreadHasActiveTurn(thread),
+    isStreaming: hasActiveOrchestrationTurn(thread.latestTurn, thread.session),
     orchestrationStatus,
     activeTurnId: thread.session?.activeTurnId ?? null,
     latestTurnState: thread.latestTurn?.state ?? null,

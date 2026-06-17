@@ -1,6 +1,6 @@
 {
   "name": "@honk/desktop",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "main": "./out/main/index.js",
@@ -19,22 +19,22 @@
     "smoke-test": "node scripts/smoke-test.mjs"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "^0.79.2",
-    "@earendil-works/pi-ai": "^0.79.2",
-    "@earendil-works/pi-coding-agent": "^0.79.2",
+    "@earendil-works/pi-agent-core": "^0.79.4",
+    "@earendil-works/pi-ai": "^0.79.4",
+    "@earendil-works/pi-coding-agent": "^0.79.4",
     "@effect/platform-bun": "catalog:",
     "@effect/platform-node": "catalog:",
     "@effect/sql-sqlite-bun": "catalog:",
     "@honk/runtime": "workspace:*",
     "@lydell/node-pty": "1.2.0-beta.12",
-    "@pierre/diffs": "^1.2.10",
+    "@pierre/diffs": "^1.2.11",
     "effect": "catalog:",
     "electron-updater": "^6.8.9",
     "open": "^11.0.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "sqlite3": "5.1.7",
-    "typebox": "^1.2.8"
+    "typebox": "^1.2.12"
   },
   "devDependencies": {
     "@honk/app": "workspace:*",

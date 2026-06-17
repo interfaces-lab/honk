@@ -1,8 +1,9 @@
 import type { Model } from "@earendil-works/pi-ai";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 
 const TOOL_CALL_DESCRIPTION_PROMPT =
-  "Every tool call must include a concise description argument explaining why the call is being made. Keep descriptions user-facing, short, and action-oriented.";
+  "For command-like tools that expose a description argument, include a concise user-facing explanation of why the tool call is being made. Do not add description to file inspection or file mutation tools such as read, edit, write, grep, find, or ls.";
 
 const TOOL_CALL_DESCRIPTION_SCHEMA: JsonObject = {
   type: "string",
@@ -32,6 +33,9 @@ export function createToolCallDescriptionExtension(): ExtensionFactory {
 
     pi.on("tool_call", (event, ctx) => {
       if (!isToolCallDescriptionModel(ctx.model)) {
+        return undefined;
+      }
+      if (!isToolCallDescriptionTargetToolName(event.toolName)) {
         return undefined;
       }
       const input = asRecord(event.input);
@@ -83,36 +87,42 @@ function patchProviderTool(tool: JsonObject): JsonObject | undefined {
 }
 
 function patchAnthropicTool(tool: JsonObject): JsonObject | undefined {
+  const toolName = trimmedString(tool.name);
   const inputSchema = asRecord(tool.input_schema);
-  if (!inputSchema) {
+  if (!toolName || !isToolCallDescriptionTargetToolName(toolName) || !inputSchema) {
     return undefined;
   }
-  const patchedSchema = patchToolInputSchema(inputSchema);
+  const patchedSchema = patchToolInputSchema(inputSchema, { addIfMissing: false });
   return patchedSchema ? { ...tool, input_schema: patchedSchema } : undefined;
 }
 
 function patchOpenAiChatTool(tool: JsonObject): JsonObject | undefined {
   const functionRecord = asRecord(tool.function);
+  const toolName = trimmedString(functionRecord?.name);
   const parameters = asRecord(functionRecord?.parameters);
-  if (!functionRecord || !parameters) {
+  if (!functionRecord || !toolName || !isToolCallDescriptionTargetToolName(toolName) || !parameters) {
     return undefined;
   }
-  const patchedParameters = patchToolInputSchema(parameters);
+  const patchedParameters = patchToolInputSchema(parameters, { addIfMissing: false });
   return patchedParameters
     ? { ...tool, function: { ...functionRecord, parameters: patchedParameters } }
     : undefined;
 }
 
 function patchOpenAiResponsesTool(tool: JsonObject): JsonObject | undefined {
+  const toolName = trimmedString(tool.name);
   const parameters = asRecord(tool.parameters);
-  if (!parameters) {
+  if (!toolName || !isToolCallDescriptionTargetToolName(toolName) || !parameters) {
     return undefined;
   }
-  const patchedParameters = patchToolInputSchema(parameters);
+  const patchedParameters = patchToolInputSchema(parameters, { addIfMissing: false });
   return patchedParameters ? { ...tool, parameters: patchedParameters } : undefined;
 }
 
-function patchToolInputSchema(schema: JsonObject): JsonObject | undefined {
+function patchToolInputSchema(
+  schema: JsonObject,
+  options: { readonly addIfMissing: boolean },
+): JsonObject | undefined {
   if (schema.type !== undefined && schema.type !== "object") {
     return undefined;
   }
@@ -121,6 +131,9 @@ function patchToolInputSchema(schema: JsonObject): JsonObject | undefined {
   const properties = asRecord(schema.properties) ?? {};
   let nextProperties = properties;
   if (!Object.prototype.hasOwnProperty.call(properties, "description")) {
+    if (!options.addIfMissing) {
+      return undefined;
+    }
     nextProperties = { ...properties, description: TOOL_CALL_DESCRIPTION_SCHEMA };
     changed = true;
   }
@@ -145,6 +158,52 @@ function patchToolInputSchema(schema: JsonObject): JsonObject | undefined {
         required: nextRequired,
       }
     : undefined;
+}
+
+export function patchToolCallDescriptionAgentTools(
+  tools: readonly AgentTool[],
+): AgentTool[] {
+  return tools.map((tool) => {
+    if (!isToolCallDescriptionTargetToolName(tool.name)) {
+      return tool;
+    }
+    const parameters = asRecord(tool.parameters);
+    if (!parameters) {
+      return tool;
+    }
+    const patchedParameters = patchToolInputSchema(parameters, { addIfMissing: true });
+    if (!patchedParameters) {
+      return tool;
+    }
+    return {
+      ...tool,
+      parameters: patchedParameters as AgentTool["parameters"],
+    };
+  });
+}
+
+function isToolCallDescriptionTargetToolName(toolName: string): boolean {
+  const normalized = toolName.trim().toLowerCase().replaceAll("-", "_");
+  if (
+    normalized === "read" ||
+    normalized === "edit" ||
+    normalized === "write" ||
+    normalized === "grep" ||
+    normalized === "find" ||
+    normalized === "ls"
+  ) {
+    return false;
+  }
+  return (
+    normalized === "bash" ||
+    normalized === "shell" ||
+    normalized === "exec" ||
+    normalized === "command" ||
+    normalized === "lint" ||
+    normalized.includes("terminal") ||
+    normalized.includes("command") ||
+    normalized.includes("lint")
+  );
 }
 
 function asRecord(value: unknown): JsonObject | null {

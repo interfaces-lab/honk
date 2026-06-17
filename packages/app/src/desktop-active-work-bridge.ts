@@ -1,5 +1,6 @@
 import { syncAppearanceDisplayZoom } from "./lib/appearance-settings";
 import { isElectron } from "./env";
+import { hasActiveOrchestrationTurn } from "./session-logic";
 import { selectSidebarThreadsAcrossEnvironments, useStore } from "./stores/thread-store";
 import type { AppState } from "./stores/thread-store";
 
@@ -16,7 +17,7 @@ export function countRunningThreadsWithServerState(state: AppState): number {
   return selectSidebarThreadsAcrossEnvironments(state).filter(
     (summary) =>
       serverEnvironmentIds.has(summary.environmentId) &&
-      summary.session?.orchestrationStatus === "running",
+      hasActiveOrchestrationTurn(summary.latestTurn, summary.session),
   ).length;
 }
 

@@ -28,6 +28,7 @@ export function TerminalPanel(props: {
   cwd: string | null;
   workspaceKey: string | null;
   environmentId?: EnvironmentId | null;
+  resetKey?: number | undefined;
   terminalId?: string;
 }) {
   const activeTerminalId = props.terminalId ?? DEFAULT_TERMINAL_ID;
@@ -61,6 +62,7 @@ export function TerminalPanel(props: {
       key={createTerminalPanelSessionKey({
         cwd: props.cwd,
         environmentId: props.environmentId,
+        resetKey: props.resetKey ?? 0,
         terminalId: activeTerminalId,
         workspaceKey: props.workspaceKey,
       })}
@@ -75,6 +77,7 @@ export function TerminalPanel(props: {
 function createTerminalPanelSessionKey(input: {
   cwd: string;
   environmentId: EnvironmentId | null | undefined;
+  resetKey: number;
   terminalId: string;
   workspaceKey: string | null;
 }): string {
@@ -83,6 +86,7 @@ function createTerminalPanelSessionKey(input: {
     input.cwd,
     input.environmentId ?? null,
     input.terminalId,
+    input.resetKey,
   ]);
 }
 

@@ -52,8 +52,11 @@ import { makeRuntimeEventId, makeRuntimeSessionId, makeTurnId } from "./ids";
 import { projectPiAgentSessionEvent } from "./event-projection";
 import { extractMessageText } from "./message-text";
 import { DEBUG_LOGS_TOOL_NAME } from "./debug-logs-extension";
-import { CREATE_PLAN_TOOL_NAME, extractCreatePlanToolResultMarkdown } from "./plan-extension";
-import { createToolCallDescriptionExtension } from "./tool-call-description-extension";
+import { CREATE_PLAN_TOOL_NAME, extractCreatePlanToolEventMarkdown } from "./plan-extension";
+import {
+  createToolCallDescriptionExtension,
+  patchToolCallDescriptionAgentTools,
+} from "./tool-call-description-extension";
 import {
   CLIENT_MESSAGE_ID_SIDECAR_TYPE,
   collectClientMessageIdSidecars,
@@ -277,6 +280,7 @@ export class ThreadAgentRuntime {
     sessionOptions.authStorage = authStorage;
 
     const sessionResult = await createAgentSession(sessionOptions);
+    applyToolCallDescriptionSupport(sessionResult.session);
     let runtime: ThreadAgentRuntime | undefined;
     try {
       const model = sessionResult.session.model as Model<string> | undefined;
@@ -317,6 +321,10 @@ export class ThreadAgentRuntime {
 
   get session() {
     return this.sessionResult.session;
+  }
+
+  private refreshToolCallDescriptionSupport(): void {
+    applyToolCallDescriptionSupport(this.session);
   }
 
   get extensionsResult() {
@@ -486,6 +494,9 @@ export class ThreadAgentRuntime {
       this.session,
       options.interactionMode,
     );
+    if (modeToolProfileApplied) {
+      this.refreshToolCallDescriptionSupport();
+    }
     try {
       const piImages = toPiImageContent(images);
       const promptOptions: PromptOptions = {
@@ -540,6 +551,7 @@ export class ThreadAgentRuntime {
           this.interactionModeQueue.remove(interactionMode);
           if (modeToolProfileApplied) {
             this.session.setActiveToolsByName(baselineActiveToolNames);
+            this.refreshToolCallDescriptionSupport();
           }
           this.sourceProposedPlanByTurnId.delete(turnId);
           this.proposedPlanTurnIds.delete(turnId);
@@ -559,6 +571,7 @@ export class ThreadAgentRuntime {
       this.interactionModeQueue.remove(interactionMode);
       if (modeToolProfileApplied) {
         this.session.setActiveToolsByName(baselineActiveToolNames);
+        this.refreshToolCallDescriptionSupport();
       }
       this.sourceProposedPlanByTurnId.delete(turnId);
       this.proposedPlanTurnIds.delete(turnId);
@@ -998,7 +1011,7 @@ export class ThreadAgentRuntime {
     ) {
       return;
     }
-    const planMarkdown = extractCreatePlanToolResultMarkdown(event.result);
+    const planMarkdown = extractCreatePlanToolEventMarkdown(event);
     if (!planMarkdown) {
       return;
     }
@@ -1198,6 +1211,12 @@ function createInteractionModeExtension(queue: InteractionModeQueue): ExtensionF
       };
     });
   };
+}
+
+function applyToolCallDescriptionSupport(
+  session: Awaited<ReturnType<typeof createAgentSession>>["session"],
+): void {
+  session.agent.state.tools = patchToolCallDescriptionAgentTools(session.agent.state.tools);
 }
 
 interface InteractionModeToolSession {

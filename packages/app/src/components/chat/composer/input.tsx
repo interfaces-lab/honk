@@ -19,6 +19,7 @@ import { Spinner } from "@honk/honkkit/spinner";
 import {
   Menu,
   MenuCheckboxItem,
+  MenuGroup,
   MenuGroupLabel,
   MenuPopup,
   MenuRadioGroup,
@@ -627,7 +628,7 @@ function ComposerAgentModePicker(props: {
                       </MenuRadioGroup>
                     ) : null}
                     {showOpenAIFastSettings ? (
-                      <>
+                      <MenuGroup>
                         <MenuGroupLabel
                           variant="workbench"
                           className={showEffortSettings ? "mt-1" : undefined}
@@ -641,20 +642,22 @@ function ComposerAgentModePicker(props: {
                         >
                           Fast Mode
                         </MenuCheckboxItem>
-                      </>
+                      </MenuGroup>
                     ) : null}
                     {showComposerFastSettings ? (
-                      <div className="px-2 py-1.5">
-                        <MenuGroupLabel variant="workbench">Mode</MenuGroupLabel>
-                        <label className="mt-1 flex items-center justify-between gap-3 rounded-[4px] px-2 py-1.5 text-body text-honk-fg-primary">
-                          <span className="min-w-0 truncate">Fast mode</span>
-                          <Switch
-                            checked={props.composerFastModeEnabled}
-                            aria-label="Fast mode"
-                            onCheckedChange={props.onComposerFastModeChange}
-                          />
-                        </label>
-                      </div>
+                      <MenuGroup>
+                        <div className="px-2 py-1.5">
+                          <MenuGroupLabel variant="workbench">Mode</MenuGroupLabel>
+                          <label className="mt-1 flex items-center justify-between gap-3 rounded-[4px] px-2 py-1.5 text-body text-honk-fg-primary">
+                            <span className="min-w-0 truncate">Fast mode</span>
+                            <Switch
+                              checked={props.composerFastModeEnabled}
+                              aria-label="Fast mode"
+                              onCheckedChange={props.onComposerFastModeChange}
+                            />
+                          </label>
+                        </div>
+                      </MenuGroup>
                     ) : null}
                   </>
                 ) : (
@@ -678,6 +681,8 @@ const EMPTY_PENDING_USER_INPUT_ANSWERS: NonNullable<
 
 const EMPTY_RESPONDING_REQUEST_IDS: NonNullable<ComposerInputProps["respondingRequestIds"]> = [];
 Object.freeze(EMPTY_RESPONDING_REQUEST_IDS);
+
+const RICH_TEXT_DRAFT_PERSIST_DEBOUNCE_MS = 500;
 
 const ignoreQueuedComposerItem = (_itemId: MessageId): void => undefined;
 const ignoreQueuedComposerItemReorder = (
@@ -1520,6 +1525,8 @@ export const ComposerInput = memo(
     const composerMenuPopoverAnchorRef = useRef<ComposerMenuPopoverAnchor>(
       composerMenuPopoverAnchorFromElement(() => composerMenuAnchorRef.current),
     );
+    const richTextDraftPersistTimerRef = useRef<number | null>(null);
+    const pendingRichTextDraftPromptRef = useRef<string | null>(null);
     const composerSelectLockRef = useRef(false);
     const composerMenuPrefetchedCwdRef = useRef<string | null>(null);
     const composerMenuOpenRef = useRef(false);
@@ -1965,12 +1972,50 @@ export const ComposerInput = memo(
     // ------------------------------------------------------------------
     // Prompt helpers
     // ------------------------------------------------------------------
-    const persistPromptDraft = (nextPrompt: string) => {
-      const submitData = composerEditorRef.current?.getSubmitData();
-      const richTextJson =
-        submitData?.richText !== undefined ? JSON.stringify(submitData.richText) : null;
-      updateComposerDraft({ prompt: nextPrompt, richTextJson });
+    const clearPendingRichTextDraftPersistence = () => {
+      if (richTextDraftPersistTimerRef.current !== null) {
+        window.clearTimeout(richTextDraftPersistTimerRef.current);
+        richTextDraftPersistTimerRef.current = null;
+      }
+      pendingRichTextDraftPromptRef.current = null;
     };
+
+    const persistRichTextDraftNow = (expectedPrompt: string) => {
+      const submitData = composerEditorRef.current?.getSubmitData();
+      if (!submitData || submitData.text !== expectedPrompt) {
+        return;
+      }
+      const richTextJson =
+        submitData.richText !== undefined ? JSON.stringify(submitData.richText) : null;
+      updateComposerDraft({ prompt: submitData.text, richTextJson });
+    };
+
+    const scheduleRichTextDraftPersistence = (nextPrompt: string) => {
+      if (richTextDraftPersistTimerRef.current !== null) {
+        window.clearTimeout(richTextDraftPersistTimerRef.current);
+      }
+      pendingRichTextDraftPromptRef.current = nextPrompt;
+      richTextDraftPersistTimerRef.current = window.setTimeout(() => {
+        const pendingPrompt = pendingRichTextDraftPromptRef.current;
+        richTextDraftPersistTimerRef.current = null;
+        pendingRichTextDraftPromptRef.current = null;
+        if (pendingPrompt !== null) {
+          persistRichTextDraftNow(pendingPrompt);
+        }
+      }, RICH_TEXT_DRAFT_PERSIST_DEBOUNCE_MS);
+    };
+
+    const persistPromptDraft = (nextPrompt: string) => {
+      if (nextPrompt.length === 0) {
+        clearPendingRichTextDraftPersistence();
+        updateComposerDraft({ prompt: nextPrompt, richTextJson: null });
+        return;
+      }
+      updateComposerDraft({ prompt: nextPrompt });
+      scheduleRichTextDraftPersistence(nextPrompt);
+    };
+
+    useMountEffect(() => clearPendingRichTextDraftPersistence);
 
     const setPrompt = (nextPrompt: string) => {
       setLivePrompt((current) => (current === nextPrompt ? current : nextPrompt));
@@ -2128,6 +2173,7 @@ export const ComposerInput = memo(
     syncEditorToPromptRef.current = syncEditorToPrompt;
 
     const runClearComposer = (options?: { focus?: boolean }) => {
+      clearPendingRichTextDraftPersistence();
       composerEditorRef.current?.clear();
       promptRef.current = "";
       setLivePrompt("");
@@ -2144,6 +2190,7 @@ export const ComposerInput = memo(
     };
 
     const runRestoreComposer = (snapshot: ComposerSubmitContext) => {
+      clearPendingRichTextDraftPersistence();
       const promptForState = snapshot.prompt;
       const cursor = collapseExpandedComposerCursor(promptForState, promptForState.length);
       promptRef.current = promptForState;
@@ -2477,7 +2524,11 @@ export const ComposerInput = memo(
     };
 
     const handleComposerBlurCapture = (_event: FocusEvent<HTMLFormElement>) => {
-      // SSOT writes happen immediately on editor change; no debounced flush.
+      const pendingPrompt = pendingRichTextDraftPromptRef.current;
+      clearPendingRichTextDraftPersistence();
+      if (pendingPrompt !== null) {
+        persistRichTextDraftNow(pendingPrompt);
+      }
     };
     // ------------------------------------------------------------------
     // Imperative handle
@@ -2528,6 +2579,7 @@ export const ComposerInput = memo(
           runRestoreComposer(snapshot);
         },
         getSendContext: () => {
+          clearPendingRichTextDraftPersistence();
           const submitData = composerEditorRef.current?.getSubmitData();
           const promptForSend = submitData?.text ?? promptRef.current;
           return {

@@ -1,4 +1,10 @@
-import { EventId, RuntimeSessionId, ThreadId } from "@honk/contracts";
+import {
+  createDefaultAgentPreferences,
+  decodeAgentPreferences,
+  EventId,
+  RuntimeSessionId,
+  ThreadId,
+} from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
 import { decodeHonkRuntimeHostEvent, decodeHonkRuntimeHostSnapshot } from "../src/runtime";
@@ -32,6 +38,18 @@ function legacyShellTimeline() {
 }
 
 describe("runtime contracts", () => {
+  it("decodes every default credential preference kind", () => {
+    const preferences = decodeAgentPreferences(createDefaultAgentPreferences());
+
+    expect(preferences.credentials.map((credential) => credential.kind)).toEqual([
+      "claude-api-key",
+      "claude-oauth",
+      "codex-oauth",
+      "codex-api-key",
+      "cursor-api-key",
+    ]);
+  });
+
   it("migrates legacy shell display timeline snapshots to bash", () => {
     const snapshot = decodeHonkRuntimeHostSnapshot({
       preferences: {},

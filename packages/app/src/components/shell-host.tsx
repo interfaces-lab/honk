@@ -87,6 +87,7 @@ import {
   deriveActivePlanState,
   findSidebarProposedPlan,
   hasActionableProposedPlan,
+  hasActiveOrchestrationTurn,
   isLatestTurnSettled,
   type ActivePlanState,
   type LatestProposedPlanState,
@@ -249,30 +250,6 @@ function hasGitAgentActionMessage(
   return thread.userMessageIds.includes(handoff.messageId);
 }
 
-function hasActiveOrchestrationTurn(
-  thread: Pick<Thread, "session" | "latestTurn"> | null | undefined,
-): boolean {
-  const latestTurn = thread?.latestTurn ?? null;
-  if (latestTurn?.state === "running" && latestTurn.completedAt === null) {
-    return true;
-  }
-
-  const session = thread?.session ?? null;
-  if (
-    session?.orchestrationStatus !== "starting" &&
-    session?.orchestrationStatus !== "running"
-  ) {
-    return false;
-  }
-
-  const activeTurnId = session.activeTurnId ?? null;
-  if (activeTurnId === null) {
-    return false;
-  }
-
-  return latestTurn?.turnId !== activeTurnId || latestTurn.completedAt === null;
-}
-
 function resolveActiveGitAgentHandoff(input: {
   activeRun: GitAgentRun | null;
   activeThread: ThreadGitAgentSurface | null;
@@ -296,7 +273,7 @@ function resolveActiveGitAgentHandoff(input: {
     return input.orchestrationHandoff;
   }
 
-  if (hasActiveOrchestrationTurn(activeThread)) {
+  if (hasActiveOrchestrationTurn(activeThread.latestTurn, activeThread.session)) {
     return input.orchestrationHandoff;
   }
 
@@ -444,7 +421,9 @@ function ChatShellHost(props: { children?: ReactNode }) {
     if (!activeGitAgentThread) {
       return null;
     }
-    if (!hasActiveOrchestrationTurn(activeGitAgentThread)) {
+    if (
+      !hasActiveOrchestrationTurn(activeGitAgentThread.latestTurn, activeGitAgentThread.session)
+    ) {
       return null;
     }
     const latestUserMessage = activeGitAgentThread.latestUserMessage;
@@ -525,7 +504,10 @@ function ChatShellHost(props: { children?: ReactNode }) {
         ? activeLatestTurn.sourceProposedPlan.threadId
         : activeThread.id
       : null;
-  const activeTurnRunning = hasActiveOrchestrationTurn(activeThread);
+  const activeTurnRunning = hasActiveOrchestrationTurn(
+    activeThread?.latestTurn ?? null,
+    activeThread?.session ?? null,
+  );
   const showPlanImplementationActions = hasActionableProposedPlan(activeProposedPlan);
   const canImplementPlan =
     showPlanImplementationActions &&
@@ -633,8 +615,10 @@ function ChatShellHost(props: { children?: ReactNode }) {
       return false;
     }
   };
-  const planAvailable = activePlan !== null || activeProposedPlan !== null;
-  const planLabel: PlanWorkbenchLabel = activeProposedPlan ? "Plan" : "Tasks";
+  const activeThreadPlanMode = activeThread?.interactionMode === "plan";
+  const planAvailable = activeThreadPlanMode || activePlan !== null || activeProposedPlan !== null;
+  const planLabel: PlanWorkbenchLabel =
+    activeThreadPlanMode || activeProposedPlan ? "Plan" : "Tasks";
   const planWorkbench: PlanWorkbenchState = {
     available: planAvailable,
     activePlan,
@@ -735,7 +719,12 @@ function ChatShellHost(props: { children?: ReactNode }) {
       throw new Error("Open this repository's draft before running the Git action.");
     }
 
-    if (hasActiveOrchestrationTurn(currentServerThread)) {
+    if (
+      hasActiveOrchestrationTurn(
+        currentServerThread?.latestTurn ?? null,
+        currentServerThread?.session ?? null,
+      )
+    ) {
       throw new Error("Wait for the current turn to finish before running this Git action.");
     }
 
@@ -1047,6 +1036,7 @@ function TerminalWorkbenchPanel(props: {
   onActivateTerminal: (terminalId: string) => void;
   onCloseTerminal: (terminalId: string) => void;
   terminalId?: string | undefined;
+  terminalResetKey?: number | undefined;
 }) {
   const terminalState = useTerminalSessions(props.workspaceKey);
   const { open: terminalRailOpen } = useSecondaryRail(props.workspaceKey, "terminal");
@@ -1077,6 +1067,7 @@ function TerminalWorkbenchPanel(props: {
             cwd={props.cwd}
             workspaceKey={props.workspaceKey}
             environmentId={props.environmentId}
+            resetKey={props.terminalResetKey}
             terminalId={activeTerminalId}
           />
         </RightWorkbenchLayout>
@@ -1164,12 +1155,13 @@ function ChatWorkbenchShellHost(props: {
   stoppingGitAgentAction: boolean;
   pendingGitAgentAction: GitAgentAction | null;
 }) {
-  const planTabAvailable = props.plan.available && props.plan.environmentId !== null;
+  const planTabAvailable = props.plan.available;
   const terminalState = useTerminalSessions(props.workspaceKey);
   const terminalThreadKey = props.workspaceKey ?? props.cwd;
   const terminalThreadId = terminalThreadKey ? workbenchTerminalThreadId(terminalThreadKey) : null;
   const runningTerminalIds = useWorkbenchTerminalRunning(terminalThreadId, props.environmentId);
   const [pendingCloseTerminalId, setPendingCloseTerminalId] = useState<string | null>(null);
+  const [terminalResetKeys, setTerminalResetKeys] = useState<Record<string, number>>({});
   const workbenchTabRuntime = useMemo<WorkbenchTabSnapshotRuntimeInput>(
     () => ({
       plan: { available: planTabAvailable, label: props.plan.label },
@@ -1194,17 +1186,35 @@ function ChatWorkbenchShellHost(props: {
     },
     [props.workspaceKey, terminalState.sessions],
   );
+  const bumpTerminalResetKey = useCallback((terminalId: string) => {
+    setTerminalResetKeys((current) => ({
+      ...current,
+      [terminalId]: (current[terminalId] ?? 0) + 1,
+    }));
+  }, []);
   const closeTerminalSession = useCallback(
     (terminalId: string) => {
       const previousTerminalState = readTerminalSessions(props.workspaceKey);
       const wasActive = previousTerminalState.activeId === terminalId;
+      const isFinalTerminal = previousTerminalState.sessions.length <= 1;
       const api = readWorkbenchTerminalApi(props.environmentId);
-      if (api && terminalThreadId) {
-        void api
+      const closeRemoteTerminal = async () => {
+        if (!api || !terminalThreadId) return;
+        if (isFinalTerminal) {
+          await api.clear({ threadId: terminalThreadId, terminalId }).catch(() => undefined);
+        }
+        await api
           .close({ threadId: terminalThreadId, terminalId, deleteHistory: true })
           .catch(() => undefined);
         forgetWorkbenchTerminalRunning(terminalThreadId, props.environmentId, terminalId);
+      };
+
+      if (isFinalTerminal) {
+        void closeRemoteTerminal().finally(() => bumpTerminalResetKey(terminalId));
+        return;
       }
+
+      void closeRemoteTerminal();
       shellPanelsActions.removeTerminalSession(props.workspaceKey, terminalId);
       if (!wasActive) return;
       const nextTerminalState = readTerminalSessions(props.workspaceKey);
@@ -1215,7 +1225,7 @@ function ChatWorkbenchShellHost(props: {
         );
       }
     },
-    [props.environmentId, props.workspaceKey, terminalThreadId],
+    [bumpTerminalResetKey, props.environmentId, props.workspaceKey, terminalThreadId],
   );
   const requestCloseTerminalSession = useCallback(
     (terminalId: string) => {
@@ -1270,6 +1280,7 @@ function ChatWorkbenchShellHost(props: {
             onActivateTerminal={activateTerminalSession}
             onCloseTerminal={requestCloseTerminalSession}
             terminalId={tab.terminalId}
+            terminalResetKey={tab.terminalId ? (terminalResetKeys[tab.terminalId] ?? 0) : 0}
           />
         ),
       },
@@ -1300,7 +1311,7 @@ function ChatWorkbenchShellHost(props: {
       },
     };
 
-    if (planTabAvailable && props.plan.environmentId) {
+    if (planTabAvailable) {
       renderers.plan = {
         keepMountedAfterFirstActivation: true,
         render: () => (
@@ -1360,6 +1371,7 @@ function ChatWorkbenchShellHost(props: {
     props.workspaceKey,
     requestCloseTerminalSession,
     tabSnapshot,
+    terminalResetKeys,
     workbenchTabs,
   ]);
 

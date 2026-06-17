@@ -9,6 +9,7 @@ import { normalizePlanEditorMarkdown } from "./markdown";
 import { createPlanEditorExtensions } from "./tiptap-extensions";
 
 export function TipTapPlanEditor(props: {
+  ariaLabel?: string | undefined;
   disabled: boolean;
   onChange: (nextMarkdown: string) => void;
   value: string;
@@ -20,6 +21,13 @@ export function TipTapPlanEditor(props: {
     content: props.value,
     contentType: "markdown",
     editable: !props.disabled,
+    editorProps: {
+      attributes: {
+        "aria-label": props.ariaLabel ?? "Edit plan",
+        "aria-multiline": "true",
+        role: "textbox",
+      },
+    },
     extensions: createPlanEditorExtensions(),
     onUpdate: ({ editor: currentEditor }) => {
       if (syncingRef.current) {

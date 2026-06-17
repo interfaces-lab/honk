@@ -1393,12 +1393,7 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
           if (!existing && nextPrompt.length === 0 && (nextRichTextJson?.length ?? 0) === 0) {
             return;
           }
-          if (
-            existing?.prompt === nextPrompt &&
-            existing.richTextJson === nextRichTextJson &&
-            patch.prompt === undefined &&
-            patch.richTextJson === undefined
-          ) {
+          if (existing?.prompt === nextPrompt && existing.richTextJson === nextRichTextJson) {
             return;
           }
           const updatedAt = new Date().toISOString();

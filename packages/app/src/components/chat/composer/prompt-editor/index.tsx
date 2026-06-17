@@ -39,6 +39,7 @@ import {
 } from "lexical";
 import {
   forwardRef,
+  useCallback,
   useImperativeHandle,
   useRef,
   type ClipboardEventHandler,
@@ -72,7 +73,6 @@ import {
   commandText,
   composerSegmentCollapsedLength,
   composerSegmentExpandedText,
-  composerSegmentsExpandedText,
   inlineTokenText,
   mentionText,
   skillText,
@@ -721,14 +721,11 @@ function setSelectionAtTextOffset(offset: number, mode: "expanded" | "collapsed"
 }
 
 function readSnapshotFromEditorState(): ComposerPromptEditorSnapshot {
-  const segments = collectComposerSegmentsFromRoot();
-  const value = composerSegmentsExpandedText(segments);
+  const root = $getRoot();
+  const value = root.getTextContent();
   const selection = $getSelection();
   if (!$isRangeSelection(selection)) {
-    const cursor = segments.reduce(
-      (total, segment) => total + composerSegmentCollapsedLength(segment),
-      0,
-    );
+    const cursor = nodeTextLength(root, "collapsed");
     return {
       value,
       cursor,
@@ -760,14 +757,11 @@ function measureComposerEditorMultiline(editor: LexicalEditor): boolean {
   if (!rootElement) {
     return false;
   }
-  let value = "";
-  editor.getEditorState().read(() => {
-    value = readSnapshotFromEditorState().value;
-  });
-  if (value.includes("\n")) {
+  const text = rootElement.textContent ?? "";
+  if (text.includes("\n")) {
     return true;
   }
-  if (value.trim().length === 0) {
+  if (text.trim().length === 0) {
     return false;
   }
   return rootElement.scrollHeight > COMPOSER_EDITOR_MULTILINE_PIXEL_THRESHOLD;
@@ -1419,12 +1413,15 @@ const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, Compose
     onPasteRef.current = onPaste;
     commandMenuOpenRef.current = commandMenuOpen;
     const localCaretAnchorRef = useRef<HTMLSpanElement | null>(null);
-    const setCaretAnchor = (element: HTMLSpanElement | null) => {
-      localCaretAnchorRef.current = element;
-      if (caretAnchorRef) {
-        caretAnchorRef.current = element;
-      }
-    };
+    const setCaretAnchor = useCallback(
+      (element: HTMLSpanElement | null) => {
+        localCaretAnchorRef.current = element;
+        if (caretAnchorRef) {
+          caretAnchorRef.current = element;
+        }
+      },
+      [caretAnchorRef],
+    );
     const pendingSurroundSelectionRef = useRef<SurroundSelectionSnapshot | null>(null);
     const isApplyingControlledUpdateRef = useRef(false);
     const measuredMultilineRef = useRef(false);
@@ -1463,7 +1460,7 @@ const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, Compose
       anchorElementRef: localCaretAnchorRef,
     });
 
-    const emitSnapshot = (editorState: EditorState, nextEditor: LexicalEditor) => {
+    const emitSnapshot = useCallback((editorState: EditorState, nextEditor: LexicalEditor) => {
       if (isApplyingControlledUpdateRef.current) {
         return;
       }
@@ -1483,7 +1480,7 @@ const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, Compose
         cursorAdjacentToMention,
       );
       emitMeasuredMultiline(nextEditor, onMeasuredMultilineChangeRef.current, measuredMultilineRef);
-    };
+    }, []);
 
     const focusAt = (nextCursor: number) => {
       const boundedCursor = clampCollapsedComposerCursor(snapshotRef.current.value, nextCursor);

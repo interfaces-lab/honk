@@ -12,6 +12,7 @@ import {
 import {
   memo,
   type ComponentType,
+  type CSSProperties,
   type DragEvent,
   type KeyboardEvent,
   type ReactNode,
@@ -41,6 +42,28 @@ import { FileTreeFileIcon, FileTreeIconSprite } from "../../tree";
 import { RightWorkbenchToolIsland } from "./right-workbench-tool-island";
 
 const WORKBENCH_TAB_DRAG_MIME_TYPE = "application/x-honk-workbench-tab";
+
+const WORKBENCH_TAB_CLOSE_SLOT_STYLE = {
+  position: "absolute",
+  top: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 10,
+  display: "flex",
+  width: 16,
+  alignItems: "center",
+  justifyContent: "center",
+} satisfies CSSProperties;
+
+const TERMINAL_TAB_CLOSE_SLOT_STYLE = {
+  ...WORKBENCH_TAB_CLOSE_SLOT_STYLE,
+  top: "50%",
+  right: 4,
+  bottom: "auto",
+  width: 20,
+  height: 20,
+  transform: "translateY(-50%)",
+} satisfies CSSProperties;
 
 export interface WorkbenchTabMeta {
   readonly id: string;
@@ -182,6 +205,8 @@ function WorkbenchTabPill(props: {
       aria-selected={props.active}
       data-active={props.active ? "true" : "false"}
       data-closable={props.tab.closable ? "true" : undefined}
+      data-closeable={props.tab.closable ? "true" : undefined}
+      data-kind={props.tab.kind}
       data-dragging={props.dragging ? "true" : undefined}
       data-preview={props.tab.preview ? "true" : undefined}
       data-shell-no-drag=""
@@ -240,24 +265,36 @@ function WorkbenchTabPill(props: {
         ) : null}
       </span>
       {props.tab.closable ? (
-        <button
-          type="button"
-          aria-label={`Close ${props.tab.label}`}
-          className="ui-tab-system-tab__close no-drag absolute top-0 right-0 bottom-0 flex w-4 shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-honk-fg-tertiary opacity-0 shadow-none outline-hidden transition-opacity hover:bg-transparent hover:text-honk-fg-primary focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset group-hover:opacity-100"
+        <div
+          className="ui-tab-system-tab__close-slot no-drag"
           data-no-drag=""
           data-shell-no-drag=""
           draggable={false}
-          onClick={(event) => {
-            event.stopPropagation();
-            props.onClose();
-          }}
-          onPointerDown={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-          }}
+          style={
+            props.tab.kind === "terminal"
+              ? TERMINAL_TAB_CLOSE_SLOT_STYLE
+              : WORKBENCH_TAB_CLOSE_SLOT_STYLE
+          }
         >
-          <IconCrossMediumDefault className="size-3" aria-hidden />
-        </button>
+          <button
+            type="button"
+            aria-label={`Close ${props.tab.label}`}
+            className="ui-tab-system-tab__close no-drag flex size-full shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-honk-fg-tertiary opacity-0 shadow-none outline-hidden transition-opacity hover:bg-transparent hover:text-honk-fg-primary focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset group-hover:opacity-100"
+            data-no-drag=""
+            data-shell-no-drag=""
+            draggable={false}
+            onClick={(event) => {
+              event.stopPropagation();
+              props.onClose();
+            }}
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            <IconCrossMediumDefault className="size-3" aria-hidden />
+          </button>
+        </div>
       ) : null}
     </div>
   );

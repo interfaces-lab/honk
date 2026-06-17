@@ -14,6 +14,7 @@ import {
 import { prepareRuntimeTurnPolicy } from "../lib/runtime-turn-dispatch";
 import { coordinateTurnSend, dispatchTurnStartFailure } from "../lib/turn-send-coordinator";
 import { resolvePlanFollowUpSubmission } from "../plan/proposed-plan";
+import { hasActiveOrchestrationTurn } from "../session-logic";
 import { DEFAULT_RUNTIME_MODE } from "../types";
 import { useComposerQueueStore, type QueuedComposerItem } from "./chat-send-queue";
 import { selectEnvironmentState, selectThreadByRef, useStore } from "./thread-store";
@@ -139,8 +140,10 @@ export async function dispatchNextQueuedComposerItemForThread(
   const firstItem = queueStore.getQueueItems(threadKey)[0] ?? null;
   const editingItemId = queueStore.getEditingQueueItemId(threadKey);
   const thread = selectThreadByRef(useStore.getState(), threadRef);
-  const isThreadRunning =
-    thread?.session?.status === "running" || thread?.session?.status === "connecting";
+  const isThreadRunning = hasActiveOrchestrationTurn(
+    thread?.latestTurn ?? null,
+    thread?.session ?? null,
+  );
 
   if (!firstItem || isThreadRunning || editingItemId === firstItem.id) {
     return;

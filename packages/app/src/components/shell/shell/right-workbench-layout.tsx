@@ -74,8 +74,9 @@ export function RightWorkbenchLayout(props: {
           <div
             aria-label="Resize secondary pane width"
             aria-orientation="vertical"
-            className="pointer-events-auto absolute inset-y-0 right-0 z-30 w-3 cursor-col-resize touch-none select-none outline-hidden [-webkit-app-region:no-drag] after:absolute after:inset-y-0 after:right-0 after:w-(--honk-shell-sash-stripe-width) after:rounded-px after:bg-transparent after:transition-[background-color,box-shadow] after:duration-100 after:ease-out hover:after:bg-(--honk-shell-sash-hover-shade) focus-visible:after:bg-(--honk-shell-sash-hover-shade) data-[active=true]:after:bg-(--honk-shell-sash-hover-shade) motion-reduce:after:transition-none"
+            className="honk-shell-column-sash"
             data-active={resize.dragging ? "true" : undefined}
+            data-sash-side="right"
             {...resize.sashProps}
             role="separator"
           />

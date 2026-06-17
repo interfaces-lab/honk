@@ -1,6 +1,6 @@
 {
   "name": "usehonk",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -27,7 +27,7 @@
     "@effect/sql-sqlite-bun": "catalog:",
     "@honk/release-scripts": "workspace:*",
     "@lydell/node-pty": "1.2.0-beta.12",
-    "@pierre/diffs": "^1.2.10",
+    "@pierre/diffs": "^1.2.11",
     "effect": "catalog:",
     "open": "^11.0.0"
   },

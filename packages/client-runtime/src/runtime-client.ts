@@ -1,7 +1,5 @@
 import {
-  AuthProviderId,
-  DEFAULT_AGENT_POLICY_MODEL_SELECTION,
-  DEFAULT_AGENT_RESOURCE_PREFERENCES,
+  createDefaultAgentPreferences,
   decodeAgentPreferences,
   decodeHonkRuntimeHostEvent,
   decodeHonkRuntimeHostSnapshot,
@@ -14,49 +12,7 @@ import {
 
 const now = () => new Date().toISOString();
 
-const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
-  agentMode: "deep",
-  interactionMode: "agent",
-  modelSelection: DEFAULT_AGENT_POLICY_MODEL_SELECTION,
-  modelSettingsByModelId: {},
-  fast: false,
-  thinkingLevel: "high",
-  resources: DEFAULT_AGENT_RESOURCE_PREFERENCES,
-  credentials: [
-    {
-      kind: "claude-api-key",
-      label: "Claude API Key",
-      authProviderId: AuthProviderId.make("anthropic"),
-      accountId: null,
-    },
-    {
-      kind: "claude-oauth",
-      label: "Claude OAuth",
-      authProviderId: AuthProviderId.make("anthropic"),
-      accountId: null,
-    },
-    {
-      kind: "codex-oauth",
-      label: "Codex OAuth",
-      authProviderId: AuthProviderId.make("openai-codex"),
-      accountId: null,
-    },
-    {
-      kind: "codex-api-key",
-      label: "Codex API Key",
-      authProviderId: AuthProviderId.make("openai"),
-      accountId: null,
-    },
-    {
-      kind: "cursor-api-key",
-      label: "Cursor API Key",
-      authProviderId: AuthProviderId.make("cursor"),
-      accountId: null,
-    },
-  ],
-};
-
-let fallbackPreferences: AgentPreferences = DEFAULT_AGENT_PREFERENCES;
+let fallbackPreferences: AgentPreferences = createDefaultAgentPreferences();
 
 export function createEmptyRuntimeHostSnapshot(
   preferences: AgentPreferences = fallbackPreferences,

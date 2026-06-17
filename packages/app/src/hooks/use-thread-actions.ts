@@ -38,6 +38,7 @@ import {
 import { toastManager } from "~/app/toast";
 import { formatSchemaBackedTransportErrorDescription } from "~/rpc/transport-error";
 import { useSettings } from "./use-settings";
+import { hasActiveOrchestrationTurn } from "~/session-logic";
 import type { Thread } from "../types";
 import { findWorkspaceProjectForSource, isSourceForWorkspaceProject } from "~/lib/workspace-target";
 
@@ -182,8 +183,8 @@ async function commitRename(
   });
 }
 
-function threadHasOngoingWork(thread: Pick<Thread, "session">): boolean {
-  return thread.session?.status === "running" || thread.session?.status === "connecting";
+function threadHasOngoingWork(thread: Pick<Thread, "latestTurn" | "session">): boolean {
+  return hasActiveOrchestrationTurn(thread.latestTurn, thread.session);
 }
 
 interface ArchiveWarningPrompt {

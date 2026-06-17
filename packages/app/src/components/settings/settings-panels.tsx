@@ -885,15 +885,15 @@ function describeCredentialState(status: AgentAuthStatus | null): string {
   }
   switch (status?.state ?? "missing") {
     case "available":
-      return "Pi auth storage has a usable credential.";
+      return "Credential ready.";
     case "expired":
-      return "Pi auth storage has an expired credential.";
+      return "Credential expired.";
     case "error":
-      return "Pi auth storage reported a credential error.";
+      return "Credential needs attention.";
     case "unknown":
-      return "Pi runtime has not reported this credential yet.";
+      return "Checking credential status…";
     case "missing":
-      return "No credential configured in Pi auth storage.";
+      return "No credential saved.";
   }
 }
 

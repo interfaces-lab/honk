@@ -34,7 +34,12 @@ export function PlanEditor(props: PlanEditorProps) {
           <span>Save</span>
         </WorkbenchTextButton>
       </div>
-      <TipTapPlanEditor disabled={props.disabled} onChange={props.onChange} value={props.value} />
+      <TipTapPlanEditor
+        ariaLabel="Edit plan"
+        disabled={props.disabled}
+        onChange={props.onChange}
+        value={props.value}
+      />
     </div>
   );
 }

@@ -1,10 +1,9 @@
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
-  AuthProviderId,
-  DEFAULT_AGENT_POLICY_MODEL_SELECTION,
-  DEFAULT_AGENT_RESOURCE_PREFERENCES,
   AGENT_THINKING_LEVELS,
+  AuthProviderId,
+  createDefaultAgentPreferences,
   type AgentCredentialAuthFlow,
   type AgentCredentialConfigureInput,
   type AgentAuthStatus,
@@ -54,48 +53,6 @@ import {
 import { toWireRuntimeEvent } from "./runtime-event-wire";
 import { registerCursorComposerProvider } from "./cursor-composer-provider";
 
-const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
-  agentMode: "deep",
-  interactionMode: "agent",
-  modelSelection: DEFAULT_AGENT_POLICY_MODEL_SELECTION,
-  modelSettingsByModelId: {},
-  fast: false,
-  thinkingLevel: "high",
-  resources: DEFAULT_AGENT_RESOURCE_PREFERENCES,
-  credentials: [
-    {
-      kind: "claude-api-key",
-      label: "Claude API Key",
-      authProviderId: AuthProviderId.make("anthropic"),
-      accountId: null,
-    },
-    {
-      kind: "claude-oauth",
-      label: "Claude OAuth",
-      authProviderId: AuthProviderId.make("anthropic"),
-      accountId: null,
-    },
-    {
-      kind: "codex-oauth",
-      label: "Codex OAuth",
-      authProviderId: AuthProviderId.make("openai-codex"),
-      accountId: null,
-    },
-    {
-      kind: "codex-api-key",
-      label: "Codex API Key",
-      authProviderId: AuthProviderId.make("openai"),
-      accountId: null,
-    },
-    {
-      kind: "cursor-api-key",
-      label: "Cursor API Key",
-      authProviderId: AuthProviderId.make("cursor"),
-      accountId: null,
-    },
-  ],
-};
-
 const MAX_RUNTIME_EVENTS_IN_SNAPSHOT = 500;
 // Live runtime events are retained only to (a) feed the host snapshot and (b) re-project the live
 // display timeline for the in-flight turn; committed history lives in the session tree. Both arrays
@@ -120,7 +77,7 @@ function boundedPush<T>(array: T[], item: T, max: number): void {
 function describeAuthSource(status: AuthStatus | undefined): string | null {
   switch (status?.source) {
     case "stored":
-      return "Stored in Pi auth storage.";
+      return "Credential saved.";
     case "runtime":
       return status.label ? `Runtime credential: ${status.label}.` : "Runtime credential.";
     case "environment":
@@ -207,7 +164,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       throw new Error("DesktopRuntimeHost requires a Honk agent directory.");
     }
 
-    this.preferences = options?.preferences ?? DEFAULT_AGENT_PREFERENCES;
+    this.preferences = options?.preferences ?? createDefaultAgentPreferences();
     this.agentDir = options.agentDir;
     this.authStorage =
       options.authStorage === undefined

@@ -34,16 +34,14 @@ export function TerminalRail(props: {
                 <IconConsole className="size-4 shrink-0 opacity-60" />
                 <span className="min-w-0 truncate">{session.label}</span>
               </button>
-              {props.sessions.length > 1 ? (
-                <button
-                  type="button"
-                  aria-label={`Close ${session.label}`}
-                  onClick={() => props.onClose(session.id)}
-                  className="flex size-4 shrink-0 items-center justify-center rounded-sm text-honk-fg-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-honk-fg-primary"
-                >
-                  <IconCrossMediumDefault className="size-3" />
-                </button>
-              ) : null}
+              <button
+                type="button"
+                aria-label={`Close ${session.label}`}
+                onClick={() => props.onClose(session.id)}
+                className="flex size-4 shrink-0 items-center justify-center rounded-sm text-honk-fg-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-honk-fg-primary focus-visible:opacity-100"
+              >
+                <IconCrossMediumDefault className="size-3" />
+              </button>
             </div>
           );
         })}
