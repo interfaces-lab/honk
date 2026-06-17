@@ -14,6 +14,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
+import { Badge } from "@honk/honkkit/badge";
 import { Button } from "@honk/honkkit/button";
 import { Spinner } from "@honk/honkkit/spinner";
 import {
@@ -376,8 +377,23 @@ function ComposerReadOnlyAgentModeChip(props: { agentMode: AgentMode }) {
         agentMode={props.agentMode}
         className="size-3 shrink-0 text-honk-icon-secondary"
       />
-      <span className="min-w-0 truncate">{label}</span>
+      <span className="flex min-w-0 flex-1 items-center gap-1.5">
+        <span className="min-w-0 truncate">{label}</span>
+        {props.agentMode === "composer" ? <ComposerExperimentalBadge /> : null}
+      </span>
     </span>
+  );
+}
+
+function ComposerExperimentalBadge() {
+  return (
+    <Badge
+      variant="outline"
+      size="sm"
+      className="h-4 min-w-0 border-red-500/35 bg-red-500/10 px-1.5 text-[10px] text-red-600 dark:bg-red-500/10 dark:text-red-300"
+    >
+      Experimental
+    </Badge>
   );
 }
 
@@ -431,7 +447,7 @@ const ComposerAgentModePickerTrigger = memo(function ComposerAgentModePickerTrig
       type="button"
       className={cn(
         workbenchChromeTextControlVariants(),
-        "max-w-40 rounded-full pr-1.5 pl-2 transition-none disabled:pointer-events-none disabled:opacity-50",
+        "max-w-64 rounded-full pr-1.5 pl-2 transition-none disabled:pointer-events-none disabled:opacity-50",
       )}
       aria-label="Agent mode"
       disabled={props.disabled}
@@ -440,7 +456,10 @@ const ComposerAgentModePickerTrigger = memo(function ComposerAgentModePickerTrig
         agentMode={props.agentMode}
         className="size-3 shrink-0 text-honk-icon-secondary"
       />
-      <span className="min-w-0 truncate">{AGENT_MODE_LABELS[props.agentMode]}</span>
+      <span className="flex min-w-0 flex-1 items-center gap-1.5">
+        <span className="min-w-0 truncate">{AGENT_MODE_LABELS[props.agentMode]}</span>
+        {props.agentMode === "composer" ? <ComposerExperimentalBadge /> : null}
+      </span>
       <IconChevronDownSmall className="size-3 shrink-0 text-honk-icon-tertiary" aria-hidden />
     </MenuTrigger>
   );
@@ -482,7 +501,7 @@ function ComposerAgentModePicker(props: {
         side="top"
         sideOffset={6}
         variant="workbench"
-        className="w-[184px] border-transparent shadow-honk-base"
+        className="w-[252px] border-transparent shadow-honk-base"
       >
         {COMPOSER_AGENT_MODE_OPTIONS.map((mode) => {
           const selected = mode === props.agentMode;
@@ -514,8 +533,7 @@ function ComposerAgentModePicker(props: {
                   setOpenSubmenu({
                     mode,
                     kind:
-                      hasEditSettings &&
-                      isAgentModeEditTarget(eventDetails.event?.target ?? null)
+                      hasEditSettings && isAgentModeEditTarget(eventDetails.event?.target ?? null)
                         ? "effort"
                         : "details",
                   });
@@ -561,6 +579,7 @@ function ComposerAgentModePicker(props: {
                     className="size-3.5 shrink-0 text-honk-icon-secondary"
                   />
                   <span className="min-w-0 truncate text-honk-fg-primary">{label}</span>
+                  {mode === "composer" ? <ComposerExperimentalBadge /> : null}
                   {hasEffortSettings ? (
                     <span className="shrink-0 text-honk-fg-tertiary">
                       {MODEL_THINKING_LEVEL_LABELS[thinkingLevel]}
@@ -1215,10 +1234,7 @@ function PrimaryActionControls(props: {
       action="submit"
       state={dataState}
       disabled={
-        props.submitDisabled ||
-        props.isSendBusy ||
-        props.isConnecting ||
-        !props.hasSendableContent
+        props.submitDisabled || props.isSendBusy || props.isConnecting || !props.hasSendableContent
       }
       aria-label={
         props.isConnecting
