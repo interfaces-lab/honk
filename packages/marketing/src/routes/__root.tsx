@@ -1,4 +1,5 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { Analytics } from "@vercel/analytics/react";
 import { useEffect } from "react";
 
 import { useMarketingResolvedTheme } from "../hooks/use-marketing-resolved-theme";
@@ -53,6 +54,7 @@ function RootDocument() {
       </head>
       <body className="m-0 min-h-screen min-w-[320px] bg-[#f7f8fb] box-border dark:bg-neutral-950">
         <Outlet />
+        <Analytics mode={import.meta.env.DEV ? "development" : "production"} />
         <Scripts />
       </body>
     </html>
