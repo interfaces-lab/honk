@@ -20,6 +20,7 @@ import {
   type HonkRuntimeHostSnapshot,
   isOAuthAgentCredentialKind,
   type RuntimeDisplayTimelineProjection,
+  type RuntimeIngestionRecord,
   type ThreadAgentRuntimeCloneInput,
   type RuntimeGetThreadSessionFileInput,
   type RuntimeGetThreadSessionFileResult,
@@ -32,8 +33,13 @@ import {
   type ThreadAgentRuntimeAbortInput,
   type ThreadAgentRuntimeCompactInput,
   type ThreadAgentRuntimeHydrateInput,
+  type ThreadAgentRuntimeQueueFollowUpInput,
+  type ThreadAgentRuntimeQueuedFollowUp,
+  type ThreadAgentRuntimeQueuedFollowUpIdInput,
+  type ThreadAgentRuntimeReorderQueuedFollowUpInput,
   type ThreadAgentRuntimeSetThreadFocusInput,
   type ThreadAgentRuntimeSendTurnInput,
+  type ThreadAgentRuntimeUpdateQueuedFollowUpInput,
 } from "@honk/contracts";
 import { getSupportedThinkingLevels, type OAuthLoginCallbacks } from "@earendil-works/pi-ai";
 import {
@@ -195,6 +201,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       sessionTrees: [...this.sessionTrees.values()],
       displayTimelines: this.getDisplayTimelines(),
       pendingExtensionUiRequests: this.getPendingExtensionUiRequests(),
+      queuedFollowUps: this.getQueuedFollowUps(),
     };
   }
 
@@ -495,6 +502,47 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     return this.send(sendInputForRuntime(entry.runtime));
   }
 
+  async enqueueFollowUp(input: ThreadAgentRuntimeQueueFollowUpInput): Promise<void> {
+    const entry = await this.ensureRuntimeForQueuedFollowUp(input);
+    entry.runtime.enqueueFollowUp(input);
+  }
+
+  async updateQueuedFollowUp(input: ThreadAgentRuntimeUpdateQueuedFollowUpInput): Promise<void> {
+    const entry = this.runtimes.get(input.threadId);
+    if (!entry) {
+      throw new Error(`No runtime thread exists for ${input.threadId}.`);
+    }
+    entry.runtime.updateQueuedFollowUp(input);
+  }
+
+  async removeQueuedFollowUp(input: ThreadAgentRuntimeQueuedFollowUpIdInput): Promise<void> {
+    const entry = this.runtimes.get(input.threadId);
+    if (!entry) {
+      return;
+    }
+    entry.runtime.removeQueuedFollowUp(input.clientMessageId);
+  }
+
+  async reorderQueuedFollowUp(input: ThreadAgentRuntimeReorderQueuedFollowUpInput): Promise<void> {
+    const entry = this.runtimes.get(input.threadId);
+    if (!entry) {
+      return;
+    }
+    entry.runtime.reorderQueuedFollowUp(
+      input.clientMessageId,
+      input.targetClientMessageId,
+      input.insertAfter,
+    );
+  }
+
+  async sendQueuedFollowUpNow(input: ThreadAgentRuntimeQueuedFollowUpIdInput): Promise<void> {
+    const entry = this.runtimes.get(input.threadId);
+    if (!entry) {
+      return;
+    }
+    await entry.runtime.sendQueuedFollowUpNow(input.clientMessageId);
+  }
+
   async compactThread(input: ThreadAgentRuntimeCompactInput): Promise<void> {
     const startInput: RuntimeThreadStartInput = {
       threadId: input.threadId,
@@ -644,9 +692,17 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       this.refreshDisplayTimeline(runtime);
       this.scheduleDisplayTimelineEmit(runtime.threadId);
     });
+    const unsubscribeQueue = runtime.subscribeQueue(() => {
+      this.emitQueuedFollowUps();
+    });
+    const unsubscribeIngestion = runtime.subscribeRuntimeIngestionRecords((records) => {
+      this.emitRuntimeIngestionRecords(records);
+    });
     const unsubscribe = () => {
       unsubscribeRuntime();
       unsubscribeUi();
+      unsubscribeQueue();
+      unsubscribeIngestion();
     };
 
     this.runtimes.set(runtime.threadId, { runtime, ui, unsubscribe });
@@ -822,6 +878,38 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     );
   }
 
+  private getQueuedFollowUps(): ThreadAgentRuntimeQueuedFollowUp[] {
+    return [...this.runtimes.values()].flatMap((entry) => [...entry.runtime.getQueuedFollowUps()]);
+  }
+
+  private emitQueuedFollowUps(): void {
+    this.emit({ type: "queued-follow-ups", items: this.getQueuedFollowUps() });
+  }
+
+  private emitRuntimeIngestionRecords(records: readonly RuntimeIngestionRecord[]): void {
+    if (records.length === 0) {
+      return;
+    }
+    this.emit({ type: "runtime-ingestion-records", records: records.map((record) => record) });
+  }
+
+  private async ensureRuntimeForQueuedFollowUp(
+    input: ThreadAgentRuntimeQueueFollowUpInput,
+  ): Promise<RuntimeEntry> {
+    if (!this.runtimes.has(input.threadId)) {
+      await this.startThread({
+        threadId: input.threadId,
+        cwd: input.cwd,
+        policy: input.policy,
+      });
+    }
+    const entry = this.runtimes.get(input.threadId);
+    if (!entry) {
+      throw new Error(`No runtime thread exists for ${input.threadId}.`);
+    }
+    return entry;
+  }
+
   private getModelDescriptors(): AgentRuntimeModelDescriptor[] {
     if (!this.modelRegistry) {
       return [];
@@ -902,6 +990,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     this.pendingDisplayTimelineDeadlines.delete(threadId);
     this.focusedThreadIds.delete(threadId);
     this.rescheduleDisplayTimelineFlush();
+    this.emitQueuedFollowUps();
     for (let index = this.runtimeEvents.length - 1; index >= 0; index -= 1) {
       if (this.runtimeEvents[index]?.threadId === threadId) {
         this.runtimeEvents.splice(index, 1);

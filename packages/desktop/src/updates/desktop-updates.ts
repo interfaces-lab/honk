@@ -33,6 +33,7 @@ import {
   reduceDesktopUpdateStateOnDownloadProgress,
   reduceDesktopUpdateStateOnDownloadStart,
   reduceDesktopUpdateStateOnInstallFailure,
+  reduceDesktopUpdateStateOnInstallStart,
   reduceDesktopUpdateStateOnNoUpdate,
   reduceDesktopUpdateStateOnUpdateAvailable,
 } from "./update-machine";
@@ -313,6 +314,8 @@ const make = Effect.gen(function* () {
     yield* Ref.set(updateInstallInFlightRef, true);
 
     return yield* Effect.gen(function* () {
+      yield* setState(reduceDesktopUpdateStateOnInstallStart(state));
+      yield* elog.info("installing update");
       yield* backendManager.stop({ timeout: Duration.seconds(5) });
       yield* electronWindow.destroyAll;
       yield* electronUpdater.quitAndInstall({

@@ -13,8 +13,12 @@ import {
   ThreadAgentRuntimeAbortInput,
   ThreadAgentRuntimeCompactInput,
   ThreadAgentRuntimeHydrateInput,
+  ThreadAgentRuntimeQueueFollowUpInput,
+  ThreadAgentRuntimeQueuedFollowUpIdInput,
+  ThreadAgentRuntimeReorderQueuedFollowUpInput,
   ThreadAgentRuntimeSetThreadFocusInput,
   ThreadAgentRuntimeSendTurnInput,
+  ThreadAgentRuntimeUpdateQueuedFollowUpInput,
   TurnId,
 } from "@honk/contracts";
 import type { DesktopRuntimeHost } from "@honk/runtime";
@@ -82,6 +86,9 @@ export const installRuntimeHostEventBridge = Effect.acquireRelease(
         );
       }
       ingestRuntimeHostEvent(event);
+      if (event.type === "runtime-ingestion-records") {
+        return;
+      }
       Effect.runSync(
         electronWindow.sendAll(IpcChannels.RUNTIME_HOST_EVENT_CHANNEL, encodeHostEvent(event)),
       );
@@ -243,6 +250,81 @@ export const sendRuntimeTurn = makeIpcMethod({
       );
       yield* elog.debug("runtime turn send completed", { threadId: input.threadId, turnId });
       return turnId;
+    }),
+});
+
+export const enqueueRuntimeFollowUp = makeIpcMethod({
+  channel: IpcChannels.RUNTIME_ENQUEUE_FOLLOW_UP_CHANNEL,
+  payload: ThreadAgentRuntimeQueueFollowUpInput,
+  result: Schema.Void,
+  handler: (input) =>
+    Effect.gen(function* () {
+      const host = yield* requireRuntimeHost;
+      yield* Effect.promise(() => host.enqueueFollowUp(input)).pipe(
+        Effect.tapError((error) =>
+          logRuntimeFailure("runtime follow-up enqueue failed", input, error),
+        ),
+      );
+    }),
+});
+
+export const updateQueuedRuntimeFollowUp = makeIpcMethod({
+  channel: IpcChannels.RUNTIME_UPDATE_QUEUED_FOLLOW_UP_CHANNEL,
+  payload: ThreadAgentRuntimeUpdateQueuedFollowUpInput,
+  result: Schema.Void,
+  handler: (input) =>
+    Effect.gen(function* () {
+      const host = yield* requireRuntimeHost;
+      yield* Effect.promise(() => host.updateQueuedFollowUp(input)).pipe(
+        Effect.tapError((error) =>
+          logRuntimeFailure("runtime queued follow-up update failed", input, error),
+        ),
+      );
+    }),
+});
+
+export const removeQueuedRuntimeFollowUp = makeIpcMethod({
+  channel: IpcChannels.RUNTIME_REMOVE_QUEUED_FOLLOW_UP_CHANNEL,
+  payload: ThreadAgentRuntimeQueuedFollowUpIdInput,
+  result: Schema.Void,
+  handler: (input) =>
+    Effect.gen(function* () {
+      const host = yield* requireRuntimeHost;
+      yield* Effect.promise(() => host.removeQueuedFollowUp(input)).pipe(
+        Effect.tapError((error) =>
+          logRuntimeFailure("runtime queued follow-up remove failed", input, error),
+        ),
+      );
+    }),
+});
+
+export const reorderQueuedRuntimeFollowUp = makeIpcMethod({
+  channel: IpcChannels.RUNTIME_REORDER_QUEUED_FOLLOW_UP_CHANNEL,
+  payload: ThreadAgentRuntimeReorderQueuedFollowUpInput,
+  result: Schema.Void,
+  handler: (input) =>
+    Effect.gen(function* () {
+      const host = yield* requireRuntimeHost;
+      yield* Effect.promise(() => host.reorderQueuedFollowUp(input)).pipe(
+        Effect.tapError((error) =>
+          logRuntimeFailure("runtime queued follow-up reorder failed", input, error),
+        ),
+      );
+    }),
+});
+
+export const sendQueuedRuntimeFollowUpNow = makeIpcMethod({
+  channel: IpcChannels.RUNTIME_SEND_QUEUED_FOLLOW_UP_NOW_CHANNEL,
+  payload: ThreadAgentRuntimeQueuedFollowUpIdInput,
+  result: Schema.Void,
+  handler: (input) =>
+    Effect.gen(function* () {
+      const host = yield* requireRuntimeHost;
+      yield* Effect.promise(() => host.sendQueuedFollowUpNow(input)).pipe(
+        Effect.tapError((error) =>
+          logRuntimeFailure("runtime queued follow-up send-now failed", input, error),
+        ),
+      );
     }),
 });
 

@@ -5,6 +5,9 @@ export type DesktopUpdateButtonAction = "download" | "install" | "none";
 export function resolveDesktopUpdateButtonAction(
   state: DesktopUpdateState,
 ): DesktopUpdateButtonAction {
+  if (state.status === "installing") {
+    return "none";
+  }
   if (state.downloadedVersion) {
     return "install";
   }
@@ -24,6 +27,9 @@ export function shouldShowDesktopUpdateButton(state: DesktopUpdateState | null):
     return false;
   }
   if (state.status === "downloading") {
+    return true;
+  }
+  if (state.status === "installing") {
     return true;
   }
   return resolveDesktopUpdateButtonAction(state) !== "none";
@@ -46,6 +52,9 @@ export function getDesktopUpdateButtonTooltip(state: DesktopUpdateState): string
   }
   if (state.status === "downloaded") {
     return `Update ${state.downloadedVersion ?? state.availableVersion ?? "ready"} downloaded. Click to restart and install.`;
+  }
+  if (state.status === "installing") {
+    return `Installing update ${state.downloadedVersion ?? state.availableVersion ?? ""}`.trim();
   }
   if (state.status === "error") {
     if (state.errorContext === "download" && state.availableVersion) {
@@ -90,6 +99,7 @@ export function canCheckForUpdate(state: DesktopUpdateState | null): boolean {
   return (
     state.status !== "checking" &&
     state.status !== "downloading" &&
+    state.status !== "installing" &&
     state.status !== "downloaded"
   );
 }

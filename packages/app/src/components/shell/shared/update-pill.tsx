@@ -20,7 +20,7 @@ export function UpdatePill() {
   const state = useDesktopUpdateState().data ?? null;
   const [dismissed, setDismissed] = useState(false);
 
-  const disabled = state?.status === "downloading";
+  const disabled = state?.status === "downloading" || state?.status === "installing";
   const action = state ? resolveDesktopUpdateButtonAction(state) : "none";
 
   const handle = () => {
@@ -66,6 +66,11 @@ export function UpdatePill() {
               ? "Retry update"
               : "Restart to update"}
           </span>
+        </>
+      ) : state?.status === "installing" ? (
+        <>
+          <IconCloudDownload className="size-4 shrink-0 animate-pulse" />
+          <span className="truncate">Installing...</span>
         </>
       ) : state?.status === "downloading" ? (
         <>

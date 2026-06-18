@@ -298,6 +298,10 @@ function hostOwnedRuntimeThreadIdsForEvent(event: HonkRuntimeHostEvent): Set<Thr
       return new Set([event.timeline.threadId]);
     case "pending-extension-ui":
       return new Set(event.requests.map((request) => request.threadId));
+    case "queued-follow-ups":
+      return new Set(event.items.map((item) => item.threadId));
+    case "runtime-ingestion-records":
+      return new Set(event.records.map((record) => record.threadId));
     case "runtime-identities":
       return new Set(event.identities.map((identity) => identity.threadId));
     case "runtime-event":
@@ -404,6 +408,13 @@ function reduceHostEvent(
       return upsertDisplayTimeline(snapshot, event.timeline);
     case "pending-extension-ui":
       return upsertPendingExtensionUiRequests(snapshot, event.requests);
+    case "queued-follow-ups":
+      return {
+        ...snapshot,
+        queuedFollowUps: [...event.items],
+      };
+    case "runtime-ingestion-records":
+      return snapshot;
     case "credential-auth-flows":
       return {
         ...snapshot,
@@ -440,6 +451,8 @@ function reduceRuntimeActivitiesForHostEvent(
       );
     case "pending-extension-ui":
       return reduceRuntimeThreadActivityPendingRequests(activities, event.requests);
+    case "queued-follow-ups":
+    case "runtime-ingestion-records":
     case "session-tree":
     case "runtime-identities":
     case "credential-auth-flows":
@@ -712,6 +725,47 @@ function arePendingExtensionUiRequestsEqualAtIndex(
   );
 }
 
+function areQueuedFollowUpsEqual(
+  left: HonkRuntimeHostSnapshot["queuedFollowUps"],
+  right: HonkRuntimeHostSnapshot["queuedFollowUps"],
+): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((leftItem, index) => {
+    const rightItem = right[index];
+    return (
+      rightItem !== undefined &&
+      leftItem.threadId === rightItem.threadId &&
+      leftItem.cwd === rightItem.cwd &&
+      leftItem.clientMessageId === rightItem.clientMessageId &&
+      leftItem.replacesClientMessageId === rightItem.replacesClientMessageId &&
+      leftItem.parentEntryId === rightItem.parentEntryId &&
+      leftItem.input === rightItem.input &&
+      leftItem.interactionMode === rightItem.interactionMode &&
+      leftItem.runtimeMode === rightItem.runtimeMode &&
+      leftItem.titleSeed === rightItem.titleSeed &&
+      leftItem.sourceProposedPlan?.threadId === rightItem.sourceProposedPlan?.threadId &&
+      leftItem.sourceProposedPlan?.planId === rightItem.sourceProposedPlan?.planId &&
+      leftItem.createdAt === rightItem.createdAt &&
+      JSON.stringify(leftItem.policy) === JSON.stringify(rightItem.policy) &&
+      JSON.stringify(leftItem.modelSelection) === JSON.stringify(rightItem.modelSelection) &&
+      leftItem.images.length === rightItem.images.length &&
+      leftItem.images.every((leftImage, imageIndex) => {
+        const rightImage = rightItem.images[imageIndex];
+        return (
+          rightImage !== undefined &&
+          leftImage.type === rightImage.type &&
+          leftImage.name === rightImage.name &&
+          leftImage.mimeType === rightImage.mimeType &&
+          leftImage.sizeBytes === rightImage.sizeBytes &&
+          leftImage.dataUrl === rightImage.dataUrl
+        );
+      })
+    );
+  });
+}
+
 function areSameExtensionUiQuestions(
   left: NonNullable<DesktopExtensionUiRequest["questions"]>,
   right: NonNullable<DesktopExtensionUiRequest["questions"]>,
@@ -892,6 +946,11 @@ function normalizeRuntimeHostSnapshot(
       )
         ? previousSnapshot.pendingExtensionUiRequests
         : [...snapshot.pendingExtensionUiRequests],
+    queuedFollowUps:
+      previousSnapshot &&
+      areQueuedFollowUpsEqual(previousSnapshot.queuedFollowUps, snapshot.queuedFollowUps)
+        ? previousSnapshot.queuedFollowUps
+        : [...snapshot.queuedFollowUps],
   };
 }
 

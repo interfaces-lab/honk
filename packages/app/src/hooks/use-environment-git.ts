@@ -235,22 +235,32 @@ function EnvironmentGitPanelRowsSync({
   environmentId,
   queryClient,
   rows,
+  workingTree,
 }: {
   cwd: string | null;
   environmentId: EnvironmentId | null;
   queryClient: QueryClient;
   rows: DiffRow[];
+  workingTree: GitStatusResult["workingTree"] | null;
 }) {
   const prevRows = useRef<DiffRow[]>([]);
+  const prevWorkingTree = useRef<GitStatusResult["workingTree"] | null>(null);
   const rowsSyncKey = rows.map(rowSyncKey).join("\x01");
 
   useEffect(() => {
     const previousRows = prevRows.current;
+    const previousWorkingTree = prevWorkingTree.current;
     const next = syncRows(previousRows, rows);
     prevRows.current = rows;
+    prevWorkingTree.current = workingTree;
 
     if (!cwd) {
       return;
+    }
+
+    if (previousWorkingTree !== null && previousWorkingTree !== workingTree) {
+      void invalidateGitPatchQueries(queryClient, { environmentId, cwd });
+      void invalidateGitImageQueries(queryClient, { environmentId, cwd });
     }
 
     const removed = new Set(previousRows.map((row) => row.id));
@@ -275,7 +285,7 @@ function EnvironmentGitPanelRowsSync({
         queryKey: gitQueryKeys.image(environmentId, cwd, id),
       });
     }
-  }, [cwd, environmentId, queryClient, rowsSyncKey]);
+  }, [cwd, environmentId, queryClient, rowsSyncKey, workingTree]);
 
   return null;
 }
@@ -357,6 +367,7 @@ export function useEnvironmentGitPanel(
     environmentId: environmentId ?? null,
     queryClient,
     rows,
+    workingTree: status.data?.workingTree ?? null,
   });
 
   const rowIdsKey = rows.map((row) => row.id).join("\0");

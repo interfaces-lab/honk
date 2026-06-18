@@ -35,6 +35,7 @@ export function createEmptyRuntimeHostSnapshot(
     sessionTrees: [],
     displayTimelines: [],
     pendingExtensionUiRequests: [],
+    queuedFollowUps: [],
   };
 }
 
@@ -113,6 +114,17 @@ export async function assertRuntimeHostAvailable(): Promise<void> {
 }
 
 export function createRuntimeClientFromApi(runtime: HonkRuntimeApi): HonkRuntimeApi {
+  const requireRuntimeMethod = <Name extends keyof HonkRuntimeApi>(
+    name: Name,
+    message: string,
+  ): HonkRuntimeApi[Name] => {
+    const method = Reflect.get(runtime, name);
+    if (typeof method !== "function") {
+      throw new Error(message);
+    }
+    return method.bind(runtime) as HonkRuntimeApi[Name];
+  };
+
   return {
     getHostSnapshot: async () => decodeHonkRuntimeHostSnapshot(await runtime.getHostSnapshot()),
     getPreferences: async () => decodeAgentPreferences(await runtime.getPreferences()),
@@ -124,6 +136,31 @@ export function createRuntimeClientFromApi(runtime: HonkRuntimeApi): HonkRuntime
     cloneThread: (input) => runtime.cloneThread(input),
     setThreadFocus: (input) => runtime.setThreadFocus(input),
     sendTurn: (input) => runtime.sendTurn(input),
+    enqueueFollowUp: (input) =>
+      requireRuntimeMethod(
+        "enqueueFollowUp",
+        "Runtime host does not support queued follow-ups.",
+      )(input),
+    updateQueuedFollowUp: (input) =>
+      requireRuntimeMethod(
+        "updateQueuedFollowUp",
+        "Runtime host does not support queued follow-ups.",
+      )(input),
+    removeQueuedFollowUp: (input) =>
+      requireRuntimeMethod(
+        "removeQueuedFollowUp",
+        "Runtime host does not support queued follow-ups.",
+      )(input),
+    reorderQueuedFollowUp: (input) =>
+      requireRuntimeMethod(
+        "reorderQueuedFollowUp",
+        "Runtime host does not support queued follow-ups.",
+      )(input),
+    sendQueuedFollowUpNow: (input) =>
+      requireRuntimeMethod(
+        "sendQueuedFollowUpNow",
+        "Runtime host does not support queued follow-ups.",
+      )(input),
     compactThread: async (input) => {
       const compactThread = Reflect.get(runtime, "compactThread");
       if (typeof compactThread !== "function") {

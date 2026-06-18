@@ -8,15 +8,21 @@ import type {
   AuthProviderId,
   MessageId,
   ModelId,
+  RuntimeIngestionRecord,
   RuntimeSessionId,
   SessionTreeProjection,
   SourceProposedPlanReference,
   ThreadAgentRuntimeImageAttachment,
+  ThreadAgentRuntimeQueuedFollowUp,
   ThreadId,
   ThreadTokenUsageSnapshot,
   TurnId,
 } from "@honk/contracts";
-import { threadEntryIdForMessageId, type ThreadEntryId } from "@honk/contracts";
+import {
+  RuntimeIngestionRecordId,
+  threadEntryIdForMessageId,
+  type ThreadEntryId,
+} from "@honk/contracts";
 import {
   AuthStorage,
   type AgentSessionEvent,
@@ -115,9 +121,12 @@ export interface SendMessageOptions {
   readonly expandPromptTemplates: NonNullable<PromptOptions["expandPromptTemplates"]> | null;
   readonly source: NonNullable<PromptOptions["source"]> | null;
   readonly streamingBehavior: "steer" | "followUp" | null;
+  readonly createdAt?: string;
 }
 
 export type AgentRuntimeEventListener = (event: AgentRuntimeEvent) => void;
+export type RuntimeQueueListener = (items: readonly ThreadAgentRuntimeQueuedFollowUp[]) => void;
+export type RuntimeIngestionRecordListener = (records: readonly RuntimeIngestionRecord[]) => void;
 
 interface PendingInteractionMode {
   readonly sequence: number;
@@ -171,11 +180,19 @@ export class ThreadAgentRuntime {
   private readonly turnIdByEntryId = new Map<string, TurnId>();
   private readonly pendingMessageTurnIds: TurnId[] = [];
   private readonly pendingPromptClientMessages: PendingPromptClientMessage[] = [];
+  private readonly queuedFollowUps: ThreadAgentRuntimeQueuedFollowUp[] = [];
+  private readonly queueListeners = new Set<RuntimeQueueListener>();
+  private readonly ingestionRecordListeners = new Set<RuntimeIngestionRecordListener>();
   private eventSequence = 0;
   private turnSequence = 0;
-  private pendingFirstTurnId: TurnId | undefined;
+  private readonly pendingFirstTurnIds: TurnId[] = [];
+  private readonly pendingFollowUpTurnIds: TurnId[] = [];
   private activeTurnId: TurnId | undefined;
   private activeRunFirstTurnId: TurnId | undefined;
+  private nextTurnStartsQueuedFollowUp = false;
+  private suppressedAgentEndPending = false;
+  private queuedFollowUpDrainScheduled = false;
+  private drainingQueuedFollowUp = false;
   private readonly sourceProposedPlanByTurnId = new Map<
     TurnId,
     SourceProposedPlanReference | null
@@ -372,6 +389,128 @@ export class ThreadAgentRuntime {
     return () => {
       this.listeners.delete(listener);
     };
+  }
+
+  subscribeQueue(listener: RuntimeQueueListener): () => void {
+    this.queueListeners.add(listener);
+    listener(this.getQueuedFollowUps());
+    return () => {
+      this.queueListeners.delete(listener);
+    };
+  }
+
+  subscribeRuntimeIngestionRecords(listener: RuntimeIngestionRecordListener): () => void {
+    this.ingestionRecordListeners.add(listener);
+    return () => {
+      this.ingestionRecordListeners.delete(listener);
+    };
+  }
+
+  getQueuedFollowUps(): readonly ThreadAgentRuntimeQueuedFollowUp[] {
+    return this.queuedFollowUps.map((item) => ({ ...item, images: [...item.images] }));
+  }
+
+  enqueueFollowUp(item: ThreadAgentRuntimeQueuedFollowUp): void {
+    const existingIndex = this.queuedFollowUps.findIndex(
+      (candidate) => candidate.clientMessageId === item.clientMessageId,
+    );
+    const nextItem = cloneQueuedFollowUp(item);
+    if (existingIndex === -1) {
+      this.queuedFollowUps.push(nextItem);
+    } else {
+      this.queuedFollowUps.splice(existingIndex, 1, nextItem);
+    }
+    this.emitQueueUpdate();
+  }
+
+  updateQueuedFollowUp(item: ThreadAgentRuntimeQueuedFollowUp): void {
+    const existingIndex = this.queuedFollowUps.findIndex(
+      (candidate) => candidate.clientMessageId === item.clientMessageId,
+    );
+    if (existingIndex === -1) {
+      throw new Error(`Queued follow-up ${item.clientMessageId} not found.`);
+    }
+    this.queuedFollowUps.splice(existingIndex, 1, cloneQueuedFollowUp(item));
+    this.emitQueueUpdate();
+  }
+
+  removeQueuedFollowUp(clientMessageId: MessageId): void {
+    const existingIndex = this.queuedFollowUps.findIndex(
+      (candidate) => candidate.clientMessageId === clientMessageId,
+    );
+    if (existingIndex === -1) {
+      return;
+    }
+    this.queuedFollowUps.splice(existingIndex, 1);
+    this.emitQueueUpdate();
+    if (this.suppressedAgentEndPending && this.queuedFollowUps.length === 0) {
+      this.scheduleQueuedFollowUpDrain();
+    }
+  }
+
+  reorderQueuedFollowUp(
+    clientMessageId: MessageId,
+    targetClientMessageId: MessageId | null,
+    insertAfter: boolean,
+  ): void {
+    if (clientMessageId === targetClientMessageId) {
+      return;
+    }
+    const existingIndex = this.queuedFollowUps.findIndex(
+      (candidate) => candidate.clientMessageId === clientMessageId,
+    );
+    if (existingIndex === -1) {
+      return;
+    }
+    const [item] = this.queuedFollowUps.splice(existingIndex, 1);
+    if (!item) {
+      return;
+    }
+    let targetIndex = insertAfter ? this.queuedFollowUps.length : 0;
+    if (targetClientMessageId !== null) {
+      const resolvedTargetIndex = this.queuedFollowUps.findIndex(
+        (candidate) => candidate.clientMessageId === targetClientMessageId,
+      );
+      if (resolvedTargetIndex === -1) {
+        this.queuedFollowUps.splice(existingIndex, 0, item);
+        return;
+      }
+      targetIndex = resolvedTargetIndex + (insertAfter ? 1 : 0);
+    }
+    this.queuedFollowUps.splice(
+      Math.max(0, Math.min(targetIndex, this.queuedFollowUps.length)),
+      0,
+      item,
+    );
+    this.emitQueueUpdate();
+  }
+
+  async sendQueuedFollowUpNow(clientMessageId: MessageId): Promise<void> {
+    const existingIndex = this.queuedFollowUps.findIndex(
+      (candidate) => candidate.clientMessageId === clientMessageId,
+    );
+    if (existingIndex === -1) {
+      return;
+    }
+    if (this.isBusy()) {
+      if (existingIndex !== 0) {
+        const [item] = this.queuedFollowUps.splice(existingIndex, 1);
+        if (!item) {
+          return;
+        }
+        this.queuedFollowUps.unshift(item);
+        this.emitQueueUpdate();
+      }
+      await this.abort();
+      this.scheduleQueuedFollowUpDrain();
+      return;
+    }
+
+    const item = this.takeQueuedFollowUp(clientMessageId);
+    if (!item) {
+      return;
+    }
+    await this.sendQueuedFollowUp(item);
   }
 
   async bindExtensions(ui = createDesktopExtensionUi()): Promise<DesktopExtensionUiController> {
@@ -583,8 +722,14 @@ export class ThreadAgentRuntime {
       this.prepareRevisionBranch(options.replacesClientMessageId);
     }
     const turnId = makeTurnId(this.threadId, ++this.turnSequence);
-    this.pendingFirstTurnId = turnId;
-    this.activeRunFirstTurnId = turnId;
+    if (queueIntoActiveRun && options.streamingBehavior === "followUp") {
+      this.pendingFollowUpTurnIds.push(turnId);
+    } else {
+      this.pendingFirstTurnIds.push(turnId);
+    }
+    if (!this.activeRunFirstTurnId) {
+      this.activeRunFirstTurnId = turnId;
+    }
     const entryIdsBeforePrompt = new Set(
       this.session.sessionManager.getEntries().map((entry) => entry.id),
     );
@@ -602,7 +747,7 @@ export class ThreadAgentRuntime {
       this.pendingPromptClientMessages.push(pendingClientMessage);
     }
     this.sourceProposedPlanByTurnId.set(turnId, options.sourceProposedPlan);
-    this.emit(this.createPromptUserMessageEvent(text, turnId, clientMessageId));
+    this.emit(this.createPromptUserMessageEvent(text, turnId, clientMessageId, options.createdAt));
     const interactionMode = queueIntoActiveRun
       ? null
       : this.interactionModeQueue.enqueue(options.interactionMode);
@@ -760,25 +905,33 @@ export class ThreadAgentRuntime {
     // `isStreaming`. Honk projection/listener failures are integration failures; they must not
     // poison Pi's canonical run lifecycle.
     let turnId: TurnId | undefined;
+    const suppressTerminalAgentEnd =
+      event.type === "agent_end" && !event.willRetry && this.queuedFollowUps.length > 0;
     try {
       this.bindPendingPromptClientMessages();
       turnId = this.preparePiEventTurnId(event);
-      const runtimeEvent = this.withSourceProposedPlanData(
-        projectPiAgentSessionEvent(event, {
-          threadId: this.threadId,
-          runtimeSessionId: this.runtimeSessionId,
-          ...(turnId ? { turnId } : {}),
-          sequence: this.nextEventSequence(),
-        }),
-        turnId,
-      );
-      this.emit(runtimeEvent);
-      this.emitCreatePlanEvent(event, turnId);
+      if (!suppressTerminalAgentEnd) {
+        const runtimeEvent = this.withSourceProposedPlanData(
+          projectPiAgentSessionEvent(event, {
+            threadId: this.threadId,
+            runtimeSessionId: this.runtimeSessionId,
+            ...(turnId ? { turnId } : {}),
+            sequence: this.nextEventSequence(),
+          }),
+          turnId,
+        );
+        this.emit(runtimeEvent);
+        this.emitCreatePlanEvent(event, turnId);
+      }
     } catch (error) {
       warnRuntimeBridgeError(`processing Pi session event ${event.type}`, error);
     } finally {
       try {
         this.finishPiEventTurn(event, turnId);
+        if (suppressTerminalAgentEnd) {
+          this.suppressedAgentEndPending = true;
+          this.scheduleQueuedFollowUpDrain();
+        }
       } catch (error) {
         warnRuntimeBridgeError(`finishing Pi session event ${event.type}`, error);
       }
@@ -832,7 +985,8 @@ export class ThreadAgentRuntime {
 
   private isTurnInProgress(): boolean {
     return (
-      this.pendingFirstTurnId !== undefined ||
+      this.pendingFirstTurnIds.length > 0 ||
+      this.pendingFollowUpTurnIds.length > 0 ||
       this.activeTurnId !== undefined ||
       this.activeRunFirstTurnId !== undefined
     );
@@ -926,6 +1080,7 @@ export class ThreadAgentRuntime {
     text: string,
     turnId: TurnId,
     clientMessageId: MessageId | null,
+    createdAt?: string,
   ): AgentRuntimeEvent {
     return {
       id: makeRuntimeEventId(this.nextEventSequence()),
@@ -934,7 +1089,7 @@ export class ThreadAgentRuntime {
       threadId: this.threadId,
       runtimeSessionId: this.runtimeSessionId,
       turnId,
-      createdAt: new Date().toISOString(),
+      createdAt: createdAt ?? new Date().toISOString(),
       summary: "User message sent",
       messageRole: "user",
       text,
@@ -948,8 +1103,7 @@ export class ThreadAgentRuntime {
       case "agent_end":
         return undefined;
       case "turn_start": {
-        const turnId = this.pendingFirstTurnId ?? makeTurnId(this.threadId, ++this.turnSequence);
-        this.pendingFirstTurnId = undefined;
+        const turnId = this.consumeTurnStartId();
         this.activeTurnId = turnId;
         if (!this.activeRunFirstTurnId) {
           this.activeRunFirstTurnId = turnId;
@@ -970,15 +1124,31 @@ export class ThreadAgentRuntime {
     }
     if (event.type === "turn_end" && turnId && this.activeTurnId === turnId) {
       this.captureQueuedPromptEntriesForTurn(turnId);
+      if (event.toolResults.length === 0 && this.pendingFollowUpTurnIds.length > 0) {
+        this.nextTurnStartsQueuedFollowUp = true;
+      }
       this.activeTurnId = undefined;
       this.clearTurnTracking(turnId);
       return;
     }
     if (event.type === "agent_end" && !event.willRetry) {
-      this.pendingFirstTurnId = undefined;
+      this.pendingFirstTurnIds.splice(0);
+      this.pendingFollowUpTurnIds.splice(0);
+      this.nextTurnStartsQueuedFollowUp = false;
       this.activeTurnId = undefined;
       this.activeRunFirstTurnId = undefined;
     }
+  }
+
+  private consumeTurnStartId(): TurnId {
+    if (this.nextTurnStartsQueuedFollowUp) {
+      this.nextTurnStartsQueuedFollowUp = false;
+      const pendingFollowUpTurnId = this.pendingFollowUpTurnIds.shift();
+      if (pendingFollowUpTurnId) {
+        return pendingFollowUpTurnId;
+      }
+    }
+    return this.pendingFirstTurnIds.shift() ?? makeTurnId(this.threadId, ++this.turnSequence);
   }
 
   private capturePromptEntries(input: {
@@ -1096,8 +1266,17 @@ export class ThreadAgentRuntime {
   private clearTurnTracking(turnId: TurnId): void {
     this.sourceProposedPlanByTurnId.delete(turnId);
     this.proposedPlanTurnIds.delete(turnId);
-    if (this.pendingFirstTurnId === turnId) {
-      this.pendingFirstTurnId = undefined;
+    const pendingTurnIndex = this.pendingFirstTurnIds.findIndex(
+      (pendingTurnId) => pendingTurnId === turnId,
+    );
+    if (pendingTurnIndex !== -1) {
+      this.pendingFirstTurnIds.splice(pendingTurnIndex, 1);
+    }
+    const pendingFollowUpTurnIndex = this.pendingFollowUpTurnIds.findIndex(
+      (pendingTurnId) => pendingTurnId === turnId,
+    );
+    if (pendingFollowUpTurnIndex !== -1) {
+      this.pendingFollowUpTurnIds.splice(pendingFollowUpTurnIndex, 1);
     }
     if (this.activeTurnId === turnId) {
       this.activeTurnId = undefined;
@@ -1105,6 +1284,150 @@ export class ThreadAgentRuntime {
     if (this.activeRunFirstTurnId === turnId) {
       this.activeRunFirstTurnId = undefined;
     }
+  }
+
+  private emitQueueUpdate(): void {
+    const items = this.getQueuedFollowUps();
+    for (const listener of this.queueListeners) {
+      listener(items);
+    }
+  }
+
+  private emitRuntimeIngestionRecords(records: readonly RuntimeIngestionRecord[]): void {
+    if (records.length === 0) {
+      return;
+    }
+    for (const listener of this.ingestionRecordListeners) {
+      listener(records);
+    }
+  }
+
+  private takeQueuedFollowUp(clientMessageId?: MessageId): ThreadAgentRuntimeQueuedFollowUp | null {
+    const index =
+      clientMessageId === undefined
+        ? 0
+        : this.queuedFollowUps.findIndex(
+            (candidate) => candidate.clientMessageId === clientMessageId,
+          );
+    if (index < 0 || index >= this.queuedFollowUps.length) {
+      return null;
+    }
+    const [item] = this.queuedFollowUps.splice(index, 1);
+    this.emitQueueUpdate();
+    return item ? cloneQueuedFollowUp(item) : null;
+  }
+
+  private restoreQueuedFollowUp(item: ThreadAgentRuntimeQueuedFollowUp): void {
+    if (
+      this.queuedFollowUps.some((candidate) => candidate.clientMessageId === item.clientMessageId)
+    ) {
+      return;
+    }
+    this.queuedFollowUps.unshift(cloneQueuedFollowUp(item));
+    this.emitQueueUpdate();
+  }
+
+  private scheduleQueuedFollowUpDrain(): void {
+    if (this.queuedFollowUpDrainScheduled) {
+      return;
+    }
+    this.queuedFollowUpDrainScheduled = true;
+    setTimeout(() => {
+      this.queuedFollowUpDrainScheduled = false;
+      void this.drainNextQueuedFollowUp();
+    }, 0);
+  }
+
+  private async drainNextQueuedFollowUp(): Promise<void> {
+    if (this.drainingQueuedFollowUp || this.isBusy()) {
+      if (this.queuedFollowUps.length > 0 || this.suppressedAgentEndPending) {
+        this.scheduleQueuedFollowUpDrain();
+      }
+      return;
+    }
+
+    const item = this.takeQueuedFollowUp();
+    if (!item) {
+      this.finishSuppressedAgentEnd();
+      return;
+    }
+
+    this.drainingQueuedFollowUp = true;
+    const hadSuppressedAgentEnd = this.suppressedAgentEndPending;
+    try {
+      this.suppressedAgentEndPending = false;
+      await this.sendQueuedFollowUp(item);
+    } catch (error) {
+      this.restoreQueuedFollowUp(item);
+      if (hadSuppressedAgentEnd) {
+        this.suppressedAgentEndPending = true;
+      }
+      this.emit(
+        this.createEvent(
+          "runtime.error",
+          error instanceof Error ? error.message : "Failed to send queued follow-up.",
+        ),
+      );
+      this.finishSuppressedAgentEnd();
+    } finally {
+      this.drainingQueuedFollowUp = false;
+    }
+  }
+
+  private finishSuppressedAgentEnd(): void {
+    if (!this.suppressedAgentEndPending) {
+      return;
+    }
+    this.suppressedAgentEndPending = false;
+    this.emit(this.createEvent("agent.completed", "Agent completed"));
+  }
+
+  private async sendQueuedFollowUp(item: ThreadAgentRuntimeQueuedFollowUp): Promise<void> {
+    const createdAt = new Date().toISOString();
+    const turnId = await this.sendMessage(item.input, {
+      clientMessageId: item.clientMessageId,
+      replacesClientMessageId: item.replacesClientMessageId,
+      ...(item.parentEntryId !== undefined ? { parentEntryId: item.parentEntryId } : {}),
+      interactionMode: item.interactionMode,
+      sourceProposedPlan: item.sourceProposedPlan,
+      images: item.images,
+      expandPromptTemplates: null,
+      source: null,
+      streamingBehavior: null,
+      createdAt,
+    });
+    this.emitRuntimeIngestionRecords([
+      this.createQueuedFollowUpUserTurnStartRecord(item, turnId, createdAt),
+    ]);
+  }
+
+  private createQueuedFollowUpUserTurnStartRecord(
+    item: ThreadAgentRuntimeQueuedFollowUp,
+    turnId: TurnId,
+    createdAt: string,
+  ): RuntimeIngestionRecord {
+    const recordId = RuntimeIngestionRecordId.make(
+      `runtime-user-turn:${this.threadId}:${this.runtimeSessionId}:${item.clientMessageId}`,
+    );
+    return {
+      recordId,
+      threadId: this.threadId,
+      runtimeSessionId: this.runtimeSessionId,
+      sourceEventId: `queued-follow-up:${turnId}`,
+      createdAt,
+      kind: "user.turn-start",
+      payload: {
+        messageId: item.clientMessageId,
+        text: item.input,
+        attachments: item.images.map((image) => ({ ...image })),
+        modelSelection: item.modelSelection,
+        titleSeed: item.titleSeed,
+        runtimeMode: item.runtimeMode,
+        interactionMode: item.interactionMode,
+        ...(item.parentEntryId !== undefined ? { parentEntryId: item.parentEntryId } : {}),
+        ...(item.sourceProposedPlan ? { sourceProposedPlan: item.sourceProposedPlan } : {}),
+      },
+    };
   }
 
   private hydrateClientMessageIdSidecars(): void {
@@ -1414,6 +1737,15 @@ function createInteractionModeQueue(): InteractionModeQueue {
         pendingModes.splice(index, 1);
       }
     },
+  };
+}
+
+function cloneQueuedFollowUp(
+  item: ThreadAgentRuntimeQueuedFollowUp,
+): ThreadAgentRuntimeQueuedFollowUp {
+  return {
+    ...item,
+    images: item.images.map((image) => ({ ...image })),
   };
 }
 

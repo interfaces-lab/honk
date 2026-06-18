@@ -184,6 +184,60 @@ jobs:
             pnpm --dir packages/desktop exec electron-builder --linux --publish never --config electron-builder.config.ts
           fi
 
+      - name: Verify macOS update artifact signature
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          zips=(packages/desktop/dist/Honk-*-${{ matrix.arch }}.zip)
+          if [[ ${#zips[@]} -ne 1 ]]; then
+            echo "Expected exactly one macOS update zip for ${{ matrix.arch }}, found ${#zips[@]}." >&2
+            printf '%s\n' "${zips[@]}" >&2
+            exit 1
+          fi
+
+          verify_dir="$RUNNER_TEMP/honk-mac-signature-${{ matrix.arch }}"
+          rm -rf "$verify_dir"
+          mkdir -p "$verify_dir"
+          ditto -x -k "${zips[0]}" "$verify_dir"
+
+          apps=("$verify_dir"/*.app)
+          if [[ ${#apps[@]} -ne 1 ]]; then
+            echo "Expected exactly one app bundle in ${zips[0]}, found ${#apps[@]}." >&2
+            find "$verify_dir" -maxdepth 2 -print >&2
+            exit 1
+          fi
+
+          app="${apps[0]}"
+          bundle_id="$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Contents/Info.plist")"
+          if [[ "$bundle_id" != "com.interfacesco.honk" ]]; then
+            echo "Unexpected macOS bundle id: $bundle_id" >&2
+            exit 1
+          fi
+
+          if [[ ! -d "$app/Contents/_CodeSignature" ]]; then
+            echo "Missing app bundle _CodeSignature directory." >&2
+            exit 1
+          fi
+
+          codesign --verify --deep --strict --verbose=4 "$app"
+          signature="$(codesign -dv --verbose=4 "$app" 2>&1)"
+          printf '%s\n' "$signature"
+
+          if ! grep -q '^Identifier=com.interfacesco.honk$' <<<"$signature"; then
+            echo "The signed app identifier is not com.interfacesco.honk." >&2
+            exit 1
+          fi
+
+          if grep -q '^TeamIdentifier=not set$' <<<"$signature" || ! grep -q '^TeamIdentifier=' <<<"$signature"; then
+            echo "The macOS update app is not signed with a Developer ID team." >&2
+            exit 1
+          fi
+
+          spctl -a -vv "$app"
+
       - name: Collect release assets
         shell: bash
         run: |

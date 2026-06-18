@@ -1176,7 +1176,40 @@ function GitWorkbenchPanel(props: {
   const runtime = useRightWorkbenchPanelRuntime();
   const active = runtime.open && runtime.activeTab === "git";
   const git = useEnvironmentGitPanel(props.environmentId, props.cwd, { enabled: active });
+  const gitRefreshRef = useRef(git.refresh);
   const previousPendingAgentActionRef = useRef<GitAgentAction | null>(props.pendingAgentAction);
+  const activeGitTargetKey =
+    active && props.environmentId !== null && props.cwd !== null
+      ? [props.environmentId, props.cwd].join("\0")
+      : null;
+  gitRefreshRef.current = git.refresh;
+
+  useEffect(() => {
+    if (activeGitTargetKey === null) {
+      return;
+    }
+
+    void gitRefreshRef.current().catch(() => undefined);
+  }, [activeGitTargetKey]);
+
+  useEffect(() => {
+    if (!active) {
+      return;
+    }
+
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible" && document.hasFocus()) {
+        void gitRefreshRef.current().catch(() => undefined);
+      }
+    };
+
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
+    return () => {
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
+    };
+  }, [active]);
 
   useEffect(() => {
     const previousPendingAgentAction = previousPendingAgentActionRef.current;

@@ -1,5 +1,5 @@
 import { IconStepBack } from "central-icons";
-import { type ReactNode } from "react";
+import { type HTMLAttributes, type ReactNode } from "react";
 
 import { cn } from "../../lib/utils";
 import { Button } from "@honk/honkkit/button";
@@ -39,6 +39,51 @@ export function SettingsSection({
   );
 }
 
+type SettingsItemShellProps = Omit<HTMLAttributes<HTMLDivElement>, "id"> & {
+  preferenceId?: string | undefined;
+  children: ReactNode;
+};
+
+export function SettingsItemShell({
+  preferenceId,
+  className,
+  children,
+  ...shellProps
+}: SettingsItemShellProps) {
+  return (
+    <div
+      {...shellProps}
+      id={preferenceId ? settingsPreferenceDomId(preferenceId) : undefined}
+      data-settings-preference-id={preferenceId}
+      className={cn(
+        "scroll-mt-24 border-t border-honk-stroke-quaternary px-2.5 first:border-t-0 sm:px-3",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function SettingsItemTitle({
+  className,
+  children,
+  title,
+}: {
+  className?: string;
+  children: ReactNode;
+  title?: string;
+}) {
+  return (
+    <h3
+      className={cn(textVariants({ size: "lg", tone: "primary", weight: "medium" }), className)}
+      title={title}
+    >
+      {children}
+    </h3>
+  );
+}
+
 export function SettingsRow({
   preferenceId,
   title,
@@ -57,20 +102,16 @@ export function SettingsRow({
   children?: ReactNode;
 }) {
   return (
-    <div
-      id={preferenceId ? settingsPreferenceDomId(preferenceId) : undefined}
-      data-settings-preference-id={preferenceId}
+    <SettingsItemShell
+      preferenceId={preferenceId}
       className={cn(
-        "scroll-mt-24 border-t border-honk-stroke-quaternary px-2.5 first:border-t-0 sm:px-3",
         children ? "py-3" : "py-2.5",
       )}
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex min-h-4 items-center gap-1.5">
-            <h3 className={textVariants({ size: "lg", tone: "primary", weight: "medium" })}>
-              {title}
-            </h3>
+            <SettingsItemTitle>{title}</SettingsItemTitle>
             <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
               {resetAction}
             </span>
@@ -91,7 +132,7 @@ export function SettingsRow({
         ) : null}
       </div>
       {children}
-    </div>
+    </SettingsItemShell>
   );
 }
 

@@ -1,5 +1,11 @@
 import { Effect, Schema } from "effect";
-import { SourceProposedPlanReference } from "./orchestration";
+import {
+  DEFAULT_RUNTIME_MODE,
+  ModelSelection,
+  RuntimeIngestionRecord,
+  RuntimeMode,
+  SourceProposedPlanReference,
+} from "./orchestration";
 import { AgentInteractionMode } from "./interaction-mode";
 import {
   AccountId,
@@ -465,6 +471,51 @@ export const ThreadAgentRuntimeSendTurnInput = Schema.Struct({
 });
 export type ThreadAgentRuntimeSendTurnInput = typeof ThreadAgentRuntimeSendTurnInput.Type;
 
+export const ThreadAgentRuntimeQueuedFollowUp = Schema.Struct({
+  threadId: ThreadId,
+  cwd: TrimmedNonEmptyString,
+  input: TrimmedNonEmptyString,
+  interactionMode: AgentInteractionMode,
+  sourceProposedPlan: Schema.NullOr(SourceProposedPlanReference),
+  clientMessageId: MessageId,
+  replacesClientMessageId: Schema.NullOr(MessageId).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
+  parentEntryId: Schema.optionalKey(Schema.NullOr(ThreadEntryId)),
+  images: Schema.Array(ThreadAgentRuntimeImageAttachment),
+  policy: AgentModelPolicy,
+  modelSelection: ModelSelection,
+  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
+  titleSeed: TrimmedNonEmptyString,
+  createdAt: IsoDateTime,
+});
+export type ThreadAgentRuntimeQueuedFollowUp =
+  typeof ThreadAgentRuntimeQueuedFollowUp.Type;
+
+export const ThreadAgentRuntimeQueueFollowUpInput = ThreadAgentRuntimeQueuedFollowUp;
+export type ThreadAgentRuntimeQueueFollowUpInput =
+  typeof ThreadAgentRuntimeQueueFollowUpInput.Type;
+
+export const ThreadAgentRuntimeUpdateQueuedFollowUpInput = ThreadAgentRuntimeQueuedFollowUp;
+export type ThreadAgentRuntimeUpdateQueuedFollowUpInput =
+  typeof ThreadAgentRuntimeUpdateQueuedFollowUpInput.Type;
+
+export const ThreadAgentRuntimeQueuedFollowUpIdInput = Schema.Struct({
+  threadId: ThreadId,
+  clientMessageId: MessageId,
+});
+export type ThreadAgentRuntimeQueuedFollowUpIdInput =
+  typeof ThreadAgentRuntimeQueuedFollowUpIdInput.Type;
+
+export const ThreadAgentRuntimeReorderQueuedFollowUpInput = Schema.Struct({
+  threadId: ThreadId,
+  clientMessageId: MessageId,
+  targetClientMessageId: Schema.NullOr(MessageId),
+  insertAfter: Schema.Boolean,
+});
+export type ThreadAgentRuntimeReorderQueuedFollowUpInput =
+  typeof ThreadAgentRuntimeReorderQueuedFollowUpInput.Type;
+
 export const ThreadAgentRuntimeHydrateInput = Schema.Struct({
   threadId: ThreadId,
   cwd: TrimmedNonEmptyString,
@@ -823,6 +874,9 @@ export const HonkRuntimeHostSnapshot = Schema.Struct({
   pendingExtensionUiRequests: Schema.Array(DesktopExtensionUiRequest).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
+  queuedFollowUps: Schema.Array(ThreadAgentRuntimeQueuedFollowUp).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
 });
 export type HonkRuntimeHostSnapshot = typeof HonkRuntimeHostSnapshot.Type;
 const decodeHonkRuntimeHostSnapshotValue = Schema.decodeUnknownSync(HonkRuntimeHostSnapshot);
@@ -852,6 +906,14 @@ export const HonkRuntimeHostEvent = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("pending-extension-ui"),
     requests: Schema.Array(DesktopExtensionUiRequest),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("queued-follow-ups"),
+    items: Schema.Array(ThreadAgentRuntimeQueuedFollowUp),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("runtime-ingestion-records"),
+    records: Schema.Array(RuntimeIngestionRecord),
   }),
   Schema.Struct({
     type: Schema.Literal("credential-auth-flows"),
@@ -970,6 +1032,11 @@ export interface HonkRuntimeApi {
   compactThread: (input: ThreadAgentRuntimeCompactInput) => Promise<void>;
   setThreadFocus: (input: ThreadAgentRuntimeSetThreadFocusInput) => Promise<void>;
   sendTurn: (input: ThreadAgentRuntimeSendTurnInput) => Promise<TurnId>;
+  enqueueFollowUp: (input: ThreadAgentRuntimeQueueFollowUpInput) => Promise<void>;
+  updateQueuedFollowUp: (input: ThreadAgentRuntimeUpdateQueuedFollowUpInput) => Promise<void>;
+  removeQueuedFollowUp: (input: ThreadAgentRuntimeQueuedFollowUpIdInput) => Promise<void>;
+  reorderQueuedFollowUp: (input: ThreadAgentRuntimeReorderQueuedFollowUpInput) => Promise<void>;
+  sendQueuedFollowUpNow: (input: ThreadAgentRuntimeQueuedFollowUpIdInput) => Promise<void>;
   abort: (input: ThreadAgentRuntimeAbortInput) => Promise<void>;
   respondToExtensionUiRequest: (input: DesktopExtensionUiRespondInput) => Promise<void>;
   listSkills: (input: RuntimeListSkillsInput) => Promise<RuntimeListSkillsResult>;

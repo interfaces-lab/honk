@@ -45,6 +45,12 @@ const RUNTIME_HYDRATE_THREAD_CHANNEL = "desktop:runtime-hydrate-thread";
 const RUNTIME_CLONE_THREAD_CHANNEL = "desktop:runtime-clone-thread";
 const RUNTIME_SET_THREAD_FOCUS_CHANNEL = "desktop:runtime-set-thread-focus";
 const RUNTIME_SEND_TURN_CHANNEL = "desktop:runtime-send-turn";
+const RUNTIME_ENQUEUE_FOLLOW_UP_CHANNEL = "desktop:runtime-enqueue-follow-up";
+const RUNTIME_UPDATE_QUEUED_FOLLOW_UP_CHANNEL = "desktop:runtime-update-queued-follow-up";
+const RUNTIME_REMOVE_QUEUED_FOLLOW_UP_CHANNEL = "desktop:runtime-remove-queued-follow-up";
+const RUNTIME_REORDER_QUEUED_FOLLOW_UP_CHANNEL = "desktop:runtime-reorder-queued-follow-up";
+const RUNTIME_SEND_QUEUED_FOLLOW_UP_NOW_CHANNEL =
+  "desktop:runtime-send-queued-follow-up-now";
 const RUNTIME_COMPACT_THREAD_CHANNEL = "desktop:runtime-compact-thread";
 const RUNTIME_ABORT_CHANNEL = "desktop:runtime-abort";
 const RUNTIME_RESPOND_EXTENSION_UI_CHANNEL = "desktop:runtime-respond-extension-ui";
@@ -62,6 +68,15 @@ const desktopRuntimeApi = {
   cloneThread: (input) => ipcRenderer.invoke(RUNTIME_CLONE_THREAD_CHANNEL, input),
   setThreadFocus: (input) => ipcRenderer.invoke(RUNTIME_SET_THREAD_FOCUS_CHANNEL, input),
   sendTurn: (input) => ipcRenderer.invoke(RUNTIME_SEND_TURN_CHANNEL, input),
+  enqueueFollowUp: (input) => ipcRenderer.invoke(RUNTIME_ENQUEUE_FOLLOW_UP_CHANNEL, input),
+  updateQueuedFollowUp: (input) =>
+    ipcRenderer.invoke(RUNTIME_UPDATE_QUEUED_FOLLOW_UP_CHANNEL, input),
+  removeQueuedFollowUp: (input) =>
+    ipcRenderer.invoke(RUNTIME_REMOVE_QUEUED_FOLLOW_UP_CHANNEL, input),
+  reorderQueuedFollowUp: (input) =>
+    ipcRenderer.invoke(RUNTIME_REORDER_QUEUED_FOLLOW_UP_CHANNEL, input),
+  sendQueuedFollowUpNow: (input) =>
+    ipcRenderer.invoke(RUNTIME_SEND_QUEUED_FOLLOW_UP_NOW_CHANNEL, input),
   compactThread: (input) => ipcRenderer.invoke(RUNTIME_COMPACT_THREAD_CHANNEL, input),
   abort: (input) => ipcRenderer.invoke(RUNTIME_ABORT_CHANNEL, input),
   respondToExtensionUiRequest: (input) =>

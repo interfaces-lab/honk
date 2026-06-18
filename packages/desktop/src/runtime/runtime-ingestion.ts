@@ -405,6 +405,18 @@ class RuntimeIngestionState {
       case "runtime-event":
         this.ingestRuntimeEvent(event.event);
         return;
+      case "runtime-ingestion-records":
+        for (const record of event.records) {
+          this.dispatchRecord({
+            record,
+            persistenceKey: record.recordId,
+            persistedKeys:
+              record.kind === "assistant.completion"
+                ? this.persistedRuntimeAssistantEntryKeys
+                : this.persistedRuntimeEventKeys,
+          });
+        }
+        return;
       case "session-tree":
         this.ingestSessionTree(event.tree);
         return;

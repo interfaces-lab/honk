@@ -208,7 +208,6 @@ async function applyCodexPatch(input: {
 
       const failedFiles = actionFilePaths(action);
       const result = summarizePatchState(state);
-      const diff = await createUnifiedDiff(state);
       const appliedFiles = result.changedFiles.filter((path) => !failedFiles.includes(path));
       const recoveryMessage = buildPartialFailureMessage(message, failedFiles, appliedFiles);
       return {
@@ -221,17 +220,14 @@ async function applyCodexPatch(input: {
           mustReadFiles: failedFiles,
           mustNotReadFiles: appliedFiles,
         },
-        ...(diff ? { patch: diff, diff } : {}),
       };
     }
   }
 
   const result = summarizePatchState(state);
-  const diff = await createUnifiedDiff(state);
   return {
     status: "success",
     result,
-    ...(diff ? { patch: diff, diff } : {}),
   };
 }
 

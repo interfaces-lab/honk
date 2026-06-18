@@ -1,4 +1,4 @@
-import { realpathSync } from "node:fs";
+import { realpathSync, watch, type FSWatcher } from "node:fs";
 
 import {
   Duration,
@@ -27,6 +27,8 @@ import {
 import { GitManager } from "./GitManager.service.ts";
 
 const GIT_STATUS_REFRESH_INTERVAL = Duration.seconds(30);
+const GIT_STATUS_LOCAL_WATCH_DEBOUNCE = Duration.seconds(1);
+const GIT_STATUS_LOCAL_WATCH_COOLDOWN = Duration.seconds(5);
 const GIT_STATUS_REFRESH_FAILURE_BASE_DELAY = Duration.seconds(30);
 const GIT_STATUS_REFRESH_FAILURE_MAX_DELAY = Duration.minutes(15);
 
@@ -56,6 +58,11 @@ interface ActiveRemotePoller {
   readonly subscriberCount: number;
 }
 
+interface ActiveLocalWatcher {
+  readonly fiber: Fiber.Fiber<void, never>;
+  readonly subscriberCount: number;
+}
+
 const normalizeCwd = (cwd: string): Effect.Effect<string> =>
   Effect.try({
     try: () => normalizePathSeparators(realpathSync.native(cwd)),
@@ -64,6 +71,15 @@ const normalizeCwd = (cwd: string): Effect.Effect<string> =>
 
 function fingerprintStatusPart(status: unknown): string {
   return JSON.stringify(status);
+}
+
+function shouldIgnoreGitWatchPath(filename: string | Buffer | null): boolean {
+  if (filename === null) {
+    return false;
+  }
+
+  const normalized = normalizePathSeparators(filename.toString());
+  return normalized === ".git/index.lock" || normalized.endsWith("/.git/index.lock");
 }
 
 export function remoteRefreshFailureDelay(
@@ -99,10 +115,15 @@ export const makeGitStatusBroadcasterLive = (options: GitStatusBroadcasterOption
         PubSub.unbounded<GitStatusChange>(),
         (pubsub) => PubSub.shutdown(pubsub),
       );
+      const localRefreshRequestsPubSub = yield* Effect.acquireRelease(
+        PubSub.unbounded<string>(),
+        (pubsub) => PubSub.shutdown(pubsub),
+      );
       const broadcasterScope = yield* Effect.acquireRelease(Scope.make(), (scope) =>
         Scope.close(scope, Exit.void),
       );
       const cacheRef = yield* Ref.make(new Map<string, CachedGitStatus>());
+      const localWatchersRef = yield* SynchronizedRef.make(new Map<string, ActiveLocalWatcher>());
       const pollersRef = yield* SynchronizedRef.make(new Map<string, ActiveRemotePoller>());
 
       const getCachedStatus = Effect.fn("getCachedStatus")(function* (cwd: string) {
@@ -112,7 +133,7 @@ export const makeGitStatusBroadcasterLive = (options: GitStatusBroadcasterOption
       const updateCachedLocalStatus = Effect.fn("updateCachedLocalStatus")(function* (
         cwd: string,
         local: GitStatusLocalResult,
-        options?: { publish?: boolean },
+        options?: { publish?: boolean; forcePublish?: boolean },
       ) {
         const nextLocal = {
           fingerprint: fingerprintStatusPart(local),
@@ -128,7 +149,7 @@ export const makeGitStatusBroadcasterLive = (options: GitStatusBroadcasterOption
           return [previous.local?.fingerprint !== nextLocal.fingerprint, nextCache] as const;
         });
 
-        if (options?.publish && shouldPublish) {
+        if (options?.publish && (shouldPublish || options.forcePublish)) {
           yield* PubSub.publish(changesPubSub, {
             cwd,
             event: {
@@ -193,6 +214,18 @@ export const makeGitStatusBroadcasterLive = (options: GitStatusBroadcasterOption
         return yield* updateCachedLocalStatus(normalizedCwd, local, { publish: true });
       });
 
+      const refreshLocalStatusFromWatcher = Effect.fn("refreshLocalStatusFromWatcher")(function* (
+        cwd: string,
+      ) {
+        const normalizedCwd = yield* normalizeCwd(cwd);
+        yield* gitManager.invalidateLocalStatus(normalizedCwd);
+        const local = yield* gitManager.localStatus({ cwd: normalizedCwd });
+        return yield* updateCachedLocalStatus(normalizedCwd, local, {
+          publish: true,
+          forcePublish: true,
+        });
+      });
+
       const refreshRemoteStatus = Effect.fn("refreshRemoteStatus")(function* (cwd: string) {
         const normalizedCwd = yield* normalizeCwd(cwd);
         yield* gitManager.invalidateRemoteStatus(normalizedCwd);
@@ -236,6 +269,55 @@ export const makeGitStatusBroadcasterLive = (options: GitStatusBroadcasterOption
             yield* Effect.sleep(nextDelay);
             nextDelay = yield* refreshRemoteStatusWithDelay;
           }
+        });
+      };
+
+      const makeLocalWatchLoop = (cwd: string) => {
+        return Effect.gen(function* () {
+          const watcher = yield* Effect.acquireRelease(
+            Effect.try({
+              try: () => {
+                const watcher = watch(cwd, { recursive: true }, (_eventType, filename) => {
+                  if (!shouldIgnoreGitWatchPath(filename)) {
+                    PubSub.publishUnsafe(localRefreshRequestsPubSub, cwd);
+                  }
+                });
+                watcher.on("error", () => undefined);
+                return watcher;
+              },
+              catch: (error) => error,
+            }).pipe(
+              Effect.catch((error) =>
+                Effect.logWarning("git local status watcher failed to start", {
+                  cwd,
+                  detail: error instanceof Error ? error.message : String(error),
+                }).pipe(Effect.as(null)),
+              ),
+            ),
+            (watcher: FSWatcher | null) =>
+              watcher ? Effect.sync(() => watcher.close()) : Effect.void,
+          );
+
+          if (watcher === null) {
+            return yield* Effect.never;
+          }
+
+          const subscription = yield* PubSub.subscribe(localRefreshRequestsPubSub);
+          yield* Stream.fromSubscription(subscription).pipe(
+            Stream.filter((requestedCwd) => requestedCwd === cwd),
+            Stream.debounce(GIT_STATUS_LOCAL_WATCH_DEBOUNCE),
+            Stream.runForEach(() =>
+              refreshLocalStatusFromWatcher(cwd).pipe(
+                Effect.catch((error) =>
+                  Effect.logWarning("git local status watcher refresh failed", {
+                    cwd,
+                    detail: error instanceof Error ? error.message : String(error),
+                  }),
+                ),
+                Effect.andThen(() => Effect.sleep(GIT_STATUS_LOCAL_WATCH_COOLDOWN)),
+              ),
+            ),
+          );
         });
       };
 
@@ -306,6 +388,61 @@ export const makeGitStatusBroadcasterLive = (options: GitStatusBroadcasterOption
         }
       });
 
+      const retainLocalWatcher = Effect.fn("retainLocalWatcher")(function* (cwd: string) {
+        yield* SynchronizedRef.modifyEffect(localWatchersRef, (activeWatchers) => {
+          const existing = activeWatchers.get(cwd);
+          if (existing) {
+            const nextWatchers = new Map(activeWatchers);
+            nextWatchers.set(cwd, {
+              ...existing,
+              subscriberCount: existing.subscriberCount + 1,
+            });
+            return Effect.succeed([undefined, nextWatchers] as const);
+          }
+
+          return makeLocalWatchLoop(cwd).pipe(
+            Effect.forkIn(broadcasterScope),
+            Effect.map((fiber) => {
+              const nextWatchers = new Map(activeWatchers);
+              nextWatchers.set(cwd, {
+                fiber,
+                subscriberCount: 1,
+              });
+              return [undefined, nextWatchers] as const;
+            }),
+          );
+        });
+      });
+
+      const releaseLocalWatcher = Effect.fn("releaseLocalWatcher")(function* (cwd: string) {
+        const watcherToInterrupt = yield* SynchronizedRef.modify(
+          localWatchersRef,
+          (activeWatchers) => {
+            const existing = activeWatchers.get(cwd);
+            if (!existing) {
+              return [null, activeWatchers] as const;
+            }
+
+            if (existing.subscriberCount > 1) {
+              const nextWatchers = new Map(activeWatchers);
+              nextWatchers.set(cwd, {
+                ...existing,
+                subscriberCount: existing.subscriberCount - 1,
+              });
+              return [null, nextWatchers] as const;
+            }
+
+            const nextWatchers = new Map(activeWatchers);
+            nextWatchers.delete(cwd);
+            return [existing.fiber, nextWatchers] as const;
+          },
+        );
+
+        if (watcherToInterrupt) {
+          yield* Fiber.interrupt(watcherToInterrupt).pipe(Effect.ignore);
+        }
+      });
+
       const streamStatus: GitStatusBroadcasterShape["streamStatus"] = (input) =>
         Stream.unwrap(
           Effect.gen(function* () {
@@ -313,14 +450,18 @@ export const makeGitStatusBroadcasterLive = (options: GitStatusBroadcasterOption
             const subscription = yield* PubSub.subscribe(changesPubSub);
             const initialLocal = yield* getOrLoadLocalStatus(normalizedCwd);
             const initialRemote = (yield* getCachedStatus(normalizedCwd))?.remote?.value ?? null;
+            yield* retainLocalWatcher(normalizedCwd).pipe(Effect.ignore);
             const shouldPollRemote = initialLocal.isRepo && initialLocal.hasOriginRemote;
             if (shouldPollRemote) {
-              yield* retainRemotePoller(normalizedCwd);
+              yield* retainRemotePoller(normalizedCwd).pipe(Effect.ignore);
             }
 
-            const release = shouldPollRemote
-              ? releaseRemotePoller(normalizedCwd).pipe(Effect.ignore, Effect.asVoid)
-              : Effect.void;
+            const release: Effect.Effect<void, never> = Effect.gen(function* () {
+              yield* releaseLocalWatcher(normalizedCwd).pipe(Effect.ignore);
+              if (shouldPollRemote) {
+                yield* releaseRemotePoller(normalizedCwd).pipe(Effect.ignore);
+              }
+            });
 
             return Stream.concat(
               Stream.make({

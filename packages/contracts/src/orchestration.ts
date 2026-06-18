@@ -1076,6 +1076,24 @@ const RuntimeAssistantCompletionRecord = Schema.Struct({
   }),
 });
 
+const RuntimeUserTurnStartRecord = Schema.Struct({
+  ...RuntimeIngestionRecordBase,
+  kind: Schema.Literal("user.turn-start"),
+  payload: Schema.Struct({
+    messageId: MessageId,
+    text: Schema.String,
+    attachments: Schema.Array(UploadChatAttachment),
+    modelSelection: Schema.optional(ModelSelection),
+    titleSeed: Schema.optional(TrimmedNonEmptyString),
+    runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
+    interactionMode: AgentInteractionMode.pipe(
+      Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_INTERACTION_MODE)),
+    ),
+    parentEntryId: Schema.optionalKey(Schema.NullOr(ThreadEntryId)),
+    sourceProposedPlan: Schema.optional(SourceProposedPlanReference),
+  }),
+});
+
 const RuntimeThreadActivityRecord = Schema.Struct({
   ...RuntimeIngestionRecordBase,
   kind: Schema.Literal("thread.activity"),
@@ -1086,6 +1104,7 @@ const RuntimeThreadActivityRecord = Schema.Struct({
 
 export const RuntimeIngestionRecord = Schema.Union([
   RuntimeAssistantCompletionRecord,
+  RuntimeUserTurnStartRecord,
   RuntimeThreadActivityRecord,
 ]);
 export type RuntimeIngestionRecord = typeof RuntimeIngestionRecord.Type;

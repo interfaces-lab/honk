@@ -11,9 +11,12 @@ import {
   type RuntimeApprovalDecision,
   type ScopedThreadRef,
   type ThreadId,
+  type ThreadAgentRuntimeImageAttachment,
+  type ThreadAgentRuntimeQueuedFollowUp,
   type KeybindingCommand,
   type ResolvedKeybindingsConfig,
   type OrchestrationThreadActivity,
+  type SourceProposedPlanReference,
   type AgentInteractionMode,
   type AgentPreferences,
   type AgentRuntimeModelDescriptor,
@@ -54,6 +57,7 @@ import {
   compactRuntimeThread,
   type PreparedRuntimeTurnPolicy,
   prepareRuntimeTurnPolicy,
+  sendRuntimeTurnWithPreparedPolicy,
 } from "~/lib/runtime-turn-dispatch";
 import {
   AGENT_THINKING_LEVEL_LABELS,
@@ -185,7 +189,6 @@ import { type ExpandedImagePreview } from "../message/expanded-image-preview";
 import { gitCheckoutMutationOptions } from "../../../lib/git-react-query";
 import { ThreadErrorBanner } from "../message/error-banner";
 import { cloneComposerImageForRetry, resolveSendEnvMode } from "../composer/send";
-import { createQueuedComposerItem } from "./chat-view-send-flow";
 import {
   compileComposerSubmitTurn,
   deriveComposerSendState,
@@ -1112,23 +1115,10 @@ export default function ChatView(props: ChatViewProps) {
     queuedComposerItems,
     editingQueuedComposerItemId,
     queuedComposerItemsExpanded,
-    enqueueComposerItem,
-    removeQueuedComposerItem,
-    takeQueuedComposerItem,
-    reorderQueuedComposerItem,
     setQueueExpanded,
     beginEditingQueuedComposerItem,
     cancelEditingQueuedComposerItem,
-    replaceEditingQueuedComposerItem,
-  } = useThreadComposerQueue(routeThreadKey);
-  const forceSendQueuedItemRef = useRef<QueuedComposerItem | null>(null);
-  useMountEffect(() => () => {
-    const pendingForceSendItem = forceSendQueuedItemRef.current;
-    forceSendQueuedItemRef.current = null;
-    if (pendingForceSendItem) {
-      enqueueComposerItem(pendingForceSendItem.threadKey, pendingForceSendItem);
-    }
-  });
+  } = useThreadComposerQueue(routeThreadKey, activeThread?.id ?? null);
   const activeWorkStartedAt = useMemo(
     () =>
       deriveActiveWorkStartedAt(
@@ -2681,28 +2671,220 @@ export default function ChatView(props: ChatViewProps) {
     }
   };
 
-  const submitQueuedComposerItem = async (item: QueuedComposerItem) => {
-    await submitComposerSendSnapshot({
-      sendContext: item.sendContext,
-      interactionMode: item.interactionMode,
-      planFollowUp: item.planFollowUp,
-      clearComposerOnSubmit: false,
-      messageId: item.id,
-      createdAt: item.createdAt,
-    });
+  type PreparedComposerFollowUpTurn = {
+    compiledTurn: ReturnType<typeof compileComposerSubmitTurn>;
+    messageText: string;
+    interactionMode: AgentInteractionMode;
+    sourceProposedPlan: SourceProposedPlanReference | null;
   };
 
-  const submitForcedQueuedItemAfterInterrupt = async (item: QueuedComposerItem) => {
-    try {
-      await onInterrupt();
-    } catch {
-      // A failed interrupt should not strand the queued item after the user chose Send now.
+  const prepareComposerFollowUpTurn = (input: {
+    sendContext: ComposerSendSnapshot["sendContext"];
+    interactionMode: AgentInteractionMode;
+    planFollowUp: ComposerSendSnapshot["planFollowUp"];
+    existingQueuedFollowUp?: ThreadAgentRuntimeQueuedFollowUp | null;
+  }): PreparedComposerFollowUpTurn | null => {
+    const compiledTurn = compileComposerSubmitTurn(input.sendContext);
+    if (!compiledTurn.hasSendableContent && input.planFollowUp === null) {
+      return null;
     }
-    if (forceSendQueuedItemRef.current !== item) {
+
+    let messageText = compiledTurn.outgoingMessageText;
+    let nextInteractionMode = input.interactionMode;
+    let sourceProposedPlan: SourceProposedPlanReference | null =
+      input.existingQueuedFollowUp?.sourceProposedPlan ?? null;
+    if (input.planFollowUp) {
+      const followUp = resolvePlanFollowUpSubmission({
+        draftText: compiledTurn.trimmedPrompt,
+        planMarkdown: input.planFollowUp.planMarkdown,
+      });
+      messageText = followUp.text;
+      nextInteractionMode = followUp.interactionMode;
+      sourceProposedPlan =
+        followUp.interactionMode === DEFAULT_INTERACTION_MODE
+          ? {
+              threadId: input.planFollowUp.planThreadId,
+              planId: input.planFollowUp.planId,
+            }
+          : null;
+    }
+
+    if (!messageText.trim()) {
+      return null;
+    }
+
+    return {
+      compiledTurn,
+      messageText,
+      interactionMode: nextInteractionMode,
+      sourceProposedPlan,
+    };
+  };
+
+  const submitActiveRunFollowUp = async (input: {
+    sendContext: ComposerSendSnapshot["sendContext"];
+    interactionMode: AgentInteractionMode;
+    planFollowUp: ComposerSendSnapshot["planFollowUp"];
+    clearComposerOnSubmit: boolean;
+  }): Promise<void> => {
+    if (!activeThread) {
       return;
     }
-    forceSendQueuedItemRef.current = null;
-    await submitQueuedComposerItem(item);
+    const runtimeCwd = workspaceTarget.cwd;
+    if (!runtimeCwd) {
+      setThreadError(activeThread.id, "Pi runtime requires an active project before sending.");
+      return;
+    }
+    const preparedTurn = prepareComposerFollowUpTurn(input);
+    if (!preparedTurn) {
+      return;
+    }
+
+    if (!requireAvailableModelSelectionForSend(activeThread.id, activeThread.modelSelection)) {
+      return;
+    }
+    const preparedRuntimePolicy = prepareRuntimePolicyForSend(
+      activeThread.id,
+      preparedTurn.interactionMode,
+      activeThread.modelSelection,
+    );
+    if (!preparedRuntimePolicy) {
+      return;
+    }
+
+    sendInFlightRef.current = true;
+    const threadIdForSend = activeThread.id;
+    const messageIdForSend = newMessageId();
+    const messageCreatedAt = new Date().toISOString();
+    const parentEntryIdForSend = activeThread.leafId ?? null;
+    const composerImagesSnapshot = [...input.sendContext.images];
+    const optimisticAttachments = preparedTurn.compiledTurn.optimisticAttachments;
+    let composerClearedForSend = false;
+
+    try {
+      const runtimeImages: ThreadAgentRuntimeImageAttachment[] =
+        await prepareComposerTurnAttachments(composerImagesSnapshot);
+
+      if (input.planFollowUp && preparedTurn.interactionMode === DEFAULT_INTERACTION_MODE) {
+        dismissPendingPlan(input.planFollowUp.planThreadId, input.planFollowUp.planId);
+        setComposerDraftInteractionMode(composerDraftTarget, DEFAULT_INTERACTION_MODE);
+      }
+
+      if (input.clearComposerOnSubmit) {
+        composerRef.current?.clearComposer();
+        composerClearedForSend = true;
+      }
+
+      setThreadError(threadIdForSend, null);
+      isAtBottomRef.current = true;
+      showScrollDebouncer.current.cancel();
+      setShowScrollToBottom(false);
+      messagesTimelineControllerRef.current?.scrollToBottom({ animated: false });
+
+      markLocalRuntimeThread(threadIdForSend);
+      appendThreadSendIntent(
+        routeThreadKey,
+        createThreadSendIntent({
+          messageId: messageIdForSend,
+          text: preparedTurn.messageText,
+          ...(preparedTurn.compiledTurn.outgoingRichText !== undefined
+            ? { richText: preparedTurn.compiledTurn.outgoingRichText }
+            : {}),
+          attachments: optimisticAttachments,
+          createdAt: messageCreatedAt,
+          parentEntryId: parentEntryIdForSend,
+        }),
+      );
+
+      await sendRuntimeTurnWithPreparedPolicy({
+        threadId: threadIdForSend,
+        cwd: runtimeCwd,
+        text: preparedTurn.messageText,
+        interactionMode: preparedTurn.interactionMode,
+        sourceProposedPlan: preparedTurn.sourceProposedPlan,
+        clientMessageId: messageIdForSend,
+        replacesClientMessageId: null,
+        parentEntryId: parentEntryIdForSend,
+        images: runtimeImages,
+        modelSelection: activeThread.modelSelection,
+        preparedPolicy: preparedRuntimePolicy,
+      });
+    } catch (err) {
+      removeThreadSendIntentsByClientMessageId(messageIdForSend);
+      if (composerClearedForSend && composerImagesRef.current.length === 0) {
+        const retryComposerImages = composerImagesSnapshot.map(cloneComposerImageForRetry);
+        composerImagesRef.current = retryComposerImages;
+        addComposerDraftImages(composerDraftTarget, retryComposerImages);
+        composerRef.current?.restoreComposer({
+          prompt: input.sendContext.prompt,
+          images: retryComposerImages,
+          ...(input.sendContext.richText !== undefined
+            ? { richText: input.sendContext.richText }
+            : {}),
+        });
+      }
+      setThreadError(
+        threadIdForSend,
+        err instanceof Error ? err.message : "Failed to send follow-up message.",
+      );
+    } finally {
+      sendInFlightRef.current = false;
+    }
+  };
+
+  const createRuntimeQueuedFollowUp = async (input: {
+    sendContext: ComposerSendSnapshot["sendContext"];
+    interactionMode: AgentInteractionMode;
+    planFollowUp: ComposerSendSnapshot["planFollowUp"];
+    clientMessageId: MessageId;
+    createdAt: string;
+    existingQueuedFollowUp?: ThreadAgentRuntimeQueuedFollowUp | null;
+  }): Promise<ThreadAgentRuntimeQueuedFollowUp | null> => {
+    if (!activeThread) {
+      return null;
+    }
+    const runtimeCwd = workspaceTarget.cwd;
+    if (!runtimeCwd) {
+      setThreadError(activeThread.id, "Pi runtime requires an active project before sending.");
+      return null;
+    }
+    const preparedTurn = prepareComposerFollowUpTurn(input);
+    if (!preparedTurn) {
+      return null;
+    }
+    if (!requireAvailableModelSelectionForSend(activeThread.id, activeThread.modelSelection)) {
+      return null;
+    }
+    const preparedRuntimePolicy = prepareRuntimePolicyForSend(
+      activeThread.id,
+      preparedTurn.interactionMode,
+      activeThread.modelSelection,
+    );
+    if (!preparedRuntimePolicy) {
+      return null;
+    }
+
+    const images: ThreadAgentRuntimeImageAttachment[] = await prepareComposerTurnAttachments([
+      ...input.sendContext.images,
+    ]);
+    return {
+      threadId: activeThread.id,
+      cwd: runtimeCwd,
+      input: preparedTurn.messageText,
+      interactionMode: preparedTurn.interactionMode,
+      sourceProposedPlan: preparedTurn.sourceProposedPlan,
+      clientMessageId: input.clientMessageId,
+      replacesClientMessageId: input.existingQueuedFollowUp?.replacesClientMessageId ?? null,
+      ...(input.existingQueuedFollowUp?.parentEntryId !== undefined
+        ? { parentEntryId: input.existingQueuedFollowUp.parentEntryId }
+        : {}),
+      images,
+      policy: await preparedRuntimePolicy.policy,
+      modelSelection: activeThread.modelSelection,
+      runtimeMode: DEFAULT_RUNTIME_MODE,
+      titleSeed: activeThread.title,
+      createdAt: input.createdAt,
+    };
   };
 
   const clearLiveComposer = () => {
@@ -2774,27 +2956,54 @@ export default function ChatView(props: ChatViewProps) {
       return;
     }
     if (editingQueuedComposerItemId) {
+      if (!activeThread) {
+        return;
+      }
       const existingQueuedItem =
         queuedComposerItems.find((item) => item.id === editingQueuedComposerItemId) ?? null;
+      const existingQueuedFollowUp =
+        useAgentRuntimeStore
+          .getState()
+          .snapshot.queuedFollowUps.find(
+            (item) =>
+              item.threadId === activeThread.id &&
+              item.clientMessageId === editingQueuedComposerItemId,
+          ) ?? null;
       const { hasSendableContent } = currentComposerSendState;
-      if (!hasSendableContent) {
+      if (!hasSendableContent || !existingQueuedItem) {
         return;
       }
 
-      const queuedItem = createQueuedComposerItem({
-        threadKey: routeThreadKey,
+      const queuedItem = await createRuntimeQueuedFollowUp({
         sendContext,
-        interactionMode: existingQueuedItem?.interactionMode ?? interactionMode,
-        planFollowUp: existingQueuedItem?.planFollowUp ?? null,
-        itemId: editingQueuedComposerItemId,
-        createdAt: existingQueuedItem?.createdAt ?? new Date().toISOString(),
+        interactionMode: existingQueuedItem.interactionMode,
+        planFollowUp: existingQueuedItem.planFollowUp,
+        clientMessageId: editingQueuedComposerItemId,
+        createdAt: existingQueuedItem.createdAt,
+        existingQueuedFollowUp,
       });
-      replaceEditingQueuedComposerItem(routeThreadKey, queuedItem);
+      if (!queuedItem) {
+        return;
+      }
+      await readHonkRuntimeApi().updateQueuedFollowUp(queuedItem);
       clearLiveComposer();
+      cancelEditingQueuedComposerItem(routeThreadKey);
       return;
     }
 
     if (!currentComposerSendState.hasSendableContent && planFollowUp === null) {
+      return;
+    }
+
+    const shouldSendActiveRunFollowUp =
+      isTurnRunning && !isCompactingActive && sendWhileStreamingBehavior === "send";
+    if (shouldSendActiveRunFollowUp) {
+      await submitActiveRunFollowUp({
+        sendContext,
+        interactionMode,
+        planFollowUp,
+        clearComposerOnSubmit: true,
+      });
       return;
     }
 
@@ -2809,20 +3018,23 @@ export default function ChatView(props: ChatViewProps) {
         return;
       }
 
-      enqueueComposerItem(
-        routeThreadKey,
-        createQueuedComposerItem({
-          threadKey: routeThreadKey,
-          sendContext,
-          interactionMode,
-          planFollowUp,
-          itemId: newMessageId(),
-          createdAt: new Date().toISOString(),
-        }),
-      );
+      const queuedItem = await createRuntimeQueuedFollowUp({
+        sendContext,
+        interactionMode,
+        planFollowUp,
+        clientMessageId: newMessageId(),
+        createdAt: new Date().toISOString(),
+      });
+      if (!queuedItem) {
+        return;
+      }
+      await readHonkRuntimeApi().enqueueFollowUp(queuedItem);
       clearLiveComposer();
       if (sendWhileStreamingBehavior === "stop-and-send" && !isCompactingActive) {
-        await onInterrupt();
+        await readHonkRuntimeApi().sendQueuedFollowUpNow({
+          threadId: queuedItem.threadId,
+          clientMessageId: queuedItem.clientMessageId,
+        });
       }
       return;
     }
@@ -2928,27 +3140,33 @@ export default function ChatView(props: ChatViewProps) {
   const onRemoveQueuedComposerItem = (itemId: MessageId) => {
     if (editingQueuedComposerItemId === itemId) {
       clearLiveComposer();
+      cancelEditingQueuedComposerItem(routeThreadKey);
     }
-    removeQueuedComposerItem(routeThreadKey, itemId);
+    if (!activeThread) {
+      return;
+    }
+    void readHonkRuntimeApi().removeQueuedFollowUp({
+      threadId: activeThread.id,
+      clientMessageId: itemId,
+    });
   };
 
   const onSendQueuedComposerItemNow = (itemId: MessageId) => {
-    if (isConnecting || isSendBusy || sendInFlightRef.current || forceSendQueuedItemRef.current) {
+    if (isConnecting || isSendBusy || sendInFlightRef.current || !activeThread) {
       return;
     }
-    const item = takeQueuedComposerItem(routeThreadKey, itemId);
+    const item = queuedComposerItems.find((entry) => entry.id === itemId);
     if (!item) {
       return;
     }
     if (editingQueuedComposerItemId === itemId) {
       clearLiveComposer();
+      cancelEditingQueuedComposerItem(routeThreadKey);
     }
-    if (isTurnRunning) {
-      forceSendQueuedItemRef.current = item;
-      void submitForcedQueuedItemAfterInterrupt(item);
-      return;
-    }
-    void submitQueuedComposerItem(item);
+    void readHonkRuntimeApi().sendQueuedFollowUpNow({
+      threadId: activeThread.id,
+      clientMessageId: item.id,
+    });
   };
 
   const onReorderQueuedComposerItem = (
@@ -2956,7 +3174,15 @@ export default function ChatView(props: ChatViewProps) {
     targetItemId: MessageId | null,
     insertAfter: boolean,
   ) => {
-    reorderQueuedComposerItem(routeThreadKey, itemId, targetItemId, insertAfter);
+    if (!activeThread) {
+      return;
+    }
+    void readHonkRuntimeApi().reorderQueuedFollowUp({
+      threadId: activeThread.id,
+      clientMessageId: itemId,
+      targetClientMessageId: targetItemId,
+      insertAfter,
+    });
   };
 
   const onQueuedComposerItemsExpandedChange = (expanded: boolean) => {

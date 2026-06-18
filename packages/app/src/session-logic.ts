@@ -338,7 +338,9 @@ export function hasActiveOrchestrationTurn(
 
   const activeTurnId = session.activeTurnId ?? null;
   if (activeTurnId === null) {
-    return false;
+    // Runtime-backed sessions can briefly report `running` between turn ids.
+    // Treat that gap as active work so completion UX waits for the session to settle.
+    return true;
   }
 
   return latestTurn?.turnId !== activeTurnId || latestTurn.completedAt === null;

@@ -75,7 +75,7 @@ import {
 } from "@honk/honkkit/menu";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@honk/honkkit/select";
 import { Switch } from "@honk/honkkit/switch";
-import { Text, textVariants } from "@honk/honkkit/text";
+import { Text } from "@honk/honkkit/text";
 import { toastManager } from "~/app/toast";
 import { cn } from "~/lib/utils";
 import { isDesktopRuntimeApiAvailable, readHonkRuntimeApi } from "~/lib/honk-runtime-api";
@@ -99,6 +99,8 @@ import {
 } from "@honk/shared/cursor-composer";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
 import {
+  SettingsItemShell,
+  SettingsItemTitle,
   SettingResetButton,
   SettingsPageContainer,
   SettingsRow,
@@ -134,18 +136,10 @@ const AGENT_WINDOW_USAGE_SUMMARY_DISPLAY_LABELS: Record<AgentWindowUsageSummaryD
 
 function AboutVersionTitle() {
   return (
-    <Text
-      render={<span />}
-      className="inline-flex items-center gap-2"
-      size="sm"
-      tone="primary"
-      weight="medium"
-    >
+    <span className="inline-flex items-center gap-2">
       <span>Version</span>
-      <code className="font-honk-mono text-honk-sm font-medium text-honk-fg-secondary">
-        {APP_VERSION}
-      </code>
-    </Text>
+      <code className="font-honk-mono font-medium text-honk-fg-secondary">{APP_VERSION}</code>
+    </span>
   );
 }
 
@@ -225,18 +219,23 @@ function AboutVersionSection() {
   const action = updateState ? resolveDesktopUpdateButtonAction(updateState) : "none";
   const buttonTooltip = updateState ? getDesktopUpdateButtonTooltip(updateState) : null;
   const buttonDisabled =
-    action === "none" ? !canCheckForUpdate(updateState) : updateState?.status === "downloading";
+    action === "none"
+      ? !canCheckForUpdate(updateState)
+      : updateState?.status === "downloading" || updateState?.status === "installing";
 
   const actionLabel: Record<string, string> = { download: "Download", install: "Install" };
   const statusLabel: Record<string, string> = {
     checking: "Checking…",
     downloading: "Downloading…",
+    installing: "Installing...",
   };
   const buttonLabel =
     actionLabel[action] ?? statusLabel[updateState?.status ?? ""] ?? "Check for Updates";
   const description =
     action === "download" || action === "install"
       ? "Update available."
+      : updateState?.status === "installing"
+        ? "Installing update."
       : updateState?.status === "up-to-date"
         ? "Honk is up to date."
         : "Current version of the application.";
@@ -864,21 +863,14 @@ function SkillSummaryRow({
   };
 }) {
   return (
-    <div className="border-t border-honk-stroke-quaternary px-2.5 py-3 first:border-t-0 sm:px-3">
+    <SettingsItemShell className="py-3">
       <div className="flex min-w-0 items-start gap-2">
         <IconBuildingBlocks className="mt-0.5 size-4.5 shrink-0 text-honk-icon-secondary" />
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-baseline gap-1.5">
-            <Text
-              render={<h3 />}
-              size="lg"
-              tone="primary"
-              weight="medium"
-              className="min-w-0 truncate"
-              title={skill.name}
-            >
+            <SettingsItemTitle className="min-w-0 truncate" title={skill.name}>
               {skill.name}
-            </Text>
+            </SettingsItemTitle>
             <span className="shrink-0 text-detail text-honk-fg-tertiary">
               {skill.scope === "project" ? "Project skill" : "User skill"}
             </span>
@@ -899,7 +891,7 @@ function SkillSummaryRow({
           </code>
         </div>
       </div>
-    </div>
+    </SettingsItemShell>
   );
 }
 
@@ -907,20 +899,14 @@ function SubagentProfileCard({ profile }: { profile: (typeof SUBAGENT_PROFILE_CA
   const Icon = profile.icon;
 
   return (
-    <div className="border-t border-honk-stroke-quaternary px-2.5 py-3 first:border-t-0 sm:px-3">
+    <SettingsItemShell className="py-3">
       <div className="flex min-w-0 items-start gap-2">
         <Icon className="mt-0.5 size-4.5 shrink-0 text-honk-icon-secondary" />
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-baseline">
-            <Text
-              render={<h3 />}
-              size="lg"
-              tone="primary"
-              weight="medium"
-              className="min-w-0 truncate"
-            >
+            <SettingsItemTitle className="min-w-0 truncate">
               {profile.label}
-            </Text>
+            </SettingsItemTitle>
           </div>
           <Text
             render={<p />}
@@ -958,7 +944,7 @@ function SubagentProfileCard({ profile }: { profile: (typeof SUBAGENT_PROFILE_CA
           </div>
         </div>
       </div>
-    </div>
+    </SettingsItemShell>
   );
 }
 
@@ -1919,9 +1905,9 @@ export function ArchivedThreadsPanel() {
             icon={<ProjectFavicon environmentId={project.environmentId} cwd={project.cwd} />}
           >
             {projectThreads.map((thread) => (
-              <div
+              <SettingsItemShell
                 key={thread.id}
-                className="flex items-center justify-between gap-3 border-t border-(--honk-stroke-quaternary) px-4 py-3 first:border-t-0 sm:px-5"
+                className="flex items-center justify-between gap-3 py-3"
                 onContextMenu={(event) => {
                   event.preventDefault();
                   void handleArchivedThreadContextMenu(
@@ -1934,16 +1920,9 @@ export function ArchivedThreadsPanel() {
                 }}
               >
                 <div className="min-w-0 flex-1">
-                  <h3
-                    className={textVariants({
-                      size: "base",
-                      tone: "primary",
-                      weight: "medium",
-                      truncate: true,
-                    })}
-                  >
+                  <SettingsItemTitle className="truncate">
                     {thread.title}
-                  </h3>
+                  </SettingsItemTitle>
                   <Text render={<p />} size="xs" tone="secondary" className="mt-0.5 block">
                     Archived {formatRelativeTimeLabel(thread.archivedAt ?? thread.createdAt)}
                     {" \u00b7 Created "}
@@ -1971,7 +1950,7 @@ export function ArchivedThreadsPanel() {
                   <IconArchiveJunk className="size-3.5" />
                   <span>Unarchive</span>
                 </Button>
-              </div>
+              </SettingsItemShell>
             ))}
           </SettingsSection>
         ))

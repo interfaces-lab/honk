@@ -72,6 +72,11 @@ function createRuntimeApi(input: {
       input.onSendTurn?.(turn);
       return TurnId.make(`turn:${turn.threadId}`);
     },
+    enqueueFollowUp: async () => undefined,
+    updateQueuedFollowUp: async () => undefined,
+    removeQueuedFollowUp: async () => undefined,
+    reorderQueuedFollowUp: async () => undefined,
+    sendQueuedFollowUpNow: async () => undefined,
     compactThread: async () => undefined,
     abort: async () => undefined,
     respondToExtensionUiRequest: async () => undefined,

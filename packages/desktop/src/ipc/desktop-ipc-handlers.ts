@@ -7,14 +7,19 @@ import {
   cloneRuntimeThread,
   compactRuntimeThread,
   configureRuntimeCredential,
+  enqueueRuntimeFollowUp,
   getRuntimeHostSnapshot,
   getRuntimePreferences,
   getRuntimeThreadSessionFile,
   hydrateRuntimeThread,
   listRuntimeSkills,
+  removeQueuedRuntimeFollowUp,
+  reorderQueuedRuntimeFollowUp,
   respondToRuntimeExtensionUiRequest,
+  sendQueuedRuntimeFollowUpNow,
   sendRuntimeTurn,
   setRuntimeThreadFocus,
+  updateQueuedRuntimeFollowUp,
   updateRuntimePreferences,
 } from "./methods/runtime";
 import { logRendererDiagnostic } from "./methods/renderer-diagnostics";
@@ -58,6 +63,11 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(cloneRuntimeThread);
   yield* ipc.handle(setRuntimeThreadFocus);
   yield* ipc.handle(sendRuntimeTurn);
+  yield* ipc.handle(enqueueRuntimeFollowUp);
+  yield* ipc.handle(updateQueuedRuntimeFollowUp);
+  yield* ipc.handle(removeQueuedRuntimeFollowUp);
+  yield* ipc.handle(reorderQueuedRuntimeFollowUp);
+  yield* ipc.handle(sendQueuedRuntimeFollowUpNow);
   yield* ipc.handle(compactRuntimeThread);
   yield* ipc.handle(abortRuntimeThread);
   yield* ipc.handle(respondToRuntimeExtensionUiRequest);
