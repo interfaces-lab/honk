@@ -10,7 +10,7 @@ import {
   type DraftId as DraftIdType,
   type DraftThreadState,
 } from "~/stores/chat-drafts";
-import { useMatch } from "@tanstack/react-router";
+import { useRouterState } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -87,6 +87,40 @@ export function resolveThreadRouteTarget(params: ThreadRouteParams): ThreadRoute
     kind: "draft",
     draftId: DraftId.make(params.draftId),
   };
+}
+
+function decodePathSegment(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+export function resolveThreadRouteTargetFromPathname(pathname: string): ThreadRouteTarget | null {
+  const segments = pathname.replace(/\/+$/, "").split("/").filter(Boolean);
+  if (segments[0] !== "_chat") {
+    return null;
+  }
+
+  if (segments[1] === "draft" && segments[2]) {
+    return {
+      kind: "draft",
+      draftId: DraftId.make(decodePathSegment(segments[2])),
+    };
+  }
+
+  if (segments[1] && segments[2]) {
+    return {
+      kind: "server",
+      threadRef: scopeThreadRef(
+        EnvironmentId.make(decodePathSegment(segments[1])),
+        ThreadId.make(decodePathSegment(segments[2])),
+      ),
+    };
+  }
+
+  return null;
 }
 
 function threadRefsEqual(
@@ -189,23 +223,8 @@ export function resolvePreThreadServerRouteTarget(input: {
 }
 
 export function useRouteTarget(): ThreadRouteTarget | null {
-  const threadMatch = useMatch({
-    from: "/_chat/$environmentId/$threadId",
-    shouldThrow: false,
-  });
-  const draftMatch = useMatch({
-    from: "/_chat/draft/$draftId",
-    shouldThrow: false,
-  });
-  const baseTarget = useMemo(() => {
-    if (threadMatch) {
-      return { kind: "server", threadRef: threadMatch.params } satisfies ThreadRouteTarget;
-    }
-    if (draftMatch) {
-      return { kind: "draft", draftId: draftMatch.params.draftId } satisfies ThreadRouteTarget;
-    }
-    return null;
-  }, [draftMatch, threadMatch]);
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const baseTarget = useMemo(() => resolveThreadRouteTargetFromPathname(pathname), [pathname]);
   const serverThreadRef = baseTarget?.kind === "server" ? baseTarget.threadRef : null;
   const serverThreadSelector = useMemo(
     () => createThreadSelectorByRef(serverThreadRef),

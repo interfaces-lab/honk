@@ -1,9 +1,11 @@
+import type { DesktopBridge, LocalApi, HonkRuntimeApi } from "@honk/contracts";
+
 export {};
 
 declare global {
   interface Window {
-    desktopBridge?: unknown;
-    nativeApi?: unknown;
-    honkRuntime?: unknown;
+    desktopBridge?: DesktopBridge;
+    nativeApi?: LocalApi;
+    honkRuntime?: HonkRuntimeApi;
   }
 }

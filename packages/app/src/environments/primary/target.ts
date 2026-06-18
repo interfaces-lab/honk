@@ -79,16 +79,25 @@ function resolveConfiguredPrimaryTarget(): PrimaryEnvironmentTarget | null {
     return null;
   }
 
-  const resolvedHttpBaseUrl =
-    configuredHttpBaseUrl ??
-    (configuredWsBaseUrl?.startsWith("wss:")
-      ? swapBaseUrlProtocol(configuredWsBaseUrl, "https:")
-      : swapBaseUrlProtocol(configuredWsBaseUrl, "http:"));
-  const resolvedWsBaseUrl =
-    configuredWsBaseUrl ??
-    (configuredHttpBaseUrl?.startsWith("https:")
-      ? swapBaseUrlProtocol(configuredHttpBaseUrl, "wss:")
-      : swapBaseUrlProtocol(configuredHttpBaseUrl, "ws:"));
+  let resolvedHttpBaseUrl = configuredHttpBaseUrl;
+  let resolvedWsBaseUrl = configuredWsBaseUrl;
+
+  if (!resolvedHttpBaseUrl && resolvedWsBaseUrl) {
+    resolvedHttpBaseUrl = swapBaseUrlProtocol(
+      resolvedWsBaseUrl,
+      resolvedWsBaseUrl.startsWith("wss:") ? "https:" : "http:",
+    );
+  }
+  if (!resolvedWsBaseUrl && resolvedHttpBaseUrl) {
+    resolvedWsBaseUrl = swapBaseUrlProtocol(
+      resolvedHttpBaseUrl,
+      resolvedHttpBaseUrl.startsWith("https:") ? "wss:" : "ws:",
+    );
+  }
+
+  if (!resolvedHttpBaseUrl || !resolvedWsBaseUrl) {
+    return null;
+  }
 
   return {
     source: "configured",
