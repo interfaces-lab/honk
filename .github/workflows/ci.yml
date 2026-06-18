@@ -18,16 +18,8 @@ env:
 # Blacksmith runners need the Blacksmith GitHub App installed on this repo.
 jobs:
   quality:
-    name: Quality (${{ matrix.settings.name }})
-    strategy:
-      fail-fast: false
-      matrix:
-        settings:
-          - name: linux
-            host: blacksmith-4vcpu-ubuntu-2404
-          - name: windows
-            host: blacksmith-4vcpu-windows-2025
-    runs-on: ${{ matrix.settings.host }}
+    name: Quality
+    runs-on: blacksmith-6vcpu-macos-15
     timeout-minutes: 20
     env:
       PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
@@ -84,12 +76,6 @@ jobs:
       - name: Test
         run: pnpm run test
 
-      - name: Install Playwright system dependencies
-        if: runner.os == 'Linux'
-        run: |
-          cd packages/app
-          pnpx playwright install-deps chromium
-
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: |
@@ -100,11 +86,9 @@ jobs:
         run: pnpm --dir packages/app run test:browser
 
       - name: Build desktop pipeline
-        if: runner.os == 'Linux'
         run: pnpm run build:desktop
 
       - name: Verify desktop bundle output
-        if: runner.os == 'Linux'
         run: |
           test -f packages/desktop/out/preload/index.js
           test -f packages/desktop/out/renderer/index.html
@@ -115,7 +99,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-${{ matrix.settings.name }}-${{ github.run_attempt }}
+          name: playwright-macos-${{ github.run_attempt }}
           if-no-files-found: ignore
           retention-days: 7
           path: |
@@ -124,7 +108,7 @@ jobs:
 
   release_smoke:
     name: Release Smoke
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-6vcpu-macos-15
     timeout-minutes: 10
     defaults:
       run:
