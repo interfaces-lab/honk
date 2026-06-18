@@ -12,13 +12,13 @@ import { MARKETING_SIDEBAR_WIDTH_CLASS } from "./layout";
 export function MarketingWorkspaceHeader(props: { threadTitle: string }) {
   return (
     <header
-      className="agent-window-chat-header content-pane-top-bar box-border flex h-(--honk-workbench-chrome-row-height) shrink-0 select-none items-stretch"
+      className="agent-window-chat-header content-pane-top-bar box-border flex h-(--honk-workbench-chrome-row-height) shrink-0 items-stretch select-none"
       data-shell-no-drag=""
     >
       <div
         className={cn(
           MARKETING_SIDEBAR_WIDTH_CLASS,
-          "honk-shell-sidebar flex shrink-0 items-center border-r border-honk-stroke-tertiary bg-honk-sidebar px-2",
+          "honk-shell-sidebar hidden shrink-0 items-center border-r border-honk-stroke-tertiary bg-honk-sidebar px-2 lg:flex",
         )}
       >
         <SidebarButton
@@ -33,7 +33,7 @@ export function MarketingWorkspaceHeader(props: { threadTitle: string }) {
 
       <div className="@container/header-actions flex min-w-0 flex-1 items-center bg-honk-chat px-(--honk-workbench-chrome-padding-inline) text-body">
         <div className="no-drag flex min-w-0 flex-1 items-center overflow-hidden" data-shell-no-drag="">
-          <WorkbenchChromeDivider />
+          <WorkbenchChromeDivider className="hidden lg:block" />
           <div className="no-drag flex min-w-0 shrink items-center overflow-hidden" data-shell-no-drag="">
             <Button
               type="button"

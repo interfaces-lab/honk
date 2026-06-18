@@ -60,9 +60,9 @@ const PROJECT_GIT_HARDENED_CONFIG_ARGS = [
   "-c",
   "core.untrackedCache=false",
 ] as const;
-const STATUS_UPSTREAM_REFRESH_INTERVAL = Duration.minutes(5);
+const STATUS_UPSTREAM_REFRESH_INTERVAL = Duration.seconds(15);
 const STATUS_UPSTREAM_REFRESH_TIMEOUT = Duration.seconds(5);
-const STATUS_UPSTREAM_REFRESH_FAILURE_COOLDOWN = Duration.seconds(30);
+const STATUS_UPSTREAM_REFRESH_FAILURE_COOLDOWN = Duration.seconds(5);
 const STATUS_UPSTREAM_REFRESH_CACHE_CAPACITY = 2_048;
 const DEFAULT_BASE_BRANCH_CANDIDATES = ["main", "master"] as const;
 const GIT_LIST_BRANCHES_DEFAULT_LIMIT = 100;

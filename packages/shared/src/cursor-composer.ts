@@ -3,15 +3,30 @@ import {
   AuthProviderId,
   ModelId,
   type AgentModelPolicy,
+  type ModelSelection,
 } from "@honk/contracts";
 import { getModelOptionBooleanSelectionValue } from "./model";
 
 export const CURSOR_PROVIDER_ID = "cursor";
 export const CURSOR_COMPOSER_MODEL_ID = "composer-2-5";
+export const CURSOR_COMPOSER_ACP_MODEL_ID = "composer-2.5";
 export const CURSOR_COMPOSER_MODEL_NAME = "Composer 2.5";
 export const CURSOR_COMPOSER_FAST_OPTION_ID = "fast";
 
 const CURSOR_COMPOSER_POLICY_MODEL_ID = `${CURSOR_PROVIDER_ID}/${CURSOR_COMPOSER_MODEL_ID}`;
+
+export function cursorComposerModelSelection(fastEnabled = false): ModelSelection {
+  return {
+    instanceId: CURSOR_PROVIDER_ID,
+    model: CURSOR_COMPOSER_MODEL_ID,
+    options: [
+      {
+        id: CURSOR_COMPOSER_FAST_OPTION_ID,
+        value: fastEnabled,
+      },
+    ],
+  };
+}
 
 export function cursorComposerPolicyModelSelection(
   fastEnabled = false,

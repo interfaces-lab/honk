@@ -46,7 +46,6 @@ describe("runtime contracts", () => {
       "claude-oauth",
       "codex-oauth",
       "codex-api-key",
-      "cursor-api-key",
     ]);
   });
 

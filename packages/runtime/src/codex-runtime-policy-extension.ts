@@ -12,8 +12,11 @@ import {
   type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 
-const CODEX_TOOL_USE_NUDGE =
-  "Codex tool-use note: use the available shell, stdin, patch, image, and web tools directly when they fit; inspect files with shell commands and edit files with patch-based changes.";
+const CODEX_TOOL_USE_NUDGE = [
+  "Codex tool-use note: use the available shell, stdin, apply_patch, image, and web tools directly when they fit.",
+  "Inspect files with shell commands and edit text files with apply_patch patches instead of ad hoc shell rewrites.",
+  "When the latest user message contains a <honk_goal> block, treat it as the active durable objective: keep working until it is complete or genuinely blocked, and make final completion or blocker status explicit.",
+].join(" ");
 
 const OPENAI_COMPACT_PATH = "responses/compact";
 const CODEX_COMPACT_PATH = "codex/responses/compact";

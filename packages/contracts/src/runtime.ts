@@ -111,7 +111,6 @@ export const AgentCredentialKind = Schema.Literals([
   "claude-oauth",
   "codex-oauth",
   "codex-api-key",
-  "cursor-api-key",
 ]);
 export type AgentCredentialKind = typeof AgentCredentialKind.Type;
 
@@ -183,12 +182,6 @@ export const DEFAULT_AGENT_CREDENTIAL_PREFERENCES: readonly AgentCredentialPrefe
     kind: "codex-api-key",
     label: "Codex API Key",
     authProviderId: AuthProviderId.make("openai"),
-    accountId: null,
-  },
-  {
-    kind: "cursor-api-key",
-    label: "Cursor API Key",
-    authProviderId: AuthProviderId.make("cursor"),
     accountId: null,
   },
 ];

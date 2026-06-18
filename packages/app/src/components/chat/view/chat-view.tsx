@@ -58,6 +58,11 @@ import {
 } from "~/lib/agent-mode-options";
 import { coordinateTurnSend, dispatchTurnStartFailure } from "~/lib/turn-send-coordinator";
 import { isElectron } from "../../../env";
+import {
+  cursorComposerFastEnabled,
+  cursorComposerModelSelection,
+} from "@honk/shared/cursor-composer";
+import { resolveAgentModeForModelSelection } from "@honk/shared/agent-model-policy";
 import { readLocalApi } from "../../../local-api";
 import {
   collapseExpandedComposerCursor,
@@ -582,6 +587,7 @@ export default function ChatView(props: ChatViewProps) {
   const removeThreadSendIntents = useThreadSendIntentStore((store) => store.removeSendIntents);
   const markLocalRuntimeThread = useAgentRuntimeStore((store) => store.markLocalRuntimeThread);
   const clearLocalRuntimeThread = useAgentRuntimeStore((store) => store.clearLocalRuntimeThread);
+  const runtimePreferences = useAgentRuntimeStore((state) => state.snapshot.preferences);
   const revokeThreadSendIntentMessages = (intents: ReadonlyArray<ThreadSendIntent>) => {
     for (const message of threadSendIntentMessages(intents)) {
       revokeUserMessagePreviewUrls(message);
@@ -659,17 +665,16 @@ export default function ChatView(props: ChatViewProps) {
   const fallbackDraftProject = draftThread
     ? findWorkspaceProjectForSource(workspaceProjects, draftThread)
     : null;
+  const fallbackDraftModelSelection =
+    runtimePreferences.agentMode === "composer"
+      ? cursorComposerModelSelection(cursorComposerFastEnabled(runtimePreferences.modelSelection))
+      : (settings.textGenerationModelSelection ?? fallbackDraftProject?.defaultModelSelection);
   const localDraftError =
     routeKind === "server" && serverThread
       ? null
       : ((draftId ? localDraftErrorsByDraftId[draftId] : null) ?? null);
   const localDraftThread = draftThread
-    ? buildLocalDraftThread(
-        threadId,
-        draftThread,
-        settings.textGenerationModelSelection ?? fallbackDraftProject?.defaultModelSelection,
-        localDraftError,
-      )
+    ? buildLocalDraftThread(threadId, draftThread, fallbackDraftModelSelection, localDraftError)
     : undefined;
   const composerUsesLocalDraftThread = routeKind === "draft";
   const isServerThread =
@@ -1091,6 +1096,8 @@ export default function ChatView(props: ChatViewProps) {
     isTimelineSurfaceActive ||
     visibleThreadSendIntents.length > 0 ||
     runtimeTimelineImpliesTurnActive;
+  const goalStatusProgressActive =
+    timelineTurnActive || isSendBusy || isConnecting || waitingForRuntimeFirstResponse;
   const activeTimelineTailLeaseTurnKey =
     activeRuntimeActivity.lifecycle === "active"
       ? (activeRuntimeActivity.latestTurnId ?? "runtime-run-pending")
@@ -1104,6 +1111,16 @@ export default function ChatView(props: ChatViewProps) {
   const committedTimelineMessages = useMemo(
     () => applyAttachmentPreviewHandoff(serverMessages),
     [applyAttachmentPreviewHandoff, serverMessages],
+  );
+  const activeGoalStatus = useMemo(
+    () =>
+      goalStatusProgressActive
+        ? deriveActiveGoalStatus({
+            messages: committedTimelineMessages,
+            sendIntents: visibleThreadSendIntents,
+          })
+        : null,
+    [committedTimelineMessages, goalStatusProgressActive, visibleThreadSendIntents],
   );
   const proposedPlansForTimeline = activeThread?.proposedPlans ?? EMPTY_TIMELINE_PROPOSED_PLANS;
   const turnFailuresByUserMessageId = useTurnFailuresByUserMessageId({
@@ -1832,6 +1849,28 @@ export default function ChatView(props: ChatViewProps) {
     }
   };
 
+  const codexGoalSupportedForCurrentPreferences = (): boolean => {
+    if (!activeThread) {
+      return false;
+    }
+    const preferredAgentMode = useAgentRuntimeStore.getState().snapshot.preferences.agentMode;
+    const isFirstMessageForThread = !isServerThread || activeThread.messages.length === 0;
+    const agentMode =
+      isFirstMessageForThread && isLocalDraftThread
+        ? preferredAgentMode
+        : resolveAgentModeForModelSelection(activeThread.modelSelection, preferredAgentMode);
+    return agentMode === "deep" || agentMode === "rush";
+  };
+
+  const formatRuntimeGoalPrompt = (goal: string): string =>
+    [
+      "<honk_goal>",
+      goal,
+      "</honk_goal>",
+      "",
+      "Use this as the active objective for this run. Continue until the goal is complete or genuinely blocked; if blocked, state the exact missing input or external state needed.",
+    ].join("\n");
+
   const onCompactContext = async (customInstructions?: string) => {
     if (!activeThread) {
       return;
@@ -2085,6 +2124,7 @@ export default function ChatView(props: ChatViewProps) {
     const rawTrimmedPrompt = rawPromptForSend.trim();
     const rawStandaloneSlashCommand =
       composerImages.length === 0 ? parseStandaloneComposerSlashCommand(rawTrimmedPrompt) : null;
+    let runtimeTextOverrideForDispatch: string | null = null;
     if (rawStandaloneSlashCommand?.command === "compact") {
       if (clearComposerOnSubmit) {
         composerRef.current?.clearComposer();
@@ -2097,11 +2137,16 @@ export default function ChatView(props: ChatViewProps) {
         setThreadError(activeThread.id, "Add a goal after /goal before sending.");
         return;
       }
+      if (!codexGoalSupportedForCurrentPreferences()) {
+        setThreadError(activeThread.id, "/goal is available in Deep and Rush modes.");
+        return;
+      }
       sendContextForDispatch = {
         prompt: `Goal: ${rawStandaloneSlashCommand.body}`,
         images: composerImages,
         hasUnresolvedSlashCommand: false,
       };
+      runtimeTextOverrideForDispatch = formatRuntimeGoalPrompt(rawStandaloneSlashCommand.body);
     }
     const { prompt: promptForSend } = sendContextForDispatch;
     let composerClearedForSend = false;
@@ -2432,6 +2477,9 @@ export default function ChatView(props: ChatViewProps) {
         createdAt: messageCreatedAt,
         message: {
           text: compiledTurn.outgoingMessageText,
+          ...(runtimeTextOverrideForDispatch !== null
+            ? { runtimeText: runtimeTextOverrideForDispatch }
+            : {}),
           ...(compiledTurn.outgoingRichText !== undefined
             ? { richText: compiledTurn.outgoingRichText }
             : {}),
@@ -3484,6 +3532,7 @@ export default function ChatView(props: ChatViewProps) {
               }
               onRespond={onRespondToExtensionUiRequest}
             />
+            {activeGoalStatus ? <ActiveGoalStatusBar goal={activeGoalStatus.goal} /> : null}
             <ComposerInput
               ref={composerRef}
               variant={isHeroComposer ? "expanded" : "compact"}
@@ -3719,6 +3768,100 @@ function areSameContextWindowCategories(
       leftCategory.tokens === rightCategory.tokens
     );
   });
+}
+
+interface ActiveGoalStatus {
+  readonly goal: string;
+}
+
+function deriveActiveGoalStatus(input: {
+  readonly messages: ReadonlyArray<ChatMessage>;
+  readonly sendIntents: ReadonlyArray<ThreadSendIntent>;
+}): ActiveGoalStatus | null {
+  const latestInput = latestGoalCandidateInput(input.messages, input.sendIntents);
+  if (!latestInput) {
+    return null;
+  }
+  const goal = extractGoalText(latestInput.text);
+  return goal ? { goal } : null;
+}
+
+function latestGoalCandidateInput(
+  messages: ReadonlyArray<ChatMessage>,
+  sendIntents: ReadonlyArray<ThreadSendIntent>,
+): { readonly text: string; readonly createdAt: string; readonly sequence: number } | null {
+  let latest: {
+    readonly text: string;
+    readonly createdAt: string;
+    readonly sequence: number;
+  } | null = null;
+  let sequence = 0;
+
+  for (const message of messages) {
+    if (message.role !== "user") {
+      continue;
+    }
+    latest = newestGoalCandidate(latest, {
+      text: message.text,
+      createdAt: message.createdAt,
+      sequence,
+    });
+    sequence += 1;
+  }
+
+  for (const intent of sendIntents) {
+    latest = newestGoalCandidate(latest, {
+      text: intent.text,
+      createdAt: intent.createdAt,
+      sequence,
+    });
+    sequence += 1;
+  }
+
+  return latest;
+}
+
+function newestGoalCandidate<T extends { readonly createdAt: string; readonly sequence: number }>(
+  previous: T | null,
+  next: T,
+): T {
+  if (!previous) {
+    return next;
+  }
+  const previousTime = Date.parse(previous.createdAt);
+  const nextTime = Date.parse(next.createdAt);
+  if (Number.isFinite(previousTime) && Number.isFinite(nextTime) && previousTime !== nextTime) {
+    return nextTime > previousTime ? next : previous;
+  }
+  return next.sequence > previous.sequence ? next : previous;
+}
+
+function extractGoalText(text: string): string | null {
+  const match = /^Goal:\s*([\s\S]+)$/i.exec(text.trim());
+  const goal = match?.[1]?.trim();
+  return goal ? goal : null;
+}
+
+function ActiveGoalStatusBar(props: { readonly goal: string }) {
+  return (
+    <div
+      data-composer-thread-status-bar=""
+      className="mx-auto mb-1 box-border flex min-h-7 w-full max-w-agent-chat items-center gap-2 overflow-hidden rounded-full border border-honk-stroke-tertiary bg-honk-bg-elevated px-3 py-1 text-body text-honk-fg-secondary shadow-xs"
+      aria-live="polite"
+    >
+      <span className="inline-flex shrink-0 items-center gap-1.5 font-medium text-honk-fg-primary">
+        <span
+          className="size-1.5 rounded-full bg-honk-fg-secondary"
+          aria-hidden="true"
+          data-goal-progress-dot=""
+        />
+        Goal in progress
+      </span>
+      <span className="min-w-0 truncate text-honk-fg-tertiary" title={props.goal}>
+        {props.goal}
+      </span>
+    </div>
+  );
 }
 
 interface StableWorkLogEntryState {

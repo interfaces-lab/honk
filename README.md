@@ -16,13 +16,14 @@ Download the desktop app for your platform from [GitHub Releases](https://github
 
 ## Accounts
 
-Connect at least one Pi-backed account in Settings before starting a thread:
+Connect Claude or Codex accounts in Settings before using those modes:
 
 - **Claude API key**
 - **Claude OAuth**
 - **Codex OAuth**
 - **Codex API key**
-- **Cursor API key**
+
+Cursor Composer uses Cursor Agent CLI auth; run `agent login` or provide `CURSOR_API_KEY` in the environment.
 
 ## Runtime Access
 

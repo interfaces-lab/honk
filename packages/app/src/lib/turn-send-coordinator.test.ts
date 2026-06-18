@@ -592,6 +592,114 @@ describe("turn-send-coordinator", () => {
     expect(result.serverPersistenceError).toBe(dispatchError);
   });
 
+  it("retries implicit runtime appends without a parent when the runtime cannot resolve it", async () => {
+    const priorMessageId = MessageId.make("message:prior-runtime-parent");
+    applyLocalThreadCreated({
+      environmentId,
+      threadId,
+      projectId: ProjectId.make("project:turn-coordinator"),
+      title: "Local thread",
+      modelSelection,
+      interactionMode: "agent",
+      branch: "main",
+      worktreePath: null,
+      createdAt,
+    });
+    applyLocalThreadTurnStartRequested({
+      environmentId,
+      threadId,
+      message: {
+        messageId: priorMessageId,
+        text: "prior",
+        attachments: [],
+      },
+      modelSelection,
+      titleSeed: "Local thread",
+      runtimeMode: DEFAULT_RUNTIME_MODE,
+      interactionMode: "agent",
+      parentEntryId: null,
+      createdAt,
+    });
+
+    const snapshot = {
+      ...createEmptyRuntimeHostSnapshot(),
+      diagnostics: [],
+    };
+    const sentTurns: ThreadAgentRuntimeSendTurnInput[] = [];
+    vi.stubGlobal("window", {
+      nativeApi: createLocalApi(
+        createRuntimeApi({
+          snapshot,
+          onSendTurn: (turn) => {
+            sentTurns.push(turn);
+            if (sentTurns.length === 1) {
+              throw new Error(
+                `Cannot branch from thread entry ${String(turn.parentEntryId)}: runtime entry not found.`,
+              );
+            }
+          },
+        }),
+      ),
+    });
+    const api = createOrchestrationApi({});
+    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent", modelSelection });
+
+    const result = await coordinateTurnSend(
+      baseCoordinateInput({
+        api,
+        preparedPolicy,
+        appendSendIntent: false,
+        applyLocalTurnStart: false,
+        startRuntimeBeforePersistence: true,
+      }),
+    );
+
+    expect(result.runtimeSendSucceeded).toBe(true);
+    expect(sentTurns).toHaveLength(2);
+    expect(sentTurns[0]?.parentEntryId).toBe(threadEntryIdForMessageId(priorMessageId));
+    expect(sentTurns[1]?.parentEntryId).toBeUndefined();
+  });
+
+  it("does not retry explicit runtime branches without a parent", async () => {
+    const parentEntryId = threadEntryIdForMessageId(MessageId.make("message:explicit-parent"));
+    const snapshot = {
+      ...createEmptyRuntimeHostSnapshot(),
+      diagnostics: [],
+    };
+    const sentTurns: ThreadAgentRuntimeSendTurnInput[] = [];
+    vi.stubGlobal("window", {
+      nativeApi: createLocalApi(
+        createRuntimeApi({
+          snapshot,
+          onSendTurn: (turn) => {
+            sentTurns.push(turn);
+            throw new Error(
+              `Cannot branch from thread entry ${String(turn.parentEntryId)}: runtime entry not found.`,
+            );
+          },
+        }),
+      ),
+    });
+    const api = createOrchestrationApi({});
+    const preparedPolicy = prepareRuntimeTurnPolicy({ interactionMode: "agent", modelSelection });
+
+    await expect(
+      coordinateTurnSend(
+        baseCoordinateInput({
+          api,
+          preparedPolicy,
+          appendSendIntent: false,
+          applyLocalTurnStart: false,
+          startRuntimeBeforePersistence: true,
+          parentEntryId,
+        }),
+      ),
+    ).rejects.toThrow("runtime entry not found");
+
+    expect(sentTurns).toHaveLength(1);
+    expect(sentTurns[0]?.parentEntryId).toBe(parentEntryId);
+  });
+
   it("rethrows dispatch failures when runtime must wait for persistence", async () => {
     const snapshot = {
       ...createEmptyRuntimeHostSnapshot(),

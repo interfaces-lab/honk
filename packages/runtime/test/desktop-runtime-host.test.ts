@@ -174,21 +174,14 @@ describe("DesktopRuntimeHost", () => {
       "anthropic",
       "openai-codex",
       "openai",
-      "cursor",
     ]);
     expect(snapshot.authStatuses.map((status) => status.credentialKind)).toEqual([
       "claude-api-key",
       "claude-oauth",
       "codex-oauth",
       "codex-api-key",
-      "cursor-api-key",
     ]);
-    expect(snapshot.authStatuses.slice(0, 4).every((status) => status.state === "missing")).toBe(
-      true,
-    );
-    expect(snapshot.authStatuses[4]?.state).toBe(
-      process.env.CURSOR_API_KEY ? "available" : "missing",
-    );
+    expect(snapshot.authStatuses.every((status) => status.state === "missing")).toBe(true);
 
     host.dispose();
   });
@@ -230,21 +223,6 @@ describe("DesktopRuntimeHost", () => {
     host.dispose();
   });
 
-  it("rejects Cursor OAuth credential configuration", async () => {
-    const authStorage = AuthStorage.inMemory();
-    const host = new DesktopRuntimeHost({ agentDir: createAgentDir(), authStorage });
-
-    await expect(
-      host.configureCredential({
-        authProviderId: AuthProviderId.make("cursor"),
-        method: "oauth",
-        credentialKind: "cursor-api-key",
-      }),
-    ).rejects.toThrow("Unsupported credential configuration");
-
-    host.dispose();
-  });
-
   it("rejects credential provider, method, and kind mismatches", async () => {
     const authStorage = AuthStorage.inMemory();
     const host = new DesktopRuntimeHost({ agentDir: createAgentDir(), authStorage });
@@ -260,7 +238,7 @@ describe("DesktopRuntimeHost", () => {
       host.configureCredential({
         authProviderId: AuthProviderId.make("openai"),
         method: "api-key",
-        credentialKind: "cursor-api-key",
+        credentialKind: "codex-oauth",
         apiKey: "test-key",
       }),
     ).rejects.toThrow("Unsupported credential configuration");

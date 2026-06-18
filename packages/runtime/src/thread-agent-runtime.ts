@@ -47,6 +47,7 @@ import {
   type ContextUsageSnapshotSink,
 } from "./context-usage-extension";
 import { createCodexRuntimePolicyExtension } from "./codex-runtime-policy-extension";
+import { createCodexApplyPatchExtension } from "./codex-apply-patch-extension";
 import { createDesktopExtensionUi, type DesktopExtensionUiController } from "./extension-ui";
 import { makeRuntimeEventId, makeRuntimeSessionId, makeTurnId } from "./ids";
 import { projectPiAgentSessionEvent } from "./event-projection";
@@ -261,6 +262,7 @@ export class ThreadAgentRuntime {
         settingsManager,
         additionalExtensionPaths: [...(options.extensionPaths ?? [])],
         extensionFactories: [
+          createCodexApplyPatchExtension(options.policy),
           createToolCallDescriptionExtension(),
           createHonkSystemPromptIdentityExtension(),
           createCodexRuntimePolicyExtension(options.policy),
@@ -859,6 +861,21 @@ export class ThreadAgentRuntime {
       return this.hasSessionEntry(entryId) ? entryId : null;
     }
 
+    const persistedRuntimeMessagePrefix = "message:runtime:";
+    if (threadEntryIdValue.startsWith(persistedRuntimeMessagePrefix)) {
+      const runtimeEntryId = threadEntryIdValue.split(":").slice(3).join(":");
+      if (runtimeEntryId && this.hasSessionEntry(runtimeEntryId)) {
+        return runtimeEntryId;
+      }
+    }
+
+    for (const entry of this.getSessionTree().entries) {
+      if (String(entry.threadEntryId) === threadEntryIdValue) {
+        const entryId = String(entry.id);
+        return this.hasSessionEntry(entryId) ? entryId : null;
+      }
+    }
+
     for (const [entryId, clientMessageId] of this.clientMessageIdByEntryId) {
       if (String(threadEntryIdForMessageId(clientMessageId)) === threadEntryIdValue) {
         return this.hasSessionEntry(entryId) ? entryId : null;
@@ -1096,9 +1113,15 @@ export class ThreadAgentRuntime {
       this.clientMessageIdByEntryId.set(entryId, clientMessageId);
     }
     const turnIdSidecars = collectTurnIdSidecars(this.session.sessionManager.getEntries());
+    let maxTurnSequence = this.turnSequence;
     for (const [entryId, turnId] of turnIdSidecars) {
       this.turnIdByEntryId.set(entryId, turnId);
+      maxTurnSequence = Math.max(
+        maxTurnSequence,
+        turnSequenceForThread(this.threadId, turnId) ?? 0,
+      );
     }
+    this.turnSequence = maxTurnSequence;
   }
 
   private persistClientMessageIdSidecar(input: {
@@ -1504,6 +1527,16 @@ function interactionModeGuidance(mode: AgentInteractionMode): string | undefined
     default:
       return undefined;
   }
+}
+
+function turnSequenceForThread(threadId: ThreadId, turnId: TurnId): number | null {
+  const prefix = `${threadId}:turn:`;
+  const value = String(turnId);
+  if (!value.startsWith(prefix)) {
+    return null;
+  }
+  const sequence = Number.parseInt(value.slice(prefix.length), 10);
+  return Number.isSafeInteger(sequence) && sequence > 0 ? sequence : null;
 }
 
 function toPiImageContent(images: readonly ThreadAgentRuntimeImageAttachment[]): ImageContent[] {

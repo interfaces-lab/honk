@@ -73,7 +73,7 @@ body::after {
 
   .dark .marketing-edge-mask {
     --marketing-edge-center: rgba(10, 10, 10, 0);
-    --marketing-edge-fade: rgb(10, 10, 10);
+    --marketing-edge-fade: rgba(10, 10, 10, 0.55);
   }
 
   /*

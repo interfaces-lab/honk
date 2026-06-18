@@ -13,7 +13,6 @@ import {
   SynchronizedRef,
 } from "effect";
 import type {
-  GitStatusInput,
   GitStatusLocalResult,
   GitStatusRemoteResult,
   GitStatusStreamEvent,
@@ -27,8 +26,8 @@ import {
 } from "./GitStatusBroadcaster.service.ts";
 import { GitManager } from "./GitManager.service.ts";
 
-const GIT_STATUS_REFRESH_INTERVAL = Duration.minutes(5);
-const GIT_STATUS_REFRESH_FAILURE_BASE_DELAY = Duration.minutes(1);
+const GIT_STATUS_REFRESH_INTERVAL = Duration.seconds(30);
+const GIT_STATUS_REFRESH_FAILURE_BASE_DELAY = Duration.seconds(30);
 const GIT_STATUS_REFRESH_FAILURE_MAX_DELAY = Duration.minutes(15);
 
 export interface GitStatusBroadcasterOptions {
@@ -179,11 +178,6 @@ export const makeGitStatusBroadcasterLive = (options: GitStatusBroadcasterOption
         return yield* updateCachedLocalStatus(cwd, local);
       });
 
-      const loadRemoteStatus = Effect.fn("loadRemoteStatus")(function* (cwd: string) {
-        const remote = yield* gitManager.remoteStatus({ cwd });
-        return yield* updateCachedRemoteStatus(cwd, remote);
-      });
-
       const getOrLoadLocalStatus = Effect.fn("getOrLoadLocalStatus")(function* (cwd: string) {
         const cached = yield* getCachedStatus(cwd);
         if (cached?.local) {
@@ -192,38 +186,14 @@ export const makeGitStatusBroadcasterLive = (options: GitStatusBroadcasterOption
         return yield* loadLocalStatus(cwd);
       });
 
-      const getOrLoadRemoteStatus = Effect.fn("getOrLoadRemoteStatus")(function* (cwd: string) {
-        const cached = yield* getCachedStatus(cwd);
-        if (cached?.remote) {
-          return cached.remote.value;
-        }
-        return yield* loadRemoteStatus(cwd);
-      });
-
-      const getStatus: GitStatusBroadcasterShape["getStatus"] = Effect.fn("getStatus")(function* (
-        input: GitStatusInput,
-      ) {
-        const normalizedCwd = yield* normalizeCwd(input.cwd);
-        const local = yield* getOrLoadLocalStatus(normalizedCwd);
-        const remote =
-          local.isRepo && local.hasOriginRemote
-            ? yield* getOrLoadRemoteStatus(normalizedCwd)
-            : null;
-        return mergeGitStatusParts(local, remote);
-      });
-
-      const refreshLocalStatus: GitStatusBroadcasterShape["refreshLocalStatus"] = Effect.fn(
-        "refreshLocalStatus",
-      )(function* (cwd) {
+      const refreshLocalStatus = Effect.fn("refreshLocalStatus")(function* (cwd: string) {
         const normalizedCwd = yield* normalizeCwd(cwd);
         yield* gitManager.invalidateLocalStatus(normalizedCwd);
         const local = yield* gitManager.localStatus({ cwd: normalizedCwd });
         return yield* updateCachedLocalStatus(normalizedCwd, local, { publish: true });
       });
 
-      const refreshRemoteStatus: GitStatusBroadcasterShape["refreshRemoteStatus"] = Effect.fn(
-        "refreshRemoteStatus",
-      )(function* (cwd) {
+      const refreshRemoteStatus = Effect.fn("refreshRemoteStatus")(function* (cwd: string) {
         const normalizedCwd = yield* normalizeCwd(cwd);
         yield* gitManager.invalidateRemoteStatus(normalizedCwd);
         const remote = yield* gitManager.remoteStatus({ cwd: normalizedCwd });
@@ -270,12 +240,15 @@ export const makeGitStatusBroadcasterLive = (options: GitStatusBroadcasterOption
       };
 
       const refreshStatus: GitStatusBroadcasterShape["refreshStatus"] = Effect.fn("refreshStatus")(
-        function* (cwd) {
-          const normalizedCwd = yield* normalizeCwd(cwd);
+        function* (input) {
+          const normalizedCwd = yield* normalizeCwd(input.cwd);
           const local = yield* refreshLocalStatus(normalizedCwd);
+          const cached = yield* getCachedStatus(normalizedCwd);
           const remote =
             local.isRepo && local.hasOriginRemote
-              ? yield* refreshRemoteStatus(normalizedCwd)
+              ? input.scope === "local"
+                ? (cached?.remote?.value ?? null)
+                : yield* refreshRemoteStatus(normalizedCwd)
               : null;
           return mergeGitStatusParts(local, remote);
         },
@@ -364,9 +337,6 @@ export const makeGitStatusBroadcasterLive = (options: GitStatusBroadcasterOption
         );
 
       return {
-        getStatus,
-        refreshLocalStatus,
-        refreshRemoteStatus,
         refreshStatus,
         streamStatus,
       } satisfies GitStatusBroadcasterShape;

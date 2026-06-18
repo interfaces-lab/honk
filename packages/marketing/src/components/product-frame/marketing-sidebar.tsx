@@ -9,7 +9,12 @@ import {
 } from "central-icons";
 import { useState } from "react";
 
-import { demoProjectLabel, marketingDemoThread, type ThreadState } from "./demo-data";
+import {
+  demoProjectLabel,
+  marketingDemoThreads,
+  type MarketingDemoThreadId,
+  type ThreadState,
+} from "./demo-data";
 import { MARKETING_SIDEBAR_WIDTH_CLASS } from "./layout";
 
 function sidebarDotState(
@@ -21,7 +26,10 @@ function sidebarDotState(
   return "doneSeen";
 }
 
-export function MarketingSidebar(props: { threadState: ThreadState }) {
+export function MarketingSidebar(props: {
+  activeThreadId: MarketingDemoThreadId;
+  threadStates: Record<MarketingDemoThreadId, ThreadState>;
+}) {
   const [sectionOpen, setSectionOpen] = useState(true);
 
   return (
@@ -29,10 +37,10 @@ export function MarketingSidebar(props: { threadState: ThreadState }) {
       aria-label="Agents"
       className={cn(
         MARKETING_SIDEBAR_WIDTH_CLASS,
-        "honk-shell-sidebar relative flex min-h-0 shrink-0 flex-col border-r border-honk-stroke-tertiary bg-honk-sidebar",
+        "honk-shell-sidebar relative hidden min-h-0 shrink-0 flex-col border-r border-honk-stroke-tertiary bg-honk-sidebar lg:flex",
       )}
     >
-      <div className="relative z-30 flex shrink-0 select-none flex-col gap-1 px-2 pt-2 pb-1.5">
+      <div className="relative z-30 flex shrink-0 flex-col gap-1 px-2 pt-2 pb-1.5 select-none">
         <SidebarButton
           variant="chrome"
           className="w-full flex-1 text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary"
@@ -43,7 +51,7 @@ export function MarketingSidebar(props: { threadState: ThreadState }) {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain px-2 pb-2">
-        <section className="relative flex w-full min-w-0 select-none flex-col" data-agent-sidebar-section="">
+        <section className="relative flex w-full min-w-0 flex-col select-none" data-agent-sidebar-section="">
           <div className="group/sidebar-section outline-hidden" tabIndex={-1}>
             <SidebarItem
               render={<div />}
@@ -92,32 +100,43 @@ export function MarketingSidebar(props: { threadState: ThreadState }) {
 
           {sectionOpen ? (
             <div className="flex min-w-0 flex-col gap-px" role="region">
-              <SidebarButton
-                variant="item"
-                data-selected="true"
-                data-chat-item=""
-                data-agent-sidebar-cell=""
-                className="group/sidebar-item relative h-auto"
-              >
-                <span
-                  className="flex size-5 shrink-0 items-center justify-center text-honk-icon-secondary"
-                  data-agent-sidebar-status=""
-                >
-                  <StatusDot state={sidebarDotState(props.threadState)} className="size-4 shrink-0" aria-hidden />
-                </span>
-                <span
-                  className="min-w-0 flex-1 truncate text-honk-fg-primary"
-                  data-agent-sidebar-title=""
-                >
-                  {marketingDemoThread.title}
-                </span>
-                <span
-                  className="min-w-8 max-w-14 shrink-0 truncate text-right text-sidebar-subtitle text-honk-fg-secondary tabular-nums"
-                  data-agent-sidebar-subtitle=""
-                >
-                  {marketingDemoThread.ago}
-                </span>
-              </SidebarButton>
+              {marketingDemoThreads.map((thread) => {
+                const selected = thread.id === props.activeThreadId;
+
+                return (
+                  <SidebarButton
+                    key={thread.id}
+                    variant="item"
+                    data-selected={selected}
+                    data-chat-item=""
+                    data-agent-sidebar-cell=""
+                    className="group/sidebar-item relative h-auto"
+                  >
+                    <span
+                      className="flex size-5 shrink-0 items-center justify-center text-honk-icon-secondary"
+                      data-agent-sidebar-status=""
+                    >
+                      <StatusDot
+                        state={sidebarDotState(props.threadStates[thread.id])}
+                        className="size-4 shrink-0"
+                        aria-hidden
+                      />
+                    </span>
+                    <span
+                      className="min-w-0 flex-1 truncate text-honk-fg-primary"
+                      data-agent-sidebar-title=""
+                    >
+                      {thread.title}
+                    </span>
+                    <span
+                      className="min-w-8 max-w-14 shrink-0 truncate text-right text-sidebar-subtitle text-honk-fg-secondary tabular-nums"
+                      data-agent-sidebar-subtitle=""
+                    >
+                      {thread.ago}
+                    </span>
+                  </SidebarButton>
+                );
+              })}
             </div>
           ) : null}
         </section>

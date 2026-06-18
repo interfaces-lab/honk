@@ -225,15 +225,6 @@ export const SETTINGS_PREFERENCE_ENTRIES = [
     searchTerms: ["codex-api-key", "openai", "api key", "codex"],
   },
   {
-    id: "agents.account.cursor-api-key",
-    section: "agents",
-    panelLabel: "Agents",
-    sectionTitle: "Accounts",
-    title: "Cursor API Key",
-    description: "Cursor API key credential for Composer agents.",
-    searchTerms: ["cursor-api-key", "cursor", "composer", "api key"],
-  },
-  {
     id: "agents.assistant-streaming",
     section: "agents",
     panelLabel: "Agents",

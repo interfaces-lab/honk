@@ -19,7 +19,6 @@
     "smoke-test": "node scripts/smoke-test.mjs"
   },
   "dependencies": {
-    "@cursor/sdk": "1.0.18",
     "@earendil-works/pi-agent-core": "^0.79.4",
     "@earendil-works/pi-ai": "^0.79.4",
     "@earendil-works/pi-coding-agent": "^0.79.4",

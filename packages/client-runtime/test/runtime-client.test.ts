@@ -174,7 +174,7 @@ describe("readHonkRuntimeApi", () => {
     });
   });
 
-  it("decodes Codex credential snapshots that include Cursor credentials", async () => {
+  it("decodes Codex credential snapshots", async () => {
     const snapshot = {
       ...createEmptyRuntimeHostSnapshot(),
       diagnostics: [],
@@ -195,8 +195,8 @@ describe("readHonkRuntimeApi", () => {
       preferences: {
         credentials: expect.arrayContaining([
           expect.objectContaining({
-            kind: "cursor-api-key",
-            authProviderId: "cursor",
+            kind: "codex-oauth",
+            authProviderId: "openai-codex",
           }),
         ]),
       },

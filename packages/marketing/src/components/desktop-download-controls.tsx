@@ -92,7 +92,6 @@ export function DesktopDownloadControls(props: {
 
       <a
         className={downloadButtonClassName}
-        download
         href={macDmgDownloadPath(arch)}
         rel="noopener noreferrer"
       >

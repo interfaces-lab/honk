@@ -11,6 +11,34 @@ export const Route = createFileRoute("/")({
   component: MarketingPage,
 });
 
+const socialLinkClassName =
+  "inline-flex size-7 items-center justify-center rounded-full text-neutral-500 no-underline transition-colors hover:bg-neutral-200/70 hover:text-neutral-950 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100";
+
+function MarketingSocialNav({ className }: { className?: string }) {
+  return (
+    <nav className={cn("flex items-center gap-1", className)}>
+      <a
+        aria-label="Honk on X"
+        className={socialLinkClassName}
+        href="https://x.com/d2ac__"
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        <IconX className="size-4 shrink-0" aria-hidden />
+      </a>
+      <a
+        aria-label="Honk on GitHub"
+        className={socialLinkClassName}
+        href="https://github.com/interfaces-lab/honk"
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        <IconGithub className="size-4 shrink-0" aria-hidden />
+      </a>
+    </nav>
+  );
+}
+
 function MarketingHeader() {
   return (
     <header className="relative z-40 flex w-full shrink-0 items-center justify-between gap-6 bg-[#f7f8fb] px-6 py-4 dark:bg-neutral-950 lg:col-span-2">
@@ -22,6 +50,7 @@ function MarketingHeader() {
         <img alt="" className="size-7 shrink-0 rounded-md" height={28} src="/apple-touch-icon.png" width={28} />
         <span>Honk</span>
       </a>
+      <MarketingSocialNav />
     </header>
   );
 }
@@ -58,42 +87,22 @@ function MarketingPage() {
     <main id="top" className="isolate font-sans">
       <section
         id="product"
-        className="grid h-svh max-h-svh grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-[#f7f8fb] select-none dark:bg-neutral-950 lg:grid-cols-[auto_minmax(0,1fr)]"
+        className="mx-auto grid h-svh max-h-svh w-full max-w-[1600px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-[#f7f8fb] select-none lg:grid-cols-[auto_minmax(0,1fr)] dark:bg-neutral-950"
       >
         <MarketingHeader />
 
         <AudienceRail className="hidden pb-10 pl-6 pr-6 pt-4 lg:flex lg:col-start-1 lg:row-start-2 lg:row-end-4" />
 
-        <div className="relative z-0 flex min-h-0 items-center justify-center px-6 py-4 lg:col-start-2 lg:row-start-2">
+        <div className="@container/product relative z-0 flex min-h-0 w-full min-w-0 items-center justify-center px-4 py-3 sm:px-6 lg:col-start-2 lg:row-start-2">
           <ProductFrame className="relative z-1" />
           <EdgeMask intensity="soft" />
         </div>
 
-        <div className="relative z-20 shrink-0 bg-[#f7f8fb] px-6 pb-3 pt-4 dark:bg-neutral-950 lg:col-start-2 lg:row-start-3">
-          <div className="flex w-full flex-col items-end gap-6">
-            <Headline className="text-right">Build with frontier agents</Headline>
+        <div className="relative z-20 shrink-0 bg-[#f7f8fb] px-6 py-3 lg:col-start-2 lg:row-start-3 dark:bg-neutral-950">
+          <div className="flex w-full flex-col items-end gap-6 lg:flex-row lg:items-end lg:justify-end lg:gap-10">
+            <Headline>Build with frontier agents</Headline>
             <DesktopDownloadControls showSectionLabel />
           </div>
-          <nav className="mt-3 flex items-center justify-end gap-1">
-            <a
-              aria-label="Honk on X"
-              className="inline-flex size-7 items-center justify-center rounded-full text-neutral-500 no-underline transition-colors hover:bg-neutral-200/70 hover:text-neutral-950 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100"
-              href="https://x.com/d2ac__"
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              <IconX className="size-4 shrink-0" aria-hidden />
-            </a>
-            <a
-              aria-label="Honk on GitHub"
-              className="inline-flex size-7 items-center justify-center rounded-full text-neutral-500 no-underline transition-colors hover:bg-neutral-200/70 hover:text-neutral-950 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100"
-              href="https://github.com/interfaces-lab/honk"
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              <IconGithub className="size-4 shrink-0" aria-hidden />
-            </a>
-          </nav>
         </div>
       </section>
     </main>

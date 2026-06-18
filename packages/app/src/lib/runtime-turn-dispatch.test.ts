@@ -12,6 +12,11 @@ import {
 } from "@honk/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  cursorComposerModelSelection,
+  cursorComposerPolicyModelSelection,
+} from "@honk/shared/cursor-composer";
+
 import { __resetLocalApiForTests } from "../local-api";
 import { createEmptyRuntimeHostSnapshot } from "./honk-runtime-api";
 import {
@@ -290,6 +295,104 @@ describe("sendRuntimeTurn", () => {
     expect(sentInputs[0]?.policy.modelSelection).toMatchObject({
       authProviderId: "openai-codex",
       modelId: "openai-codex/gpt-5.5",
+    });
+  });
+
+  it("does not let the Composer default leak into pinned threads", async () => {
+    const sentInputs: ThreadAgentRuntimeSendTurnInput[] = [];
+    const snapshot = {
+      ...createEmptyRuntimeHostSnapshot(),
+      diagnostics: [],
+      preferences: {
+        ...createEmptyRuntimeHostSnapshot().preferences,
+        agentMode: "composer" as const,
+        thinkingLevel: "off" as const,
+        modelSelection: cursorComposerPolicyModelSelection(),
+      },
+    };
+    vi.stubGlobal("window", {
+      nativeApi: createLocalApi(
+        createRuntimeApi({
+          snapshot,
+          onSendTurn: (turn) => {
+            sentInputs.push(turn);
+          },
+        }),
+      ),
+    });
+
+    const preparedPolicy = prepareRuntimeTurnPolicy({
+      interactionMode: "agent",
+      modelSelection: codexModelSelection,
+    });
+    await sendRuntimeTurnWithPreparedPolicy({
+      preparedPolicy,
+      threadId: ThreadId.make("thread:composer-default-isolated"),
+      cwd: "/tmp",
+      text: "hi",
+      interactionMode: "agent",
+      sourceProposedPlan: null,
+      clientMessageId: MessageId.make("message:composer-default-isolated"),
+      replacesClientMessageId: null,
+      images: [],
+      modelSelection: codexModelSelection,
+    });
+
+    expect(sentInputs[0]?.policy).toMatchObject({
+      agentMode: "deep",
+      modelSelection: {
+        authProviderId: "openai-codex",
+        modelId: "openai-codex/gpt-5.5",
+      },
+    });
+  });
+
+  it("allows Composer for intentional new-agent sends", async () => {
+    const sentInputs: ThreadAgentRuntimeSendTurnInput[] = [];
+    const snapshot = {
+      ...createEmptyRuntimeHostSnapshot(),
+      diagnostics: [],
+      preferences: {
+        ...createEmptyRuntimeHostSnapshot().preferences,
+        agentMode: "composer" as const,
+        thinkingLevel: "off" as const,
+        modelSelection: cursorComposerPolicyModelSelection(),
+      },
+    };
+    vi.stubGlobal("window", {
+      nativeApi: createLocalApi(
+        createRuntimeApi({
+          snapshot,
+          onSendTurn: (turn) => {
+            sentInputs.push(turn);
+          },
+        }),
+      ),
+    });
+
+    const composerModelSelection = cursorComposerModelSelection();
+    const preparedPolicy = prepareRuntimeTurnPolicy({
+      interactionMode: "agent",
+      modelSelection: composerModelSelection,
+    });
+    await sendRuntimeTurnWithPreparedPolicy({
+      preparedPolicy,
+      threadId: ThreadId.make("thread:intentional-composer-default"),
+      cwd: "/tmp",
+      text: "hi",
+      interactionMode: "agent",
+      sourceProposedPlan: null,
+      clientMessageId: MessageId.make("message:intentional-composer-default"),
+      replacesClientMessageId: null,
+      images: [],
+      modelSelection: composerModelSelection,
+    });
+
+    expect(sentInputs[0]?.policy).toMatchObject({
+      agentMode: "composer",
+      modelSelection: {
+        authProviderId: "cursor",
+      },
     });
   });
 

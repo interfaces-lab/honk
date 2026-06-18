@@ -4,7 +4,7 @@ import {
   DEFAULT_AGENT_RESOURCE_PREFERENCES,
 } from "@honk/contracts";
 import { createAgentModelPolicy } from "../src/agent-model-policy";
-import { cursorComposerPolicyModelSelection } from "../src/cursor-composer";
+import { cursorComposerModelSelection, cursorComposerPolicyModelSelection } from "../src/cursor-composer";
 
 const preferences = {
   agentMode: "deep",
@@ -84,7 +84,7 @@ describe("createAgentModelPolicy", () => {
     });
   });
 
-  it("pins Composer mode to the Cursor Composer model and preserves fast mode", () => {
+  it("does not let Composer mode leak into non-Cursor threads", () => {
     expect(
       createAgentModelPolicy({
         preferences: {
@@ -95,6 +95,30 @@ describe("createAgentModelPolicy", () => {
         },
         interactionMode: "agent",
         modelSelection: codexModelSelection,
+      }),
+    ).toMatchObject({
+      agentMode: "deep",
+      thinkingLevel: "high",
+      modelSelection: {
+        type: "explicit",
+        authProviderId: "openai-codex",
+        accountId: "openai-codex:default",
+        modelId: "openai-codex/gpt-5.5",
+      },
+    });
+  });
+
+  it("pins Composer mode to Cursor Composer threads and preserves fast mode", () => {
+    expect(
+      createAgentModelPolicy({
+        preferences: {
+          ...preferences,
+          agentMode: "composer",
+          thinkingLevel: "xhigh",
+          modelSelection: cursorComposerPolicyModelSelection(true),
+        },
+        interactionMode: "agent",
+        modelSelection: cursorComposerModelSelection(true),
       }),
     ).toMatchObject({
       agentMode: "composer",

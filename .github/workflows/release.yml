@@ -285,6 +285,23 @@ jobs:
             fi
           done
 
+      - name: Add stable macOS download aliases
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          arm64_assets=(release-assets/Honk-*-arm64.dmg)
+          x64_assets=(release-assets/Honk-*-x64.dmg)
+
+          if [[ ${#arm64_assets[@]} -gt 0 ]]; then
+            cp "${arm64_assets[0]}" release-assets/Honk-arm64.dmg
+          fi
+
+          if [[ ${#x64_assets[@]} -gt 0 ]]; then
+            cp "${x64_assets[0]}" release-assets/Honk-x64.dmg
+          fi
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:

@@ -1051,7 +1051,7 @@ const AGENT_MODE_MODEL_DETAILS: Record<
   },
   composer: {
     modelName: CURSOR_COMPOSER_MODEL_NAME,
-    description: "Cursor Composer through the Cursor SDK with your Cursor API key.",
+    description: "Cursor Composer through Cursor Agent ACP.",
   },
 };
 
@@ -1142,11 +1142,7 @@ function CredentialKindIcon({
   className?: string;
 }) {
   const Icon =
-    kind === "claude-api-key" || kind === "claude-oauth"
-      ? IconClawd
-      : kind === "cursor-api-key"
-        ? IconCursor
-        : IconOpenaiCodex;
+    kind === "claude-api-key" || kind === "claude-oauth" ? IconClawd : IconOpenaiCodex;
 
   return <Icon className={className} aria-hidden />;
 }
@@ -1208,7 +1204,7 @@ function AgentModeSelector({
             thinkingLevel === "off"
               ? "No thinking"
               : `${AGENT_THINKING_LEVEL_LABELS[thinkingLevel]} effort`;
-          const summaryLabel = option.value === "composer" ? "Cursor SDK" : effortLabel;
+          const summaryLabel = option.value === "composer" ? "Cursor ACP" : effortLabel;
 
           const content = (
             <>
@@ -1442,9 +1438,7 @@ function CredentialApiKeyForm({
         </Button>
       </div>
       <Text render={<p />} size="sm" tone="tertiary" className="mt-2">
-        {credential.kind === "cursor-api-key"
-          ? "Use a Cursor Dashboard integrations key or Team service account key. OAuth, Desktop/CLI login, and Team Admin keys are not supported."
-          : "Saved locally. Existing keys stay hidden."}
+        Saved locally. Existing keys stay hidden.
       </Text>
     </form>
   );
@@ -1749,7 +1743,7 @@ export function AgentRuntimeSettingsSectionsView({
         {visibleCredentials.length === 0 ? (
           <SettingsRow
             title="No accounts connected"
-            description="Add a Claude, Codex, or Cursor credential to run agents."
+            description="Add a Claude or Codex credential to run those agent modes. Cursor uses Cursor Agent CLI login."
           />
         ) : null}
         {visibleCredentials.map((credential) => {

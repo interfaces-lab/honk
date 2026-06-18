@@ -51,14 +51,34 @@ export function agentPolicyModelSelectionForPinnedModel(
   };
 }
 
-function agentPolicyModelSelectionForPreferences(
-  preferences: AgentPreferences,
-  fallbackModelSelection: ModelSelection,
-): AgentModelPolicy["modelSelection"] {
-  if (preferences.agentMode !== "composer") {
-    return agentPolicyModelSelectionForPinnedModel(fallbackModelSelection);
+export function resolveAgentModeForModelSelection(
+  modelSelection: ModelSelection,
+  preferredAgentMode: AgentPreferences["agentMode"],
+): AgentPreferences["agentMode"] {
+  const authProviderId = authProviderIdForModelSelection(modelSelection);
+  if (authProviderId === "cursor") {
+    return "composer";
   }
-  return cursorComposerPolicyModelSelection(cursorComposerFastEnabled(preferences.modelSelection));
+  if (preferredAgentMode !== "composer") {
+    return preferredAgentMode;
+  }
+  if (authProviderId === "anthropic") {
+    return "smart";
+  }
+  return "deep";
+}
+
+function agentPolicyModelSelectionForPreferences(input: {
+  preferences: AgentPreferences;
+  modelSelection: ModelSelection;
+  agentMode: AgentPreferences["agentMode"];
+}): AgentModelPolicy["modelSelection"] {
+  if (input.agentMode !== "composer") {
+    return agentPolicyModelSelectionForPinnedModel(input.modelSelection);
+  }
+  return cursorComposerPolicyModelSelection(
+    cursorComposerFastEnabled(input.preferences.modelSelection),
+  );
 }
 
 function selectedModelThinkingLevel(input: {
@@ -76,22 +96,29 @@ export function createAgentModelPolicy(input: {
   readonly interactionMode: AgentInteractionMode;
   readonly modelSelection: ModelSelection;
 }): AgentModelPolicy {
-  const modelSelection = agentPolicyModelSelectionForPreferences(
-    input.preferences,
+  const agentMode = resolveAgentModeForModelSelection(
     input.modelSelection,
+    input.preferences.agentMode,
   );
+  const modelSelection = agentPolicyModelSelectionForPreferences({
+    preferences: input.preferences,
+    modelSelection: input.modelSelection,
+    agentMode,
+  });
   const modelThinkingLevel = selectedModelThinkingLevel({
     preferences: input.preferences,
     modelSelection,
   });
   return {
-    agentMode: input.preferences.agentMode,
+    agentMode,
     interactionMode: input.interactionMode,
     modelSelection,
     fast: input.preferences.fast,
     thinkingLevel:
-      input.preferences.agentMode === "rush" || input.preferences.agentMode === "composer"
-        ? thinkingLevelForAgentMode(input.preferences.agentMode)
+      agentMode === "rush" ||
+      agentMode === "composer" ||
+      input.preferences.agentMode === "composer"
+        ? thinkingLevelForAgentMode(agentMode)
         : (modelThinkingLevel ?? input.preferences.thinkingLevel),
     allowedToolNames: [],
     excludedToolNames: [],

@@ -97,8 +97,7 @@ export default defineConfig({
       emptyOutDir: true,
       externalizeDeps: {
         exclude: ["@honk/runtime"],
-        // Cursor SDK ships lazy webpack chunks; keep it in node_modules so they resolve.
-        include: ["sqlite3", "@cursor/sdk"],
+        include: ["sqlite3"],
       },
       lib: {
         entry: "src/main/index.ts",

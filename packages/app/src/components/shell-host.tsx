@@ -1219,6 +1219,7 @@ function GitStatusSync(props: { cwd: string | null; environmentId: EnvironmentId
     }
     void refreshGitStatus({ environmentId: props.environmentId, cwd: props.cwd }, gitApi, {
       force: !hasStatusData,
+      scope: "local",
     }).catch(() => undefined);
   }, [props.cwd, props.environmentId, hasStatusData]);
 

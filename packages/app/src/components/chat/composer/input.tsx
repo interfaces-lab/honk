@@ -129,7 +129,7 @@ import { isDesktopRuntimeApiAvailable, readHonkRuntimeApi } from "~/lib/honk-run
 import { useQueryClient } from "@tanstack/react-query";
 import { runtimeSkillsQueryOptions } from "~/lib/runtime-skills";
 import { projectSearchEntriesQueryOptions } from "~/lib/project-react-query";
-import { selectRuntimeIdentityForThread, useAgentRuntimeStore } from "~/stores/agent-runtime-store";
+import { useAgentRuntimeStore } from "~/stores/agent-runtime-store";
 import {
   AGENT_MODE_LABELS,
   AGENT_MODE_THINKING_LEVELS,
@@ -143,6 +143,7 @@ import {
   cursorComposerPolicyModelSelection,
   CURSOR_COMPOSER_MODEL_NAME,
 } from "@honk/shared/cursor-composer";
+import { resolveAgentModeForModelSelection } from "@honk/shared/agent-model-policy";
 
 export type {
   ComposerInputHandle,
@@ -341,7 +342,7 @@ const AGENT_MODE_MODEL_DETAILS: Record<
   },
   composer: {
     modelName: CURSOR_COMPOSER_MODEL_NAME,
-    description: "Cursor Composer through the Cursor SDK with your Cursor API key.",
+    description: "Cursor Composer through Cursor Agent ACP.",
   },
 };
 
@@ -1401,6 +1402,7 @@ export const ComposerInput = memo(
       activeProposedPlan = null,
       planSurfaceOpen = false,
       interactionMode,
+      modelSelection,
       activeContextWindow,
       resolvedTheme,
       settings,
@@ -1491,6 +1493,9 @@ export const ComposerInput = memo(
     const composerImages = composerDraft.images;
     const runtimePreferences = useAgentRuntimeStore((state) => state.snapshot.preferences);
     const runtimeAuthStatuses = useAgentRuntimeStore((state) => state.snapshot.authStatuses);
+    const surfaceAgentMode = isNewAgentComposer
+      ? runtimePreferences.agentMode
+      : resolveAgentModeForModelSelection(modelSelection, runtimePreferences.agentMode);
     const agentModeAvailability = deriveAgentModeAvailability(runtimeAuthStatuses);
     const [isAgentModeSaving, setIsAgentModeSaving] = useState(false);
 
@@ -1841,7 +1846,7 @@ export const ComposerInput = memo(
       composerMenuIsSearching,
     } = useComposerCommandMenu({
       activeThreadId,
-      agentMode: runtimePreferences.agentMode,
+      agentMode: surfaceAgentMode,
       allowModeSlashCommands: showModeControls,
       composerTrigger,
       environmentId,
@@ -2707,7 +2712,7 @@ export const ComposerInput = memo(
             onComposerFastModeChange={handleComposerFastModeChange}
           />
         ) : (
-          <ComposerReadOnlyAgentModeChip agentMode={runtimePreferences.agentMode} />
+          <ComposerReadOnlyAgentModeChip agentMode={surfaceAgentMode} />
         )}
       </span>
     ) : null;

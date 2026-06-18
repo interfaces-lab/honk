@@ -26,9 +26,7 @@ export function deriveAgentModeAvailability(
         (status.authProviderId === "openai-codex" || status.authProviderId === "openai") &&
         status.state === "available",
     ),
-    cursor: authStatuses.some(
-      (status) => status.authProviderId === "cursor" && status.state === "available",
-    ),
+    cursor: true,
   };
 }
 
@@ -58,7 +56,7 @@ export function unavailableAgentModeReason(
     case "smart":
       return "Requires Claude sign-in.";
     case "composer":
-      return "Requires Cursor API key.";
+      return "Requires Cursor Agent CLI.";
     case "rush":
     case "deep":
       return "Requires Codex sign-in.";
@@ -94,7 +92,7 @@ export function unavailableModelSelectionReason(
     return "Requires Claude sign-in.";
   }
   if (authProviderId === "cursor") {
-    return "Requires Cursor API key.";
+    return "Requires Cursor Agent CLI.";
   }
   return "Requires Codex sign-in.";
 }

@@ -502,6 +502,29 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-queued-composer
   visibility: visible;
 }
 
+[data-goal-progress-dot] {
+  animation: honk-goal-progress-pulse 1.2s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-goal-progress-dot] {
+    animation: none;
+  }
+}
+
+@keyframes honk-goal-progress-pulse {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(0.84);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-honk-composer-header] {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;

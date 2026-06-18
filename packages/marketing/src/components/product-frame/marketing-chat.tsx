@@ -7,6 +7,7 @@ import { useMarketingResolvedTheme } from "../../hooks/use-marketing-resolved-th
 
 import { MarketingComposer } from "./marketing-composer";
 import type { MarketingTimelineItem } from "./demo-animation";
+import type { MarketingDemoThreadId } from "./demo-data";
 
 const COMPOSER_RESERVE_PX = 112;
 
@@ -56,6 +57,7 @@ function TimelineMessage(props: {
 }
 
 export function MarketingChat(props: {
+  activeThreadId: MarketingDemoThreadId;
   messages: readonly MarketingTimelineItem[];
   stepIndex: number;
 }) {
@@ -78,6 +80,7 @@ export function MarketingChat(props: {
   return (
     <div className="relative flex h-full min-h-0 w-full flex-col bg-honk-chat">
       <div
+        key={props.activeThreadId}
         ref={timelineRef}
         data-chat-timeline-scroll=""
         className="mx-auto flex min-h-0 w-full max-w-agent-chat flex-1 flex-col overflow-y-auto overscroll-y-contain px-4 pt-3"

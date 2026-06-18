@@ -327,7 +327,9 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
       });
 
       const refreshGitStatus = (cwd: string) =>
-        gitStatusBroadcaster.refreshStatus(cwd).pipe(Effect.ignoreCause({ log: true }));
+        gitStatusBroadcaster
+          .refreshStatus({ cwd, scope: "local" })
+          .pipe(Effect.ignoreCause({ log: true }), Effect.asVoid);
 
       return WsRpcGroup.of({
         [ORCHESTRATION_WS_METHODS.dispatchCommand]: (command) =>
@@ -648,17 +650,9 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
             },
           ),
         [WS_METHODS.gitRefreshStatus]: (input) =>
-          observeRpcEffect(
-            WS_METHODS.gitRefreshStatus,
-            input.scope === "local"
-              ? gitStatusBroadcaster
-                  .refreshLocalStatus(input.cwd)
-                  .pipe(Effect.flatMap(() => gitStatusBroadcaster.getStatus(input)))
-              : gitStatusBroadcaster.refreshStatus(input.cwd),
-            {
-              "rpc.aggregate": "git",
-            },
-          ),
+          observeRpcEffect(WS_METHODS.gitRefreshStatus, gitStatusBroadcaster.refreshStatus(input), {
+            "rpc.aggregate": "git",
+          }),
         [WS_METHODS.gitPull]: (input) =>
           observeRpcEffect(
             WS_METHODS.gitPull,

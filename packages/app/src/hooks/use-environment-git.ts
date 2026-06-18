@@ -287,7 +287,7 @@ export async function revalidateGitPanelPatches(input: {
   queryClient: QueryClient;
 }): Promise<void> {
   const target = { environmentId: input.environmentId, cwd: input.cwd };
-  await refreshGitStatus(target, input.api, { force: true });
+  await refreshGitStatus(target, input.api, { force: true, scope: "local" });
   await Promise.all([
     invalidateGitPatchQueries(input.queryClient, target),
     invalidateGitImageQueries(input.queryClient, target),
