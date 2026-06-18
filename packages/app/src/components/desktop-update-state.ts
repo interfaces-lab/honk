@@ -30,6 +30,12 @@ export function shouldShowDesktopUpdateButton(state: DesktopUpdateState | null):
 }
 
 export function getDesktopUpdateButtonTooltip(state: DesktopUpdateState): string {
+  if (state.status === "disabled") {
+    return state.message ?? "Automatic updates are not available in this build.";
+  }
+  if (state.status === "checking") {
+    return "Checking for updates";
+  }
   if (state.status === "available") {
     return `Update ${state.availableVersion ?? "available"} ready to download`;
   }
@@ -50,7 +56,10 @@ export function getDesktopUpdateButtonTooltip(state: DesktopUpdateState): string
     }
     return state.message ?? "Update failed";
   }
-  return "Up to date";
+  if (state.status === "idle") {
+    return "Check for updates";
+  }
+  return "Honk is up to date";
 }
 
 export function getDesktopUpdateInstallConfirmationMessage(
@@ -77,11 +86,10 @@ export function shouldHighlightDesktopUpdateError(state: DesktopUpdateState | nu
 }
 
 export function canCheckForUpdate(state: DesktopUpdateState | null): boolean {
-  if (!state || !state.enabled) return false;
+  if (!state) return false;
   return (
     state.status !== "checking" &&
     state.status !== "downloading" &&
-    state.status !== "downloaded" &&
-    state.status !== "disabled"
+    state.status !== "downloaded"
   );
 }

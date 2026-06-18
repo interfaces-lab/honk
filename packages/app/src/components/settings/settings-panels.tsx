@@ -231,14 +231,15 @@ function AboutVersionSection() {
   const statusLabel: Record<string, string> = {
     checking: "Checking…",
     downloading: "Downloading…",
-    "up-to-date": "Up to Date",
   };
   const buttonLabel =
     actionLabel[action] ?? statusLabel[updateState?.status ?? ""] ?? "Check for Updates";
   const description =
     action === "download" || action === "install"
       ? "Update available."
-      : "Current version of the application.";
+      : updateState?.status === "up-to-date"
+        ? "Honk is up to date."
+        : "Current version of the application.";
 
   return (
     <SettingsRow

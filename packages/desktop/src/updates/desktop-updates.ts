@@ -230,8 +230,6 @@ const make = Effect.gen(function* () {
     });
   });
 
-  const shouldEnableAutoUpdates = resolveDisabledReason.pipe(Effect.map(Option.isNone));
-
   const checkForUpdates = Effect.fn("desktop.updates.checkForUpdates")(function* (reason: string) {
     yield* Effect.annotateCurrentSpan({ reason });
     if (yield* Ref.get(desktopState.quitting)) return false;
@@ -498,8 +496,12 @@ const make = Effect.gen(function* () {
         } as ElectronUpdater.ElectronUpdaterFeedUrl);
       }
 
-      const enabled = yield* shouldEnableAutoUpdates;
-      yield* setState(createBaseUpdateState(enabled, environment));
+      const disabledReason = yield* resolveDisabledReason;
+      const enabled = Option.isNone(disabledReason);
+      yield* setState({
+        ...createBaseUpdateState(enabled, environment),
+        message: Option.getOrNull(disabledReason),
+      });
       if (!enabled) {
         return;
       }
