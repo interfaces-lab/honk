@@ -1,6 +1,17 @@
 export { DesktopRuntimeHost } from "./desktop-runtime-host";
 export type { DesktopRuntimeHostOptions } from "./desktop-runtime-host";
 export {
+  canonicalThreadSessionTree,
+  isRuntimeCanonicalTurnActive,
+  projectRuntimeCanonicalThread,
+  runtimeBridgeFactsForCanonicalThread,
+  runtimeBridgeFactsForRuntimeEvent,
+  type RuntimeBridgeFact,
+  type RuntimeCanonicalEntry,
+  type RuntimeCanonicalThread,
+  type RuntimeCanonicalTurnState,
+} from "./runtime-canonical-projection";
+export {
   projectRuntimeDisplayTimeline,
   projectRuntimeDisplayTimelineEvent,
 } from "./display-timeline-projection";

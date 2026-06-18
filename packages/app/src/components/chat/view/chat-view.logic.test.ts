@@ -2,7 +2,11 @@ import { EnvironmentId, ThreadId } from "@honk/contracts";
 import { describe, expect, it, vi } from "vitest";
 
 import { DraftId } from "../../../stores/chat-drafts";
-import { missingActiveThreadMessage, reportMissingActiveThread } from "./chat-view.logic";
+import {
+  deriveChatViewLiveness,
+  missingActiveThreadMessage,
+  reportMissingActiveThread,
+} from "./chat-view.logic";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE, type Thread } from "../../../types";
 
 const environmentId = EnvironmentId.make("environment:chat-view-logic");
@@ -79,5 +83,28 @@ describe("reportMissingActiveThread", () => {
         serverThreadExists: false,
       },
     );
+  });
+});
+
+describe("deriveChatViewLiveness", () => {
+  it("does not show runtime waiting state after the latest turn is settled", () => {
+    expect(
+      deriveChatViewLiveness({
+        runtimeOwned: true,
+        latestTurnSettled: true,
+        activeRunningTurnId: null,
+        runtimeAgentRunActive: false,
+        runtimeTimelineHasActiveWork: false,
+        runtimePresentationActive: true,
+        visibleSendIntentCount: 0,
+        isCompactingActive: false,
+        isSendBusy: false,
+        isConnecting: false,
+      }),
+    ).toMatchObject({
+      isWorking: false,
+      timelineTurnActive: false,
+      goalStatusProgressActive: false,
+    });
   });
 });

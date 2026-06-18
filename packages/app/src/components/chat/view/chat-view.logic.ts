@@ -60,3 +60,56 @@ export function reportMissingActiveThread(
   console.warn(message, input);
   return false;
 }
+
+export function deriveChatViewLiveness(input: {
+  readonly runtimeOwned: boolean;
+  readonly latestTurnSettled: boolean;
+  readonly activeRunningTurnId: string | null;
+  readonly runtimeAgentRunActive: boolean;
+  readonly runtimeTimelineHasActiveWork: boolean;
+  readonly runtimePresentationActive: boolean;
+  readonly visibleSendIntentCount: number;
+  readonly isCompactingActive: boolean;
+  readonly isSendBusy: boolean;
+  readonly isConnecting: boolean;
+}): {
+  readonly isTurnRunning: boolean;
+  readonly isTimelineSurfaceActive: boolean;
+  readonly isWorking: boolean;
+  readonly timelineTurnActive: boolean;
+  readonly goalStatusProgressActive: boolean;
+} {
+  const runtimeTurnRunning =
+    input.runtimeAgentRunActive || input.runtimeTimelineHasActiveWork;
+  if (input.runtimeOwned) {
+    const canonicalRuntimeTurnActive =
+      !input.latestTurnSettled &&
+      (input.activeRunningTurnId !== null || runtimeTurnRunning);
+    const isTimelineSurfaceActive = canonicalRuntimeTurnActive || input.isCompactingActive;
+    const timelineTurnActive =
+      isTimelineSurfaceActive || input.visibleSendIntentCount > 0;
+    const isWorking = isTimelineSurfaceActive || input.isSendBusy || input.isConnecting;
+    return {
+      isTurnRunning: canonicalRuntimeTurnActive || input.isCompactingActive,
+      isTimelineSurfaceActive,
+      isWorking,
+      timelineTurnActive,
+      goalStatusProgressActive: timelineTurnActive || input.isSendBusy || input.isConnecting,
+    };
+  }
+
+  const runtimeSurfaceActive = runtimeTurnRunning || input.runtimePresentationActive;
+  const isTimelineSurfaceActive =
+    input.activeRunningTurnId !== null || runtimeSurfaceActive || input.isCompactingActive;
+  const timelineTurnActive =
+    isTimelineSurfaceActive || input.visibleSendIntentCount > 0;
+  const isWorking = isTimelineSurfaceActive || input.isSendBusy || input.isConnecting;
+  return {
+    isTurnRunning:
+      input.activeRunningTurnId !== null || runtimeTurnRunning || input.isCompactingActive,
+    isTimelineSurfaceActive,
+    isWorking,
+    timelineTurnActive,
+    goalStatusProgressActive: timelineTurnActive || input.isSendBusy || input.isConnecting,
+  };
+}

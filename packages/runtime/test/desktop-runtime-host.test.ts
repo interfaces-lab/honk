@@ -754,6 +754,7 @@ describe("DesktopRuntimeHost", () => {
           entries: [],
         };
       },
+      getQueuedFollowUps: () => [],
       dispose: () => undefined,
     } as unknown as ThreadAgentRuntime;
     const host = new DesktopRuntimeHost({ agentDir: join(tempDir, "pi-agent") });

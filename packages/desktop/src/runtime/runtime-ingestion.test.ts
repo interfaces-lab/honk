@@ -5,13 +5,13 @@ import { join } from "node:path";
 import {
   EventId,
   MessageId,
-  RuntimeItemId,
+  RuntimeIngestionRecordId,
   RuntimeSessionId,
   ThreadEntryId,
   ThreadId,
   TurnId,
-  type AgentRuntimeEvent,
   type HonkRuntimeHostEvent,
+  type RuntimeIngestionRecord,
 } from "@honk/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -65,43 +65,28 @@ describe("runtime ingestion", () => {
     vi.unstubAllGlobals();
   });
 
-  it("dispatches assistant complete commands for session-tree host events", async () => {
+  it("dispatches canonical assistant completion records", async () => {
     const fetchMock = vi.mocked(fetch);
     const event: HonkRuntimeHostEvent = {
-      type: "session-tree",
-      tree: {
-        threadId,
-        runtimeSessionId,
-        leafEntryId: RuntimeItemId.make("runtime:assistant"),
-        entries: [
-          {
-            id: RuntimeItemId.make("runtime:user"),
-            threadEntryId: ThreadEntryId.make("thread-entry:user"),
-            parentId: null,
-            parentThreadEntryId: null,
-            kind: "message",
-            role: "user",
-            clientMessageId: MessageId.make("client:send-1"),
-            turnId,
-            text: "Hello",
-            createdAt,
-            rawEntry: { type: "message" },
-          },
-          {
-            id: RuntimeItemId.make("runtime:assistant"),
-            threadEntryId: ThreadEntryId.make("thread-entry:assistant"),
-            parentId: RuntimeItemId.make("runtime:user"),
-            parentThreadEntryId: ThreadEntryId.make("thread-entry:user"),
-            kind: "message",
-            role: "assistant",
-            turnId,
+      type: "runtime-ingestion-records",
+      records: [
+        {
+          recordId: RuntimeIngestionRecordId.make(
+            "runtime-assistant:thread:ingestion:runtime:ingestion:runtime:assistant",
+          ),
+          threadId,
+          runtimeSessionId,
+          sourceEventId: "runtime:assistant",
+          kind: "assistant.completion",
+          createdAt: "2026-06-08T12:00:01.000Z",
+          payload: {
+            messageId: MessageId.make("runtime:runtime:ingestion:runtime:assistant"),
             text: "Hi there",
-            createdAt: "2026-06-08T12:00:01.000Z",
-            rawEntry: { type: "message" },
+            turnId,
+            parentEntryId: ThreadEntryId.make("thread-entry:user"),
           },
-        ],
-        nodes: [],
-      },
+        },
+      ],
     };
 
     ingestRuntimeHostEvent(event);
@@ -128,28 +113,44 @@ describe("runtime ingestion", () => {
     });
   });
 
-  it("dispatches tool completed activity commands for runtime events", async () => {
+  it("dispatches canonical tool activity records", async () => {
     const fetchMock = vi.mocked(fetch);
-    const runtimeEvent: AgentRuntimeEvent = {
-      id: EventId.make("runtime-event:tool"),
+    const record: RuntimeIngestionRecord = {
+      recordId: RuntimeIngestionRecordId.make(
+        "runtime-tool:thread:ingestion:runtime:ingestion:runtime-activity:runtime-event:tool",
+      ),
+      sourceEventId: "runtime-event:tool",
       threadId,
       runtimeSessionId,
-      turnId,
-      agentRuntime: "pi",
-      type: "tool.completed",
-      summary: "Ran bash",
       createdAt,
-      data: {
-        toolName: "bash",
-        toolCallId: "toolu-1",
-        isError: false,
-        result: {
-          output: "done",
+      kind: "thread.activity",
+      payload: {
+        activity: {
+          id: EventId.make("runtime-activity:runtime-event:tool"),
+          tone: "tool",
+          kind: "tool.completed",
+          summary: "Ran command",
+          payload: {
+            itemId: "toolu-1",
+            itemType: "command_execution",
+            status: "completed",
+            title: "command",
+            data: {
+              toolName: "bash",
+              toolCallId: "toolu-1",
+              isError: false,
+              result: {
+                output: "done",
+              },
+            },
+          },
+          turnId,
+          createdAt,
         },
       },
     };
 
-    ingestRuntimeHostEvent({ type: "runtime-event", event: runtimeEvent });
+    ingestRuntimeHostEvent({ type: "runtime-ingestion-records", records: [record] });
     await vi.waitFor(() =>
       expect(
         fetchMock.mock.calls.some(([url]) => String(url).endsWith("/api/runtime/ingest")),
@@ -186,18 +187,28 @@ describe("runtime ingestion", () => {
   it("throttles persisted context-window updates to the latest trailing event", async () => {
     vi.useFakeTimers({ now: new Date("2026-06-08T12:00:00.000Z") });
     const fetchMock = vi.mocked(fetch);
-    const contextEvent = (id: string, usedTokens: number): AgentRuntimeEvent => ({
-      id: EventId.make(id),
+    const contextRecord = (id: string, usedTokens: number): RuntimeIngestionRecord => ({
+      recordId: RuntimeIngestionRecordId.make(
+        `runtime-context-window:thread:ingestion:runtime:ingestion:${id}`,
+      ),
+      sourceEventId: id,
       threadId,
       runtimeSessionId,
-      turnId,
-      agentRuntime: "pi",
-      type: "context-window.updated",
-      summary: "Context usage updated",
       createdAt,
-      data: {
-        usedTokens,
-        maxTokens: 1000,
+      kind: "thread.activity",
+      payload: {
+        activity: {
+          id: EventId.make(`runtime-activity:${id}`),
+          tone: "info",
+          kind: "context-window.updated",
+          summary: "Context usage updated",
+          payload: {
+            usedTokens,
+            maxTokens: 1000,
+          },
+          turnId,
+          createdAt,
+        },
       },
     });
     const dispatchCalls = () =>
@@ -209,20 +220,20 @@ describe("runtime ingestion", () => {
     };
 
     ingestRuntimeHostEvent({
-      type: "runtime-event",
-      event: contextEvent("runtime-event:context-window-1", 100),
+      type: "runtime-ingestion-records",
+      records: [contextRecord("runtime-event:context-window-1", 100)],
     });
     await flushMicrotasks();
 
     await vi.waitFor(() => expect(dispatchCalls()).toHaveLength(1));
 
     ingestRuntimeHostEvent({
-      type: "runtime-event",
-      event: contextEvent("runtime-event:context-window-2", 200),
+      type: "runtime-ingestion-records",
+      records: [contextRecord("runtime-event:context-window-2", 200)],
     });
     ingestRuntimeHostEvent({
-      type: "runtime-event",
-      event: contextEvent("runtime-event:context-window-3", 300),
+      type: "runtime-ingestion-records",
+      records: [contextRecord("runtime-event:context-window-3", 300)],
     });
     await flushMicrotasks();
 
@@ -304,27 +315,43 @@ describe("runtime ingestion", () => {
       }),
     );
 
-    const runtimeEvent: AgentRuntimeEvent = {
-      id: EventId.make("runtime-event:retry"),
+    const record: RuntimeIngestionRecord = {
+      recordId: RuntimeIngestionRecordId.make(
+        "runtime-tool:thread:ingestion:runtime:ingestion:runtime-activity:runtime-event:retry",
+      ),
+      sourceEventId: "runtime-event:retry",
       threadId,
       runtimeSessionId,
-      turnId,
-      agentRuntime: "pi",
-      type: "tool.completed",
-      summary: "Ran bash",
       createdAt,
-      data: {
-        toolName: "bash",
-        toolCallId: "toolu-retry",
-        isError: false,
-        result: {
-          output: "done",
+      kind: "thread.activity",
+      payload: {
+        activity: {
+          id: EventId.make("runtime-activity:runtime-event:retry"),
+          tone: "tool",
+          kind: "tool.completed",
+          summary: "Ran command",
+          payload: {
+            itemId: "toolu-retry",
+            itemType: "command_execution",
+            status: "completed",
+            title: "command",
+            data: {
+              toolName: "bash",
+              toolCallId: "toolu-retry",
+              isError: false,
+              result: {
+                output: "done",
+              },
+            },
+          },
+          turnId,
+          createdAt,
         },
       },
     };
 
     try {
-      ingestRuntimeHostEvent({ type: "runtime-event", event: runtimeEvent });
+      ingestRuntimeHostEvent({ type: "runtime-ingestion-records", records: [record] });
 
       await vi.waitFor(() => expect(ingestAttempts).toBe(1));
       const failedOutbox = JSON.parse(await readFile(outboxPath, "utf8"));

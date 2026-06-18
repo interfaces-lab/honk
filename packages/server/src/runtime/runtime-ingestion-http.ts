@@ -39,6 +39,36 @@ function runtimeRecordCommandId(record: RuntimeIngestionRecord): CommandId {
   return CommandId.make(record.recordId);
 }
 
+// Maps the non-turn-start runtime facts to internal orchestration commands with no server-service
+// dependency, so the ingest -> command -> event -> projection chain is unit-testable. The commandId
+// is the deterministic record id, so re-ingesting the same fact yields the same command and the
+// engine deduplicates it.
+export function internalCommandForRuntimeFact(
+  record: Extract<RuntimeIngestionRecord, { kind: "assistant.completion" | "thread.activity" }>,
+): OrchestrationCommand {
+  switch (record.kind) {
+    case "assistant.completion":
+      return {
+        type: "thread.message.assistant.complete",
+        commandId: runtimeRecordCommandId(record),
+        threadId: record.threadId,
+        messageId: record.payload.messageId,
+        text: record.payload.text,
+        turnId: record.payload.turnId,
+        parentEntryId: record.payload.parentEntryId,
+        createdAt: record.createdAt,
+      };
+    case "thread.activity":
+      return {
+        type: "thread.activity.append",
+        commandId: runtimeRecordCommandId(record),
+        threadId: record.threadId,
+        activity: record.payload.activity,
+        createdAt: record.createdAt,
+      };
+  }
+}
+
 function runtimeRecordToCommand(record: RuntimeIngestionRecord) {
   switch (record.kind) {
     case "user.turn-start": {
@@ -69,24 +99,8 @@ function runtimeRecordToCommand(record: RuntimeIngestionRecord) {
       return normalizeDispatchCommand(command);
     }
     case "assistant.completion":
-      return Effect.succeed({
-        type: "thread.message.assistant.complete",
-        commandId: runtimeRecordCommandId(record),
-        threadId: record.threadId,
-        messageId: record.payload.messageId,
-        text: record.payload.text,
-        turnId: record.payload.turnId,
-        parentEntryId: record.payload.parentEntryId,
-        createdAt: record.createdAt,
-      } satisfies OrchestrationCommand);
     case "thread.activity":
-      return Effect.succeed({
-        type: "thread.activity.append",
-        commandId: runtimeRecordCommandId(record),
-        threadId: record.threadId,
-        activity: record.payload.activity,
-        createdAt: record.createdAt,
-      } satisfies OrchestrationCommand);
+      return Effect.succeed(internalCommandForRuntimeFact(record));
   }
 }
 

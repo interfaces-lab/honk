@@ -2,21 +2,11 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import {
-  type AgentRuntimeEvent,
   type HonkRuntimeHostEvent,
   type HonkRuntimeHostSnapshot,
   type RuntimeIngestionRecord,
   RuntimeIngestionRecord as RuntimeIngestionRecordSchema,
-  type SessionTreeProjection,
 } from "@honk/contracts";
-import {
-  runtimeAssistantEntryIngestionKey,
-  runtimeContextWindowActivityRecords,
-  runtimeEventIngestionKey,
-  runtimeSessionTreeAssistantCompleteRecord,
-  runtimeSessionTreeProviderFailureRecord,
-  runtimeToolCompletedActivityRecords,
-} from "@honk/runtime";
 import { formatSchemaError, formatSchemaIssues } from "@honk/shared/schema-json";
 import * as EffectLogger from "@honk/shared/effect-logger";
 import { Exit, Schema } from "effect";
@@ -50,7 +40,7 @@ const RUNTIME_RECORD_RETRY_DELAY_MS = 5_000;
 
 interface PendingContextWindowDispatch {
   readonly record: RuntimeIngestionRecord;
-  readonly eventKey: string;
+  readonly persistenceKey: string;
   readonly timeoutId: ReturnType<typeof setTimeout>;
 }
 
@@ -139,7 +129,6 @@ function errorMessage(error: unknown): string {
 class RuntimeIngestionState {
   private readonly persistedRuntimeEventKeys = new Set<string>();
   private readonly persistedRuntimeAssistantEntryKeys = new Set<string>();
-  private readonly persistedRuntimeProviderFailureKeys = new Set<string>();
   private readonly contextWindowLastDispatchAtByScope = new Map<string, number>();
   private readonly pendingContextWindowDispatchByScope = new Map<
     string,
@@ -402,23 +391,10 @@ class RuntimeIngestionState {
       case "snapshot":
         this.ingestSnapshot(event.snapshot);
         return;
-      case "runtime-event":
-        this.ingestRuntimeEvent(event.event);
-        return;
       case "runtime-ingestion-records":
         for (const record of event.records) {
-          this.dispatchRecord({
-            record,
-            persistenceKey: record.recordId,
-            persistedKeys:
-              record.kind === "assistant.completion"
-                ? this.persistedRuntimeAssistantEntryKeys
-                : this.persistedRuntimeEventKeys,
-          });
+          this.dispatchRuntimeRecord(record);
         }
-        return;
-      case "session-tree":
-        this.ingestSessionTree(event.tree);
         return;
       default:
         return;
@@ -426,97 +402,41 @@ class RuntimeIngestionState {
   }
 
   ingestSnapshot(snapshot: HonkRuntimeHostSnapshot): void {
-    for (const tree of snapshot.sessionTrees) {
-      this.ingestSessionTree(tree);
-    }
-    for (const runtimeEvent of snapshot.runtimeEvents) {
-      this.ingestRuntimeEvent(runtimeEvent);
-    }
+    void snapshot;
   }
 
-  ingestSessionTree(tree: SessionTreeProjection): void {
-    const entryById = new Map(tree.entries.map((entry) => [entry.id, entry] as const));
-    for (const entry of tree.entries) {
-      const providerFailureRecord = runtimeSessionTreeProviderFailureRecord({
-        tree,
-        entry,
-        entryById,
-      });
-      if (providerFailureRecord) {
-        const providerFailureKey = providerFailureRecord.recordId;
-        if (!this.persistedRuntimeProviderFailureKeys.has(providerFailureKey)) {
-          this.dispatchRecord({
-            record: providerFailureRecord,
-            persistenceKey: providerFailureKey,
-            persistedKeys: this.persistedRuntimeProviderFailureKeys,
-          });
-        }
-      }
-
-      const record = runtimeSessionTreeAssistantCompleteRecord({
-        tree,
-        entry,
-        entryById,
-      });
-      if (!record) {
-        continue;
-      }
-      const entryKey = runtimeAssistantEntryIngestionKey(tree, entry);
-      if (this.persistedRuntimeAssistantEntryKeys.has(entryKey)) {
-        continue;
-      }
-      this.dispatchRecord({
-        record,
-        persistenceKey: entryKey,
-        persistedKeys: this.persistedRuntimeAssistantEntryKeys,
-      });
-    }
-  }
-
-  ingestRuntimeEvent(event: AgentRuntimeEvent): void {
-    const eventKey = runtimeEventIngestionKey(event);
-    if (this.persistedRuntimeEventKeys.has(eventKey)) {
+  private dispatchRuntimeRecord(record: RuntimeIngestionRecord): void {
+    const persistedKeys =
+      record.kind === "assistant.completion"
+        ? this.persistedRuntimeAssistantEntryKeys
+        : this.persistedRuntimeEventKeys;
+    if (persistedKeys.has(record.recordId)) {
       return;
     }
-    const records = runtimeToolCompletedActivityRecords(event);
-    const contextWindowRecords = runtimeContextWindowActivityRecords(event);
-    if (records.length === 0) {
-      if (contextWindowRecords.length === 0) {
-        return;
-      }
-      rememberPersistedKey(this.persistedRuntimeEventKeys, eventKey);
-      for (const record of contextWindowRecords) {
-        this.dispatchContextWindowRecord({
-          record,
-          event,
-          eventKey,
-        });
-      }
-      return;
-    }
-    rememberPersistedKey(this.persistedRuntimeEventKeys, eventKey);
-    for (const record of records) {
-      this.dispatchRecord({
-        record,
-        persistenceKey: eventKey,
-        persistedKeys: this.persistedRuntimeEventKeys,
-      });
-    }
-    for (const record of contextWindowRecords) {
+    if (
+      record.kind === "thread.activity" &&
+      record.payload.activity.kind === "context-window.updated"
+    ) {
       this.dispatchContextWindowRecord({
         record,
-        event,
-        eventKey,
+        persistenceKey: record.recordId,
+        persistedKeys,
       });
+      return;
     }
+    this.dispatchRecord({
+      record,
+      persistenceKey: record.recordId,
+      persistedKeys,
+    });
   }
 
   private dispatchContextWindowRecord(input: {
     readonly record: RuntimeIngestionRecord;
-    readonly event: AgentRuntimeEvent;
-    readonly eventKey: string;
+    readonly persistenceKey: string;
+    readonly persistedKeys: Set<string>;
   }): void {
-    const scopeKey = `${input.event.threadId}:${input.event.runtimeSessionId}`;
+    const scopeKey = `${input.record.threadId}:${input.record.runtimeSessionId}`;
     const now = Date.now();
     const lastDispatchAt = this.contextWindowLastDispatchAtByScope.get(scopeKey) ?? 0;
     const elapsedMs = now - lastDispatchAt;
@@ -527,8 +447,8 @@ class RuntimeIngestionState {
       this.contextWindowLastDispatchAtByScope.set(scopeKey, now);
       this.dispatchRecord({
         record: input.record,
-        persistenceKey: input.eventKey,
-        persistedKeys: this.persistedRuntimeEventKeys,
+        persistenceKey: input.persistenceKey,
+        persistedKeys: input.persistedKeys,
       });
       return;
     }
@@ -547,14 +467,14 @@ class RuntimeIngestionState {
       this.contextWindowLastDispatchAtByScope.set(scopeKey, Date.now());
       this.dispatchRecord({
         record: pending.record,
-        persistenceKey: pending.eventKey,
-        persistedKeys: this.persistedRuntimeEventKeys,
+        persistenceKey: pending.persistenceKey,
+        persistedKeys: input.persistedKeys,
       });
     }, delayMs);
     unrefTimer(timeoutId);
     this.pendingContextWindowDispatchByScope.set(scopeKey, {
       record: input.record,
-      eventKey: input.eventKey,
+      persistenceKey: input.persistenceKey,
       timeoutId,
     });
   }

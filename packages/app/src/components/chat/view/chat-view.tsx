@@ -227,7 +227,11 @@ import {
   applyLocalThreadCreated,
   applyLocalThreadTurnStartRequested,
 } from "~/stores/local-orchestration-events";
-import { type ComposerSendSnapshot, reportMissingActiveThread } from "./chat-view.logic";
+import {
+  deriveChatViewLiveness,
+  type ComposerSendSnapshot,
+  reportMissingActiveThread,
+} from "./chat-view.logic";
 import {
   containsThreadEntry,
   deriveThreadBranchView,
@@ -257,7 +261,6 @@ import {
 import {
   filterThreadSendIntentsToBranch,
   runtimeDisplayTimelineHasActiveWork,
-  runtimeDisplayTimelineHasResponseItem,
   runtimeDisplayTimelineRenderableUserMessageIds,
   threadSendIntentMessages,
 } from "./thread-timeline-projector";
@@ -1087,30 +1090,34 @@ export default function ChatView(props: ChatViewProps) {
     activePendingUserInput: activePendingUserInput?.requestId ?? null,
     threadError: activeThread?.error,
   });
-  const runtimeTimelineHasResponse = useMemo(
-    () => runtimeDisplayTimelineHasResponseItem(activeRuntimeDisplayTimeline),
-    [activeRuntimeDisplayTimeline],
-  );
   const runtimeTimelineHasActiveWork = useMemo(
     () => runtimeDisplayTimelineHasActiveWork(activeRuntimeDisplayTimeline),
     [activeRuntimeDisplayTimeline],
   );
+  const visibleThreadSendIntents = useMemo(
+    () => filterThreadSendIntentsToBranch(threadSendIntents, branchView),
+    [branchView, threadSendIntents],
+  );
   const activeRuntimeAgentRunActive = activeRuntimeActivity.lifecycle === "active";
-  const runtimeTurnImpliesTurnRunning = activeRuntimeAgentRunActive || runtimeTimelineHasActiveWork;
-  const runtimeSurfaceImpliesTimelineActive =
-    runtimeTurnImpliesTurnRunning || activeRuntimeActivity.presentationActive;
-  const waitingForRuntimeFirstResponse =
-    activeThreadIsRuntimeOwned &&
-    activeRuntimeDisplayTimeline !== null &&
-    !latestTurnSettled &&
-    !runtimeTimelineHasResponse;
   const isCompactingActive = activeThreadId !== null && compactingThreadId === activeThreadId;
-  const isTurnRunning =
-    activeRunningTurnId !== null || runtimeTurnImpliesTurnRunning || isCompactingActive;
-  const isTimelineSurfaceActive =
-    activeRunningTurnId !== null || runtimeSurfaceImpliesTimelineActive || isCompactingActive;
-  const isWorking =
-    isTimelineSurfaceActive || isSendBusy || isConnecting || waitingForRuntimeFirstResponse;
+  const {
+    isTurnRunning,
+    isTimelineSurfaceActive,
+    isWorking,
+    timelineTurnActive,
+    goalStatusProgressActive,
+  } = deriveChatViewLiveness({
+    runtimeOwned: activeThreadIsRuntimeOwned,
+    latestTurnSettled,
+    activeRunningTurnId,
+    runtimeAgentRunActive: activeRuntimeAgentRunActive,
+    runtimeTimelineHasActiveWork,
+    runtimePresentationActive: activeRuntimeActivity.presentationActive,
+    visibleSendIntentCount: visibleThreadSendIntents.length,
+    isCompactingActive,
+    isSendBusy,
+    isConnecting,
+  });
   const {
     queuedComposerItems,
     editingQueuedComposerItemId,
@@ -1143,25 +1150,6 @@ export default function ChatView(props: ChatViewProps) {
     clearAttachmentPreviewHandoffs,
     handoffAttachmentPreviews,
   } = useAttachmentPreviewHandoff({ serverMessages });
-  const visibleThreadSendIntents = useMemo(
-    () => filterThreadSendIntentsToBranch(threadSendIntents, branchView),
-    [branchView, threadSendIntents],
-  );
-  // A send intent lives from coordinateTurnSend until its committed message lands, so it keeps
-  // the turn active across frames where a stale thread snapshot momentarily reports the session
-  // idle during the local → server → runtime handoff. Without it the collapsed running
-  // work-group preview unmounts for one frame and loses its animation.
-  // While the runtime overlay is still projecting an unsettled turn, orchestration status can
-  // briefly idle between tool bursts even though tools keep appending — keep the tail group
-  // running so the collapsed preview does not flash to completed and back.
-  const runtimeTimelineImpliesTurnActive =
-    activeRuntimeDisplayTimeline !== null && !latestTurnSettled;
-  const timelineTurnActive =
-    isTimelineSurfaceActive ||
-    visibleThreadSendIntents.length > 0 ||
-    runtimeTimelineImpliesTurnActive;
-  const goalStatusProgressActive =
-    timelineTurnActive || isSendBusy || isConnecting || waitingForRuntimeFirstResponse;
   const activeTimelineTailLeaseTurnKey =
     activeRuntimeActivity.lifecycle === "active"
       ? (activeRuntimeActivity.latestTurnId ?? "runtime-run-pending")

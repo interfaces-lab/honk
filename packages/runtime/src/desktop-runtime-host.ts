@@ -55,6 +55,10 @@ import { createDesktopExtensionUi, type DesktopExtensionUiController } from "./e
 import { createDesktopAgentExtensionFactories } from "./desktop-agent-extensions";
 import { ThreadAgentRuntime, encodeThreadIdForPath } from "./thread-agent-runtime";
 import {
+  canonicalThreadSessionTree,
+  runtimeBridgeFactsForRuntimeEvent,
+} from "./runtime-canonical-projection";
+import {
   projectRuntimeDisplayTimeline,
   projectRuntimeDisplayTimelineEvent,
 } from "./display-timeline-projection";
@@ -660,8 +664,10 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
   }
 
   private publishSessionTree(runtime: ThreadAgentRuntime): void {
-    const tree = runtime.getSessionTree();
+    const canonicalThread = runtime.getCanonicalThread();
+    const tree = canonicalThreadSessionTree(canonicalThread);
     this.sessionTrees.set(runtime.threadId, tree);
+    this.emitRuntimeIngestionRecords(canonicalThread.bridgeFacts.map((fact) => fact.record));
     this.emit({ type: "session-tree", tree });
     this.refreshDisplayTimeline(runtime);
     this.scheduleDisplayTimelineEmit(runtime.threadId);
@@ -674,6 +680,9 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       const wireEvent = toWireRuntimeEvent(event);
       this.recordRuntimeEvent(event, wireEvent);
       this.emit({ type: "runtime-event", event: wireEvent });
+      this.emitRuntimeIngestionRecords(
+        runtimeBridgeFactsForRuntimeEvent(event).map((fact) => fact.record),
+      );
       this.applyRuntimeEventToDisplayTimeline(runtime, event);
       this.scheduleDisplayTimelineEmit(runtime.threadId);
       if (event.type === "session.started") {

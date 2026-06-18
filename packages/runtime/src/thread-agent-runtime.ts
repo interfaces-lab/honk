@@ -69,8 +69,13 @@ import {
   TURN_ID_SIDECAR_TYPE,
   collectClientMessageIdSidecars,
   collectTurnIdSidecars,
-  projectRuntimeSessionTree,
 } from "./session-tree-projection";
+import {
+  canonicalThreadSessionTree,
+  isRuntimeCanonicalTurnActive,
+  projectRuntimeCanonicalThread,
+  type RuntimeCanonicalThread,
+} from "./runtime-canonical-projection";
 import { registerCursorComposerProvider } from "./cursor-composer-provider";
 import { cursorComposerFastEnabled } from "@honk/shared/cursor-composer";
 
@@ -532,7 +537,7 @@ export class ThreadAgentRuntime {
   private async createNewSession(
     options?: Parameters<ExtensionCommandContextActions["newSession"]>[0],
   ): Promise<{ cancelled: boolean }> {
-    if (this.isTurnInProgress() || this.session.isStreaming) {
+    if (this.isThreadTreeActionBlocked() || this.session.isStreaming) {
       throw new Error("Cannot create a new session while a turn is running.");
     }
 
@@ -557,7 +562,7 @@ export class ThreadAgentRuntime {
     sessionPath: string,
     options?: Parameters<ExtensionCommandContextActions["switchSession"]>[1],
   ): Promise<{ cancelled: boolean }> {
-    if (this.isTurnInProgress() || this.session.isStreaming) {
+    if (this.isThreadTreeActionBlocked() || this.session.isStreaming) {
       throw new Error("Cannot switch sessions while a turn is running.");
     }
 
@@ -577,7 +582,7 @@ export class ThreadAgentRuntime {
     targetId: string,
     options?: Parameters<ExtensionCommandContextActions["navigateTree"]>[1],
   ): Promise<{ cancelled: boolean }> {
-    if (this.isTurnInProgress() || this.session.isStreaming) {
+    if (this.isThreadTreeActionBlocked() || this.session.isStreaming) {
       throw new Error("Cannot navigate the session tree while a turn is running.");
     }
 
@@ -638,7 +643,7 @@ export class ThreadAgentRuntime {
   }
 
   async cloneActiveBranch(targetThreadId: ThreadId): Promise<ThreadAgentRuntime> {
-    if (this.isTurnInProgress() || this.session.isStreaming) {
+    if (this.isThreadTreeActionBlocked() || this.session.isStreaming) {
       throw new Error("Cannot fork chat while a turn is running.");
     }
 
@@ -670,7 +675,7 @@ export class ThreadAgentRuntime {
     entryId: string,
     options?: ForkSessionEntryOptions,
   ): Promise<{ cancelled: boolean }> {
-    if (this.isTurnInProgress() || this.session.isStreaming) {
+    if (this.isThreadTreeActionBlocked() || this.session.isStreaming) {
       throw new Error("Cannot fork chat while a turn is running.");
     }
 
@@ -876,13 +881,28 @@ export class ThreadAgentRuntime {
     this.session.setThinkingLevel(level);
   }
 
-  getSessionTree(): SessionTreeProjection {
-    return projectRuntimeSessionTree({
+  getCanonicalThread(input?: {
+    readonly runtimeEvents?: ReadonlyArray<AgentRuntimeEvent>;
+    readonly extraBridgeRecords?: ReadonlyArray<RuntimeIngestionRecord>;
+  }): RuntimeCanonicalThread {
+    return projectRuntimeCanonicalThread({
       threadId: this.threadId,
       sessionManager: this.session.sessionManager,
       clientMessageIdByEntryId: this.clientMessageIdByEntryId,
       turnIdByEntryId: this.turnIdByEntryId,
+      runtimeEvents: input?.runtimeEvents ?? [],
+      queuedFollowUps: this.getQueuedFollowUps(),
+      ...(this.activeTurnId ? { activeTurnId: this.activeTurnId } : {}),
+      ...(this.activeRunFirstTurnId ? { activeRunFirstTurnId: this.activeRunFirstTurnId } : {}),
+      pendingTurnCount: this.pendingFirstTurnIds.length + this.pendingFollowUpTurnIds.length,
+      suppressedAgentEndPending: this.suppressedAgentEndPending,
+      drainingQueuedFollowUp: this.drainingQueuedFollowUp,
+      extraBridgeRecords: input?.extraBridgeRecords ?? [],
     });
+  }
+
+  getSessionTree(): SessionTreeProjection {
+    return canonicalThreadSessionTree(this.getCanonicalThread());
   }
 
   isBusy(): boolean {
@@ -939,7 +959,7 @@ export class ThreadAgentRuntime {
   }
 
   private prepareRevisionBranch(replacesClientMessageId: MessageId): void {
-    if (this.isTurnInProgress()) {
+    if (this.isThreadTreeActionBlocked()) {
       throw new Error("Cannot revise a message while a runtime turn is in progress.");
     }
 
@@ -964,7 +984,7 @@ export class ThreadAgentRuntime {
   }
 
   private prepareParentBranch(parentEntryId: ThreadEntryId | null): void {
-    if (this.isTurnInProgress()) {
+    if (this.isThreadTreeActionBlocked()) {
       throw new Error("Cannot branch a message while a runtime turn is in progress.");
     }
 
@@ -988,8 +1008,13 @@ export class ThreadAgentRuntime {
       this.pendingFirstTurnIds.length > 0 ||
       this.pendingFollowUpTurnIds.length > 0 ||
       this.activeTurnId !== undefined ||
-      this.activeRunFirstTurnId !== undefined
+      this.activeRunFirstTurnId !== undefined ||
+      this.suppressedAgentEndPending
     );
+  }
+
+  private isThreadTreeActionBlocked(): boolean {
+    return isRuntimeCanonicalTurnActive(this.getCanonicalThread().turnState);
   }
 
   private entryIdForClientMessageId(clientMessageId: MessageId): string | null {
