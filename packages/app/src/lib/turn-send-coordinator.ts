@@ -33,7 +33,6 @@ import {
 
 export interface TurnSendMessageContent {
   readonly text: string;
-  readonly runtimeText?: string;
   readonly richText?: OrchestrationMessageRichText;
   readonly optimisticAttachments: readonly ChatAttachment[];
   readonly getTurnAttachments: () => Promise<readonly UploadChatAttachment[]>;
@@ -179,7 +178,7 @@ export async function coordinateTurnSend(
       const runtimeInput = {
         threadId: input.threadId,
         cwd: runtimeCwd,
-        text: input.message.runtimeText ?? input.message.text,
+        text: input.message.text,
         interactionMode: input.interactionMode,
         sourceProposedPlan: input.sourceProposedPlan ?? null,
         clientMessageId: input.clientMessageId,

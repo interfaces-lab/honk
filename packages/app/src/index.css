@@ -439,10 +439,6 @@ code {
   -webkit-app-region: no-drag;
 }
 
-.agent-window-chat-header[data-chat-pane-drag-source="true"] {
-  -webkit-app-region: no-drag;
-}
-
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;

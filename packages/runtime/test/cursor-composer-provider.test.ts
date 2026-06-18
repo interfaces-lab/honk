@@ -287,6 +287,56 @@ describe("Cursor Composer provider", () => {
     );
   });
 
+  it("merges partial ACP tool updates so completion keeps the original command and output", async () => {
+    installMockAcpAgent({
+      onPrompt: (_request, agent) => {
+        agent.sendSessionUpdate({
+          sessionUpdate: "tool_call",
+          toolCallId: "cursor-call-partial",
+          kind: "execute",
+          title: "Terminal",
+          status: "pending",
+          rawInput: { command: "printf hello" },
+        });
+        agent.sendSessionUpdate({
+          sessionUpdate: "tool_call_update",
+          toolCallId: "cursor-call-partial",
+          status: "completed",
+          rawOutput: { exitCode: 7, stdout: "hello\n", stderr: "warn\n", executionTime: 42 },
+        });
+      },
+    });
+    const { config, model } = registerProviderForTest();
+
+    const stream = config.streamSimple?.(model, contextWithUserText("run printf"));
+    if (!stream) {
+      throw new Error("Cursor provider stream was not registered.");
+    }
+
+    const events = await collectEvents(stream);
+    const toolEndEvent = events.find((event) => event.type === "toolcall_end");
+    if (toolEndEvent?.type !== "toolcall_end") {
+      throw new Error("Cursor provider did not emit toolcall_end.");
+    }
+
+    expect(toolEndEvent.toolCall).toMatchObject({
+      name: "bash",
+      arguments: {
+        command: "printf hello",
+        __honkCursorSyntheticToolEvent: true,
+        __honkCursorResult: {
+          status: "success",
+          value: {
+            exitCode: 7,
+            stdout: "hello\n",
+            stderr: "warn\n",
+            executionTime: 42,
+          },
+        },
+      },
+    });
+  });
+
   it("uses local Pi usage estimates and sends the transcript as ACP prompt text", async () => {
     const agent = installMockAcpAgent({
       onPrompt: (_request, mockAgent) => {

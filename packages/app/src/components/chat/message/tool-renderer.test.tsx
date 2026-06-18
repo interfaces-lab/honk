@@ -286,6 +286,44 @@ describe("tool renderer conversation density", () => {
     expect(html).toContain("-old line");
   });
 
+  it("hides oversized inline edit diffs before parsing or highlighting", () => {
+    const largeDiff = [
+      "--- big.ts",
+      "+++ big.ts",
+      "@@ -1,0 +1,650 @@",
+      ...Array.from({ length: 650 }, (_, index) => `+line ${index + 1}`),
+    ].join("\n");
+    const html = renderToStaticMarkup(
+      <ToolCallRenderer
+        toolCall={{
+          tool: {
+            case: "editToolCall",
+            value: {
+              action: "Edited",
+              details: "big.ts",
+              path: "big.ts",
+              stats: { additions: 650, deletions: 0 },
+              artifacts: [
+                {
+                  type: "diff",
+                  format: "unified",
+                  source: "result",
+                  files: [{ path: "big.ts", additions: 650, deletions: 0 }],
+                  unifiedDiff: largeDiff,
+                },
+              ],
+            },
+          },
+        }}
+        conversationDensity="compact-all-grouped"
+      />,
+    );
+
+    expect(html).toContain("Large diff hidden in chat");
+    expect(html).toContain("653 lines");
+    expect(html).not.toContain("+line 650");
+  });
+
   it("does not auto-open bordered previews for runtime status-only edit output", () => {
     const status = "Successfully replaced 2 block(s) in packages/app/src/chat-view.tsx";
     expect(isEditStatusSummary(status)).toBe(true);

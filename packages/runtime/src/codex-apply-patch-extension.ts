@@ -9,6 +9,8 @@ export const CODEX_APPLY_PATCH_TOOL_NAME = "apply_patch";
 const OPENAI_PROVIDER_IDS: ReadonlySet<string> = new Set(["openai", "openai-codex"]);
 const BEGIN_PATCH = "*** Begin Patch";
 const END_PATCH = "*** End Patch";
+const UNIFIED_DIFF_CONTEXT_LINES = 3;
+const MAX_DIFF_ANCHOR_RECURSION_DEPTH = 128;
 
 const ApplyPatchParams = Type.Object({
   input: Type.String({
@@ -97,6 +99,31 @@ interface ApplyPatchState {
 interface ResolvedPatchPath {
   readonly absolutePath: string;
   readonly relativePath: string;
+}
+
+type LineDiffSegment =
+  | {
+      readonly kind: "equal";
+      readonly oldStart: number;
+      readonly newStart: number;
+      readonly lines: readonly string[];
+    }
+  | {
+      readonly kind: "delete";
+      readonly oldStart: number;
+      readonly lines: readonly string[];
+    }
+  | {
+      readonly kind: "add";
+      readonly newStart: number;
+      readonly lines: readonly string[];
+    };
+
+interface UnifiedDiffRow {
+  readonly kind: "context" | "delete" | "add";
+  readonly text: string;
+  readonly oldLine?: number | undefined;
+  readonly newLine?: number | undefined;
 }
 
 export function createCodexApplyPatchExtension(policy: AgentModelPolicy): ExtensionFactory {
@@ -622,32 +649,378 @@ async function createUnifiedDiff(state: ApplyPatchState): Promise<string> {
     }
     const relativePath =
       state.relativePathByPath.get(absolutePath) ?? relative(state.cwd, absolutePath);
-    fileDiffs.push(formatFileDiff(relativePath, original, current));
+    const diff = formatFileDiff(relativePath, original, current);
+    if (diff.trim().length > 0) {
+      fileDiffs.push(diff);
+    }
   }
   return fileDiffs.join("\n");
 }
 
-function formatFileDiff(
+export function formatFileDiff(
   path: string,
   oldContent: string | null,
   newContent: string | null,
 ): string {
   const oldLines = oldContent === null ? [] : splitFileLines(oldContent);
   const newLines = newContent === null ? [] : splitFileLines(newContent);
+  const rows = buildUnifiedDiffRows(diffLineSegments(oldLines, newLines));
+  const hunks = formatUnifiedDiffHunks(rows);
+  if (hunks.length === 0) {
+    return "";
+  }
+
   const oldLabel = oldContent === null ? "/dev/null" : `a/${path}`;
   const newLabel = newContent === null ? "/dev/null" : `b/${path}`;
   return [
     `diff --git a/${path} b/${path}`,
     `--- ${oldLabel}`,
     `+++ ${newLabel}`,
-    `@@ -${diffStartLine(oldLines)},${oldLines.length} +${diffStartLine(newLines)},${newLines.length} @@`,
-    ...oldLines.map((line) => `-${line}`),
-    ...newLines.map((line) => `+${line}`),
+    ...hunks,
   ].join("\n");
 }
 
-function diffStartLine(lines: readonly string[]): number {
-  return lines.length === 0 ? 0 : 1;
+function diffLineSegments(
+  oldLines: readonly string[],
+  newLines: readonly string[],
+): LineDiffSegment[] {
+  return mergeLineDiffSegments(
+    diffLineRange(oldLines, newLines, 0, oldLines.length, 0, newLines.length, 0),
+  );
+}
+
+function diffLineRange(
+  oldLines: readonly string[],
+  newLines: readonly string[],
+  oldStart: number,
+  oldEnd: number,
+  newStart: number,
+  newEnd: number,
+  depth: number,
+): LineDiffSegment[] {
+  const segments: LineDiffSegment[] = [];
+
+  let nextOldStart = oldStart;
+  let nextNewStart = newStart;
+  while (
+    nextOldStart < oldEnd &&
+    nextNewStart < newEnd &&
+    oldLines[nextOldStart] === newLines[nextNewStart]
+  ) {
+    nextOldStart += 1;
+    nextNewStart += 1;
+  }
+
+  if (nextOldStart > oldStart) {
+    segments.push({
+      kind: "equal",
+      oldStart,
+      newStart,
+      lines: oldLines.slice(oldStart, nextOldStart),
+    });
+  }
+
+  let nextOldEnd = oldEnd;
+  let nextNewEnd = newEnd;
+  while (
+    nextOldEnd > nextOldStart &&
+    nextNewEnd > nextNewStart &&
+    oldLines[nextOldEnd - 1] === newLines[nextNewEnd - 1]
+  ) {
+    nextOldEnd -= 1;
+    nextNewEnd -= 1;
+  }
+
+  if (nextOldStart === nextOldEnd && nextNewStart === nextNewEnd) {
+    // Only prefix/suffix equality remained.
+  } else if (nextOldStart === nextOldEnd) {
+    segments.push({
+      kind: "add",
+      newStart: nextNewStart,
+      lines: newLines.slice(nextNewStart, nextNewEnd),
+    });
+  } else if (nextNewStart === nextNewEnd) {
+    segments.push({
+      kind: "delete",
+      oldStart: nextOldStart,
+      lines: oldLines.slice(nextOldStart, nextOldEnd),
+    });
+  } else {
+    const anchor =
+      depth < MAX_DIFF_ANCHOR_RECURSION_DEPTH
+        ? findUniqueLineAnchor(
+            oldLines,
+            newLines,
+            nextOldStart,
+            nextOldEnd,
+            nextNewStart,
+            nextNewEnd,
+          )
+        : null;
+    if (anchor) {
+      segments.push(
+        ...diffLineRange(
+          oldLines,
+          newLines,
+          nextOldStart,
+          anchor.oldIndex,
+          nextNewStart,
+          anchor.newIndex,
+          depth + 1,
+        ),
+      );
+      segments.push({
+        kind: "equal",
+        oldStart: anchor.oldIndex,
+        newStart: anchor.newIndex,
+        lines: [oldLines[anchor.oldIndex] ?? ""],
+      });
+      segments.push(
+        ...diffLineRange(
+          oldLines,
+          newLines,
+          anchor.oldIndex + 1,
+          nextOldEnd,
+          anchor.newIndex + 1,
+          nextNewEnd,
+          depth + 1,
+        ),
+      );
+    } else {
+      segments.push({
+        kind: "delete",
+        oldStart: nextOldStart,
+        lines: oldLines.slice(nextOldStart, nextOldEnd),
+      });
+      segments.push({
+        kind: "add",
+        newStart: nextNewStart,
+        lines: newLines.slice(nextNewStart, nextNewEnd),
+      });
+    }
+  }
+
+  if (nextOldEnd < oldEnd) {
+    segments.push({
+      kind: "equal",
+      oldStart: nextOldEnd,
+      newStart: nextNewEnd,
+      lines: oldLines.slice(nextOldEnd, oldEnd),
+    });
+  }
+
+  return mergeLineDiffSegments(segments);
+}
+
+function findUniqueLineAnchor(
+  oldLines: readonly string[],
+  newLines: readonly string[],
+  oldStart: number,
+  oldEnd: number,
+  newStart: number,
+  newEnd: number,
+): { readonly oldIndex: number; readonly newIndex: number } | null {
+  const oldOccurrences = countLineOccurrences(oldLines, oldStart, oldEnd);
+  const newOccurrences = countLineOccurrences(newLines, newStart, newEnd);
+  const oldMiddle = oldStart + (oldEnd - oldStart) / 2;
+  const newMiddle = newStart + (newEnd - newStart) / 2;
+  let bestAnchor: {
+    readonly oldIndex: number;
+    readonly newIndex: number;
+    readonly score: number;
+  } | null = null;
+
+  for (const [line, oldOccurrence] of oldOccurrences) {
+    if (oldOccurrence.count !== 1) {
+      continue;
+    }
+    const newOccurrence = newOccurrences.get(line);
+    if (!newOccurrence || newOccurrence.count !== 1) {
+      continue;
+    }
+    const score =
+      Math.abs(oldOccurrence.index - oldMiddle) + Math.abs(newOccurrence.index - newMiddle);
+    if (!bestAnchor || score < bestAnchor.score) {
+      bestAnchor = {
+        oldIndex: oldOccurrence.index,
+        newIndex: newOccurrence.index,
+        score,
+      };
+    }
+  }
+
+  return bestAnchor ? { oldIndex: bestAnchor.oldIndex, newIndex: bestAnchor.newIndex } : null;
+}
+
+function countLineOccurrences(
+  lines: readonly string[],
+  start: number,
+  end: number,
+): Map<string, { count: number; index: number }> {
+  const occurrences = new Map<string, { count: number; index: number }>();
+  for (let index = start; index < end; index += 1) {
+    const line = lines[index] ?? "";
+    const current = occurrences.get(line);
+    occurrences.set(line, {
+      count: (current?.count ?? 0) + 1,
+      index: current?.index ?? index,
+    });
+  }
+  return occurrences;
+}
+
+function mergeLineDiffSegments(segments: readonly LineDiffSegment[]): LineDiffSegment[] {
+  const merged: LineDiffSegment[] = [];
+  for (const segment of segments) {
+    if (segment.lines.length === 0) {
+      continue;
+    }
+    const previous = merged.at(-1);
+    if (previous && previous.kind === segment.kind) {
+      if (previous.kind === "equal" && segment.kind === "equal") {
+        merged[merged.length - 1] = {
+          kind: "equal",
+          oldStart: previous.oldStart,
+          newStart: previous.newStart,
+          lines: [...previous.lines, ...segment.lines],
+        };
+        continue;
+      }
+      if (previous.kind === "delete" && segment.kind === "delete") {
+        merged[merged.length - 1] = {
+          kind: "delete",
+          oldStart: previous.oldStart,
+          lines: [...previous.lines, ...segment.lines],
+        };
+        continue;
+      }
+      if (previous.kind === "add" && segment.kind === "add") {
+        merged[merged.length - 1] = {
+          kind: "add",
+          newStart: previous.newStart,
+          lines: [...previous.lines, ...segment.lines],
+        };
+        continue;
+      }
+    }
+    merged.push(segment);
+  }
+  return merged;
+}
+
+function buildUnifiedDiffRows(segments: readonly LineDiffSegment[]): UnifiedDiffRow[] {
+  const rows: UnifiedDiffRow[] = [];
+  for (const segment of segments) {
+    for (let offset = 0; offset < segment.lines.length; offset += 1) {
+      const text = segment.lines[offset] ?? "";
+      switch (segment.kind) {
+        case "equal":
+          rows.push({
+            kind: "context",
+            text,
+            oldLine: segment.oldStart + offset + 1,
+            newLine: segment.newStart + offset + 1,
+          });
+          break;
+        case "delete":
+          rows.push({
+            kind: "delete",
+            text,
+            oldLine: segment.oldStart + offset + 1,
+          });
+          break;
+        case "add":
+          rows.push({
+            kind: "add",
+            text,
+            newLine: segment.newStart + offset + 1,
+          });
+          break;
+      }
+    }
+  }
+  return rows;
+}
+
+function formatUnifiedDiffHunks(rows: readonly UnifiedDiffRow[]): string[] {
+  const changedRowIndexes: number[] = [];
+  for (let index = 0; index < rows.length; index += 1) {
+    if (rows[index]?.kind !== "context") {
+      changedRowIndexes.push(index);
+    }
+  }
+  if (changedRowIndexes.length === 0) {
+    return [];
+  }
+
+  const hunks: string[] = [];
+  let changedRowCursor = 0;
+  while (changedRowCursor < changedRowIndexes.length) {
+    const firstChangedRow = changedRowIndexes[changedRowCursor] ?? 0;
+    let lastChangedRow = firstChangedRow;
+    changedRowCursor += 1;
+
+    while (changedRowCursor < changedRowIndexes.length) {
+      const nextChangedRow = changedRowIndexes[changedRowCursor] ?? lastChangedRow;
+      if (nextChangedRow - lastChangedRow > UNIFIED_DIFF_CONTEXT_LINES * 2 + 1) {
+        break;
+      }
+      lastChangedRow = nextChangedRow;
+      changedRowCursor += 1;
+    }
+
+    const hunkStart = Math.max(0, firstChangedRow - UNIFIED_DIFF_CONTEXT_LINES);
+    const hunkEnd = Math.min(rows.length, lastChangedRow + UNIFIED_DIFF_CONTEXT_LINES + 1);
+    hunks.push(formatUnifiedDiffHunk(rows, hunkStart, hunkEnd));
+  }
+  return hunks;
+}
+
+function formatUnifiedDiffHunk(
+  rows: readonly UnifiedDiffRow[],
+  start: number,
+  end: number,
+): string {
+  const hunkRows = rows.slice(start, end);
+  const oldCount = hunkRows.filter((row) => row.oldLine !== undefined).length;
+  const newCount = hunkRows.filter((row) => row.newLine !== undefined).length;
+  const oldStart = hunkStartLine(rows, start, hunkRows, "oldLine");
+  const newStart = hunkStartLine(rows, start, hunkRows, "newLine");
+
+  return [
+    `@@ -${oldStart},${oldCount} +${newStart},${newCount} @@`,
+    ...hunkRows.map(formatUnifiedDiffRow),
+  ].join("\n");
+}
+
+function hunkStartLine(
+  rows: readonly UnifiedDiffRow[],
+  hunkStart: number,
+  hunkRows: readonly UnifiedDiffRow[],
+  side: "oldLine" | "newLine",
+): number {
+  const firstLine = hunkRows.find((row) => row[side] !== undefined)?.[side];
+  if (firstLine !== undefined) {
+    return firstLine;
+  }
+  for (let index = hunkStart - 1; index >= 0; index -= 1) {
+    const previousLine = rows[index]?.[side];
+    if (previousLine !== undefined) {
+      return previousLine;
+    }
+  }
+  return 0;
+}
+
+function formatUnifiedDiffRow(row: UnifiedDiffRow): string {
+  switch (row.kind) {
+    case "context":
+      return ` ${row.text}`;
+    case "delete":
+      return `-${row.text}`;
+    case "add":
+      return `+${row.text}`;
+  }
 }
 
 function actionFilePaths(action: PatchAction): string[] {

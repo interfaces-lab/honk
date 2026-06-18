@@ -29,6 +29,7 @@ import {
   WorkbenchMenuIconSlot,
   WorkbenchMenuPrimaryText,
 } from "@honk/honkkit/menu";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
 import {
   WorkbenchIconButton,
   workbenchIconButtonVariants,
@@ -547,9 +548,26 @@ function FullscreenChatTitle(props: { title: string | null }) {
         data-shell-no-drag=""
         data-shell-fullscreen-chat-title=""
       >
-        <span className="chat-title-tab-trigger">
-          <span className="chat-title-tab-title text-honk-tab text-honk-fg-primary">{title}</span>
-        </span>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                className="chat-title-tab-trigger border-0 bg-transparent p-0 text-left font-[inherit] shadow-none outline-hidden focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:ring-inset"
+                data-shell-no-drag=""
+              >
+                <span className="chat-title-tab-title text-honk-tab text-honk-fg-primary">
+                  {title}
+                </span>
+              </button>
+            }
+          />
+          <TooltipPopup align="start" side="bottom" sideOffset={6} variant="workbench">
+            <span className="block max-w-80 truncate px-1 py-0.5 text-body text-honk-fg-primary">
+              {title}
+            </span>
+          </TooltipPopup>
+        </Tooltip>
       </span>
       <WorkbenchChromeDivider data-shell-fullscreen-chat-divider="" />
     </>

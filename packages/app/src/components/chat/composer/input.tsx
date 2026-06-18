@@ -1054,7 +1054,7 @@ const composerActionButtonClass = cva(
       action: {
         submit:
           "enabled:cursor-pointer text-honk-icon-secondary hover:bg-honk-bg-quaternary hover:text-honk-icon-primary disabled:pointer-events-none disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-honk-icon-secondary",
-        stop: "cursor-pointer text-honk-fg-red-primary hover:bg-honk-bg-quaternary hover:opacity-85",
+        stop: "cursor-pointer bg-honk-bg-tertiary text-honk-icon-primary hover:bg-honk-bg-secondary hover:text-honk-icon-secondary",
       },
     },
   },
@@ -1071,7 +1071,7 @@ function ComposerActionButton({
 }) {
   return (
     <Button
-      size="icon-sm"
+      size="icon-lg"
       variant="ghost"
       className={cn(composerActionButtonClass({ action }), className)}
       data-honk-composer-action={action}
@@ -1184,6 +1184,7 @@ function PrimaryActionControls(props: {
         state={dataState}
         onClick={props.onInterrupt}
         aria-label="Stop generation"
+        title="Stop generation"
       >
         <IconStop className="size-3.5" />
       </ComposerActionButton>
@@ -1194,21 +1195,24 @@ function PrimaryActionControls(props: {
     }
 
     return (
-      <ComposerActionButton
-        type="submit"
-        action="submit"
-        state={dataState}
-        disabled={
-          props.submitDisabled ||
-          props.isSendBusy ||
-          props.isConnecting ||
-          !props.hasSendableContent
-        }
-        aria-label={runningSendLabel}
-        title={runningSendLabel}
-      >
-        <IconArrowUp className="size-3.5" />
-      </ComposerActionButton>
+      <span className="inline-flex items-center gap-1">
+        {stopButton}
+        <ComposerActionButton
+          type="submit"
+          action="submit"
+          state={dataState}
+          disabled={
+            props.submitDisabled ||
+            props.isSendBusy ||
+            props.isConnecting ||
+            !props.hasSendableContent
+          }
+          aria-label={runningSendLabel}
+          title={runningSendLabel}
+        >
+          <IconArrowUp className="size-3.5" />
+        </ComposerActionButton>
+      </span>
     );
   }
 

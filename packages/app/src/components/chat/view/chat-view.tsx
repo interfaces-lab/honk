@@ -15,6 +15,8 @@ import {
   type ResolvedKeybindingsConfig,
   type OrchestrationThreadActivity,
   type AgentInteractionMode,
+  type AgentPreferences,
+  type AgentRuntimeModelDescriptor,
   DEFAULT_PROJECTLESS_CWD,
 } from "@honk/contracts";
 import {
@@ -35,13 +37,14 @@ import {
   useMemo,
   useRef,
   useState,
-  type DragEvent,
   type ReactNode,
 } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import {
   deriveLatestContextWindowSnapshot,
+  formatContextUsagePercentage,
+  formatContextWindowTokens,
   type ContextWindowSnapshot,
 } from "~/lib/context-window";
 import { getGitStatusSnapshot, useGitStatus } from "~/lib/git-status-state";
@@ -53,6 +56,8 @@ import {
   prepareRuntimeTurnPolicy,
 } from "~/lib/runtime-turn-dispatch";
 import {
+  AGENT_THINKING_LEVEL_LABELS,
+  agentModeSupportsThinkingLevelSelection,
   deriveAgentModeAvailability,
   unavailableModelSelectionReason,
 } from "~/lib/agent-mode-options";
@@ -111,6 +116,7 @@ import {
   MAX_TERMINALS_PER_GROUP,
   type ChatMessage,
   type ProposedPlan,
+  type Project,
   type SessionPhase,
   type ThreadSendIntent,
   type Thread,
@@ -166,7 +172,7 @@ import { useSubagentTrayStore } from "../../../stores/subagent-tray-store";
 import { ExpandedImageDialog } from "../message/expanded-image-dialog";
 import { PullRequestThreadDialog } from "../../pull-request-thread-dialog";
 import { MessagesTimeline, type MessagesTimelineController } from "../timeline/messages-timeline";
-import { ChatHeader } from "./chat-header";
+import { ChatHeader, type ChatHeaderTooltipDetails } from "./chat-header";
 import {
   PersistentThreadTerminalDrawer,
   type TerminalLaunchContext,
@@ -400,6 +406,89 @@ function keybindingsConfigKey(keybindings: ResolvedKeybindingsConfig): string {
   return JSON.stringify(keybindings);
 }
 
+function compactPathForTopnav(path: string | null | undefined): string | null {
+  const trimmed = path?.trim() ?? "";
+  if (!trimmed) return null;
+
+  const unixHome = trimmed.match(/^\/(?:Users|home)\/[^/]+(?=\/|$)/);
+  if (unixHome) {
+    const suffix = trimmed.slice(unixHome[0].length);
+    return suffix ? `~${suffix}` : "~";
+  }
+
+  const windowsHome = trimmed.match(/^[A-Za-z]:\\Users\\[^\\]+(?=\\|$)/);
+  if (windowsHome) {
+    const suffix = trimmed.slice(windowsHome[0].length);
+    return suffix ? `~${suffix}` : "~";
+  }
+
+  return trimmed;
+}
+
+function topnavProjectLabel(project: Project | null | undefined): string | null {
+  if (!project) return null;
+  const identity = project.repositoryIdentity ?? null;
+  const owner = identity?.owner?.trim() ?? "";
+  const name = identity?.name?.trim() ?? "";
+  const label =
+    identity?.displayName?.trim() ||
+    (owner && name ? `${owner}/${name}` : "") ||
+    name ||
+    project.name.trim();
+  return label || null;
+}
+
+function topnavContextLabel(snapshot: ContextWindowSnapshot | null): string | null {
+  if (!snapshot) return null;
+  const percentage = formatContextUsagePercentage(snapshot.usedPercentage);
+  if (percentage) return `${percentage} context`;
+  return `${formatContextWindowTokens(snapshot.usedTokens)} context`;
+}
+
+function topnavModelNameFromId(modelId: string): string {
+  const rawSegment = modelId.split("/").at(-1)?.trim() ?? modelId.trim();
+  const normalized = rawSegment.replace(/_/g, "-");
+  if (!normalized) return "Model";
+  if (/^gpt[-\s]/i.test(normalized)) {
+    return normalized.replace(/^gpt/i, "GPT");
+  }
+  if (/^claude[-\s]/i.test(normalized)) {
+    return normalized.replace(/^claude/i, "Claude").replace(/-/g, " ");
+  }
+  return normalized;
+}
+
+function matchingRuntimeModel(
+  models: readonly AgentRuntimeModelDescriptor[],
+  modelId: string,
+): AgentRuntimeModelDescriptor | null {
+  const segment = modelId.split("/").at(-1) ?? modelId;
+  return (
+    models.find(
+      (model) =>
+        model.modelId === modelId || model.id === modelId || model.id === segment,
+    ) ?? null
+  );
+}
+
+function topnavModelLabel(input: {
+  readonly fallbackSelection: ModelSelection;
+  readonly models: readonly AgentRuntimeModelDescriptor[];
+  readonly preferences: AgentPreferences;
+}): string {
+  const policySelection = input.preferences.modelSelection;
+  const policyModelId = policySelection.type === "explicit" ? policySelection.modelId : null;
+  const modelId = policyModelId ?? input.fallbackSelection.model;
+  const runtimeModel = matchingRuntimeModel(input.models, modelId);
+  const modelName = runtimeModel?.name.trim() || topnavModelNameFromId(modelId);
+  const thinkingLabel =
+    agentModeSupportsThinkingLevelSelection(input.preferences.agentMode) &&
+    input.preferences.thinkingLevel !== "off"
+      ? AGENT_THINKING_LEVEL_LABELS[input.preferences.thinkingLevel]
+      : null;
+  return thinkingLabel ? `${modelName} ${thinkingLabel}` : modelName;
+}
+
 interface ChatViewSharedProps {
   readonly autoFocusComposer?: boolean;
   readonly contentPaneTopBarActions?: ReactNode;
@@ -407,7 +496,6 @@ interface ChatViewSharedProps {
   readonly hideContentPaneTopBar?: boolean;
   readonly isActiveSurface?: boolean;
   readonly isTiledSurface?: boolean;
-  readonly onContentPaneTopBarDragStart?: (event: DragEvent<HTMLElement>) => void;
   readonly reserveTitleBarControlInset?: boolean;
 }
 
@@ -588,6 +676,7 @@ export default function ChatView(props: ChatViewProps) {
   const markLocalRuntimeThread = useAgentRuntimeStore((store) => store.markLocalRuntimeThread);
   const clearLocalRuntimeThread = useAgentRuntimeStore((store) => store.clearLocalRuntimeThread);
   const runtimePreferences = useAgentRuntimeStore((state) => state.snapshot.preferences);
+  const runtimeModels = useAgentRuntimeStore((state) => state.snapshot.models);
   const revokeThreadSendIntentMessages = (intents: ReadonlyArray<ThreadSendIntent>) => {
     for (const message of threadSendIntentMessages(intents)) {
       revokeUserMessagePreviewUrls(message);
@@ -1033,27 +1122,12 @@ export default function ChatView(props: ChatViewProps) {
     replaceEditingQueuedComposerItem,
   } = useThreadComposerQueue(routeThreadKey);
   const forceSendQueuedItemRef = useRef<QueuedComposerItem | null>(null);
-  const forceSendRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const forceSendReadinessRef = useRef({
-    isTurnRunning,
-    isConnecting,
-    isSendBusy,
-  });
-  forceSendReadinessRef.current = {
-    isTurnRunning,
-    isConnecting,
-    isSendBusy,
-  };
-  const clearForceSendRetryTimeout = () => {
-    if (forceSendRetryTimeoutRef.current === null) {
-      return;
-    }
-    clearTimeout(forceSendRetryTimeoutRef.current);
-    forceSendRetryTimeoutRef.current = null;
-  };
   useMountEffect(() => () => {
-    clearForceSendRetryTimeout();
+    const pendingForceSendItem = forceSendQueuedItemRef.current;
     forceSendQueuedItemRef.current = null;
+    if (pendingForceSendItem) {
+      enqueueComposerItem(pendingForceSendItem.threadKey, pendingForceSendItem);
+    }
   });
   const activeWorkStartedAt = useMemo(
     () =>
@@ -1789,6 +1863,30 @@ export default function ChatView(props: ChatViewProps) {
     props.contentPaneTopBarTitle?.trim() ||
     activeThread?.title.trim() ||
     (routeKind === "draft" ? "New Agent" : "Agent");
+  const contentPaneTopBarTooltipDetails = useMemo<ChatHeaderTooltipDetails>(
+    () => ({
+      branchName: composerBranchName,
+      contextLabel: topnavContextLabel(activeContextWindow),
+      modelLabel: topnavModelLabel({
+        fallbackSelection: threadCreateModelSelection,
+        models: runtimeModels,
+        preferences: runtimePreferences,
+      }),
+      projectLabel: topnavProjectLabel(workspaceProject),
+      surfaceLabel: isElectron ? "Desktop" : "Web",
+      workspacePath: compactPathForTopnav(activeThreadWorktreePath ?? workspaceToolbarCwd),
+    }),
+    [
+      activeContextWindow,
+      activeThreadWorktreePath,
+      composerBranchName,
+      runtimeModels,
+      runtimePreferences,
+      threadCreateModelSelection,
+      workspaceProject,
+      workspaceToolbarCwd,
+    ],
+  );
   const newAgentFooterTip = useMemo(
     () =>
       getNewAgentFooterTip({
@@ -1861,15 +1959,6 @@ export default function ChatView(props: ChatViewProps) {
         : resolveAgentModeForModelSelection(activeThread.modelSelection, preferredAgentMode);
     return agentMode === "deep" || agentMode === "rush";
   };
-
-  const formatRuntimeGoalPrompt = (goal: string): string =>
-    [
-      "<honk_goal>",
-      goal,
-      "</honk_goal>",
-      "",
-      "Use this as the active objective for this run. Continue until the goal is complete or genuinely blocked; if blocked, state the exact missing input or external state needed.",
-    ].join("\n");
 
   const onCompactContext = async (customInstructions?: string) => {
     if (!activeThread) {
@@ -2124,7 +2213,6 @@ export default function ChatView(props: ChatViewProps) {
     const rawTrimmedPrompt = rawPromptForSend.trim();
     const rawStandaloneSlashCommand =
       composerImages.length === 0 ? parseStandaloneComposerSlashCommand(rawTrimmedPrompt) : null;
-    let runtimeTextOverrideForDispatch: string | null = null;
     if (rawStandaloneSlashCommand?.command === "compact") {
       if (clearComposerOnSubmit) {
         composerRef.current?.clearComposer();
@@ -2146,7 +2234,6 @@ export default function ChatView(props: ChatViewProps) {
         images: composerImages,
         hasUnresolvedSlashCommand: false,
       };
-      runtimeTextOverrideForDispatch = formatRuntimeGoalPrompt(rawStandaloneSlashCommand.body);
     }
     const { prompt: promptForSend } = sendContextForDispatch;
     let composerClearedForSend = false;
@@ -2477,9 +2564,6 @@ export default function ChatView(props: ChatViewProps) {
         createdAt: messageCreatedAt,
         message: {
           text: compiledTurn.outgoingMessageText,
-          ...(runtimeTextOverrideForDispatch !== null
-            ? { runtimeText: runtimeTextOverrideForDispatch }
-            : {}),
           ...(compiledTurn.outgoingRichText !== undefined
             ? { richText: compiledTurn.outgoingRichText }
             : {}),
@@ -2608,37 +2692,17 @@ export default function ChatView(props: ChatViewProps) {
     });
   };
 
-  const trySubmitForcedQueuedItem = (attempt = 0) => {
-    const item = forceSendQueuedItemRef.current;
-    if (!item) {
+  const submitForcedQueuedItemAfterInterrupt = async (item: QueuedComposerItem) => {
+    try {
+      await onInterrupt();
+    } catch {
+      // A failed interrupt should not strand the queued item after the user chose Send now.
+    }
+    if (forceSendQueuedItemRef.current !== item) {
       return;
     }
-
-    const readiness = forceSendReadinessRef.current;
-    const blocked =
-      readiness.isTurnRunning ||
-      readiness.isConnecting ||
-      readiness.isSendBusy ||
-      sendInFlightRef.current;
-    if (blocked) {
-      if (attempt >= 120) {
-        forceSendQueuedItemRef.current = null;
-        clearForceSendRetryTimeout();
-        enqueueComposerItem(item.threadKey, item);
-        return;
-      }
-
-      clearForceSendRetryTimeout();
-      forceSendRetryTimeoutRef.current = setTimeout(() => {
-        forceSendRetryTimeoutRef.current = null;
-        trySubmitForcedQueuedItem(attempt + 1);
-      }, 100);
-      return;
-    }
-
     forceSendQueuedItemRef.current = null;
-    clearForceSendRetryTimeout();
-    void submitQueuedComposerItem(item);
+    await submitQueuedComposerItem(item);
   };
 
   const clearLiveComposer = () => {
@@ -2869,7 +2933,7 @@ export default function ChatView(props: ChatViewProps) {
   };
 
   const onSendQueuedComposerItemNow = (itemId: MessageId) => {
-    if (isConnecting || isSendBusy || sendInFlightRef.current) {
+    if (isConnecting || isSendBusy || sendInFlightRef.current || forceSendQueuedItemRef.current) {
       return;
     }
     const item = takeQueuedComposerItem(routeThreadKey, itemId);
@@ -2881,8 +2945,7 @@ export default function ChatView(props: ChatViewProps) {
     }
     if (isTurnRunning) {
       forceSendQueuedItemRef.current = item;
-      trySubmitForcedQueuedItem();
-      void onInterrupt();
+      void submitForcedQueuedItemAfterInterrupt(item);
       return;
     }
     void submitQueuedComposerItem(item);
@@ -3405,14 +3468,12 @@ export default function ChatView(props: ChatViewProps) {
               reserveTitleBarControlInset &&
               "wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
           )}
-          data-chat-pane-drag-source={props.onContentPaneTopBarDragStart ? "true" : undefined}
           data-shell-drag-region=""
-          draggable={props.onContentPaneTopBarDragStart ? true : undefined}
-          onDragStart={props.onContentPaneTopBarDragStart}
         >
           <ChatHeader
             activeThreadTitle={contentPaneTopBarTitle}
             actions={contentPaneTopBarActions}
+            tooltipDetails={contentPaneTopBarTooltipDetails}
           />
         </header>
       )}

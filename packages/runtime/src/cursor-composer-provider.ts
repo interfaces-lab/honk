@@ -43,6 +43,7 @@ interface CursorComposerProviderOptions {
 
 interface CursorToolEventState {
   readonly contentIndexByCallId: Map<string, number>;
+  readonly rawUpdateByCallId: Map<string, Record<string, unknown>>;
   readonly completedCallIds: Set<string>;
   readonly completedFingerprints: Set<string>;
 }
@@ -693,12 +694,13 @@ function applyCursorAcpToolUpdate(
   update: Record<string, unknown>,
   toolEventState: CursorToolEventState,
 ): void {
-  const rawToolCall = cursorAcpSyntheticRawToolCall(update);
+  const mergedUpdate = mergeCursorAcpToolUpdate(toolEventState, update);
+  const rawToolCall = cursorAcpSyntheticRawToolCall(mergedUpdate);
   if (!rawToolCall) {
     return;
   }
-  const callId = stringField(update, "toolCallId") ?? `cursor-acp:${cursorToolFingerprint(rawToolCall)}`;
-  const status = normalizeAcpToolStatus(update.status);
+  const callId = stringField(mergedUpdate, "toolCallId") ?? `cursor-acp:${cursorToolFingerprint(rawToolCall)}`;
+  const status = normalizeAcpToolStatus(mergedUpdate.status);
   if (status === "completed" || status === "failed") {
     appendCursorToolCompleted(stream, message, callId, rawToolCall, toolEventState);
     return;
@@ -706,9 +708,24 @@ function applyCursorAcpToolUpdate(
   appendCursorToolStarted(stream, message, callId, rawToolCall, toolEventState);
 }
 
+function mergeCursorAcpToolUpdate(
+  state: CursorToolEventState,
+  update: Record<string, unknown>,
+): Record<string, unknown> {
+  const callId = stringField(update, "toolCallId");
+  if (!callId) {
+    return update;
+  }
+  const previous = state.rawUpdateByCallId.get(callId);
+  const merged = previous ? { ...previous, ...update } : update;
+  state.rawUpdateByCallId.set(callId, merged);
+  return merged;
+}
+
 function createCursorToolEventState(): CursorToolEventState {
   return {
     contentIndexByCallId: new Map<string, number>(),
+    rawUpdateByCallId: new Map<string, Record<string, unknown>>(),
     completedCallIds: new Set<string>(),
     completedFingerprints: new Set<string>(),
   };
@@ -833,8 +850,7 @@ function cursorAcpSyntheticRawToolCall(update: Record<string, unknown>): Record<
   const rawInput = toRecord(update.rawInput) ?? {};
   const args = cursorAcpToolArguments(kind, title, rawInput);
   const status = normalizeAcpToolStatus(update.status);
-  const outputText = cursorAcpOutputText(update);
-  const result = cursorAcpToolResult(status, outputText);
+  const result = cursorAcpToolResult(status, update.rawOutput ?? update.output ?? update.content);
   return {
     type: cursorAcpToolType(kind),
     args,
@@ -911,32 +927,59 @@ function normalizeAcpToolStatus(
 
 function cursorAcpToolResult(
   status: "pending" | "inProgress" | "completed" | "failed" | undefined,
-  outputText: string | undefined,
+  output: unknown,
 ): unknown {
+  const outputText = cursorAcpOutputText(output);
   if (status === "failed") {
-    return { status: "error", error: outputText ?? "Cursor tool failed" };
+    return {
+      status: "error",
+      error: outputText ?? cursorAcpErrorOutput(output) ?? "Cursor tool failed",
+    };
   }
   if (status !== "completed") {
     return undefined;
   }
+  const outputRecord = toRecord(output);
   return {
     status: "success",
     value: {
-      exitCode: 0,
-      signal: "",
-      stdout: outputText ?? "",
-      stderr: "",
-      executionTime: 0,
+      exitCode:
+        numberField(outputRecord, "exitCode") ?? numberField(outputRecord, "exit_code") ?? 0,
+      signal: stringField(outputRecord ?? {}, "signal") ?? "",
+      stdout: cursorAcpStdout(outputRecord, outputText),
+      stderr: stringField(outputRecord ?? {}, "stderr") ?? "",
+      executionTime:
+        numberField(outputRecord, "executionTime") ??
+        numberField(outputRecord, "execution_time") ??
+        numberField(outputRecord, "durationMs") ??
+        0,
     },
   };
 }
 
-function cursorAcpOutputText(update: Record<string, unknown>): string | undefined {
-  return (
-    textFromUnknown(update.rawOutput) ??
-    textFromUnknown(update.output) ??
-    textFromAcpToolContent(update.content)
-  );
+function cursorAcpStdout(
+  output: Record<string, unknown> | null,
+  fallback: string | undefined,
+): string {
+  if (!output) {
+    return fallback ?? "";
+  }
+  const directOutput =
+    stringField(output, "stdout") ??
+    stringField(output, "content") ??
+    stringField(output, "output") ??
+    stringField(output, "text") ??
+    textFromAcpToolContent(output.content);
+  return directOutput ?? "";
+}
+
+function cursorAcpOutputText(output: unknown): string | undefined {
+  return textFromUnknown(output) ?? textFromAcpToolContent(output);
+}
+
+function cursorAcpErrorOutput(output: unknown): string | undefined {
+  const record = toRecord(output);
+  return record ? textFromUnknown(record.error) ?? textFromUnknown(record.message) : undefined;
 }
 
 function textFromUnknown(value: unknown): string | undefined {
@@ -1182,6 +1225,11 @@ function recordField(
 function stringField(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function numberField(record: Record<string, unknown> | null, key: string): number | undefined {
+  const value = record?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function jsonRpcIdField(record: Record<string, unknown>, key: string): JsonRpcId | undefined {

@@ -587,10 +587,6 @@ html:not([data-electron]) .agent-window {
   -webkit-app-region: drag;
 }
 
-[data-shell-platform="electron"] .agent-window-chat-header[data-chat-pane-drag-source="true"] {
-  -webkit-app-region: no-drag;
-}
-
 [data-shell-overlay-backdrop] {
   opacity: 0;
   pointer-events: none;

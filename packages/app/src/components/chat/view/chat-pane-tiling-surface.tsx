@@ -2,6 +2,7 @@
 
 import { EnvironmentId, ThreadId } from "@honk/contracts";
 import { IconDotGrid1x3Horizontal } from "central-icons";
+import { Truncate } from "@pierre/truncate/react";
 import type { DragEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
@@ -78,19 +79,6 @@ function targetFromProps(props: ChatPaneTilingSurfaceProps): ChatPaneTarget {
       };
 }
 
-function sidebarChatDragPayloadForTarget(target: ChatPaneTarget): SidebarChatDragPayload {
-  return target.routeKind === "server"
-    ? {
-        environmentId: String(target.environmentId),
-        kind: "thread",
-        threadId: String(target.threadId),
-      }
-    : {
-        draftId: String(target.draftId),
-        kind: "draft",
-      };
-}
-
 function attachChatViewDragPreview(event: DragEvent<HTMLElement>, title: string): void {
   const source = event.currentTarget;
   source.dataset.dragging = "true";
@@ -115,27 +103,6 @@ function attachChatViewDragPreview(event: DragEvent<HTMLElement>, title: string)
   document.body.append(preview);
   event.dataTransfer.setDragImage(preview, 12, 12);
   window.setTimeout(() => preview.remove(), 0);
-}
-
-function writeChatViewDragPayload(
-  event: DragEvent<HTMLElement>,
-  target: ChatPaneTarget,
-  title: string,
-): void {
-  const dragTitle = title.trim() || "Agent";
-  const eventTarget = event.target instanceof Element ? event.target : null;
-  if (eventTarget?.closest("[data-no-drag]")) {
-    event.preventDefault();
-    return;
-  }
-  event.stopPropagation();
-  event.dataTransfer.effectAllowed = "move";
-  event.dataTransfer.setData(
-    SIDEBAR_CHAT_DRAG_MIME_TYPE,
-    JSON.stringify(sidebarChatDragPayloadForTarget(target)),
-  );
-  event.dataTransfer.setData("text/plain", dragTitle);
-  attachChatViewDragPreview(event, dragTitle);
 }
 
 function resolvePanelDrop(input: {
@@ -618,24 +585,13 @@ export function ChatPaneTilingSurface(props: ChatPaneTilingSurfaceProps) {
     [createInitialTileset, routeKey],
   );
 
-  const handleContentPaneTopBarDragStart = useCallback(
-    (event: DragEvent<HTMLElement>) => {
-      writeChatViewDragPayload(event, routeTarget, routeTitle);
-    },
-    [routeTarget, routeTitle],
-  );
-
   if (!tileset) {
     return (
       <StandaloneChatDropTarget
         routeTarget={routeTarget}
         onDropSidebarChat={handleDropSidebarChatOnStandalone}
       >
-        <ChatView
-          {...props}
-          contentPaneTopBarTitle={routeTitle}
-          onContentPaneTopBarDragStart={handleContentPaneTopBarDragStart}
-        />
+        <ChatView {...props} contentPaneTopBarTitle={routeTitle} />
       </StandaloneChatDropTarget>
     );
   }
@@ -958,7 +914,9 @@ function ChatTilePanel(props: {
           attachChatViewDragPreview(event, title);
         }}
       >
-        <div className="min-w-0 flex-1 truncate">{title}</div>
+        <Truncate className="min-w-0 flex-1 basis-0 [--truncate-marker-background-color:var(--honk-chat-surface-background)]">
+          {title}
+        </Truncate>
         <div className="flex shrink-0 items-center" data-no-drag="" data-shell-no-drag="">
           <ChatTileOverflowMenu
             isExpanded={props.isExpanded}
