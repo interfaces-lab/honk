@@ -116,6 +116,10 @@ const GitLayerLive = Layer.empty.pipe(
 
 const TerminalLayerLive = TerminalManagerLive.pipe(Layer.provide(PtyAdapterLive));
 
+const RuntimeIngestionRouteLayerLive = runtimeIngestionRouteLayer.pipe(
+  Layer.provide(GitManagerLayerLive),
+);
+
 const ProjectLayerLive = Layer.mergeAll(
   ProjectPathsLive,
   ProjectEntriesLive.pipe(Layer.provide(ProjectPathsLive)),
@@ -169,7 +173,7 @@ export const makeRoutesLayer = Layer.mergeAll(
   attachmentsRouteLayer,
   orchestrationDispatchRouteLayer,
   orchestrationSnapshotRouteLayer,
-  runtimeIngestionRouteLayer,
+  RuntimeIngestionRouteLayerLive,
   projectFaviconRouteLayer,
   serverEnvironmentRouteLayer,
   staticAndDevRouteLayer,

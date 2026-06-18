@@ -1,6 +1,7 @@
 import {
   CommandId,
   type ClientOrchestrationCommand,
+  type DispatchResult,
   OrchestrationDispatchCommandError,
   type OrchestrationHttpErrorResponse,
   type RuntimeIngestionRecord,
@@ -12,6 +13,7 @@ import { Effect } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 
 import { ServerAuth } from "../auth/ServerAuth.service.ts";
+import { GitManager } from "../git/GitManager.service.ts";
 import { normalizeDispatchCommand } from "../orchestration/Normalizer.ts";
 import { OrchestrationEngineService } from "../orchestration/OrchestrationEngine.service.ts";
 
@@ -37,6 +39,36 @@ const authenticateOwnerSession = Effect.gen(function* () {
 
 function runtimeRecordCommandId(record: RuntimeIngestionRecord): CommandId {
   return CommandId.make(record.recordId);
+}
+
+export function clientCommandForRuntimeUserTurnStartRecord(
+  record: Extract<RuntimeIngestionRecord, { kind: "user.turn-start" }>,
+): ClientOrchestrationCommand {
+  return {
+    type: "thread.turn.start",
+    commandId: runtimeRecordCommandId(record),
+    threadId: record.threadId,
+    message: {
+      messageId: record.payload.messageId,
+      role: "user",
+      text: record.payload.text,
+      attachments: record.payload.attachments,
+    },
+    ...(record.payload.modelSelection !== undefined
+      ? { modelSelection: record.payload.modelSelection }
+      : {}),
+    ...(record.payload.titleSeed !== undefined ? { titleSeed: record.payload.titleSeed } : {}),
+    runtimeMode: record.payload.runtimeMode,
+    interactionMode: record.payload.interactionMode,
+    ...(record.payload.parentEntryId !== undefined
+      ? { parentEntryId: record.payload.parentEntryId }
+      : {}),
+    ...(record.payload.bootstrap !== undefined ? { bootstrap: record.payload.bootstrap } : {}),
+    ...(record.payload.sourceProposedPlan !== undefined
+      ? { sourceProposedPlan: record.payload.sourceProposedPlan }
+      : {}),
+    createdAt: record.createdAt,
+  };
 }
 
 // Maps the non-turn-start runtime facts to internal orchestration commands with no server-service
@@ -69,34 +101,10 @@ export function internalCommandForRuntimeFact(
   }
 }
 
-function runtimeRecordToCommand(record: RuntimeIngestionRecord) {
+export function runtimeRecordToCommand(record: RuntimeIngestionRecord) {
   switch (record.kind) {
     case "user.turn-start": {
-      const command: ClientOrchestrationCommand = {
-        type: "thread.turn.start",
-        commandId: runtimeRecordCommandId(record),
-        threadId: record.threadId,
-        message: {
-          messageId: record.payload.messageId,
-          role: "user",
-          text: record.payload.text,
-          attachments: record.payload.attachments,
-        },
-        ...(record.payload.modelSelection !== undefined
-          ? { modelSelection: record.payload.modelSelection }
-          : {}),
-        ...(record.payload.titleSeed !== undefined ? { titleSeed: record.payload.titleSeed } : {}),
-        runtimeMode: record.payload.runtimeMode,
-        interactionMode: record.payload.interactionMode,
-        ...(record.payload.parentEntryId !== undefined
-          ? { parentEntryId: record.payload.parentEntryId }
-          : {}),
-        ...(record.payload.sourceProposedPlan !== undefined
-          ? { sourceProposedPlan: record.payload.sourceProposedPlan }
-          : {}),
-        createdAt: record.createdAt,
-      };
-      return normalizeDispatchCommand(command);
+      return normalizeDispatchCommand(clientCommandForRuntimeUserTurnStartRecord(record));
     }
     case "assistant.completion":
     case "thread.activity":
@@ -104,12 +112,32 @@ function runtimeRecordToCommand(record: RuntimeIngestionRecord) {
   }
 }
 
+const dispatchRuntimeCommand = (
+  command: OrchestrationCommand,
+  services: {
+    readonly orchestrationEngine: OrchestrationEngineService["Service"];
+    readonly gitManager: GitManager["Service"];
+  },
+): Effect.Effect<DispatchResult, OrchestrationDispatchCommandError> =>
+  command.type === "thread.turn.start" && command.bootstrap !== undefined
+    ? services.gitManager.dispatchBootstrapTurnStart(command)
+    : services.orchestrationEngine.dispatch(command).pipe(
+        Effect.mapError(
+          (cause) =>
+            new OrchestrationDispatchCommandError({
+              message: "Failed to dispatch runtime ingestion command.",
+              cause,
+            }),
+        ),
+      );
+
 export const runtimeIngestionRouteLayer = HttpRouter.add(
   "POST",
   "/api/runtime/ingest",
   Effect.gen(function* () {
     yield* authenticateOwnerSession;
     const orchestrationEngine = yield* OrchestrationEngineService;
+    const gitManager = yield* GitManager;
     const request = yield* HttpServerRequest.schemaBodyJson(RuntimeIngestionRequest).pipe(
       Effect.mapError(
         (cause) =>
@@ -123,7 +151,9 @@ export const runtimeIngestionRouteLayer = HttpRouter.add(
       request.records,
       (record) =>
         runtimeRecordToCommand(record).pipe(
-          Effect.flatMap((command) => orchestrationEngine.dispatch(command)),
+          Effect.flatMap((command) =>
+            dispatchRuntimeCommand(command, { orchestrationEngine, gitManager }),
+          ),
           Effect.map((result) => ({
             recordId: record.recordId,
             sequence: result.sequence,

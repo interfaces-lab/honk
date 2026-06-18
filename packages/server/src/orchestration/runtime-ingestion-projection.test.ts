@@ -14,7 +14,10 @@ import {
 import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { internalCommandForRuntimeFact } from "../runtime/runtime-ingestion-http.ts";
+import {
+  clientCommandForRuntimeUserTurnStartRecord,
+  internalCommandForRuntimeFact,
+} from "../runtime/runtime-ingestion-http.ts";
 import { decideOrchestrationCommand } from "./decider.ts";
 import { createEmptyReadModel, projectEvent } from "./projector.ts";
 
@@ -115,7 +118,55 @@ function assistantCompletionRecord(): Extract<
   };
 }
 
+function userTurnStartRecordWithBootstrap(): Extract<
+  RuntimeIngestionRecord,
+  { kind: "user.turn-start" }
+> {
+  return {
+    recordId: RuntimeIngestionRecordId.make(
+      `runtime-user-turn:${threadId}:${runtimeSessionId}:${userMessageId}`,
+    ),
+    threadId,
+    runtimeSessionId,
+    sourceEventId: `runtime-user-turn:${turnId}`,
+    kind: "user.turn-start",
+    createdAt: requestedAt,
+    payload: {
+      messageId: userMessageId,
+      text: "do the thing",
+      attachments: [],
+      modelSelection: {
+        instanceId: "model:test",
+        model: "gpt-test",
+      },
+      titleSeed: "do the thing",
+      runtimeMode: "full-access",
+      interactionMode: "agent",
+      bootstrap: {
+        prepareWorktree: {
+          projectCwd: "/repo",
+          baseBranch: "main",
+          branch: "wt/do-the-thing",
+        },
+        runSetupScript: true,
+      },
+    },
+  };
+}
+
 describe("runtime ingestion projection chain", () => {
+  it("preserves git bootstrap metadata on canonical user turn records", async () => {
+    const record = userTurnStartRecordWithBootstrap();
+    const command = clientCommandForRuntimeUserTurnStartRecord(record);
+
+    expect(command).toMatchObject({
+      type: "thread.turn.start",
+      commandId: CommandId.make(record.recordId),
+      threadId,
+      bootstrap: record.payload.bootstrap,
+    });
+  });
+
   it("drives assistant.completion through assistant complete to a completed SQLite turn", async () => {
     const record = assistantCompletionRecord();
 

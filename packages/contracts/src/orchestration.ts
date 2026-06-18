@@ -1090,6 +1090,7 @@ const RuntimeUserTurnStartRecord = Schema.Struct({
       Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_INTERACTION_MODE)),
     ),
     parentEntryId: Schema.optionalKey(Schema.NullOr(ThreadEntryId)),
+    bootstrap: Schema.optional(ThreadTurnStartBootstrap),
     sourceProposedPlan: Schema.optional(SourceProposedPlanReference),
   }),
 });
