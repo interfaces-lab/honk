@@ -141,7 +141,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Align package versions to release version
-        run: pnpm release:bump -- --release "${{ needs.preflight.outputs.version }}" --yes
+        run: pnpm release:bump --release "${{ needs.preflight.outputs.version }}" --yes
 
       - name: Build desktop bundle
         run: pnpm run build:desktop
@@ -243,7 +243,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Align package versions to release version
-        run: pnpm release:bump -- --release "${{ needs.preflight.outputs.version }}" --yes
+        run: pnpm release:bump --release "${{ needs.preflight.outputs.version }}" --yes
 
       - name: Build CLI package
         run: pnpm run build -- --filter=@honk/app --filter=usehonk
@@ -344,7 +344,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
         run: |
-          pnpm release:bump -- --release "$RELEASE_VERSION" --yes
+          pnpm release:bump --release "$RELEASE_VERSION" --yes
           if git diff --quiet -- packages/server/package.json packages/desktop/package.json packages/app/package.json packages/contracts/package.json; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
