@@ -1,6 +1,6 @@
 {
   "name": "@honk/app",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "private": true,
   "type": "module",
   "exports": {
@@ -24,8 +24,8 @@
     "@effect/atom-react": "catalog:",
     "@honk/client-runtime": "workspace:*",
     "@honk/contracts": "workspace:*",
-    "@honk/runtime": "workspace:*",
     "@honk/honkkit": "workspace:*",
+    "@honk/runtime": "workspace:*",
     "@honk/shared": "workspace:*",
     "@lexical/react": "^0.45.0",
     "@lexical/selection": "^0.45.0",
