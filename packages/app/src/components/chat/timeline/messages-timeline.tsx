@@ -1,8 +1,6 @@
 import { type EnvironmentId, type MessageId, type ThreadId } from "@honk/contracts";
 import {
-  memo,
   useCallback,
-  useMemo,
   useRef,
   useState,
   type RefObject,
@@ -122,7 +120,7 @@ interface MessagesTimelineProps {
 // Virtualized message list.
 
 export function MessagesTimeline({
-  isWorking,
+  isWorking: _isWorking,
   isTurnActive,
   isStreaming = false,
   disableAutoScroll = false,
@@ -146,37 +144,23 @@ export function MessagesTimeline({
   onIsAtBottomChange,
 }: MessagesTimelineProps) {
   const conversationDensity = useConversationDensity();
-  const pendingApprovalKinds = useMemo<ReadonlySet<PendingApprovalRequestKind>>(
-    () =>
-      pendingApprovals && pendingApprovals.length > 0
-        ? new Set(pendingApprovals.map((approval) => approval.requestKind))
-        : EMPTY_PENDING_APPROVAL_KINDS,
-    [pendingApprovals],
-  );
-  const rawRows = useMemo(
-    () =>
-      deriveMessagesTimelineRows({
-        timelineEntries,
-        isTurnActive,
-        editableUserMessageIds,
-        projectRoot,
-        conversationDensity,
-        pendingApprovalKinds,
-      }),
-    [
-      conversationDensity,
-      editableUserMessageIds,
-      isTurnActive,
-      pendingApprovalKinds,
-      projectRoot,
-      timelineEntries,
-    ],
-  );
+  const pendingApprovalKinds: ReadonlySet<PendingApprovalRequestKind> =
+    pendingApprovals && pendingApprovals.length > 0
+      ? new Set(pendingApprovals.map((approval) => approval.requestKind))
+      : EMPTY_PENDING_APPROVAL_KINDS;
+  const rawRows = deriveMessagesTimelineRows({
+    timelineEntries,
+    isTurnActive,
+    editableUserMessageIds,
+    projectRoot,
+    conversationDensity,
+    pendingApprovalKinds,
+  });
   const rows = useStableRows(rawRows);
   const [expandedWorkGroupIds, setExpandedWorkGroupIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  const toggleWorkGroupExpanded = useCallback((rowId: string) => {
+  const toggleWorkGroupExpanded = (rowId: string) => {
     setExpandedWorkGroupIds((current) => {
       const next = new Set(current);
       if (next.has(rowId)) {
@@ -186,11 +170,8 @@ export function MessagesTimeline({
       }
       return next;
     });
-  }, []);
-  const stickyUserRowIndices = useMemo(
-    () => rows.flatMap((row, index) => (isUserMessageRow(row) ? [index] : [])),
-    [rows],
-  );
+  };
+  const stickyUserRowIndices = rows.flatMap((row, index) => (isUserMessageRow(row) ? [index] : []));
   const scrollElementRef = useRef<HTMLDivElement | null>(null);
   const scrollFollowRef = useRef<TimelineScrollFollowState>({ pinned: true, atBottom: true });
   const lastUserScrollInputAtRef = useRef(0);
@@ -209,10 +190,8 @@ export function MessagesTimeline({
   disableAutoScrollRef.current = disableAutoScroll;
   isStreamingRef.current = isStreaming;
   const lastHumanRowIndex = stickyUserRowIndices.at(-1) ?? null;
-  const estimateRowHeight = useCallback(
-    (index: number) => estimateVirtualTimelineRowSize(rows[index], expandedWorkGroupIds),
-    [expandedWorkGroupIds, rows],
-  );
+  const estimateRowHeight = (index: number) =>
+    estimateVirtualTimelineRowSize(rows[index], expandedWorkGroupIds);
   const cachedVirtualizerSnapshot = timelineVirtualizerSnapshots.get(timelineCacheKey) ?? null;
   const initialMeasurementsCache = filterReusableTimelineMeasurements(
     cachedVirtualizerSnapshot,
@@ -260,6 +239,8 @@ export function MessagesTimeline({
   rowsRef.current = rows;
   stickyUserRowIndicesRef.current = stickyUserRowIndices;
 
+  // Scroll controller sync keys off callback identity via useValueIdentityVersion.
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- timeline controller identity
   const reportIsAtBottom = useCallback(
     (isAtBottom: boolean, options?: { force?: boolean }) => {
       if (!options?.force && scrollFollowRef.current.atBottom === isAtBottom) {
@@ -274,6 +255,7 @@ export function MessagesTimeline({
     [onIsAtBottomChange],
   );
 
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- timeline controller identity
   const clearProgrammaticScrollTracking = useCallback(() => {
     programmaticScrollActiveRef.current = false;
     if (programmaticScrollFrameRef.current != null) {
@@ -282,6 +264,7 @@ export function MessagesTimeline({
     }
   }, []);
 
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- virtualizer range extractor identity
   const rangeExtractor = useCallback((range: Range) => {
     const defaultRange = defaultRangeExtractor(range);
     const activeStickyIndex = findActiveStickyUserRowIndex(
@@ -358,11 +341,13 @@ export function MessagesTimeline({
     };
   }, [rowVirtualizer]);
 
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- timeline controller identity
   const getIsAtBottom = useCallback(
     () => rowVirtualizer.isAtEnd(NEAR_BOTTOM_THRESHOLD_PX + dynamicPaddingEnd),
     [dynamicPaddingEnd, rowVirtualizer],
   );
 
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- timeline controller identity
   const scheduleProgrammaticScrollResolution = useCallback(() => {
     if (programmaticScrollFrameRef.current != null) {
       return;
@@ -387,6 +372,7 @@ export function MessagesTimeline({
     programmaticScrollFrameRef.current = window.requestAnimationFrame(resolveProgrammaticScroll);
   }, [getIsAtBottom, reportIsAtBottom]);
 
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- timeline controller identity
   const scrollToBottom = useCallback(
     (options?: { animated?: boolean }) => {
       if (!scrollElementRef.current) {
@@ -420,12 +406,12 @@ export function MessagesTimeline({
   const getIsAtBottomVersion = useValueIdentityVersion(getIsAtBottom);
   const scrollToBottomVersion = useValueIdentityVersion(scrollToBottom);
 
-  const recordUserScrollInput = useCallback(() => {
+  const recordUserScrollInput = () => {
     lastUserScrollInputAtRef.current = window.performance.now();
     clearProgrammaticScrollTracking();
-  }, [clearProgrammaticScrollTracking]);
+  };
 
-  const handleScroll = useCallback(() => {
+  const handleScroll = () => {
     const scrollElement = scrollElementRef.current;
     if (!scrollElement) {
       return;
@@ -457,7 +443,7 @@ export function MessagesTimeline({
       isProgrammaticScrollActive: programmaticScrollActiveRef.current,
     });
     reportIsAtBottom(scrollFollowRef.current.atBottom);
-  }, [clearProgrammaticScrollTracking, getIsAtBottom, reportIsAtBottom, rowVirtualizer]);
+  };
 
   useLayoutSyncEffect(() => {
     if (rows.length === 0 || initializedScrollRef.current) {
@@ -515,32 +501,18 @@ export function MessagesTimeline({
     [rowVirtualizer, timelineCacheKey],
   );
 
-  const sharedState: StepRendererContext = useMemo(
-    () => ({
-      markdownCwd,
-      projectRoot,
-      activeThreadId,
-      activeThreadEnvironmentId,
-      isServerThread,
-      pendingApprovalKinds,
-      onBeginEditUserMessage,
-      renderEditComposer,
-      onUpdateProposedPlan,
-      onImageExpand,
-    }),
-    [
-      activeThreadEnvironmentId,
-      activeThreadId,
-      isServerThread,
-      markdownCwd,
-      onBeginEditUserMessage,
-      onImageExpand,
-      onUpdateProposedPlan,
-      pendingApprovalKinds,
-      projectRoot,
-      renderEditComposer,
-    ],
-  );
+  const sharedState: StepRendererContext = {
+    markdownCwd,
+    projectRoot,
+    activeThreadId,
+    activeThreadEnvironmentId,
+    isServerThread,
+    pendingApprovalKinds,
+    onBeginEditUserMessage,
+    renderEditComposer,
+    onUpdateProposedPlan,
+    onImageExpand,
+  };
   const lifecycleSync = (
     <>
       <TimelineControllerSync
@@ -958,7 +930,7 @@ function virtualRowStyle(
 
 type TimelineRow = MessagesTimelineRow;
 
-const TimelineRowContent = memo(function TimelineRowContent({
+function TimelineRowContent({
   row,
   workGroupExpanded,
   onToggleWorkGroupExpanded,
@@ -1005,7 +977,7 @@ const TimelineRowContent = memo(function TimelineRowContent({
       />
     </div>
   );
-});
+}
 
 function TimelineRowBody({
   row,

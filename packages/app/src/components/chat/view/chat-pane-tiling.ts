@@ -339,7 +339,7 @@ export function placeAgentOnPanel(
   data: ChatPanePanelData,
   zone: ChatPaneDropZone,
   nextPanelId: string,
-  options: ChatPanePlacementOptions = {},
+  _options: ChatPanePlacementOptions = {},
 ): ChatPaneTileset {
   const targetPanel = tileset.panels[targetPanelId];
   if (!targetPanel || tileset.panels[nextPanelId]) {

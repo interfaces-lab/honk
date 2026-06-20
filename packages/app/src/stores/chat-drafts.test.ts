@@ -10,7 +10,6 @@ import {
   DraftId as DraftIdSchema,
   finalizePromotedDraftThreadByRef,
   isNewThreadDraftId,
-  draftIdFromNewThreadDraftThreadId,
   isNewThreadDraftThreadId,
   useComposerDraftStore,
 } from "./chat-drafts";

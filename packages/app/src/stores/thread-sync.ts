@@ -45,7 +45,6 @@ import { toJsonValue, type JsonValue } from "@honk/shared/schema-json";
 import { resolveGitAgentActionFromPrompt } from "~/lib/git-agent-actions";
 import type {
   ChatMessage,
-  LiveAssistantTurn,
   Project,
   ProposedPlan,
   SidebarThreadSummary,
@@ -1641,7 +1640,9 @@ function upsertThreadActivities(
     const latestContextWindowActivity = [
       ...current.filter((activity) => activity.kind === "context-window.updated"),
       ...contextWindowReplacements,
-    ].toSorted(compareActivities).at(-1);
+    ]
+      .toSorted(compareActivities)
+      .at(-1);
     next = next.filter((activity) => activity.kind !== "context-window.updated");
     if (latestContextWindowActivity) {
       next = upsertThreadActivity(next, latestContextWindowActivity);
@@ -1976,6 +1977,10 @@ function isSameParentVisibleThread(previousThread: Thread, nextThread: Thread): 
 function shouldPreserveLiveRuntimeSession(
   previousSession: ThreadSession | null | undefined,
   nextSession: ThreadSession | null | undefined,
+  turnState?: {
+    readonly previous: ThreadTurnState | null | undefined;
+    readonly next: ThreadTurnState;
+  },
 ): previousSession is ThreadSession {
   if (previousSession?.orchestrationStatus !== "running") {
     return false;
@@ -1984,11 +1989,24 @@ function shouldPreserveLiveRuntimeSession(
   if (nextStatus !== null && nextStatus !== "idle" && nextStatus !== "ready") {
     return false;
   }
-  return (
+  const shouldPreserve =
     nextSession === null ||
     nextSession === undefined ||
-    previousSession.updatedAt >= nextSession.updatedAt
-  );
+    previousSession.updatedAt >= nextSession.updatedAt;
+  const previousLatestTurn = turnState?.previous?.latestTurn;
+  const nextLatestTurn = turnState?.next.latestTurn;
+  if (
+    shouldPreserve &&
+    previousSession.activeTurnId === undefined &&
+    previousLatestTurn &&
+    nextLatestTurn &&
+    previousLatestTurn.turnId === nextLatestTurn.turnId &&
+    nextLatestTurn.completedAt !== null
+  ) {
+    return false;
+  }
+
+  return shouldPreserve;
 }
 
 function preserveLiveRuntimeLatestTurn(
@@ -2000,24 +2018,27 @@ function preserveLiveRuntimeLatestTurn(
   }
   return {
     latestTurn: previous.latestTurn,
-    pendingSourceProposedPlan:
-      previous.pendingSourceProposedPlan ?? next.pendingSourceProposedPlan,
+    pendingSourceProposedPlan: previous.pendingSourceProposedPlan ?? next.pendingSourceProposedPlan,
   };
 }
 
 function preserveLiveRuntimeThreadState(previousThread: Thread | undefined, nextThread: Thread) {
-  if (!shouldPreserveLiveRuntimeSession(previousThread?.session, nextThread.session)) {
+  const previousTurnState = previousThread ? toThreadTurnState(previousThread) : null;
+  const nextTurnState = toThreadTurnState(nextThread);
+  if (
+    !shouldPreserveLiveRuntimeSession(previousThread?.session, nextThread.session, {
+      previous: previousTurnState,
+      next: nextTurnState,
+    })
+  ) {
     return nextThread;
   }
-  const nextTurnState = preserveLiveRuntimeLatestTurn(
-    previousThread ? toThreadTurnState(previousThread) : null,
-    toThreadTurnState(nextThread),
-  );
+  const preservedTurnState = preserveLiveRuntimeLatestTurn(previousTurnState, nextTurnState);
   return {
     ...nextThread,
     session: previousThread.session,
-    latestTurn: nextTurnState.latestTurn,
-    pendingSourceProposedPlan: nextTurnState.pendingSourceProposedPlan,
+    latestTurn: preservedTurnState.latestTurn,
+    pendingSourceProposedPlan: preservedTurnState.pendingSourceProposedPlan,
   };
 }
 
@@ -2486,7 +2507,12 @@ function writeThreadShellState(
   const previousShell = previous?.shell ?? existingShell;
   const liveSession = previous?.session ?? existingSession;
   const liveTurnState = previous?.turnState ?? existingTurnState;
-  if (shouldPreserveLiveRuntimeSession(liveSession, nextThread.session)) {
+  if (
+    shouldPreserveLiveRuntimeSession(liveSession, nextThread.session, {
+      previous: liveTurnState,
+      next: nextThread.turnState,
+    })
+  ) {
     const turnState = preserveLiveRuntimeLatestTurn(liveTurnState, nextThread.turnState);
     nextThread = {
       ...nextThread,
@@ -2537,12 +2563,7 @@ function writeThreadShellState(
     };
   }
 
-  if (
-    !sidebarThreadSummariesEqual(
-      existingSummary,
-      nextThread.summary,
-    )
-  ) {
+  if (!sidebarThreadSummariesEqual(existingSummary, nextThread.summary)) {
     nextState = {
       ...nextState,
       sidebarThreadSummaryById: {

@@ -23,9 +23,9 @@ describe("formatTurnFailureMessage", () => {
 
 describe("providerFailureFromAssistantMessageText", () => {
   it("normalizes stored provider-failure assistant message text", () => {
-    expect(
-      providerFailureFromAssistantMessageText("Provider error: Codex error: overloaded"),
-    ).toBe("overloaded");
+    expect(providerFailureFromAssistantMessageText("Provider error: Codex error: overloaded")).toBe(
+      "overloaded",
+    );
   });
 
   it("returns null for regular assistant text", () => {

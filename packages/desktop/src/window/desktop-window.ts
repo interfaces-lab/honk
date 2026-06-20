@@ -98,10 +98,7 @@ function shouldLogRendererConsoleMessage(
 
   rendererConsoleMessageLastSeen.set(key, now);
 
-  if (
-    lastSeenAt !== undefined &&
-    now - lastSeenAt < RENDERER_CONSOLE_REPEAT_LOG_WINDOW_MS
-  ) {
+  if (lastSeenAt !== undefined && now - lastSeenAt < RENDERER_CONSOLE_REPEAT_LOG_WINDOW_MS) {
     return false;
   }
 

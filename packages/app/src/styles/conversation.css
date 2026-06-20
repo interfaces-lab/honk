@@ -72,7 +72,6 @@
   --honk-motion-duration-slower: 300ms;
   --honk-motion-ease-default: var(--ease-shell);
   --honk-motion-ease-float: cubic-bezier(0.16, 1, 0.3, 1);
-  --honk-composer-blur: var(--honk-glass-blur-bubble);
   --honk-composer-subagent-preview-mask-transition: opacity var(--honk-motion-duration-fast)
     ease-out;
 }
@@ -188,6 +187,8 @@
 [data-honk-composer-surface][data-layout="new-agent"] {
   min-height: var(--honk-new-agent-composer-min-height);
   border-radius: var(--honk-new-agent-composer-radius);
+  background-color: var(--honk-composer-surface-opaque-background);
+  box-shadow: none;
 }
 
 [data-honk-composer-shell="new-agent"] {
@@ -387,11 +388,6 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"]
   background-color: var(--honk-composer-surface-background);
 }
 
-[data-honk-composer-surface][data-layout="new-agent"] {
-  background-color: var(--honk-composer-surface-opaque-background);
-  box-shadow: none;
-}
-
 [data-honk-composer-surface][data-layout="new-agent"]::after {
   box-shadow: inset 0 0 0 1px var(--honk-stroke-tertiary);
 }
@@ -531,25 +527,27 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-honk-composer-h
   background: var(--honk-composer-surface-opaque-background);
 }
 
-body.honk-reduce-transparency[data-honk-glass-mode="true"] :is(
-  [data-composer-command-menu-root] [data-variant="surface"],
-  [data-composer-menu-preview],
-  .honk-slash-menu-popup,
-  .honk-workbench-menu-popup,
-  [data-testid="command-palette"]
-) {
+body.honk-reduce-transparency[data-honk-glass-mode="true"]
+  :is(
+    [data-composer-command-menu-root] [data-variant="surface"],
+    [data-composer-menu-preview],
+    .honk-slash-menu-popup,
+    .honk-workbench-menu-popup,
+    [data-testid="command-palette"]
+  ) {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   background-color: var(--honk-menu-surface-background);
 }
 
 /* Picker menus: opaque pane in glass (light and dark). Command palette stays glass in light. */
-body[data-honk-glass-mode="true"] :is(
-  [data-composer-command-menu-root] [data-variant="surface"],
-  [data-composer-menu-preview],
-  .honk-slash-menu-popup,
-  .honk-workbench-menu-popup
-) {
+body[data-honk-glass-mode="true"]
+  :is(
+    [data-composer-command-menu-root] [data-variant="surface"],
+    [data-composer-menu-preview],
+    .honk-slash-menu-popup,
+    .honk-workbench-menu-popup
+  ) {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   background-color: var(--honk-menu-surface-background);

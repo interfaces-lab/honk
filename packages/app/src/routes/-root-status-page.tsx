@@ -25,14 +25,8 @@ export function RootStatusPage(props: {
         ) : null}
         {props.actions && props.actions.length > 0 ? (
           <div className="flex items-center gap-2">
-            {props.actions.map((action) => (
-              <Button
-                key={String(action.label)}
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={action.onClick}
-              >
+            {props.actions.map((action, index) => (
+              <Button key={index} type="button" size="sm" variant="ghost" onClick={action.onClick}>
                 {action.label}
               </Button>
             ))}

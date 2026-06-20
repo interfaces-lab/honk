@@ -17,10 +17,7 @@ import {
   useStore,
   type EnvironmentSnapshotSource,
 } from "~/stores/thread-store";
-import {
-  createThreadSelectorByRef,
-  selectThreadRouteLifecycleSurfaceByRef,
-} from "~/stores/thread-selectors";
+import { selectThreadRouteLifecycleSurfaceByRef } from "~/stores/thread-selectors";
 import {
   clearLastChatRouteTarget,
   writeLastChatRouteTarget,

@@ -402,7 +402,12 @@ export const marketingDemoSteps = [
     holdMs: 1600,
     scene: scene(
       "marketing-homepage",
-      [marketingHomepageUser, marketingHomepageAssistant, marketingHomepageRead, marketingHomepageEditLoading],
+      [
+        marketingHomepageUser,
+        marketingHomepageAssistant,
+        marketingHomepageRead,
+        marketingHomepageEditLoading,
+      ],
       { ...idleThreadStates, "marketing-homepage": "running" },
     ),
   },
@@ -410,7 +415,12 @@ export const marketingDemoSteps = [
     holdMs: 3200,
     scene: scene(
       "marketing-homepage",
-      [marketingHomepageUser, marketingHomepageAssistant, marketingHomepageRead, marketingHomepageEdit],
+      [
+        marketingHomepageUser,
+        marketingHomepageAssistant,
+        marketingHomepageRead,
+        marketingHomepageEdit,
+      ],
       { ...idleThreadStates, "marketing-homepage": "done" },
     ),
   },
@@ -440,11 +450,10 @@ export const marketingDemoSteps = [
   },
   {
     holdMs: 2800,
-    scene: scene(
-      "effect-streams",
-      [effectStreamsUser, effectStreamsAssistant, effectStreamsRead],
-      { ...idleThreadStates, "effect-streams": "done" },
-    ),
+    scene: scene("effect-streams", [effectStreamsUser, effectStreamsAssistant, effectStreamsRead], {
+      ...idleThreadStates,
+      "effect-streams": "done",
+    }),
   },
   {
     holdMs: 2200,

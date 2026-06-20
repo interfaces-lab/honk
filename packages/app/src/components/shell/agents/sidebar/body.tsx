@@ -11,7 +11,7 @@ import { Button } from "@honk/honkkit/button";
 import { Menu, MenuCheckboxItem, MenuPopup, MenuSeparator, MenuTrigger } from "@honk/honkkit/menu";
 import { SidebarItem } from "@honk/honkkit/sidebar";
 import { IconChevronRightMedium, IconFilter2, IconFolderAddRight } from "central-icons";
-import { type DragEvent, useCallback, useId, useMemo, useState } from "react";
+import { type DragEvent, useId, useState } from "react";
 
 import { type ArchiveWarningDialogController, useThreadActions } from "~/hooks/use-thread-actions";
 import { type SidebarThreadFilter, useUiStateStore } from "~/stores/ui-state-store";
@@ -117,90 +117,75 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
   const [workspaceCollectionOpen, setWorkspaceCollectionOpen] = useState(true);
   const workspaceCollectionLabelId = useId();
   const workspaceCollectionPanelId = useId();
-  const onSidebarDragStart = useCallback(
-    (event: DragEvent<HTMLElement>, payload: SidebarDragPayload) => {
-      event.stopPropagation();
-      event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", payload.sectionId);
-      setDragPayload(payload);
-      setDropTarget(null);
-    },
-    [],
-  );
-  const onSidebarDragEnd = useCallback(() => {
+  const onSidebarDragStart = (event: DragEvent<HTMLElement>, payload: SidebarDragPayload) => {
+    event.stopPropagation();
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", payload.sectionId);
+    setDragPayload(payload);
+    setDropTarget(null);
+  };
+  const onSidebarDragEnd = () => {
     setDragPayload(null);
     setDropTarget(null);
-  }, []);
-  const onSidebarDragOver = useCallback(
-    (event: DragEvent<HTMLElement>, target: SidebarDragPayload) => {
-      if (
-        !dragPayload ||
-        dragPayload.sectionId === target.sectionId ||
-        target.projectOrderKeys.length === 0
-      ) {
-        setDropTarget(null);
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      event.dataTransfer.dropEffect = "move";
-
-      const previousPosition =
-        dropTarget?.sectionId === target.sectionId ? dropTarget.position : null;
-
-      const rect = event.currentTarget.getBoundingClientRect();
-      const y = event.clientY - rect.top;
-      const position =
-        y < rect.height * 0.4
-          ? "before"
-          : y > rect.height * 0.6
-            ? "after"
-            : (previousPosition ?? (y < rect.height / 2 ? "before" : "after"));
-
-      setDropTarget((current) => {
-        if (current?.sectionId === target.sectionId && current.position === position) {
-          return current;
-        }
-        return { ...target, position };
-      });
-    },
-    [dragPayload, dropTarget],
-  );
-  const onSidebarDrop = useCallback(
-    (event: DragEvent<HTMLElement>, target: SidebarDragPayload) => {
-      if (
-        !dragPayload ||
-        dragPayload.sectionId === target.sectionId ||
-        target.projectOrderKeys.length === 0
-      ) {
-        setDropTarget(null);
-        return;
-      }
-
-      let position = dropTarget?.sectionId === target.sectionId ? dropTarget.position : null;
-      if (!position) {
-        const rect = event.currentTarget.getBoundingClientRect();
-        position = event.clientY - rect.top > rect.height / 2 ? "after" : "before";
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      reorderProjects(dragPayload.projectOrderKeys, target.projectOrderKeys, position === "after");
-
-      setDragPayload(null);
+  };
+  const onSidebarDragOver = (event: DragEvent<HTMLElement>, target: SidebarDragPayload) => {
+    if (
+      !dragPayload ||
+      dragPayload.sectionId === target.sectionId ||
+      target.projectOrderKeys.length === 0
+    ) {
       setDropTarget(null);
-    },
-    [dragPayload, dropTarget, reorderProjects],
-  );
-  const pinnedSections = useMemo(
-    () => props.sections.filter((section) => section.id === "pinned"),
-    [props.sections],
-  );
-  const workspaceSections = useMemo(
-    () => props.sections.filter((section) => section.id !== "pinned"),
-    [props.sections],
-  );
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+
+    const previousPosition =
+      dropTarget?.sectionId === target.sectionId ? dropTarget.position : null;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const y = event.clientY - rect.top;
+    const position =
+      y < rect.height * 0.4
+        ? "before"
+        : y > rect.height * 0.6
+          ? "after"
+          : (previousPosition ?? (y < rect.height / 2 ? "before" : "after"));
+
+    setDropTarget((current) => {
+      if (current?.sectionId === target.sectionId && current.position === position) {
+        return current;
+      }
+      return { ...target, position };
+    });
+  };
+  const onSidebarDrop = (event: DragEvent<HTMLElement>, target: SidebarDragPayload) => {
+    if (
+      !dragPayload ||
+      dragPayload.sectionId === target.sectionId ||
+      target.projectOrderKeys.length === 0
+    ) {
+      setDropTarget(null);
+      return;
+    }
+
+    let position = dropTarget?.sectionId === target.sectionId ? dropTarget.position : null;
+    if (!position) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      position = event.clientY - rect.top > rect.height / 2 ? "after" : "before";
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    reorderProjects(dragPayload.projectOrderKeys, target.projectOrderKeys, position === "after");
+
+    setDragPayload(null);
+    setDropTarget(null);
+  };
+  const pinnedSections = props.sections.filter((section) => section.id === "pinned");
+  const workspaceSections = props.sections.filter((section) => section.id !== "pinned");
   const showWorkspaceCollection =
     workspaceSections.length > 0 || props.onOpenWorkspace !== undefined;
 

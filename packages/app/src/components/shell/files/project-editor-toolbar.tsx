@@ -5,12 +5,16 @@ import {
   IconChevronLeftMedium,
   IconChevronRightMedium,
   IconFiles,
+  IconMagnifyingGlass,
 } from "central-icons";
 
 import { shortcutLabelForCommand } from "~/keybindings";
 import { useServerKeybindings } from "~/rpc/server-state";
 import { WorkbenchTextButton } from "@honk/honkkit/workbench-button";
-import { ProjectEditorBreadcrumbs } from "./project-editor-breadcrumbs";
+import {
+  ProjectEditorBreadcrumbs,
+  type ProjectEditorBreadcrumbTarget,
+} from "./project-editor-breadcrumbs";
 import { ProjectEditorOverflowMenu } from "./project-editor-overflow-menu";
 import { ModeButton, NavButton } from "./project-files-panel-buttons";
 
@@ -20,11 +24,13 @@ export function ProjectEditorToolbar(props: {
   relativePath: string | null;
   availableEditors: readonly EditorId[];
   fileRailOpen: boolean;
+  fileSearchOpen?: boolean;
   dirty: boolean;
   canGoBack: boolean;
   canGoForward: boolean;
   placement: WorkspaceEditorPlacement;
   onToggleFileTree: () => void;
+  onToggleFileSearch?: () => void;
   onOpenFile: () => void;
   onBack: () => void;
   onForward: () => void;
@@ -32,6 +38,7 @@ export function ProjectEditorToolbar(props: {
   onClose: () => void;
   onRevealInFileTree: () => void;
   onOpenExternalEditor: () => void;
+  onBreadcrumbNavigate: (target: ProjectEditorBreadcrumbTarget) => void;
 }) {
   const keybindings = useServerKeybindings();
   const saveShortcut = shortcutLabelForCommand(keybindings, "editor.saveFile", {
@@ -52,6 +59,16 @@ export function ProjectEditorToolbar(props: {
       <ModeButton chrome="panel" label="Open file" onClick={props.onOpenFile}>
         <IconFiles className="size-4" aria-hidden />
       </ModeButton>
+      {props.onToggleFileSearch ? (
+        <ModeButton
+          active={props.fileSearchOpen ?? false}
+          chrome="panel"
+          label={props.fileSearchOpen ? "Hide file search" : "Search files"}
+          onClick={props.onToggleFileSearch}
+        >
+          <IconMagnifyingGlass className="size-4" aria-hidden />
+        </ModeButton>
+      ) : null}
       <NavButton disabled={!props.canGoBack} chrome="panel" label="Back" onClick={props.onBack}>
         <IconChevronLeftMedium className="size-4" aria-hidden />
       </NavButton>
@@ -64,7 +81,10 @@ export function ProjectEditorToolbar(props: {
         <IconChevronRightMedium className="size-4" aria-hidden />
       </NavButton>
       <div className="min-w-0 flex-1">
-        <ProjectEditorBreadcrumbs relativePath={props.relativePath} />
+        <ProjectEditorBreadcrumbs
+          relativePath={props.relativePath}
+          onNavigate={props.onBreadcrumbNavigate}
+        />
       </div>
       <WorkbenchTextButton
         title={saveTitle}

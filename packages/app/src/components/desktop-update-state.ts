@@ -78,6 +78,10 @@ export function getDesktopUpdateInstallConfirmationMessage(
   return `Install update${version ? ` ${version}` : ""} and restart Honk?\n\nAny running tasks will be interrupted. Make sure you're ready before continuing.`;
 }
 
+export function shouldConfirmDesktopUpdateInstall(runningThreadCount: number): boolean {
+  return runningThreadCount > 0;
+}
+
 export function getDesktopUpdateActionError(result: DesktopUpdateActionResult): string | null {
   if (!result.accepted || result.completed) return null;
   if (typeof result.state.message !== "string") return null;

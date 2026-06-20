@@ -9,7 +9,7 @@ import {
 import type { GitFileState } from "~/lib/ui-session-types";
 import { type QueryClient, useQueries, useQueryClient } from "@tanstack/react-query";
 import * as Schema from "effect/Schema";
-import { createElement, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createElement, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { readEnvironmentGitApi, type EnvironmentGitApi } from "../lib/environment-git-api";
 import { refreshGitStatus, useGitStatus } from "../lib/git-status-state";
@@ -370,20 +370,10 @@ export function useEnvironmentGitPanel(
     workingTree: status.data?.workingTree ?? null,
   });
 
-  const rowIdsKey = rows.map((row) => row.id).join("\0");
-  const rowIds = useMemo(() => new Set(rows.map((row) => row.id)), [rowIdsKey]);
-  const collapsedIds = useMemo(
-    () => pruneSetToIds(storedCollapsedIds, rowIds),
-    [rowIds, storedCollapsedIds],
-  );
-  const requestedDiffIds = useMemo(
-    () => pruneSetToIds(storedRequestedDiffIds, rowIds),
-    [rowIds, storedRequestedDiffIds],
-  );
-  const activeDiffIds = useMemo(
-    () => pruneSetToIds(storedActiveDiffIds, rowIds),
-    [rowIds, storedActiveDiffIds],
-  );
+  const rowIds = new Set(rows.map((row) => row.id));
+  const collapsedIds = pruneSetToIds(storedCollapsedIds, rowIds);
+  const requestedDiffIds = pruneSetToIds(storedRequestedDiffIds, rowIds);
+  const activeDiffIds = pruneSetToIds(storedActiveDiffIds, rowIds);
 
   const expandedIds = new Set(rows.filter((row) => !collapsedIds.has(row.id)).map((row) => row.id));
 

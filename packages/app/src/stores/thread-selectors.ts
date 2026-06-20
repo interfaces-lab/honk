@@ -53,7 +53,9 @@ function createScopedThreadSelector(
 
     previousEnvironmentState = environmentState;
     previousThreadId = ref.threadId;
-    previousThread = shell ? getThreadFromEnvironmentState(environmentState, ref.threadId) : undefined;
+    previousThread = shell
+      ? getThreadFromEnvironmentState(environmentState, ref.threadId)
+      : undefined;
     return previousThread;
   };
 }

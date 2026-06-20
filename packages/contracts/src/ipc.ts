@@ -426,7 +426,9 @@ export interface EnvironmentApi {
   };
   orchestration: {
     dispatchCommand: (command: ClientOrchestrationCommand) => Promise<DispatchResult>;
-    replayEvents: (input: OrchestrationReplayEventsInput) => Promise<OrchestrationReplayEventsResult>;
+    replayEvents: (
+      input: OrchestrationReplayEventsInput,
+    ) => Promise<OrchestrationReplayEventsResult>;
     subscribeShell: (
       callback: (event: OrchestrationShellStreamItem) => void,
       options?: {

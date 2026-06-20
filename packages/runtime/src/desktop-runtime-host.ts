@@ -53,7 +53,11 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { createDesktopExtensionUi, type DesktopExtensionUiController } from "./extension-ui";
 import { createDesktopAgentExtensionFactories } from "./desktop-agent-extensions";
-import { ThreadAgentRuntime, encodeThreadIdForPath } from "./thread-agent-runtime";
+import {
+  ThreadAgentRuntime,
+  encodeThreadIdForPath,
+  type PendingRuntimeUserTurnStart,
+} from "./thread-agent-runtime";
 import {
   canonicalThreadSessionTree,
   runtimeBridgeFactsForRuntimeEvent,
@@ -131,8 +135,10 @@ type RuntimeThreadSendInput = Pick<
   | "replacesClientMessageId"
   | "parentEntryId"
   | "images"
+  | "modelSelection"
 > & {
-  readonly streamingBehavior?: "followUp" | null;
+  readonly streamingBehavior?: "steer" | "followUp" | null;
+  readonly runtimeUserTurnStart?: PendingRuntimeUserTurnStart;
 };
 
 export interface DesktopRuntimeHostOptions {
@@ -445,6 +451,9 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       expandPromptTemplates: null,
       source: null,
       streamingBehavior: input.streamingBehavior ?? null,
+      ...(input.runtimeUserTurnStart
+        ? { runtimeUserTurnStart: input.runtimeUserTurnStart }
+        : {}),
     });
   }
 
@@ -461,7 +470,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       throw new Error("Runtime sendTurn requires AgentModelPolicy.");
     }
     const sendInputForRuntime = (runtime: ThreadAgentRuntime): RuntimeThreadSendInput => {
-      const streamingBehavior = runtime.isBusy() ? "followUp" : null;
+      const streamingBehavior = runtime.isBusy() ? (input.streamingBehavior ?? "followUp") : null;
       return {
         threadId: input.threadId,
         input: input.input,
@@ -473,7 +482,16 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
           ? { parentEntryId: input.parentEntryId }
           : {}),
         images: input.images,
+        modelSelection: input.modelSelection,
         streamingBehavior,
+        ...(streamingBehavior
+          ? {
+              runtimeUserTurnStart: {
+                modelSelection: input.modelSelection,
+                titleSeed: input.input,
+              },
+            }
+          : {}),
       };
     };
     const startInput: RuntimeThreadStartInput = {

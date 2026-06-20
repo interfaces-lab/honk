@@ -209,11 +209,7 @@ function pruneInactiveTimelineItems(
     : null;
 
   const items = timeline.items.filter((item) => {
-    if (
-      item.kind !== "message" ||
-      item.source !== "session-entry" ||
-      item.entryId === undefined
-    ) {
+    if (item.kind !== "message" || item.source !== "session-entry" || item.entryId === undefined) {
       if (activeTurnIds && item.turnId !== undefined && !activeTurnIds.has(item.turnId)) {
         return false;
       }

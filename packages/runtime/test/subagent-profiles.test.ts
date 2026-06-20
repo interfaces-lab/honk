@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  DEFAULT_SUBAGENT_AGENT_NAME,
-  resolveSubagentProfile,
-} from "../src/subagent-profiles";
+import { DEFAULT_SUBAGENT_AGENT_NAME, resolveSubagentProfile } from "../src/subagent-profiles";
 
 describe("resolveSubagentProfile", () => {
   it("only resolves Honk built-in subagent profiles", () => {

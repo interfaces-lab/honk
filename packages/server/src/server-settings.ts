@@ -107,7 +107,7 @@ const decodeServerSettingsJsonExit = Schema.decodeUnknownExit(ServerSettingsJson
 // Values under these keys are compared as a whole — never stripped field-by-field.
 const ATOMIC_SETTINGS_KEYS: ReadonlySet<string> = new Set(["textGenerationModelSelection"]);
 
-function stripDefaultServerSettings(current: unknown, defaults: unknown): unknown | undefined {
+function stripDefaultServerSettings(current: unknown, defaults: unknown): unknown {
   if (Array.isArray(current) || Array.isArray(defaults)) {
     return Equal.equals(current, defaults) ? undefined : current;
   }

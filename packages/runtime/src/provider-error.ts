@@ -58,10 +58,8 @@ function parseEmbeddedProviderErrorJson(raw: string): ParsedProviderErrorPayload
       readTrimmedString(nestedError?.message) ??
       readTrimmedString(record.message) ??
       readTrimmedString(nestedError?.detail);
-    const type =
-      readTrimmedString(nestedError?.type) ?? readTrimmedString(record.type) ?? null;
-    const resetsAt =
-      readFiniteNumber(nestedError?.resets_at) ?? readFiniteNumber(record.resets_at);
+    const type = readTrimmedString(nestedError?.type) ?? readTrimmedString(record.type) ?? null;
+    const resetsAt = readFiniteNumber(nestedError?.resets_at) ?? readFiniteNumber(record.resets_at);
     const resetsInSeconds =
       readFiniteNumber(nestedError?.resets_in_seconds) ??
       readFiniteNumber(record.resets_in_seconds);

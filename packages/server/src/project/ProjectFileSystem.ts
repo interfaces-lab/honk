@@ -2,7 +2,12 @@ import fsPromises from "node:fs/promises";
 
 import { getFiletypeFromFileName } from "@pierre/diffs";
 import { Effect, FileSystem, Layer, Path } from "effect";
-import { ProjectDeleteFileError, ProjectCreateDirectoryError, ProjectRenamePathError, ProjectWriteConflictError } from "@honk/contracts";
+import {
+  ProjectDeleteFileError,
+  ProjectCreateDirectoryError,
+  ProjectRenamePathError,
+  ProjectWriteConflictError,
+} from "@honk/contracts";
 
 import {
   ProjectFileSystem,
@@ -376,7 +381,13 @@ export const makeProjectFileSystem = Effect.gen(function* () {
     };
   });
 
-  return { readFile, writeFile, deleteFile, createDirectory, renamePath } satisfies ProjectFileSystemShape;
+  return {
+    readFile,
+    writeFile,
+    deleteFile,
+    createDirectory,
+    renamePath,
+  } satisfies ProjectFileSystemShape;
 });
 
 export const ProjectFileSystemLive = Layer.effect(ProjectFileSystem, makeProjectFileSystem);

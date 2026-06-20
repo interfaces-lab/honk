@@ -12,7 +12,6 @@ import {
   workEntryHasPendingApproval,
   type PendingApprovalRequestKind,
   type TimelineGroupedStep,
-  type TimelineRenderItem,
 } from "./timeline-render-items";
 import {
   countRenderableWorkGroupPreviewSteps,

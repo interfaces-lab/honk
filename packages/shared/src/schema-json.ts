@@ -61,7 +61,9 @@ export const formatSchemaIssues = (
   }
   return SchemaIssue.makeFormatterStandardSchemaV1()(squashed.issue).issues.map((issue) => ({
     message: issue.message,
-    path: issue.path?.map((part) => String(part)) ?? [],
+    path:
+      issue.path?.map((part) => (typeof part === "object" ? JSON.stringify(part) : String(part))) ??
+      [],
   }));
 };
 

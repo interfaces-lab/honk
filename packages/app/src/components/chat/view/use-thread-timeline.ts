@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useRef } from "react";
 
 import type { TimelineEntry } from "../../../session-logic";
 import { projectThreadTimeline } from "./thread-timeline-projector";
@@ -24,27 +24,11 @@ export function useThreadTimeline(
   cacheKey: string,
 ): ReadonlyArray<TimelineEntry> {
   const previousRef = useRef<TimelineTailLease>({ cacheKey: "", entries: [] });
-  return useMemo(() => {
-    const next = projectThreadTimeline(input);
-    const previous = previousRef.current.cacheKey === cacheKey ? previousRef.current.entries : [];
-    const result = keepActiveTimelineTail(previous, next, input.isTurnActive);
-    previousRef.current = { cacheKey, entries: result };
-    return result;
-    // Recompute only when a projector input changes; `input` is a fresh object each render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    cacheKey,
-    input.committedMessages,
-    input.proposedPlans,
-    input.workLogEntries,
-    input.sendIntents,
-    input.runtimeAcknowledgedMessageIds,
-    input.activeRuntimeDisplayTimeline,
-    input.isWorking,
-    input.isTurnActive,
-    input.turnFailuresByUserMessageId,
-    input.activeTurnStartedAt,
-  ]);
+  const next = projectThreadTimeline(input);
+  const previous = previousRef.current.cacheKey === cacheKey ? previousRef.current.entries : [];
+  const result = keepActiveTimelineTail(previous, next, input.isTurnActive);
+  previousRef.current = { cacheKey, entries: result };
+  return result;
 }
 
 /**

@@ -33,6 +33,28 @@ const completedAt = "2026-06-18T12:00:05.000Z";
 
 const decodeOrchestrationEvent = Schema.decodeUnknownSync(OrchestrationEvent);
 
+type OrchestrationEventDraft = Omit<OrchestrationEvent, "sequence">;
+
+function isReadonlyArray(value: unknown): value is readonly unknown[] {
+  return Array.isArray(value);
+}
+
+function assertSingleDecidedEvent(
+  decided: OrchestrationEventDraft | ReadonlyArray<OrchestrationEventDraft>,
+): OrchestrationEventDraft {
+  if (isReadonlyArray(decided)) {
+    throw new Error("Expected a single decided event.");
+  }
+  return decided;
+}
+
+function decodeDecidedEvent(
+  decided: OrchestrationEventDraft,
+  sequence: number,
+): OrchestrationEvent {
+  return decodeOrchestrationEvent({ ...decided, sequence });
+}
+
 function runningThread(): OrchestrationThread {
   return {
     id: threadId,
@@ -186,10 +208,8 @@ describe("runtime ingestion projection chain", () => {
         command,
       }),
     );
-    if (Array.isArray(decided)) {
-      throw new Error("Expected a single decided event for an assistant completion.");
-    }
-    expect(decided).toMatchObject({
+    const decidedEvent = assertSingleDecidedEvent(decided);
+    expect(decidedEvent).toMatchObject({
       type: "thread.message-sent",
       aggregateId: threadId,
       payload: {
@@ -203,7 +223,7 @@ describe("runtime ingestion projection chain", () => {
       },
     });
 
-    const event = decodeOrchestrationEvent({ ...decided, sequence: 1 });
+    const event = decodeDecidedEvent(decidedEvent, 1);
     const projected = await Effect.runPromise(projectEvent(readModelWith(runningThread()), event));
 
     expect(projected.threads[0]?.latestTurn).toMatchObject({
@@ -226,14 +246,12 @@ describe("runtime ingestion projection chain", () => {
         command,
       }),
     );
-    if (Array.isArray(decidedOnce)) {
-      throw new Error("Expected a single decided event for an assistant completion.");
-    }
+    const decidedEvent = assertSingleDecidedEvent(decidedOnce);
     expect(String(command.commandId)).toBe(String(record.recordId));
     expect(String(internalCommandForRuntimeFact(record).commandId)).toBe(String(command.commandId));
 
-    const firstEvent = decodeOrchestrationEvent({ ...decidedOnce, sequence: 1 });
-    const secondEvent = decodeOrchestrationEvent({ ...decidedOnce, sequence: 2 });
+    const firstEvent = decodeDecidedEvent(decidedEvent, 1);
+    const secondEvent = decodeDecidedEvent(decidedEvent, 2);
 
     const projected = await Effect.runPromise(
       Effect.gen(function* () {
@@ -263,12 +281,11 @@ describe("runtime ingestion projection chain", () => {
         command,
       }),
     );
-    if (Array.isArray(decided)) {
-      throw new Error("Expected a single decided event for an assistant completion.");
-    }
-    const event = decodeOrchestrationEvent({ ...decided, sequence: 1 });
+    const event = decodeDecidedEvent(assertSingleDecidedEvent(decided), 1);
 
-    const projected = await Effect.runPromise(projectEvent(createEmptyReadModel(requestedAt), event));
+    const projected = await Effect.runPromise(
+      projectEvent(createEmptyReadModel(requestedAt), event),
+    );
     expect(projected.threads).toHaveLength(0);
   });
 });

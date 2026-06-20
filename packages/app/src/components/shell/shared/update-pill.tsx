@@ -3,14 +3,17 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { isElectron } from "~/env";
+import { countRunningThreadsWithServerState } from "~/desktop-active-work";
 import {
   setDesktopUpdateStateQueryData,
   useDesktopUpdateState,
 } from "~/lib/desktop-update-react-query";
+import { useStore } from "~/stores/thread-store";
 import {
   getDesktopUpdateButtonTooltip,
   getDesktopUpdateInstallConfirmationMessage,
   resolveDesktopUpdateButtonAction,
+  shouldConfirmDesktopUpdateInstall,
   shouldShowDesktopUpdateButton,
 } from "../../desktop-update-state";
 import { toast } from "sonner";
@@ -40,7 +43,13 @@ export function UpdatePill() {
     }
 
     if (action === "install") {
-      if (!window.confirm(getDesktopUpdateInstallConfirmationMessage(state))) return;
+      const runningThreadCount = countRunningThreadsWithServerState(useStore.getState());
+      if (
+        shouldConfirmDesktopUpdateInstall(runningThreadCount) &&
+        !window.confirm(getDesktopUpdateInstallConfirmationMessage(state))
+      ) {
+        return;
+      }
       void bridge.installUpdate().then((result) => {
         setDesktopUpdateStateQueryData(qc, result.state);
       });

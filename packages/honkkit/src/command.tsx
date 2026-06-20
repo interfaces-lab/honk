@@ -3,7 +3,12 @@
 import { Dialog as CommandDialogPrimitive } from "@base-ui/react/dialog";
 import { IconMagnifyingGlass } from "central-icons";
 import type * as React from "react";
-import { cn, honkCommandPaletteChromeClasses, honkMenuPopupFontClasses, honkMenuSeparatorClasses } from "./utils";
+import {
+  cn,
+  honkCommandPaletteChromeClasses,
+  honkMenuPopupFontClasses,
+  honkMenuSeparatorClasses,
+} from "./utils";
 import {
   Autocomplete,
   AutocompleteCollection,

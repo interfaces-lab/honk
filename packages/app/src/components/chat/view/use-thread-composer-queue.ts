@@ -1,5 +1,4 @@
 import type { ThreadAgentRuntimeQueuedFollowUp, ThreadId } from "@honk/contracts";
-import { useMemo } from "react";
 
 import { useAgentRuntimeStore } from "../../../stores/agent-runtime-store";
 import { useComposerQueueStore, type QueuedComposerItem } from "../../../stores/chat-send-queue";
@@ -27,22 +26,19 @@ export function useThreadComposerQueue(
   routeThreadKey: string,
   threadId: ThreadId | null,
 ): UseThreadComposerQueueReturn {
-  const runtimeQueuedFollowUps = useAgentRuntimeStore(
-    (store) => store.snapshot.queuedFollowUps,
-  );
-  const queuedComposerItems = useMemo(() => {
-    if (!threadId) {
-      return EMPTY_QUEUED_COMPOSER_ITEMS;
-    }
-
+  const runtimeQueuedFollowUps = useAgentRuntimeStore((store) => store.snapshot.queuedFollowUps);
+  let queuedComposerItems: QueuedComposerItem[];
+  if (!threadId) {
+    queuedComposerItems = EMPTY_QUEUED_COMPOSER_ITEMS;
+  } else {
     const items: QueuedComposerItem[] = [];
     for (const item of runtimeQueuedFollowUps) {
       if (item.threadId === threadId) {
         items.push(queuedFollowUpToComposerItem(routeThreadKey, item));
       }
     }
-    return items.length > 0 ? items : EMPTY_QUEUED_COMPOSER_ITEMS;
-  }, [routeThreadKey, runtimeQueuedFollowUps, threadId]);
+    queuedComposerItems = items.length > 0 ? items : EMPTY_QUEUED_COMPOSER_ITEMS;
+  }
   const editingQueuedComposerItemId = useComposerQueueStore(
     (store) => store.editingQueueItemIdByThreadKey[routeThreadKey] ?? null,
   );

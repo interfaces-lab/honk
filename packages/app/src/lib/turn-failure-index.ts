@@ -5,7 +5,7 @@ import {
   type OrchestrationThreadActivity,
 } from "@honk/contracts";
 import { providerFailureFromAssistantMessageText } from "@honk/runtime/provider-error";
-import { useMemo, useRef } from "react";
+import { useRef } from "react";
 
 import type { ChatMessage } from "../types";
 
@@ -130,16 +130,7 @@ export function useTurnFailuresByUserMessageId(input: {
   readonly latestTurn: OrchestrationLatestTurn | null;
   readonly threadError: string | null;
 }): ReadonlyMap<MessageId, string> {
-  const nextFailures = useMemo(
-    () => buildTurnFailuresByUserMessageId(input),
-    [
-      input.activities,
-      input.latestTurn,
-      input.messages,
-      input.runtimeEvents,
-      input.threadError,
-    ],
-  );
+  const nextFailures = buildTurnFailuresByUserMessageId(input);
   const stableFailuresRef = useRef<ReadonlyMap<MessageId, string>>(nextFailures);
 
   if (!areSameTurnFailuresByUserMessageId(stableFailuresRef.current, nextFailures)) {

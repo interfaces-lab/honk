@@ -47,7 +47,13 @@ function MarketingHeader() {
         aria-label="Homepage"
         className="flex items-center gap-2 text-lg leading-none font-semibold text-neutral-950 no-underline dark:text-neutral-100"
       >
-        <img alt="" className="size-7 shrink-0 rounded-md" height={28} src="/apple-touch-icon.png" width={28} />
+        <img
+          alt=""
+          className="size-7 shrink-0 rounded-md"
+          height={28}
+          src="/apple-touch-icon.png"
+          width={28}
+        />
         <span>Honk</span>
       </a>
       <MarketingSocialNav />

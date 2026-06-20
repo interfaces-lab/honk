@@ -7,7 +7,7 @@ import {
 } from "@honk/contracts";
 import { Cause } from "effect";
 import { Atom } from "effect/unstable/reactivity";
-import { useCallback, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 
 import { appAtomRegistry } from "../rpc/atom-registry";
 import { subscribeEnvironmentConnections } from "../environments/runtime";
@@ -243,10 +243,7 @@ export function resetGitStatusStateForTests(): void {
 
 export function useGitStatus(target: GitStatusTarget): GitStatusState {
   const targetKey = getGitStatusTargetKey(target);
-  const subscribe = useCallback(
-    () => watchGitStatus({ environmentId: target.environmentId, cwd: target.cwd }),
-    [target.environmentId, target.cwd],
-  );
+  const subscribe = () => watchGitStatus({ environmentId: target.environmentId, cwd: target.cwd });
 
   useSyncExternalStore(
     subscribe,

@@ -52,7 +52,11 @@ describe("refreshGitStatus", () => {
       .mockResolvedValueOnce(createStatus("feature"));
 
     const firstResult = refreshGitStatus(target, { refreshStatus }, { force: true });
-    const queuedResult = refreshGitStatus(target, { refreshStatus }, { force: true, scope: "local" });
+    const queuedResult = refreshGitStatus(
+      target,
+      { refreshStatus },
+      { force: true, scope: "local" },
+    );
 
     expect(refreshStatus).toHaveBeenCalledTimes(1);
 

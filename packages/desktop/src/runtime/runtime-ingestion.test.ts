@@ -21,6 +21,27 @@ import {
   ingestRuntimeHostEvent,
 } from "./runtime-ingestion";
 
+function fetchCallUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") {
+    return input;
+  }
+  if (input instanceof URL) {
+    return input.href;
+  }
+  return input.url;
+}
+
+function fetchCallBody(init?: RequestInit): string {
+  const body = init?.body;
+  if (typeof body === "string") {
+    return body;
+  }
+  if (body == null) {
+    return "";
+  }
+  return JSON.stringify(body);
+}
+
 const threadId = ThreadId.make("thread:ingestion");
 const runtimeSessionId = RuntimeSessionId.make("runtime:ingestion");
 const turnId = TurnId.make("turn:ingestion");
@@ -92,14 +113,14 @@ describe("runtime ingestion", () => {
     ingestRuntimeHostEvent(event);
     await vi.waitFor(() =>
       expect(
-        fetchMock.mock.calls.some(([url]) => String(url).endsWith("/api/runtime/ingest")),
+        fetchMock.mock.calls.some(([url]) => fetchCallUrl(url).endsWith("/api/runtime/ingest")),
       ).toBe(true),
     );
 
     const dispatchCall = fetchMock.mock.calls.find(([url]) =>
-      String(url).endsWith("/api/runtime/ingest"),
+      fetchCallUrl(url).endsWith("/api/runtime/ingest"),
     );
-    const body = JSON.parse(String(dispatchCall?.[1]?.body));
+    const body = JSON.parse(fetchCallBody(dispatchCall?.[1]));
     expect(body.records).toMatchObject({
       0: {
         kind: "assistant.completion",
@@ -153,14 +174,14 @@ describe("runtime ingestion", () => {
     ingestRuntimeHostEvent({ type: "runtime-ingestion-records", records: [record] });
     await vi.waitFor(() =>
       expect(
-        fetchMock.mock.calls.some(([url]) => String(url).endsWith("/api/runtime/ingest")),
+        fetchMock.mock.calls.some(([url]) => fetchCallUrl(url).endsWith("/api/runtime/ingest")),
       ).toBe(true),
     );
 
     const dispatchCall = fetchMock.mock.calls.find(([url]) =>
-      String(url).endsWith("/api/runtime/ingest"),
+      fetchCallUrl(url).endsWith("/api/runtime/ingest"),
     );
-    const body = JSON.parse(String(dispatchCall?.[1]?.body));
+    const body = JSON.parse(fetchCallBody(dispatchCall?.[1]));
     expect(body.records).toMatchObject({
       0: {
         kind: "thread.activity",
@@ -212,7 +233,7 @@ describe("runtime ingestion", () => {
       },
     });
     const dispatchCalls = () =>
-      fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/api/runtime/ingest"));
+      fetchMock.mock.calls.filter(([url]) => fetchCallUrl(url).endsWith("/api/runtime/ingest"));
     const flushMicrotasks = async () => {
       for (let index = 0; index < 8; index += 1) {
         await Promise.resolve();
@@ -244,11 +265,12 @@ describe("runtime ingestion", () => {
 
     const calls = dispatchCalls();
     expect(calls).toHaveLength(2);
-    const trailingBody = JSON.parse(String(calls[1]?.[1]?.body));
+    const trailingBody = JSON.parse(fetchCallBody(calls[1]?.[1]));
     expect(trailingBody.records).toMatchObject({
       0: {
         kind: "thread.activity",
-        recordId: "runtime-context-window:thread:ingestion:runtime:ingestion:runtime-event:context-window-3",
+        recordId:
+          "runtime-context-window:thread:ingestion:runtime:ingestion:runtime-event:context-window-3",
         payload: {
           activity: {
             id: EventId.make("runtime-activity:runtime-event:context-window-3"),
@@ -303,7 +325,8 @@ describe("runtime ingestion", () => {
               accepted: 1,
               acks: [
                 {
-                  recordId: "runtime-tool:thread:ingestion:runtime:ingestion:runtime-activity:runtime-event:retry",
+                  recordId:
+                    "runtime-tool:thread:ingestion:runtime:ingestion:runtime-activity:runtime-event:retry",
                   sequence: 7,
                 },
               ],

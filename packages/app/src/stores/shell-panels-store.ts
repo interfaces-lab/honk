@@ -99,12 +99,9 @@ interface ShellPanelsStoreState {
   setBrowserWorkbenchState: (
     workspaceKey: string | null,
     patch: Partial<BrowserWorkbenchState>,
-    browserId?: string | undefined,
+    browserId?: string,
   ) => void;
-  removeBrowserWorkbenchState: (
-    workspaceKey: string | null,
-    browserId?: string | undefined,
-  ) => void;
+  removeBrowserWorkbenchState: (workspaceKey: string | null, browserId?: string) => void;
 }
 
 interface PersistedShellPanelsState {
@@ -290,7 +287,7 @@ function railKey(workspaceKey: string | null, tab: WorkbenchTab): string {
   return `${resolveWorkspacePanelKey(workspaceKey)}::${tab}`;
 }
 
-function browserWorkbenchKey(workspaceKey: string | null, browserId?: string | undefined): string {
+function browserWorkbenchKey(workspaceKey: string | null, browserId?: string): string {
   const normalizedBrowserId = browserId?.trim() || DEFAULT_BROWSER_WORKBENCH_ID;
   return `${resolveWorkspacePanelKey(workspaceKey)}::browser::${normalizedBrowserId}`;
 }
@@ -305,7 +302,7 @@ function readWorkbenchState(
 function readBrowserWorkbenchState(
   states: Record<string, BrowserWorkbenchState>,
   workspaceKey: string | null,
-  browserId?: string | undefined,
+  browserId?: string,
 ): BrowserWorkbenchState {
   const scoped = states[browserWorkbenchKey(workspaceKey, browserId)];
   if (scoped) return scoped;
@@ -820,7 +817,7 @@ export function useTerminalSessions(workspaceKey: string | null): TerminalSessio
 
 export function useBrowserWorkbenchState(
   workspaceKey: string | null,
-  browserId?: string | undefined,
+  browserId?: string,
 ): BrowserWorkbenchState {
   return useShellPanelsStore((state) =>
     readBrowserWorkbenchState(state.browserByWorkspaceKey, workspaceKey, browserId),
@@ -836,7 +833,7 @@ export function readTerminalSessions(workspaceKey: string | null): TerminalSessi
 
 export function readBrowserWorkbenchSnapshot(
   workspaceKey: string | null,
-  browserId?: string | undefined,
+  browserId?: string,
 ): BrowserWorkbenchState {
   return readBrowserWorkbenchState(
     useShellPanelsStore.getState().browserByWorkspaceKey,
@@ -932,8 +929,8 @@ export const shellPanelsActions = {
   setBrowserWorkbenchState: (
     workspaceKey: string | null,
     patch: Partial<BrowserWorkbenchState>,
-    browserId?: string | undefined,
+    browserId?: string,
   ) => useShellPanelsStore.getState().setBrowserWorkbenchState(workspaceKey, patch, browserId),
-  removeBrowserWorkbenchState: (workspaceKey: string | null, browserId?: string | undefined) =>
+  removeBrowserWorkbenchState: (workspaceKey: string | null, browserId?: string) =>
     useShellPanelsStore.getState().removeBrowserWorkbenchState(workspaceKey, browserId),
 };

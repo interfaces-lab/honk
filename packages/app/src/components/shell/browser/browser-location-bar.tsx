@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent, RefObject } from "react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { cn } from "~/lib/utils";
 
@@ -18,7 +18,7 @@ export function BrowserLocationBar(props: {
 }) {
   const [focused, setFocused] = useState(false);
   const displayUrl = props.committedUrl || props.inputValue;
-  const segments = useMemo(() => formatBrowserLocationSegments(displayUrl), [displayUrl]);
+  const segments = formatBrowserLocationSegments(displayUrl);
   const showSegmentDisplay = !focused && Boolean(props.committedUrl);
 
   const focusInput = () => {

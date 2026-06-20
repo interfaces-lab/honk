@@ -26,7 +26,11 @@ const RESPONSES_APIS: ReadonlySet<string> = new Set(RESPONSES_API_IDS);
 const TOOL_CALL_PROVIDER_IDS: ReadonlySet<string> = new Set(["openai", "openai-codex", "opencode"]);
 const OPENAI_COMPACT_STRATEGY = "openai-compact-v1";
 const OPENAI_COMPACT_DISPLAY_PLACEHOLDER = "[OpenAI compact checkpoint]";
-const OPENAI_COMPACT_OUTPUT_ITEM_TYPES = new Set(["compaction", "compaction_summary", "context_compaction"]);
+const OPENAI_COMPACT_OUTPUT_ITEM_TYPES = new Set([
+  "compaction",
+  "compaction_summary",
+  "context_compaction",
+]);
 const OPENAI_PROMPT_CACHE_KEY_MAX_LENGTH = 64;
 
 type SupportedResponsesApi = (typeof RESPONSES_API_IDS)[number];
@@ -34,9 +38,7 @@ type LlmMessage = Context["messages"][number];
 type AssistantMessage = Extract<LlmMessage, { readonly role: "assistant" }>;
 type UserMessage = Extract<LlmMessage, { readonly role: "user" }>;
 type ToolResultMessage = Extract<LlmMessage, { readonly role: "toolResult" }>;
-type MessageContentItem =
-  | Exclude<UserMessage["content"], string>[number]
-  | ToolResultMessage["content"][number];
+type MessageContentItem = Exclude<UserMessage["content"], string>[number];
 type TextContent = Extract<MessageContentItem, { readonly type: "text" }>;
 type ImageContent = Extract<MessageContentItem, { readonly type: "image" }>;
 type ToolCallContent = Extract<AssistantMessage["content"][number], { readonly type: "toolCall" }>;
@@ -109,7 +111,11 @@ export function createCodexRuntimePolicyExtension(policy: AgentModelPolicy): Ext
       let nextPayload = event.payload;
       let changed = false;
 
-      const replacementPayload = await replacePiCompactSummaryWithOpenAICompactItems(nextPayload, ctx, policy);
+      const replacementPayload = await replacePiCompactSummaryWithOpenAICompactItems(
+        nextPayload,
+        ctx,
+        policy,
+      );
       if (replacementPayload !== undefined) {
         nextPayload = replacementPayload;
         changed = true;
@@ -259,10 +265,7 @@ function isOpenAIPolicyModel(modelSelection: AgentModelPolicy["modelSelection"])
   return OPENAI_PROVIDER_IDS.has(provider);
 }
 
-async function getOpenAICompactTarget(
-  ctx: ExtensionContext,
-  payload?: unknown,
-) {
+async function getOpenAICompactTarget(ctx: ExtensionContext, payload?: unknown) {
   const currentModel = ctx.model as Model<Api> | undefined;
   if (!currentModel || !OPENAI_PROVIDER_IDS.has(currentModel.provider)) {
     return undefined;
@@ -304,9 +307,7 @@ async function getOpenAICompactTarget(
   };
 }
 
-type OpenAICompactTarget = NonNullable<
-  Awaited<ReturnType<typeof getOpenAICompactTarget>>
->;
+type OpenAICompactTarget = NonNullable<Awaited<ReturnType<typeof getOpenAICompactTarget>>>;
 
 async function getModelRequestAuth(
   ctx: ExtensionContext,
@@ -342,7 +343,10 @@ function createOpenAICompactRequest(input: {
   return {
     model: input.target.model,
     input: serializePiCompactMessagesForOpenAI(input.target.currentModel, input.event),
-    instructions: buildCompactionInstructions(input.ctx.getSystemPrompt(), input.event.customInstructions),
+    instructions: buildCompactionInstructions(
+      input.ctx.getSystemPrompt(),
+      input.event.customInstructions,
+    ),
     parallel_tool_calls: true,
     prompt_cache_key: clampOpenAIPromptCacheKey(input.ctx.sessionManager.getSessionId()),
     ...(input.policy.fast ? { service_tier: "priority" } : {}),
@@ -539,7 +543,9 @@ function convertAssistantMessage(
     if (block.type === "text") {
       const parsedSignature = parseTextSignature(block.textSignature);
       const fallbackMessageId =
-        textBlockIndex === 0 ? `msg_pi_${messageIndex}` : `msg_pi_${messageIndex}_${textBlockIndex}`;
+        textBlockIndex === 0
+          ? `msg_pi_${messageIndex}`
+          : `msg_pi_${messageIndex}_${textBlockIndex}`;
       textBlockIndex += 1;
       let messageId = parsedSignature?.id ?? fallbackMessageId;
       if (messageId.length > 64) {
@@ -586,7 +592,9 @@ function convertToolResultMessage(
     .filter((content): content is TextContent => content.type === "text")
     .map((content) => content.text)
     .join("\n");
-  const hasImages = message.content.some((content): content is ImageContent => content.type === "image");
+  const hasImages = message.content.some(
+    (content): content is ImageContent => content.type === "image",
+  );
   const hasText = textResult.length > 0;
   const [callId = message.toolCallId] = message.toolCallId.split("|");
   if (hasImages && model.input.includes("image")) {
@@ -631,7 +639,9 @@ function transformMessagesForResponses(
     }
 
     const isSameModel =
-      message.provider === model.provider && message.api === model.api && message.model === model.id;
+      message.provider === model.provider &&
+      message.api === model.api &&
+      message.model === model.id;
     const transformedContent: AssistantMessage["content"] = [];
     for (const block of message.content) {
       if (block.type === "thinking") {
@@ -734,7 +744,10 @@ function transformMessagesForResponses(
   return result;
 }
 
-function downgradeUnsupportedImages(messages: readonly LlmMessage[], model: Model<Api>): LlmMessage[] {
+function downgradeUnsupportedImages(
+  messages: readonly LlmMessage[],
+  model: Model<Api>,
+): LlmMessage[] {
   if (model.input.includes("image")) {
     return [...messages];
   }
@@ -806,7 +819,9 @@ function replacePiCompactPlaceholderInResponsesPayload(input: {
     return { ok: false, reason: "unsupported-instructions" };
   }
 
-  const openAICompactItems = cloneOpenAICompactItems(input.compactionEntry.details.openAICompactItems);
+  const openAICompactItems = cloneOpenAICompactItems(
+    input.compactionEntry.details.openAICompactItems,
+  );
   if (!openAICompactItems) {
     return { ok: false, reason: "invalid-openai-compact-items" };
   }
@@ -849,8 +864,14 @@ function replacePiCompactPlaceholderInResponsesPayload(input: {
     const expectedInput = [
       ...promptEnvelope.leadingInput,
       ...compactionSummaryInput,
-      ...serializeMessagesToResponsesInput(input.model, collectSessionMessages(preCompactionEntries)),
-      ...serializeMessagesToResponsesInput(input.model, collectSessionMessages(postCompactionEntries)),
+      ...serializeMessagesToResponsesInput(
+        input.model,
+        collectSessionMessages(preCompactionEntries),
+      ),
+      ...serializeMessagesToResponsesInput(
+        input.model,
+        collectSessionMessages(postCompactionEntries),
+      ),
       ...promptEnvelope.trailingInput,
     ];
     const inputDiff = compareResponsesInputShape(input.payload.input, expectedInput);
@@ -882,7 +903,10 @@ function replacePiCompactPlaceholderInResponsesPayload(input: {
   }
 
   const contextPostCompactionTail = [
-    ...serializeMessagesToResponsesInput(input.model, collectSessionMessages(postCompactionEntries)),
+    ...serializeMessagesToResponsesInput(
+      input.model,
+      collectSessionMessages(postCompactionEntries),
+    ),
     ...placeholderMatch.extraPostCompactionTail,
   ];
   return {
@@ -1039,7 +1063,12 @@ function buildFallbackOpenAICompactReplacementPayload(input: {
   readonly promptEnvelope: PromptEnvelope;
   readonly openAICompactItems: readonly unknown[];
   readonly compactionSummaryInput: readonly ResponsesInputItem[];
-}): { readonly input: readonly unknown[]; readonly conversationInput: readonly ResponsesInputItem[] } | undefined {
+}):
+  | {
+      readonly input: readonly unknown[];
+      readonly conversationInput: readonly ResponsesInputItem[];
+    }
+  | undefined {
   const conversationInput = clonePayloadConversationInput({
     payloadInput: input.payload.input,
     promptEnvelope: input.promptEnvelope,
@@ -1093,9 +1122,7 @@ function stripLeadingCompactionSummaryPlaceholder(input: {
   return [...input.conversationInput.slice(input.compactionSummaryInput.length)];
 }
 
-function extractPromptEnvelope(
-  payload: OpenAIResponsesRequestPayload,
-): PromptEnvelope | undefined {
+function extractPromptEnvelope(payload: OpenAIResponsesRequestPayload): PromptEnvelope | undefined {
   if (payload.instructions !== undefined && typeof payload.instructions !== "string") {
     return undefined;
   }
@@ -1207,11 +1234,11 @@ async function callOpenAICompactEndpoint(input: {
   } catch (error) {
     return isAbortError(error)
       ? ({ ok: false, reason: "aborted" } as const)
-      : {
+      : ({
           ok: false,
           reason: "network-error",
           errorMessage: error instanceof Error ? error.message : String(error),
-        } as const;
+        } as const);
   }
 }
 
@@ -1245,11 +1272,7 @@ function formatOpenAICompactFailureMessage(
   const status = result.status ? ` HTTP ${result.status}` : "";
   const response = result.responseText?.trim();
   const errorMessage = "errorMessage" in result ? result.errorMessage : undefined;
-  const detail = response
-    ? `: ${response.slice(0, 500)}`
-    : errorMessage
-      ? `: ${errorMessage}`
-      : "";
+  const detail = response ? `: ${response.slice(0, 500)}` : errorMessage ? `: ${errorMessage}` : "";
   return `OpenAI compact failed (${result.reason}${status})${detail}; Pi compaction will run.`;
 }
 
@@ -1293,7 +1316,8 @@ function createOpenAICompactDetails(input: {
     ...(input.compactResponseId && input.compactResponseId.trim()
       ? { compactResponseId: input.compactResponseId.trim() }
       : {}),
-    createdAt: input.createdAt && input.createdAt.trim() ? input.createdAt.trim() : new Date().toISOString(),
+    createdAt:
+      input.createdAt && input.createdAt.trim() ? input.createdAt.trim() : new Date().toISOString(),
     ...(input.requestInfo ? { requestInfo: input.requestInfo } : {}),
   };
 }
@@ -1313,7 +1337,9 @@ function isOpenAICompactDetails(value: unknown): value is OpenAICompactDetails {
     isNonEmptyString(value.model) &&
     isNonEmptyString(value.baseUrl) &&
     Array.isArray(value.openAICompactItems) &&
-    value.openAICompactItems.every((item) => isRecord(item) && Object.values(item).every(isStructuredValue)) &&
+    value.openAICompactItems.every(
+      (item) => isRecord(item) && Object.values(item).every(isStructuredValue),
+    ) &&
     isNonEmptyString(value.createdAt)
   );
 }
@@ -1333,9 +1359,15 @@ function sanitizeOpenAICompactItems(output: readonly unknown[]): Record<string, 
   return sanitized;
 }
 
-function extractOpenAICompactSummaryText(openAICompactItems: readonly unknown[]): string | undefined {
+function extractOpenAICompactSummaryText(
+  openAICompactItems: readonly unknown[],
+): string | undefined {
   for (const item of openAICompactItems) {
-    if (!isRecord(item) || typeof item.type !== "string" || !OPENAI_COMPACT_OUTPUT_ITEM_TYPES.has(item.type)) {
+    if (
+      !isRecord(item) ||
+      typeof item.type !== "string" ||
+      !OPENAI_COMPACT_OUTPUT_ITEM_TYPES.has(item.type)
+    ) {
       continue;
     }
     if (typeof item.encrypted_content === "string" && item.encrypted_content.trim().length > 0) {
@@ -1347,7 +1379,10 @@ function extractOpenAICompactSummaryText(openAICompactItems: readonly unknown[])
 
 function hasOpenAICompactOutputItem(openAICompactItems: readonly unknown[]): boolean {
   return openAICompactItems.some(
-    (item) => isRecord(item) && typeof item.type === "string" && OPENAI_COMPACT_OUTPUT_ITEM_TYPES.has(item.type),
+    (item) =>
+      isRecord(item) &&
+      typeof item.type === "string" &&
+      OPENAI_COMPACT_OUTPUT_ITEM_TYPES.has(item.type),
   );
 }
 
@@ -1363,7 +1398,9 @@ function compareResponsesInputShape(
     const actualValue = actualSignature[index];
     const expectedValue = expectedSignature[index];
     if (actualValue !== expectedValue) {
-      mismatches.push(`index ${index}: expected ${expectedValue ?? "<missing>"}, got ${actualValue ?? "<missing>"}`);
+      mismatches.push(
+        `index ${index}: expected ${expectedValue ?? "<missing>"}, got ${actualValue ?? "<missing>"}`,
+      );
     }
   }
   return { mismatches };
@@ -1403,7 +1440,10 @@ function isResponsesInputMessageItem(value: unknown): value is ResponsesInputMes
     return false;
   }
   const { content } = value;
-  return typeof content === "string" || (Array.isArray(content) && content.every(isResponsesInputContentItem));
+  return (
+    typeof content === "string" ||
+    (Array.isArray(content) && content.every(isResponsesInputContentItem))
+  );
 }
 
 function isResponsesInputMessageRole(value: unknown): value is ResponsesInputMessageItem["role"] {
@@ -1426,7 +1466,9 @@ function isResponsesInputContentItem(value: unknown): value is ResponsesInputCon
   return false;
 }
 
-function cloneResponsesInputMessageItem(item: ResponsesInputMessageItem): ResponsesInputMessageItem {
+function cloneResponsesInputMessageItem(
+  item: ResponsesInputMessageItem,
+): ResponsesInputMessageItem {
   return {
     role: item.role,
     content:
@@ -1436,7 +1478,9 @@ function cloneResponsesInputMessageItem(item: ResponsesInputMessageItem): Respon
   };
 }
 
-function cloneResponsesInputContentItem(item: ResponsesInputContentItem): ResponsesInputContentItem {
+function cloneResponsesInputContentItem(
+  item: ResponsesInputContentItem,
+): ResponsesInputContentItem {
   if (item.type === "input_text") {
     return createResponsesInputText(item.text);
   }
@@ -1626,9 +1670,11 @@ function getSupportsDeveloperRole(compat: unknown): boolean | undefined {
     : undefined;
 }
 
-function isCompactResponseEnvelope(
-  value: unknown,
-): value is { readonly id?: string; readonly created_at?: unknown; readonly output: readonly unknown[] } {
+function isCompactResponseEnvelope(value: unknown): value is {
+  readonly id?: string;
+  readonly created_at?: unknown;
+  readonly output: readonly unknown[];
+} {
   return isRecord(value) && Array.isArray(value.output) && value.output.every(isRecord);
 }
 
@@ -1691,7 +1737,10 @@ function shortHash(str: string): string {
 }
 
 function sanitizeSurrogates(text: string): string {
-  return text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
+  return text.replace(
+    /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+    "",
+  );
 }
 
 function isNonEmptyString(value: unknown): value is string {

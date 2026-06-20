@@ -33,10 +33,7 @@ function MacArchLabel(props: { archLabel: string; className?: string }) {
   );
 }
 
-export function DesktopDownloadControls(props: {
-  className?: string;
-  showSectionLabel?: boolean;
-}) {
+export function DesktopDownloadControls(props: { className?: string; showSectionLabel?: boolean }) {
   const [arch, setArch] = useState<MacDesktopArch>(() => defaultMacDesktopArch());
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -57,7 +54,10 @@ export function DesktopDownloadControls(props: {
           aria-label="Choose Mac download architecture"
           className={archSelectorClassName}
         >
-          <IconApple className="size-4 shrink-0 text-neutral-950 dark:text-neutral-100" aria-hidden />
+          <IconApple
+            className="size-4 shrink-0 text-neutral-950 dark:text-neutral-100"
+            aria-hidden
+          />
           <MacArchLabel archLabel={selectedOption.label} className="flex-1" />
           <IconChevronDownMedium
             className={cn(

@@ -13,13 +13,10 @@ import {
 } from "central-icons";
 import { cva } from "class-variance-authority";
 import {
-  memo,
   type ComponentType,
   type CSSProperties,
   type ReactNode,
-  useCallback,
   useEffect,
-  useMemo,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -242,7 +239,7 @@ export function ToolCallRenderer({
   resolvedTheme,
 }: ToolCallRendererProps) {
   const { action, details, command, output, path, stats, artifacts } = toolCall.tool.value;
-  const artifactLookup = useMemo(() => collectToolArtifacts(artifacts), [artifacts]);
+  const artifactLookup = collectToolArtifacts(artifacts);
   const effectiveDensity = resolveEffectiveToolCallDensity(conversationDensity, approval);
   const compactShells = shouldUseCompactShells(effectiveDensity);
   const compactEdits = shouldUseCompactEdits(effectiveDensity);
@@ -652,16 +649,13 @@ export function ExpandableToolMetadataLine({
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const showStreamingPreview = loading && hasOutput;
   const showBody = isExpanded || showStreamingPreview;
-  const displayOutput = useMemo(
-    () => (hasOutput ? resolveStreamingShellOutput(output ?? "", loading) : null),
-    [hasOutput, loading, output],
-  );
-  const bodyText = useMemo(() => {
+  const displayOutput = hasOutput ? resolveStreamingShellOutput(output ?? "", loading) : null;
+  const bodyText = (() => {
     if (!showBody || !displayOutput) {
       return "";
     }
     return displayOutput.text.trim();
-  }, [displayOutput, showBody]);
+  })();
 
   useEffect(() => {
     if (!defaultExpanded || !hasBody) {
@@ -851,10 +845,7 @@ function SearchToolCall({
   showIcon: boolean;
 }) {
   const outputText = output ?? "";
-  const parsedOutput = useMemo(
-    () => (mode === "grep" ? parseGrepOutput(outputText) : parseFindOutput(outputText)),
-    [mode, outputText],
-  );
+  const parsedOutput = mode === "grep" ? parseGrepOutput(outputText) : parseFindOutput(outputText);
   const hasBody = outputText.trim().length > 0;
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
@@ -1103,16 +1094,12 @@ function ShellToolCall({
   if (activeExpansionState !== expansionState) {
     setExpansionState(activeExpansionState);
   }
-  const metadataItems = useMemo(
-    () =>
-      getCommandMetadataItemsFromValues({
-        exitCode: artifact?.exitCode,
-        durationMs: artifact?.durationMs,
-        truncated: artifact?.truncated,
-        fullOutputPath: artifact?.fullOutputPath,
-      }),
-    [artifact?.durationMs, artifact?.exitCode, artifact?.fullOutputPath, artifact?.truncated],
-  );
+  const metadataItems = getCommandMetadataItemsFromValues({
+    exitCode: artifact?.exitCode,
+    durationMs: artifact?.durationMs,
+    truncated: artifact?.truncated,
+    fullOutputPath: artifact?.fullOutputPath,
+  });
   const commandText = command.trim();
   const bodyCommand = commandText && commandText !== details.trim() ? command : "";
   const hasPotentialOutput = hasShellToolPotentialOutput(output);
@@ -1129,13 +1116,13 @@ function ShellToolCall({
     if (!defaultExpanded || !expandable) {
       return;
     }
-    setExpansionState((current) => ({
+    setExpansionState(() => ({
       approvalStatus: currentApprovalStatus,
       isExpanded: true,
     }));
   }, [currentApprovalStatus, defaultExpanded, expandable]);
 
-  const toggleExpanded = useCallback(() => {
+  const toggleExpanded = () => {
     if (!expandable) return;
     setExpansionState((current) => {
       const next = !current.isExpanded;
@@ -1145,7 +1132,7 @@ function ShellToolCall({
         isExpanded: next,
       };
     });
-  }, [callId, currentApprovalStatus, expandable, onNestedToolExpand]);
+  };
 
   return (
     <ToolCallShellRoot
@@ -1198,7 +1185,7 @@ function ShellToolCall({
   );
 }
 
-const ShellToolCallHeader = memo(function ShellToolCallHeader({
+function ShellToolCallHeader({
   action,
   details,
   expandable,
@@ -1246,9 +1233,9 @@ const ShellToolCallHeader = memo(function ShellToolCallHeader({
       {expandable ? <ToolCallLineChevron expanded={isExpanded} /> : null}
     </ToolCallShellHeader>
   );
-});
+}
 
-const ShellOutputBlock = memo(function ShellOutputBlock({
+function ShellOutputBlock({
   output,
   loading,
   preview = false,
@@ -1258,10 +1245,7 @@ const ShellOutputBlock = memo(function ShellOutputBlock({
   preview?: boolean | undefined;
 }) {
   const outputText = output ?? "";
-  const displayOutput = useMemo(
-    () => resolveStreamingShellOutput(outputText, loading),
-    [loading, outputText],
-  );
+  const displayOutput = resolveStreamingShellOutput(outputText, loading);
 
   if (!hasRenderableText(displayOutput.text)) {
     return null;
@@ -1309,7 +1293,7 @@ const ShellOutputBlock = memo(function ShellOutputBlock({
       </div>
     </>
   );
-});
+}
 
 export function hasRenderableText(text: string | null | undefined): boolean {
   if (!text) {
@@ -1496,7 +1480,7 @@ function AwaitDetails({ details, startedAtMs }: { details: string; startedAtMs: 
 }
 
 function useNowMs(intervalMs: number): number {
-  const store = useMemo(() => getNowMsStore(intervalMs), [intervalMs]);
+  const store = getNowMsStore(intervalMs);
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }
 
@@ -1543,7 +1527,7 @@ function createNowMsStore(intervalMs: number) {
 }
 
 function ShellCommandTokens({ command }: { command: string }) {
-  const tokens = useMemo(() => tokenizeShellCommand(command), [command]);
+  const tokens = tokenizeShellCommand(command);
   return (
     <>
       {tokens.map((token) => (

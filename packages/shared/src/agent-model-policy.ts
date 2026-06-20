@@ -8,10 +8,7 @@ import {
   type AgentThinkingLevel,
   type ModelSelection,
 } from "@honk/contracts";
-import {
-  cursorComposerFastEnabled,
-  cursorComposerPolicyModelSelection,
-} from "./cursor-composer";
+import { cursorComposerFastEnabled, cursorComposerPolicyModelSelection } from "./cursor-composer";
 
 function thinkingLevelForAgentMode(agentMode: AgentPreferences["agentMode"]): AgentThinkingLevel {
   switch (agentMode) {
@@ -115,9 +112,7 @@ export function createAgentModelPolicy(input: {
     modelSelection,
     fast: input.preferences.fast,
     thinkingLevel:
-      agentMode === "rush" ||
-      agentMode === "composer" ||
-      input.preferences.agentMode === "composer"
+      agentMode === "rush" || agentMode === "composer" || input.preferences.agentMode === "composer"
         ? thinkingLevelForAgentMode(agentMode)
         : (modelThinkingLevel ?? input.preferences.thinkingLevel),
     allowedToolNames: [],

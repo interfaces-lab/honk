@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  __resetServerAuthBootstrapForTests,
-  resolveAuthenticatedServerBearerToken,
-} from "./auth";
+import { __resetServerAuthBootstrapForTests, resolveAuthenticatedServerBearerToken } from "./auth";
 
 const AUTH_DESCRIPTOR = {
   policy: "desktop-managed-local",
@@ -32,6 +29,16 @@ function createSessionStorage() {
   };
 }
 
+function readFetchInputUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") {
+    return input;
+  }
+  if (input instanceof URL) {
+    return input.href;
+  }
+  return input.url;
+}
+
 describe("resolveAuthenticatedServerBearerToken", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -47,7 +54,7 @@ describe("resolveAuthenticatedServerBearerToken", () => {
 
   it("reuses a recently validated bearer session while reconnecting", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = input.toString();
+      const url = readFetchInputUrl(input);
       if (url.endsWith("/api/auth/session")) {
         const headers = new Headers(init?.headers);
         return jsonResponse({
@@ -85,7 +92,7 @@ describe("resolveAuthenticatedServerBearerToken", () => {
     await expect(resolveAuthenticatedServerBearerToken()).resolves.toBe("session-token");
     await expect(resolveAuthenticatedServerBearerToken()).resolves.toBe("session-token");
 
-    expect(fetchMock.mock.calls.map(([input]) => input.toString())).toEqual([
+    expect(fetchMock.mock.calls.map(([input]) => readFetchInputUrl(input))).toEqual([
       "http://127.0.0.1:13773/api/auth/session",
       "http://127.0.0.1:13773/api/auth/bootstrap",
     ]);
@@ -93,7 +100,7 @@ describe("resolveAuthenticatedServerBearerToken", () => {
     vi.setSystemTime(new Date("2026-06-17T12:01:01.000Z"));
     await expect(resolveAuthenticatedServerBearerToken()).resolves.toBe("session-token");
 
-    expect(fetchMock.mock.calls.map(([input]) => input.toString())).toEqual([
+    expect(fetchMock.mock.calls.map(([input]) => readFetchInputUrl(input))).toEqual([
       "http://127.0.0.1:13773/api/auth/session",
       "http://127.0.0.1:13773/api/auth/bootstrap",
       "http://127.0.0.1:13773/api/auth/session",

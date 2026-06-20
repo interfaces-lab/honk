@@ -18,7 +18,6 @@ export function SettingsRestoreProvider(props: { children: ReactNode }) {
   const value = { changedSettingLabels, restoreDefaults, restoreSignal };
 
   return (
-    // oxlint-disable-next-line react/jsx-no-constructed-context-values -- React Compiler memoizes context values
     <SettingsRestoreContext.Provider value={value}>
       {props.children}
     </SettingsRestoreContext.Provider>

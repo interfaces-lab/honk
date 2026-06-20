@@ -1,5 +1,5 @@
 import { EnvironmentId, ProjectId, type ScopedProjectRef } from "@honk/contracts";
-import { useMemo, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { findProjectByPath } from "~/lib/project-paths";
@@ -190,10 +190,7 @@ export function readSelectedWorkspaceProject(): SelectedWorkspaceProject {
 export function useSelectedWorkspaceProject(): SelectedWorkspaceProject {
   const projectOrder = useUiStateStore((store) => store.projectOrder);
   const projectCandidateKeys = useStore(useShallow(selectWorkspaceProjectCandidateKeys));
-  const projects = useMemo(
-    () => workspaceProjectCandidatesFromKeys(projectCandidateKeys),
-    [projectCandidateKeys],
-  );
+  const projects = workspaceProjectCandidatesFromKeys(projectCandidateKeys);
   const serverConfig = useServerConfig();
   const storedProjectSelection = useSyncExternalStore(
     subscribeStoredProjectSelection,
@@ -201,21 +198,10 @@ export function useSelectedWorkspaceProject(): SelectedWorkspaceProject {
     () => null,
   );
 
-  return useMemo(
-    () =>
-      resolveSelectedWorkspaceProject({
-        projectOrder,
-        projects,
-        serverCwd: serverConfig?.cwd,
-        storedProjectSelection,
-      }),
-    [
-      projectOrder,
-      projects,
-      serverConfig?.cwd,
-      storedProjectSelection?.cwd,
-      storedProjectSelection?.environmentId,
-      storedProjectSelection?.projectId,
-    ],
-  );
+  return resolveSelectedWorkspaceProject({
+    projectOrder,
+    projects,
+    serverCwd: serverConfig?.cwd,
+    storedProjectSelection,
+  });
 }

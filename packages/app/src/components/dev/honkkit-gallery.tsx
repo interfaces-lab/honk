@@ -3,7 +3,7 @@ import { Text } from "@honk/honkkit/text";
 import { normalizeSearchQuery } from "@honk/shared/search-ranking";
 import { DialRoot } from "dialkit";
 import "dialkit/styles.css";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import {
   DEFAULT_HONKKIT_COMPONENT_ID,
@@ -26,7 +26,7 @@ export function HonkKitGalleryPage() {
 
   const selected = findHonkKitComponent(selectedId) ?? HONKKIT_COMPONENTS[0]!;
 
-  const filteredCatalog = useMemo(() => {
+  const filteredCatalog = (() => {
     const normalizedQuery = normalizeSearchQuery(query);
     if (!normalizedQuery) {
       return HONKKIT_CATALOG;
@@ -39,7 +39,7 @@ export function HonkKitGalleryPage() {
         return haystack.includes(normalizedQuery);
       }),
     })).filter((group) => group.components.length > 0);
-  }, [query]);
+  })();
 
   return (
     <div className="flex h-full min-h-0 w-full !flex-row overflow-hidden bg-background text-foreground">

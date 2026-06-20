@@ -26,7 +26,6 @@ import {
   type ReactNode,
   createContext,
   useContext,
-  useMemo,
 } from "react";
 import remend from "remend";
 import type { Components, UrlTransform } from "streamdown";
@@ -1348,11 +1347,8 @@ function prepareChatMarkdownSource(text: string, isStreaming: boolean): string {
 function ChatMarkdown({ text, cwd, isStreaming = false, className }: ChatMarkdownProps) {
   const { resolvedTheme } = useTheme();
   const diffThemeName = resolveDiffThemeName(resolvedTheme);
-  const markdownText = useMemo(
-    () => prepareChatMarkdownSource(text, isStreaming),
-    [isStreaming, text],
-  );
-  const markdownFileLinkMetaByHref = useMemo(() => {
+  const markdownText = prepareChatMarkdownSource(text, isStreaming);
+  const markdownFileLinkMetaByHref = (() => {
     const metaByHref = new Map<
       string,
       NonNullable<ReturnType<typeof resolveMarkdownFileLinkMeta>>
@@ -1366,13 +1362,9 @@ function ChatMarkdown({ text, cwd, isStreaming = false, className }: ChatMarkdow
       }
     }
     return metaByHref;
-  }, [cwd, markdownText]);
-  const fileLinkParentSuffixByPath = useMemo(
-    () =>
-      buildFileLinkParentSuffixByPath(
-        [...markdownFileLinkMetaByHref.values()].map((meta) => meta.filePath),
-      ),
-    [markdownFileLinkMetaByHref],
+  })();
+  const fileLinkParentSuffixByPath = buildFileLinkParentSuffixByPath(
+    [...markdownFileLinkMetaByHref.values()].map((meta) => meta.filePath),
   );
   const renderContext: ChatMarkdownRenderContextValue = {
     markdownFileLinkMetaByHref,
@@ -1383,7 +1375,6 @@ function ChatMarkdown({ text, cwd, isStreaming = false, className }: ChatMarkdow
   };
 
   return (
-    // oxlint-disable-next-line react/jsx-no-constructed-context-values -- React Compiler memoizes context values
     <ChatMarkdownRenderContext.Provider value={renderContext}>
       <div
         className={cn(

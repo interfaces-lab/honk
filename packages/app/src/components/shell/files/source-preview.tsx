@@ -48,7 +48,9 @@ export function SourcePreview(props: {
   }
 
   if (canReadFile && fileQuery.isPending) {
-    return <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-(--honk-workbench-editor-surface-background)" />;
+    return (
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-(--honk-workbench-editor-surface-background)" />
+    );
   }
 
   if (fileQuery.isError || !fileQuery.data) {

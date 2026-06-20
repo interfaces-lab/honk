@@ -18,7 +18,7 @@ import {
   IconCodeTree,
   IconHistory,
 } from "central-icons";
-import { useMemo, useState, type ComponentType, type ReactNode } from "react";
+import { useState, type ComponentType, type ReactNode } from "react";
 
 import {
   deriveLatestContextWindowSnapshot,
@@ -699,13 +699,10 @@ function treeEntryText(entry: SessionTreeEntry | undefined): string {
 
 function TreeSection(props: { sessionTree: SessionTreeProjection | null; thread: Thread | null }) {
   const sessionTree = props.sessionTree;
-  const entryById = useMemo(() => {
-    const next = new Map<string, SessionTreeEntry>();
-    for (const entry of sessionTree?.entries ?? []) {
-      next.set(entry.id, entry);
-    }
-    return next;
-  }, [sessionTree?.entries]);
+  const entryById = new Map<string, SessionTreeEntry>();
+  for (const entry of sessionTree?.entries ?? []) {
+    entryById.set(entry.id, entry);
+  }
 
   if (!sessionTree || sessionTree.nodes.length === 0) {
     return (
@@ -875,33 +872,28 @@ export function DevWorkbenchPanel(props: {
 }) {
   const [activeSection, setActiveSection] = useState<DevPanelSection>("messages");
   const runtimeSnapshot = useAgentRuntimeStore((state) => state.snapshot);
-  const runtimeState = useMemo<DevRuntimeState>(() => {
-    if (!props.threadId) {
-      return {
+  const runtimeState: DevRuntimeState = !props.threadId
+    ? {
         sessionTree: null,
         displayTimeline: null,
         runtimeEvents: EMPTY_RUNTIME_EVENTS,
         pendingExtensionUiRequests: 0,
+      }
+    : {
+        sessionTree:
+          runtimeSnapshot.sessionTrees.find((tree) => tree.threadId === props.threadId) ?? null,
+        displayTimeline:
+          runtimeSnapshot.displayTimelines.find(
+            (timeline) => timeline.threadId === props.threadId,
+          ) ?? null,
+        runtimeEvents: runtimeSnapshot.runtimeEvents.filter(
+          (event) => event.threadId === props.threadId,
+        ),
+        pendingExtensionUiRequests: runtimeSnapshot.pendingExtensionUiRequests.filter(
+          (request) => request.threadId === props.threadId,
+        ).length,
       };
-    }
-    return {
-      sessionTree:
-        runtimeSnapshot.sessionTrees.find((tree) => tree.threadId === props.threadId) ?? null,
-      displayTimeline:
-        runtimeSnapshot.displayTimelines.find((timeline) => timeline.threadId === props.threadId) ??
-        null,
-      runtimeEvents: runtimeSnapshot.runtimeEvents.filter(
-        (event) => event.threadId === props.threadId,
-      ),
-      pendingExtensionUiRequests: runtimeSnapshot.pendingExtensionUiRequests.filter(
-        (request) => request.threadId === props.threadId,
-      ).length,
-    };
-  }, [props.threadId, runtimeSnapshot]);
-  const contextUsage = useMemo(
-    () => deriveLatestContextWindowSnapshot(props.thread?.activities ?? []),
-    [props.thread?.activities],
-  );
+  const contextUsage = deriveLatestContextWindowSnapshot(props.thread?.activities ?? []);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-(--honk-workbench-panel-background) font-honk text-detail text-honk-fg-primary">

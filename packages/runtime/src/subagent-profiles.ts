@@ -1,9 +1,6 @@
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import type { Model } from "@earendil-works/pi-ai";
-import {
-  type AgentMode,
-  type AgentThinkingLevel,
-} from "@honk/contracts";
+import { type AgentMode, type AgentThinkingLevel } from "@honk/contracts";
 
 // A subagent profile is the resolved specialization a child runs with: which model and thinking
 // level, which tools it may use, what system prompt specializes it, how much of the host's resources
@@ -110,8 +107,7 @@ export function resolveSubagentProfile(input: {
 }): ResolvedSubagentProfile {
   const requested = input.name?.trim() || DEFAULT_SUBAGENT_AGENT_NAME;
   const base =
-    BUILTIN_SUBAGENT_PROFILES[requested] ??
-    BUILTIN_SUBAGENT_PROFILES[DEFAULT_SUBAGENT_AGENT_NAME]!;
+    BUILTIN_SUBAGENT_PROFILES[requested] ?? BUILTIN_SUBAGENT_PROFILES[DEFAULT_SUBAGENT_AGENT_NAME]!;
   return applyOverrides(base, input.overrides);
 }
 

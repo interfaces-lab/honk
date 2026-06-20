@@ -1358,17 +1358,15 @@ describe("Pi runtime thread sync", () => {
     });
 
     const updatedSnapshot = { ...snapshot, usedTokens: 61_000 };
-    useStore
-      .getState()
-      .applyAgentRuntimeEvent(
-        {
-          ...contextWindowEvent,
-          id: EventId.make("runtime-event:context-window-later"),
-          createdAt: "2026-06-01T12:00:31.000Z",
-          data: updatedSnapshot,
-        },
-        environmentId,
-      );
+    useStore.getState().applyAgentRuntimeEvent(
+      {
+        ...contextWindowEvent,
+        id: EventId.make("runtime-event:context-window-later"),
+        createdAt: "2026-06-01T12:00:31.000Z",
+        data: updatedSnapshot,
+      },
+      environmentId,
+    );
     const replaced = currentThread().thread.activities.filter(
       (activity) => activity.kind === "context-window.updated",
     );
@@ -1470,9 +1468,7 @@ describe("Pi runtime thread sync", () => {
     const threadActivity = activities.find(
       (activity) => activity.kind === "subagent.thread.started",
     );
-    const itemActivity = activities.find(
-      (activity) => activity.kind === "subagent.item.completed",
-    );
+    const itemActivity = activities.find((activity) => activity.kind === "subagent.item.completed");
     const itemPayload = itemActivity?.payload as Record<string, unknown> | undefined;
     const itemData = itemPayload?.data as Record<string, unknown> | undefined;
     const itemResult = itemData?.result as Record<string, unknown> | undefined;

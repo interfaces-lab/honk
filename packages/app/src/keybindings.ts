@@ -296,7 +296,7 @@ export function threadTraversalDirectionFromCommand(
 }
 
 export function interactionModeFromKeybindingCommand(
-  command: KeybindingCommand | string | null,
+  command: string | null,
 ): AgentInteractionMode | null {
   switch (command) {
     case "composer.mode.agent":

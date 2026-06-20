@@ -14,7 +14,10 @@ function isWithinRoot(filePath: string): boolean {
   try {
     return !relative(realpathSync(root), realpathSync(filePath)).startsWith(".");
   } catch (error) {
-    mockServerLog("error", `Error checking if file is within root: ${error}`);
+    mockServerLog(
+      "error",
+      `Error checking if file is within root: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+    );
     return false;
   }
 }

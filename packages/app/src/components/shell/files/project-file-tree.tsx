@@ -1,6 +1,6 @@
 "use client";
 
-import type { FileTreeRenameEvent } from "@pierre/trees";
+import type { FileTreeRenameEvent, GitStatus, GitStatusEntry } from "@pierre/trees";
 import {
   type ContextMenuItem,
   type ContextMenuOpenContext,
@@ -8,7 +8,13 @@ import {
   type FileTreeDirectoryHandle,
   type FileTreeItemHandle,
 } from "@pierre/trees";
-import type { EditorId, EnvironmentId, ProjectEntry } from "@honk/contracts";
+import type {
+  EditorId,
+  EnvironmentId,
+  GitStatusResult,
+  GitWorkingTreeFileStatus,
+  ProjectEntry,
+} from "@honk/contracts";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -25,14 +31,13 @@ import {
   type CSSProperties,
   type Dispatch,
   forwardRef,
-  memo,
   type MouseEvent as ReactMouseEvent,
   type RefObject,
   type SetStateAction,
-  useCallback,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -54,6 +59,7 @@ import {
 import { markProjectModelClosed } from "~/lib/monaco/project-models";
 import { cn } from "~/lib/utils";
 import { useEnvironmentApiReady } from "~/hooks/use-environment-api-ready";
+import { useGitStatus } from "~/lib/git-status-state";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { useTheme } from "~/hooks/use-theme";
 import { workspaceEditorActions } from "~/stores/workspace-editor-store";
@@ -115,10 +121,7 @@ function canDeleteTreeItem(
   return item.kind === "directory" || filePathSet?.has(normalizedPath) === true;
 }
 
-function isTreePathInsideDeletedEntry(
-  treePath: string,
-  deletedEntry: PendingDeleteEntry,
-): boolean {
+function isTreePathInsideDeletedEntry(treePath: string, deletedEntry: PendingDeleteEntry): boolean {
   const normalizedTreePath = normalizeTreePath(treePath);
   const normalizedDeletedPath = normalizeTreePath(deletedEntry.path).replace(/\/+$/g, "");
   if (deletedEntry.kind === "file") {
@@ -164,6 +167,35 @@ function entriesToTreePaths(
   return paths;
 }
 
+function gitWorkingTreeStatusToTreeStatus(status: GitWorkingTreeFileStatus): GitStatus {
+  switch (status) {
+    case "added":
+      return "added";
+    case "deleted":
+      return "deleted";
+    case "ignored":
+      return "ignored";
+    case "renamed":
+      return "renamed";
+    case "untracked":
+      return "untracked";
+    case "conflict":
+    case "modified":
+    default:
+      return "modified";
+  }
+}
+
+function gitStatusToTreeEntries(status: GitStatusResult | null): GitStatusEntry[] {
+  if (!status?.isRepo) {
+    return [];
+  }
+  return status.workingTree.files.map((file) => ({
+    path: normalizeTreePath(file.path),
+    status: gitWorkingTreeStatusToTreeStatus(file.status),
+  }));
+}
+
 function joinProjectPath(cwd: string, relativePath: string): string {
   const normalizedCwd = normalizeTreePath(cwd).replace(/\/+$/g, "");
   const normalizedRelativePath = normalizeTreePath(relativePath).replace(/^\/+/g, "");
@@ -192,6 +224,55 @@ function getExpandedDirectoryPaths(
     }
     return item.isExpanded();
   });
+}
+
+function normalizeRevealTreePath(relativePath: string): string {
+  const normalizedPath = normalizeTreePath(relativePath);
+  return normalizedPath.endsWith("/")
+    ? `${normalizedPath.replace(/\/+$/g, "")}/`
+    : normalizedPath.replace(/\/+$/g, "");
+}
+
+function revealParentDirectoryPaths(treePath: string): string[] {
+  const directoryTarget = treePath.endsWith("/");
+  const trimmedPath = treePath.replace(/\/+$/g, "");
+  if (!trimmedPath) {
+    return [];
+  }
+  const segments = trimmedPath.split("/").filter(Boolean);
+  const directorySegmentCount = directoryTarget ? segments.length : segments.length - 1;
+  const paths: string[] = [];
+  for (let index = 1; index <= directorySegmentCount; index += 1) {
+    paths.push(`${segments.slice(0, index).join("/")}/`);
+  }
+  return paths;
+}
+
+function revealProjectTreePath(input: {
+  model: ProjectTreeModel;
+  relativePath: string;
+  suppressSelectionOpenRef: RefObject<string | null>;
+}): boolean {
+  const treePath = normalizeRevealTreePath(input.relativePath);
+  for (const parentPath of revealParentDirectoryPaths(treePath)) {
+    const item = input.model.getItem(parentPath);
+    if (isDirectoryHandle(item)) {
+      item.expand();
+    }
+  }
+
+  const item = input.model.getItem(treePath);
+  if (!item) {
+    return false;
+  }
+
+  input.suppressSelectionOpenRef.current = treePath;
+  for (const selectedPath of input.model.getSelectedPaths()) {
+    input.model.getItem(selectedPath)?.deselect();
+  }
+  item.select();
+  input.model.focusPath(treePath);
+  return true;
 }
 
 export function openProjectFilePath(input: {
@@ -526,6 +607,8 @@ async function loadProjectDirectory(input: {
 }
 
 export type ProjectFileTreeHandle = {
+  createFile: () => void;
+  createFolder: () => void;
   refresh: () => void;
   revealPath: (relativePath: string) => void;
   selectPath: (relativePath: string | null) => void;
@@ -583,6 +666,28 @@ function filePathFromTreeMouseEvent(event: ReactMouseEvent<HTMLElement>): string
   return itemElement?.dataset.itemPath ? normalizeTreePath(itemElement.dataset.itemPath) : null;
 }
 
+function selectedParentDirectory(input: {
+  filePathSet: ReadonlySet<string> | null;
+  model: ProjectTreeModel;
+}): string {
+  const selectedPath = input.model.getSelectedPaths()[0];
+  if (!selectedPath) {
+    return "";
+  }
+
+  const normalizedPath = normalizeTreePath(selectedPath);
+  const selectedItem = input.model.getItem(normalizedPath);
+  if (isDirectoryHandle(selectedItem)) {
+    return treeDirectoryPathToRelativeDir(normalizedPath);
+  }
+
+  if (input.filePathSet?.has(normalizedPath) === true) {
+    return normalizedPath.split("/").slice(0, -1).join("/");
+  }
+
+  return "";
+}
+
 const ProjectFileTreeComponent = forwardRef<
   ProjectFileTreeHandle,
   {
@@ -593,6 +698,7 @@ const ProjectFileTreeComponent = forwardRef<
     onPreviewFile?: (relativePath: string) => void;
     onOpenFile?: (relativePath: string) => void;
     onFilePathsChange?: (relativePaths: readonly string[]) => void;
+    searchQuery?: string | null;
     className?: string;
     active?: boolean;
   }
@@ -615,6 +721,7 @@ const ProjectFileTreeComponent = forwardRef<
   const suppressSelectionOpenRef = useRef<string | null>(null);
   const pendingCompositionRef = useRef<Map<string, PendingCompositionEntry>>(new Map());
   const pendingRenamePathRef = useRef<string | null>(null);
+  const pendingRevealPathRef = useRef<string | null>(null);
   const pendingExpandedPathsRef = useRef<string[]>([]);
   const treePathsRef = useRef<string[]>([]);
   const { resolvedTheme } = useTheme();
@@ -629,6 +736,12 @@ const ProjectFileTreeComponent = forwardRef<
   const canLoad = Boolean(props.cwd && props.environmentId);
   const canQuery = canLoad && environmentApiReady && isActive;
   const canRenderTree = Boolean(canLoad && isActive);
+  const gitStatus = useGitStatus({
+    environmentId: props.environmentId,
+    cwd: props.cwd,
+  });
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- effect dep identity for tree git status sync
+  const gitStatusEntries = useMemo(() => gitStatusToTreeEntries(gitStatus.data), [gitStatus.data]);
   const canRevealInFinder =
     props.cwd !== null &&
     isElectronHost() &&
@@ -714,109 +827,108 @@ const ProjectFileTreeComponent = forwardRef<
     }
   };
 
-  const handleTreeRename = useCallback(
-    async (event: FileTreeRenameEvent) => {
-      const cwd = props.cwd;
-      const environmentId = props.environmentId;
-      if (!cwd || !environmentId) {
-        return;
-      }
+  const handleTreeRename = async (event: FileTreeRenameEvent) => {
+    const cwd = props.cwd;
+    const environmentId = props.environmentId;
+    if (!cwd || !environmentId) {
+      return;
+    }
 
-      const sourceTreePath = normalizeTreePath(event.sourcePath);
-      const destinationBasename = projectFileName(
-        normalizeTreePath(event.destinationPath).replace(/\/+$/g, ""),
-      );
-      const renameResult = renameFileTreePaths({
-        files: treePathsRef.current,
-        path: sourceTreePath,
-        isFolder: event.isFolder,
-        nextBasename: destinationBasename,
-      });
-      if ("error" in renameResult) {
-        toast.error(renameResult.error);
-        return;
-      }
+    const sourceTreePath = normalizeTreePath(event.sourcePath);
+    const destinationBasename = projectFileName(
+      normalizeTreePath(event.destinationPath).replace(/\/+$/g, ""),
+    );
+    const renameResult = renameFileTreePaths({
+      files: treePathsRef.current,
+      path: sourceTreePath,
+      isFolder: event.isFolder,
+      nextBasename: destinationBasename,
+    });
+    if ("error" in renameResult) {
+      toast.error(renameResult.error);
+      return;
+    }
 
-      const sourceRelativePath = renameResult.sourcePath;
-      const destinationRelativePath = renameResult.destinationPath;
-      if (sourceRelativePath === destinationRelativePath) {
-        pendingCompositionRef.current.delete(sourceTreePath);
-        return;
-      }
+    const sourceRelativePath = renameResult.sourcePath;
+    const destinationRelativePath = renameResult.destinationPath;
+    if (sourceRelativePath === destinationRelativePath) {
+      pendingCompositionRef.current.delete(sourceTreePath);
+      return;
+    }
 
-      const pendingComposition = pendingCompositionRef.current.get(sourceTreePath);
-      try {
-        if (pendingComposition?.kind === "file") {
-          await writeProjectFile({
-            environmentId,
-            file: {
-              cwd,
-              relativePath: destinationRelativePath,
-              contents: "",
-            },
-          });
-        } else if (pendingComposition?.kind === "directory") {
-          await createProjectDirectory({
-            environmentId,
-            directory: {
-              cwd,
-              relativePath: destinationRelativePath,
-            },
-          });
-        } else {
-          await renameProjectPath({
-            environmentId,
-            paths: {
-              cwd,
-              fromRelativePath: sourceRelativePath,
-              toRelativePath: destinationRelativePath,
-            },
-          });
-          if (!event.isFolder) {
-            markProjectModelClosed({ environmentId, cwd, relativePath: sourceRelativePath });
-          }
-          workspaceEditorActions.renameFileInHistory(
-            props.workspaceKey,
-            sourceRelativePath,
-            destinationRelativePath,
-            event.isFolder,
-          );
-          workbenchTabPersistenceActions.renameFilePath(
-            props.workspaceKey,
-            sourceRelativePath,
-            destinationRelativePath,
-          );
+    const pendingComposition = pendingCompositionRef.current.get(sourceTreePath);
+    try {
+      if (pendingComposition?.kind === "file") {
+        await writeProjectFile({
+          environmentId,
+          file: {
+            cwd,
+            relativePath: destinationRelativePath,
+            contents: "",
+          },
+        });
+      } else if (pendingComposition?.kind === "directory") {
+        await createProjectDirectory({
+          environmentId,
+          directory: {
+            cwd,
+            relativePath: destinationRelativePath,
+          },
+        });
+      } else {
+        await renameProjectPath({
+          environmentId,
+          paths: {
+            cwd,
+            fromRelativePath: sourceRelativePath,
+            toRelativePath: destinationRelativePath,
+          },
+        });
+        if (!event.isFolder) {
+          markProjectModelClosed({ environmentId, cwd, relativePath: sourceRelativePath });
         }
-
-        pendingCompositionRef.current.delete(sourceTreePath);
-        await invalidateProjectEntries(queryClient, { environmentId, cwd });
-        setTreePaths(renameResult.nextFiles);
-        if (pendingComposition?.kind === "file") {
-          props.onOpenFile?.(destinationRelativePath);
-        }
-      } catch (error) {
-        toast.error(
-          formatProjectErrorDescription(
-            error,
-            pendingComposition ? "Unable to create project entry." : "Unable to rename project entry.",
-          ),
+        workspaceEditorActions.renameFileInHistory(
+          props.workspaceKey,
+          sourceRelativePath,
+          destinationRelativePath,
+          event.isFolder,
         );
-        if (pendingComposition) {
-          pendingCompositionRef.current.delete(sourceTreePath);
-          setTreePaths((currentPaths) =>
-            currentPaths.filter((path) => normalizeTreePath(path) !== sourceTreePath),
-          );
-        }
+        workbenchTabPersistenceActions.renameFilePath(
+          props.workspaceKey,
+          sourceRelativePath,
+          destinationRelativePath,
+        );
       }
-    },
-    [props.cwd, props.environmentId, props.onOpenFile, props.workspaceKey, queryClient],
-  );
+
+      pendingCompositionRef.current.delete(sourceTreePath);
+      await invalidateProjectEntries(queryClient, { environmentId, cwd });
+      setTreePaths(renameResult.nextFiles);
+      if (pendingComposition?.kind === "file") {
+        props.onOpenFile?.(destinationRelativePath);
+      }
+    } catch (error) {
+      toast.error(
+        formatProjectErrorDescription(
+          error,
+          pendingComposition
+            ? "Unable to create project entry."
+            : "Unable to rename project entry.",
+        ),
+      );
+      if (pendingComposition) {
+        pendingCompositionRef.current.delete(sourceTreePath);
+        setTreePaths((currentPaths) =>
+          currentPaths.filter((path) => normalizeTreePath(path) !== sourceTreePath),
+        );
+      }
+    }
+  };
 
   const handleTreeRenameRef = useRef(handleTreeRename);
   handleTreeRenameRef.current = handleTreeRename;
 
-  const startNewFile = useCallback((item: ContextMenuItem) => {
-    const parentDir = parentDirectoryFromContextItem(item);
+  const startNewFileInDirectory = (relativeDir: string) => {
+    const parentDir = treeDirectoryPathToRelativeDir(relativeDir);
     const fileName = uniqueSiblingName({
       parentDir,
       baseName: "Untitled",
@@ -837,10 +949,10 @@ const ProjectFileTreeComponent = forwardRef<
       nextPaths.add(nextPath);
       return [...nextPaths];
     });
-  }, []);
+  };
 
-  const startNewFolder = useCallback((item: ContextMenuItem) => {
-    const parentDir = parentDirectoryFromContextItem(item);
+  const startNewFolderInDirectory = (relativeDir: string) => {
+    const parentDir = treeDirectoryPathToRelativeDir(relativeDir);
     const folderName = uniqueSiblingName({
       parentDir,
       baseName: "New Folder",
@@ -861,31 +973,36 @@ const ProjectFileTreeComponent = forwardRef<
       nextPaths.add(nextPath);
       return [...nextPaths];
     });
-  }, []);
+  };
 
-  const copyAbsolutePath = useCallback(
-    (item: ContextMenuItem) => {
-      if (!props.cwd) return;
-      const relativePath = relativePathFromContextItem(item);
-      void copyPathToClipboard(
-        joinProjectPath(props.cwd, relativePath),
-        "Copied path",
-      ).catch((error: unknown) => {
+  const startNewFile = (item: ContextMenuItem) => {
+    startNewFileInDirectory(parentDirectoryFromContextItem(item));
+  };
+
+  const startNewFolder = (item: ContextMenuItem) => {
+    startNewFolderInDirectory(parentDirectoryFromContextItem(item));
+  };
+
+  const copyAbsolutePath = (item: ContextMenuItem) => {
+    if (!props.cwd) return;
+    const relativePath = relativePathFromContextItem(item);
+    void copyPathToClipboard(joinProjectPath(props.cwd, relativePath), "Copied path").catch(
+      (error: unknown) => {
         toast.error(error instanceof Error ? error.message : "Unable to copy path.");
-      });
-    },
-    [props.cwd],
-  );
+      },
+    );
+  };
 
-  const copyRelativePath = useCallback((item: ContextMenuItem) => {
+  const copyRelativePath = (item: ContextMenuItem) => {
     const relativePath = relativePathFromContextItem(item);
     void copyPathToClipboard(relativePath, "Copied relative path").catch((error: unknown) => {
       toast.error(error instanceof Error ? error.message : "Unable to copy path.");
     });
-  }, []);
+  };
 
   const { model } = useTreeModel({
     paths: [],
+    fileTreeSearchMode: "hide-non-matches",
     initialExpansion: "closed",
     search: false,
     onSelectionChange: (selectedPaths) => {
@@ -929,12 +1046,9 @@ const ProjectFileTreeComponent = forwardRef<
     },
   });
 
-  const requestRename = useCallback(
-    (item: ContextMenuItem) => {
-      model.startRenaming(item.path);
-    },
-    [model],
-  );
+  const requestRename = (item: ContextMenuItem) => {
+    model.startRenaming(item.path);
+  };
 
   useMountEffect(() => {
     return model.onMutation("remove", (event) => {
@@ -946,51 +1060,86 @@ const ProjectFileTreeComponent = forwardRef<
     });
   });
 
-  const openFileFromDoubleClick = useCallback(
-    (event: ReactMouseEvent<HTMLElement>) => {
-      const relativePath = filePathFromTreeMouseEvent(event);
-      if (!relativePath || filePathSetRef.current?.has(relativePath) !== true) {
-        return;
-      }
+  const openFileFromDoubleClick = (event: ReactMouseEvent<HTMLElement>) => {
+    const relativePath = filePathFromTreeMouseEvent(event);
+    if (!relativePath || filePathSetRef.current?.has(relativePath) !== true) {
+      return;
+    }
 
-      event.preventDefault();
-      event.stopPropagation();
-      lastOpenedPathRef.current = relativePath;
-      if (props.onOpenFile) {
-        props.onOpenFile(relativePath);
-        return;
-      }
-      openProjectFilePath({
-        relativePath,
-        cwd: props.cwd,
-        availableEditors: props.availableEditors,
-      });
-    },
-    [props.availableEditors, props.cwd, props.onOpenFile],
-  );
+    event.preventDefault();
+    event.stopPropagation();
+    lastOpenedPathRef.current = relativePath;
+    if (props.onOpenFile) {
+      props.onOpenFile(relativePath);
+      return;
+    }
+    openProjectFilePath({
+      relativePath,
+      cwd: props.cwd,
+      availableEditors: props.availableEditors,
+    });
+  };
 
-  const selectPath = useCallback(
-    (relativePath: string | null) => {
-      const externalSelectedPath = relativePath ? normalizeTreePath(relativePath) : null;
-      externalSelectedPathRef.current = externalSelectedPath;
-      syncProjectFileTreeSelection({
-        externalSelectedPath,
-        filePathSetRef,
-        lastOpenedPathRef,
-        model,
-        suppressSelectionOpenRef,
-      });
-    },
-    [filePathSetRef, lastOpenedPathRef, model, suppressSelectionOpenRef],
-  );
+  const selectPath = (relativePath: string | null) => {
+    const externalSelectedPath = relativePath ? normalizeTreePath(relativePath) : null;
+    externalSelectedPathRef.current = externalSelectedPath;
+    syncProjectFileTreeSelection({
+      externalSelectedPath,
+      filePathSetRef,
+      lastOpenedPathRef,
+      model,
+      suppressSelectionOpenRef,
+    });
+  };
 
-  const syncStoredSelectedPath = useCallback(() => {
+  const syncStoredSelectedPath = () => {
     selectPath(externalSelectedPathRef.current);
-  }, [selectPath]);
+  };
+
+  const revealPath = (relativePath: string) => {
+    pendingRevealPathRef.current = relativePath;
+    if (revealProjectTreePath({ model, relativePath, suppressSelectionOpenRef })) {
+      pendingRevealPathRef.current = null;
+    }
+  };
+
+  const revealPendingPath = () => {
+    const pendingRevealPath = pendingRevealPathRef.current;
+    if (!pendingRevealPath) {
+      return;
+    }
+    if (
+      revealProjectTreePath({ model, relativePath: pendingRevealPath, suppressSelectionOpenRef })
+    ) {
+      pendingRevealPathRef.current = null;
+    }
+  };
 
   useImperativeHandle(
     ref,
     () => ({
+      createFile: () => {
+        if (!canQuery) {
+          return;
+        }
+        startNewFileInDirectory(
+          selectedParentDirectory({
+            filePathSet: filePathSetRef.current,
+            model,
+          }),
+        );
+      },
+      createFolder: () => {
+        if (!canQuery) {
+          return;
+        }
+        startNewFolderInDirectory(
+          selectedParentDirectory({
+            filePathSet: filePathSetRef.current,
+            model,
+          }),
+        );
+      },
       selectPath,
       refresh: () => {
         loadedDirectoriesRef.current?.clear();
@@ -1010,36 +1159,25 @@ const ProjectFileTreeComponent = forwardRef<
           setTreePaths,
         });
       },
-      revealPath: (relativePath) => {
-        const normalizedPath = normalizeTreePath(relativePath);
-        const parentPaths: string[] = [];
-        const segments = normalizedPath.split("/");
-        for (let index = 1; index < segments.length; index += 1) {
-          parentPaths.push(`${segments.slice(0, index).join("/")}/`);
-        }
-        for (const parentPath of parentPaths) {
-          const item = model.getItem(parentPath);
-          if (isDirectoryHandle(item)) {
-            item.expand();
-          }
-        }
-        const item = model.getItem(normalizedPath);
-        if (!item) return;
-        suppressSelectionOpenRef.current = normalizedPath;
-        for (const selectedPath of model.getSelectedPaths()) {
-          model.getItem(selectedPath)?.deselect();
-        }
-        item.select();
-        model.focusPath(normalizedPath);
-      },
+      revealPath,
     }),
-    [canQuery, model, props.cwd, props.environmentId, queryClient, selectPath],
+    [
+      canQuery,
+      model,
+      props.cwd,
+      props.environmentId,
+      queryClient,
+      revealPath,
+      selectPath,
+      startNewFileInDirectory,
+      startNewFolderInDirectory,
+    ],
   );
 
   return (
     <section
       className={cn(
-        "project-file-tree flex min-h-0 min-h-36 shrink-0 flex-col overflow-hidden bg-(--honk-workbench-panel-background) text-honk-fg-primary",
+        "project-file-tree flex min-h-0 flex-1 flex-col overflow-hidden bg-(--honk-workbench-panel-background) text-honk-fg-primary",
         props.className,
       )}
     >
@@ -1051,10 +1189,13 @@ const ProjectFileTreeComponent = forwardRef<
       <ProjectFileTreePathsSync
         model={model}
         onPathsSynced={syncStoredSelectedPath}
+        onRevealPendingPath={revealPendingPath}
         pendingExpandedPathsRef={pendingExpandedPathsRef}
         pendingRenamePathRef={pendingRenamePathRef}
         treePaths={treePaths}
       />
+      <ProjectFileTreeGitStatusSync gitStatusEntries={gitStatusEntries} model={model} />
+      <ProjectFileTreeSearchSync model={model} query={props.searchQuery} />
       {canLoad ? (
         <ProjectFileTreeInitialLoadSync
           active={canQuery}
@@ -1157,7 +1298,7 @@ const ProjectFileTreeComponent = forwardRef<
   );
 });
 
-export const ProjectFileTree = memo(ProjectFileTreeComponent);
+export const ProjectFileTree = ProjectFileTreeComponent;
 
 function ProjectFileTreePathSetSync({
   filePathSetRef,
@@ -1189,16 +1330,23 @@ function ProjectFileTreePathSetSync({
 function ProjectFileTreePathsSync({
   model,
   onPathsSynced,
+  onRevealPendingPath,
   pendingExpandedPathsRef,
   pendingRenamePathRef,
   treePaths,
 }: {
   model: ProjectTreeModel;
   onPathsSynced: () => void;
+  onRevealPendingPath: () => void;
   pendingExpandedPathsRef: RefObject<string[]>;
   pendingRenamePathRef: RefObject<string | null>;
   treePaths: readonly string[];
 }) {
+  const onPathsSyncedRef = useRef(onPathsSynced);
+  const onRevealPendingPathRef = useRef(onRevealPendingPath);
+  onPathsSyncedRef.current = onPathsSynced;
+  onRevealPendingPathRef.current = onRevealPendingPath;
+
   useEffect(() => {
     const expandedPaths = [
       ...getExpandedDirectoryPaths(model, treePaths),
@@ -1209,13 +1357,52 @@ function ProjectFileTreePathsSync({
       initialExpandedPaths: expandedPaths,
       preparedInput: prepareFileTreeInput(treePaths),
     });
-    onPathsSynced();
+    onPathsSyncedRef.current();
+    onRevealPendingPathRef.current();
     const pendingRenamePath = pendingRenamePathRef.current;
     if (pendingRenamePath) {
       pendingRenamePathRef.current = null;
       model.startRenaming(pendingRenamePath, { removeIfCanceled: true });
     }
-  }, [model, onPathsSynced, pendingExpandedPathsRef, pendingRenamePathRef, treePaths]);
+  }, [model, pendingExpandedPathsRef, pendingRenamePathRef, treePaths]);
+
+  return null;
+}
+
+function ProjectFileTreeGitStatusSync({
+  gitStatusEntries,
+  model,
+}: {
+  gitStatusEntries: readonly GitStatusEntry[];
+  model: ProjectTreeModel;
+}) {
+  useEffect(() => {
+    model.setGitStatus(gitStatusEntries);
+  }, [gitStatusEntries, model]);
+
+  return null;
+}
+
+function ProjectFileTreeSearchSync({
+  model,
+  query,
+}: {
+  model: ProjectTreeModel;
+  query: string | null | undefined;
+}) {
+  useEffect(() => {
+    const searchQuery = query?.trim() ?? "";
+    if (!searchQuery) {
+      model.closeSearch();
+      return;
+    }
+
+    if (model.isSearchOpen()) {
+      model.setSearch(searchQuery);
+      return;
+    }
+    model.openSearch(searchQuery);
+  }, [model, query]);
 
   return null;
 }

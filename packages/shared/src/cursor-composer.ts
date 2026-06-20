@@ -56,9 +56,7 @@ export function cursorComposerFastEnabled(
     return false;
   }
   return (
-    getModelOptionBooleanSelectionValue(
-      modelSelection.options,
-      CURSOR_COMPOSER_FAST_OPTION_ID,
-    ) ?? false
+    getModelOptionBooleanSelectionValue(modelSelection.options, CURSOR_COMPOSER_FAST_OPTION_ID) ??
+    false
   );
 }

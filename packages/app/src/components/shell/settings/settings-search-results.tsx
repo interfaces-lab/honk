@@ -31,9 +31,7 @@ export function SettingsSearchResults(props: {
   onSelect: (entry: SettingsPreferenceEntry) => void;
 }) {
   if (props.results.length === 0) {
-    return (
-      <div className="px-3 py-3 text-detail text-honk-fg-tertiary">No matching settings.</div>
-    );
+    return <div className="px-3 py-3 text-detail text-honk-fg-tertiary">No matching settings.</div>;
   }
 
   return (
@@ -58,9 +56,7 @@ export function SettingsSearchResults(props: {
               <SettingsSearchResultIcon section={entry.section} />
             </span>
             <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="truncate text-body text-honk-fg-primary">
-                {entry.title}
-              </span>
+              <span className="truncate text-body text-honk-fg-primary">{entry.title}</span>
               <span className="truncate text-detail text-honk-fg-tertiary">
                 {entry.panelLabel}
                 {entry.sectionTitle !== entry.panelLabel ? ` / ${entry.sectionTitle}` : ""}

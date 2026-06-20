@@ -14,8 +14,30 @@ import {
   CommandList,
   CommandPanel,
 } from "@honk/honkkit/command";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@honk/honkkit/input-group";
+import { WorkbenchIconButton } from "@honk/honkkit/workbench-button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  useDeferredValue,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  IconArrowRotateClockwise,
+  IconCrossSmall,
+  IconFileEdit,
+  IconFolderAddRight,
+  IconMagnifyingGlass,
+} from "central-icons";
 
 import {
   shellPanelsActions,
@@ -79,6 +101,8 @@ function ProjectFilesPanelContent(props: {
 }) {
   const [loadedFilePaths, setLoadedFilePaths] = useState<readonly string[]>([]);
   const [openFileDialogOpen, setOpenFileDialogOpen] = useState(false);
+  const [fileSearchOpen, setFileSearchOpen] = useState(false);
+  const [fileSearchQuery, setFileSearchQuery] = useState("");
   const [dirtyByPath, setDirtyByPath] = useState<Record<string, boolean>>({});
   const fileTreeRef = useRef<ProjectFileTreeHandle | null>(null);
   const editorShellRef = useRef<ProjectFileEditorShellHandle | null>(null);
@@ -95,7 +119,7 @@ function ProjectFilesPanelContent(props: {
   const centerEditorActive =
     editorState.placement === "center" && selectedPath !== null && previewPath === null;
   const visiblePathDirty = visiblePath ? (dirtyByPath[visiblePath] ?? false) : false;
-  const treeActive = fileRailOpen || openFileDialogOpen;
+  const treeActive = fileRailOpen || openFileDialogOpen || fileSearchOpen;
   // The toolbar is a static second nav: it stays above the tree and viewer even
   // with no file open. When the editor lives in the center surface this panel
   // owns no file, so the toolbar's file-specific controls go inert.
@@ -109,49 +133,101 @@ function ProjectFilesPanelContent(props: {
     shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", true);
   }, [fileRailInitialized, isFilesPanelActive, props.workspaceKey]);
 
-  const prefetchEditorPath = useCallback(
-    (relativePath: string) => {
-      if (!props.cwd || !props.environmentId) return;
-      void queryClient.prefetchQuery(
-        projectReadFileQueryOptions({
-          cwd: props.cwd,
-          environmentId: props.environmentId,
-          relativePath,
-        }),
-      );
-    },
-    [props.cwd, props.environmentId, queryClient],
-  );
+  useEffect(() => {
+    if (fileRailOpen || !fileSearchOpen) {
+      return;
+    }
+    setFileSearchOpen(false);
+    setFileSearchQuery("");
+  }, [fileRailOpen, fileSearchOpen]);
 
-  const previewEditorPath = useCallback(
-    (relativePath: string) => {
-      prefetchEditorPath(relativePath);
-      workbenchTabPersistenceActions.previewFile(props.workspaceKey, relativePath);
-    },
-    [prefetchEditorPath, props.workspaceKey],
-  );
+  const openFileRail = () => {
+    shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", true);
+  };
 
-  const openEditorTabPath = useCallback(
-    (relativePath: string) => {
-      prefetchEditorPath(relativePath);
-      workbenchTabPersistenceActions.createFile(props.workspaceKey, relativePath);
-    },
-    [prefetchEditorPath, props.workspaceKey],
-  );
+  const clearFileSearch = () => {
+    setFileSearchOpen(false);
+    setFileSearchQuery("");
+  };
 
-  const navigateEditorHistory = useCallback(
-    (delta: -1 | 1) => {
-      workspaceEditorActions.navigateFileHistory(props.workspaceKey, delta);
-    },
-    [props.workspaceKey],
-  );
+  const toggleFileSearch = () => {
+    const nextOpen = !fileSearchOpen;
+    if (nextOpen) {
+      openFileRail();
+    } else {
+      setFileSearchQuery("");
+    }
+    setFileSearchOpen(nextOpen);
+  };
+
+  const createProjectFile = () => {
+    openFileRail();
+    clearFileSearch();
+    window.requestAnimationFrame(() => fileTreeRef.current?.createFile());
+  };
+
+  const createProjectFolder = () => {
+    openFileRail();
+    clearFileSearch();
+    window.requestAnimationFrame(() => fileTreeRef.current?.createFolder());
+  };
+
+  const prefetchEditorPath = (relativePath: string) => {
+    if (!props.cwd || !props.environmentId) return;
+    void queryClient.prefetchQuery(
+      projectReadFileQueryOptions({
+        cwd: props.cwd,
+        environmentId: props.environmentId,
+        relativePath,
+      }),
+    );
+  };
+
+  const previewEditorPath = (relativePath: string) => {
+    prefetchEditorPath(relativePath);
+    workbenchTabPersistenceActions.previewFile(props.workspaceKey, relativePath);
+  };
+
+  const openEditorTabPath = (relativePath: string) => {
+    prefetchEditorPath(relativePath);
+    workbenchTabPersistenceActions.createFile(props.workspaceKey, relativePath);
+  };
+
+  const navigateBreadcrumbPath = (target: { kind: "directory" | "file"; path: string }) => {
+    if (target.kind === "file") {
+      openEditorTabPath(target.path);
+    }
+    shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", true);
+    fileTreeRef.current?.revealPath(target.kind === "directory" ? `${target.path}/` : target.path);
+  };
+
+  const navigateEditorHistory = (delta: -1 | 1) => {
+    workspaceEditorActions.navigateFileHistory(props.workspaceKey, delta);
+  };
 
   useEffect(() => {
     fileTreeRef.current?.selectPath(visiblePath);
   }, [visiblePath]);
 
-  const tree = useMemo(
-    () => (
+  const tree = (
+    <ProjectFileRailChrome
+      canCreate={Boolean(props.cwd && props.environmentId)}
+      cwd={props.cwd}
+      searchOpen={fileSearchOpen}
+      searchQuery={fileSearchQuery}
+      onNewFile={createProjectFile}
+      onNewFolder={createProjectFolder}
+      onRefresh={() => fileTreeRef.current?.refresh()}
+      onSearchOpenChange={(open) => {
+        setFileSearchOpen(open);
+        if (open) {
+          openFileRail();
+        } else {
+          setFileSearchQuery("");
+        }
+      }}
+      onSearchQueryChange={setFileSearchQuery}
+    >
       <ProjectFileTree
         key={`${props.environmentId ?? "none"}:${props.cwd ?? "none"}`}
         ref={fileTreeRef}
@@ -163,18 +239,10 @@ function ProjectFilesPanelContent(props: {
         onOpenFile={openEditorTabPath}
         onFilePathsChange={setLoadedFilePaths}
         active={treeActive}
-        className="min-h-36 flex-1 border-b-0 bg-(--honk-workbench-panel-background)"
+        searchQuery={fileSearchOpen ? fileSearchQuery : null}
+        className="h-full min-h-0 flex-1 border-b-0 bg-(--honk-workbench-panel-background)"
       />
-    ),
-    [
-      props.cwd,
-      props.workspaceKey,
-      props.environmentId,
-      props.availableEditors,
-      previewEditorPath,
-      openEditorTabPath,
-      treeActive,
-    ],
+    </ProjectFileRailChrome>
   );
 
   return (
@@ -185,6 +253,7 @@ function ProjectFilesPanelContent(props: {
         relativePath={panelFilePath}
         availableEditors={props.availableEditors}
         fileRailOpen={fileRailOpen}
+        fileSearchOpen={fileSearchOpen}
         dirty={panelFileDirty}
         canGoBack={editorState.canGoBack}
         canGoForward={editorState.canGoForward}
@@ -192,6 +261,7 @@ function ProjectFilesPanelContent(props: {
         onToggleFileTree={() => {
           shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", !fileRailOpen);
         }}
+        onToggleFileSearch={toggleFileSearch}
         onOpenFile={() => {
           setOpenFileDialogOpen(true);
         }}
@@ -232,6 +302,7 @@ function ProjectFilesPanelContent(props: {
             availableEditors: props.availableEditors,
           });
         }}
+        onBreadcrumbNavigate={navigateBreadcrumbPath}
       />
       <RightWorkbenchLayout
         workspaceKey={props.workspaceKey}
@@ -287,6 +358,126 @@ function ProjectFilesPanelContent(props: {
   );
 }
 
+function projectLabelFromCwd(cwd: string | null): string {
+  if (!cwd) {
+    return "Files";
+  }
+  return cwd.split(/[\\/]/).filter(Boolean).at(-1) ?? cwd;
+}
+
+function ProjectFileRailChrome(props: {
+  canCreate: boolean;
+  children: ReactNode;
+  cwd: string | null;
+  searchOpen: boolean;
+  searchQuery: string;
+  onNewFile: () => void;
+  onNewFolder: () => void;
+  onRefresh: () => void;
+  onSearchOpenChange: (open: boolean) => void;
+  onSearchQueryChange: (query: string) => void;
+}) {
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (props.searchOpen) {
+      searchInputRef.current?.focus();
+    }
+  }, [props.searchOpen]);
+
+  const onSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
+    props.onSearchQueryChange(event.currentTarget.value);
+  };
+
+  const onSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Escape") {
+      return;
+    }
+    event.preventDefault();
+    if (props.searchQuery) {
+      props.onSearchQueryChange("");
+      return;
+    }
+    props.onSearchOpenChange(false);
+  };
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--honk-workbench-panel-background) text-[12px] leading-4 text-honk-fg-secondary">
+      <div className="group/file-rail flex h-7 shrink-0 items-center gap-1 px-2">
+        <span className="min-w-0 flex-1 truncate text-[12px] leading-4 text-honk-fg-tertiary">
+          {projectLabelFromCwd(props.cwd)}
+        </span>
+        <div className="pointer-events-none flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-100 motion-reduce:transition-none group-focus-within/file-rail:pointer-events-auto group-focus-within/file-rail:opacity-100 group-hover/file-rail:pointer-events-auto group-hover/file-rail:opacity-100">
+          <WorkbenchIconButton
+            aria-label="New file"
+            chrome="panel"
+            className="size-5 min-h-5 min-w-5 max-h-5 px-0 text-honk-icon-tertiary"
+            disabled={!props.canCreate}
+            onClick={props.onNewFile}
+          >
+            <IconFileEdit className="size-3.5 shrink-0" aria-hidden />
+          </WorkbenchIconButton>
+          <WorkbenchIconButton
+            aria-label="New folder"
+            chrome="panel"
+            className="size-5 min-h-5 min-w-5 max-h-5 px-0 text-honk-icon-tertiary"
+            disabled={!props.canCreate}
+            onClick={props.onNewFolder}
+          >
+            <IconFolderAddRight className="size-3.5 shrink-0" aria-hidden />
+          </WorkbenchIconButton>
+          <WorkbenchIconButton
+            aria-label="Refresh files"
+            chrome="panel"
+            className="size-5 min-h-5 min-w-5 max-h-5 px-0 text-honk-icon-tertiary"
+            disabled={!props.cwd}
+            onClick={props.onRefresh}
+          >
+            <IconArrowRotateClockwise className="size-3.5 shrink-0" aria-hidden />
+          </WorkbenchIconButton>
+        </div>
+      </div>
+      {props.searchOpen ? (
+        <div className="shrink-0 px-2 pb-1">
+          <InputGroup
+            size="sm"
+            className="min-h-6 rounded-[6px] border-honk-stroke-secondary bg-transparent"
+          >
+            <InputGroupAddon className="px-1.5 pr-1 [&_svg]:size-3.5">
+              <IconMagnifyingGlass className="size-3.5 shrink-0" aria-hidden />
+            </InputGroupAddon>
+            <InputGroupInput
+              ref={searchInputRef}
+              aria-label="Search files"
+              autoComplete="off"
+              className="px-0 text-[12px] leading-4"
+              data-1p-ignore=""
+              data-lpignore="true"
+              onChange={onSearchChange}
+              onKeyDown={onSearchKeyDown}
+              placeholder="Search"
+              spellCheck={false}
+              type="search"
+              value={props.searchQuery}
+            />
+            {props.searchQuery ? (
+              <InputGroupButton
+                type="button"
+                aria-label="Clear file search"
+                className="me-0.5 size-5 shrink-0 rounded-honk-control text-honk-icon-tertiary hover:bg-honk-bg-quaternary hover:text-honk-icon-primary"
+                onClick={() => props.onSearchQueryChange("")}
+              >
+                <IconCrossSmall className="size-3" aria-hidden />
+              </InputGroupButton>
+            ) : null}
+          </InputGroup>
+        </div>
+      ) : null}
+      <div className="min-h-0 flex-1 overflow-hidden">{props.children}</div>
+    </div>
+  );
+}
+
 function OpenFileCommandDialog(props: {
   cwd: string | null;
   environmentId: EnvironmentId | null;
@@ -307,20 +498,13 @@ function OpenFileCommandDialog(props: {
       limit: MAX_OPEN_FILE_RESULTS,
     }),
   );
-  const searchedFilePaths = useMemo(
-    () =>
-      (projectEntriesQuery.data?.entries ?? [])
-        .filter((entry) => entry.kind === "file")
-        .map((entry) => entry.path),
-    [projectEntriesQuery.data?.entries],
-  );
-  const filteredFilePaths = useMemo(
-    () =>
-      searchQuery.length > 0
-        ? searchedFilePaths
-        : filterOpenFilePaths(props.filePaths, deferredQuery),
-    [deferredQuery, props.filePaths, searchQuery.length, searchedFilePaths],
-  );
+  const searchedFilePaths = (projectEntriesQuery.data?.entries ?? [])
+    .filter((entry) => entry.kind === "file")
+    .map((entry) => entry.path);
+  const filteredFilePaths =
+    searchQuery.length > 0
+      ? searchedFilePaths
+      : filterOpenFilePaths(props.filePaths, deferredQuery);
   const isSearching = searchQuery.length > 0 && projectEntriesQuery.isFetching;
 
   useEffect(() => {

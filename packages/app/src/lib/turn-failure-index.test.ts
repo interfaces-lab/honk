@@ -2,7 +2,10 @@ import { EventId, MessageId, TurnId } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
 import type { ChatMessage } from "../types";
-import { buildTurnFailuresByUserMessageId, areSameTurnFailuresByUserMessageId } from "./turn-failure-index";
+import {
+  buildTurnFailuresByUserMessageId,
+  areSameTurnFailuresByUserMessageId,
+} from "./turn-failure-index";
 
 const turnId = TurnId.make("turn:failure-index");
 const userMessageId = MessageId.make("message:failure-index:user");

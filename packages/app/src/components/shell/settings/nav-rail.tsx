@@ -1,6 +1,6 @@
 import { Link, useSearch } from "@tanstack/react-router";
 import { IconChevronLeftMedium, IconMagnifyingGlass } from "central-icons";
-import { useMemo, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useState, type ChangeEvent, type KeyboardEvent } from "react";
 
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@honk/honkkit/input-group";
 import { SidebarItem } from "@honk/honkkit/sidebar";
@@ -28,22 +28,15 @@ export function SettingsNavRail(props: { onBack: () => void }) {
     window.desktopBridge !== undefined &&
     isMacPlatform(navigator.platform);
 
-  const searchContext = useMemo(
-    () => ({
-      supportsAppIconSwitching,
-      agentModeSupportsThinkingLevel: agentModeSupportsThinkingLevelSelection(agentMode),
-    }),
-    [agentMode, supportsAppIconSwitching],
-  );
+  const searchContext = {
+    supportsAppIconSwitching,
+    agentModeSupportsThinkingLevel: agentModeSupportsThinkingLevelSelection(agentMode),
+  };
 
-  const searchResults = useMemo(
-    () =>
-      filterSettingsPreferences({
-        query: searchQuery,
-        context: searchContext,
-      }),
-    [searchContext, searchQuery],
-  );
+  const searchResults = filterSettingsPreferences({
+    query: searchQuery,
+    context: searchContext,
+  });
 
   const isSearching = searchQuery.trim().length > 0;
 

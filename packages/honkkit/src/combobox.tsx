@@ -10,7 +10,7 @@ import {
   honkMenuSeparatorClasses,
   interactiveControlCursorVariants,
 } from "./utils";
-import { Input, InputControlSizeContext, NativeInputRender, type InputControlSize } from "./input";
+import { InputControlSizeContext, NativeInputRender, type InputControlSize } from "./input";
 import { ScrollArea } from "./scroll-area";
 
 const ComboboxChipsRefContext = React.createContext<React.RefObject<HTMLDivElement | null> | null>(

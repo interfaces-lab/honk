@@ -6,7 +6,7 @@ import {
 } from "@honk/contracts";
 import { Button } from "@honk/honkkit/button";
 import { IconBubbleQuestion, IconChevronRightMedium, IconClock, IconSummary } from "central-icons";
-import { memo, type KeyboardEvent, type MouseEvent, useMemo } from "react";
+import { type KeyboardEvent, type MouseEvent } from "react";
 import {
   type ToolDiffArtifact,
   type ToolDisplayArtifact,
@@ -57,7 +57,7 @@ interface ToolCallMessageProps {
   defaultEditExpanded?: boolean | undefined;
 }
 
-export const ToolCallMessage = memo(function ToolCallMessage({
+export function ToolCallMessage({
   workEntry,
   projectRoot,
   activeThreadId,
@@ -67,10 +67,10 @@ export const ToolCallMessage = memo(function ToolCallMessage({
   defaultEditExpanded = false,
 }: ToolCallMessageProps) {
   const conversationDensity = useConversationDensity();
-  const status = useMemo(() => resolveStatus(workEntry), [workEntry]);
+  const status = resolveStatus(workEntry);
   const isLoading = status === "loading";
   const subagents = workEntry.subagents ?? [];
-  const toolCall = useMemo(() => toToolCall(workEntry, projectRoot), [projectRoot, workEntry]);
+  const toolCall = toToolCall(workEntry, projectRoot);
 
   if (workEntry.isToolSummary) {
     return <ToolSummaryRow text={workEntry.label} />;
@@ -128,9 +128,9 @@ export const ToolCallMessage = memo(function ToolCallMessage({
       {subagentStatusSurface}
     </div>
   );
-});
+}
 
-export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
+export function RuntimeToolCallMessage({
   tool,
   projectRoot,
   activeThreadId,
@@ -150,11 +150,8 @@ export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
   const conversationDensity = useConversationDensity();
   const status = resolveRuntimeToolStatus(tool);
   const isLoading = status === "loading";
-  const toolCall = useMemo(() => runtimeToolItemToToolCall(tool), [tool]);
-  const runtimeSubagents = useMemo(
-    () => runtimeToolDisplayToSubagents(tool.display),
-    [tool.display],
-  );
+  const toolCall = runtimeToolItemToToolCall(tool);
+  const runtimeSubagents = runtimeToolDisplayToSubagents(tool.display);
   const hasStreamingOutput = runtimeToolHasStreamingOutput(tool);
   const canRenderSubagents =
     runtimeSubagents.length > 0 && activeThreadId !== undefined && environmentId !== undefined;
@@ -213,7 +210,7 @@ export const RuntimeToolCallMessage = memo(function RuntimeToolCallMessage({
       />
     </div>
   );
-});
+}
 
 export function RuntimeExtensionUiRequestMessage({
   request,
@@ -335,7 +332,8 @@ export function runtimeToolDisplayToToolCall(
           case: "unknownToolCall",
           value: {
             action: runtimeToolAction(tool),
-            details: runtimeTrimmedString(tool.shortDescription) ?? display.toolName ?? tool.toolName,
+            details:
+              runtimeTrimmedString(tool.shortDescription) ?? display.toolName ?? tool.toolName,
             output: display.output ?? null,
             ...(display.output
               ? { artifacts: [{ type: "raw", text: display.output } satisfies ToolDisplayArtifact] }
@@ -760,7 +758,6 @@ function SubagentStatusRow({
   subagentDetailsEnabled: boolean;
 }) {
   const openTray = useSubagentTrayStore((state) => state.openTray);
-  const key = subagentTrayKey(subagent);
   const subagentThreadId = subagent.subagentThreadId?.trim() ?? "";
   const hasSubagentThread = subagentThreadId.length > 0;
   const hasDetails =

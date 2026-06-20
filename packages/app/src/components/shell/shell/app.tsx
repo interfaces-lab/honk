@@ -14,12 +14,9 @@ import { cva } from "class-variance-authority";
 import {
   createContext,
   type CSSProperties,
-  memo,
   type ReactNode,
-  useCallback,
   useContext,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -265,13 +262,13 @@ function LeftAside(props: { children: ReactNode; mode: ShellPanelMode }) {
 
 // Both glyphs stay mounted; ShellLayoutService flips the root attribute and
 // a11y state imperatively so this button does not subscribe to fullscreen.
-const RightWorkbenchFullscreenToggle = memo(function RightWorkbenchFullscreenToggle(props: {
+function RightWorkbenchFullscreenToggle(props: {
   threadId: string | null;
   workspaceKey: string | null;
 }) {
-  const onClick = useCallback(() => {
+  const onClick = () => {
     workspaceEditorActions.toggleFullscreen(props.workspaceKey, props.threadId, "right-workbench");
-  }, [props.threadId, props.workspaceKey]);
+  };
 
   return (
     <WorkbenchIconButton
@@ -292,9 +289,9 @@ const RightWorkbenchFullscreenToggle = memo(function RightWorkbenchFullscreenTog
       </span>
     </WorkbenchIconButton>
   );
-});
+}
 
-const RightAsideHeader = memo(function RightAsideHeader(props: {
+function RightAsideHeader(props: {
   workspaceKey: string | null;
   routeThreadId: string | null;
   activeTabId: string;
@@ -304,52 +301,29 @@ const RightAsideHeader = memo(function RightAsideHeader(props: {
 }) {
   const { workspaceKey } = props;
 
-  const onActivateTab = useCallback(
-    (tabId: string) => workbenchTabPersistenceActions.activateTab(workspaceKey, tabId),
-    [workspaceKey],
-  );
-  const onCloseTab = useCallback(
-    (tabId: string) => {
-      const tab = props.tabs.find((candidate) => candidate.id === tabId);
-      if (tab && props.onCloseTab) {
-        props.onCloseTab(tab);
-        return;
-      }
-      workbenchTabPersistenceActions.closeTab(workspaceKey, tabId);
-    },
-    [props.onCloseTab, props.tabs, workspaceKey],
-  );
-  const onMoveTab = useCallback(
-    (tabId: string, targetIndex: number) =>
-      workbenchTabPersistenceActions.moveTab(workspaceKey, tabId, targetIndex),
-    [workspaceKey],
-  );
-  const onNewTerminal = useCallback(() => {
+  const onActivateTab = (tabId: string) =>
+    workbenchTabPersistenceActions.activateTab(workspaceKey, tabId);
+  const onCloseTab = (tabId: string) => {
+    const tab = props.tabs.find((candidate) => candidate.id === tabId);
+    if (tab && props.onCloseTab) {
+      props.onCloseTab(tab);
+      return;
+    }
+    workbenchTabPersistenceActions.closeTab(workspaceKey, tabId);
+  };
+  const onMoveTab = (tabId: string, targetIndex: number) =>
+    workbenchTabPersistenceActions.moveTab(workspaceKey, tabId, targetIndex);
+  const onNewTerminal = () => {
     workbenchTabPersistenceActions.createTerminal(workspaceKey);
-  }, [workspaceKey]);
-  const onCreateBrowser = useCallback(
-    (url?: string | undefined) =>
-      workbenchTabPersistenceActions.createBrowser(workspaceKey, { url }),
-    [workspaceKey],
-  );
-  const onCreateFile = useCallback(
-    () => workbenchTabPersistenceActions.activateKind(workspaceKey, "files"),
-    [workspaceKey],
-  );
-  const onActivateChanges = useCallback(
-    () => workbenchTabPersistenceActions.activateChanges(workspaceKey),
-    [workspaceKey],
-  );
-  const onHidePanel = useCallback(() => setRightPanelOpen(false, workspaceKey), [workspaceKey]);
+  };
+  const onCreateBrowser = (url?: string) =>
+    workbenchTabPersistenceActions.createBrowser(workspaceKey, { url });
+  const onCreateFile = () => workbenchTabPersistenceActions.activateKind(workspaceKey, "files");
+  const onActivateChanges = () => workbenchTabPersistenceActions.activateChanges(workspaceKey);
+  const onHidePanel = () => setRightPanelOpen(false, workspaceKey);
 
-  const fullscreenControl = useMemo(
-    () => (
-      <RightWorkbenchFullscreenToggle
-        workspaceKey={workspaceKey}
-        threadId={props.routeThreadId}
-      />
-    ),
-    [props.routeThreadId, workspaceKey],
+  const fullscreenControl = (
+    <RightWorkbenchFullscreenToggle workspaceKey={workspaceKey} threadId={props.routeThreadId} />
   );
 
   return (
@@ -369,7 +343,7 @@ const RightAsideHeader = memo(function RightAsideHeader(props: {
       onMoveTab={onMoveTab}
     />
   );
-});
+}
 
 // The <aside> shell: owns visibility (rightOpen), fullscreen, the imperative
 // column resize + drag state, the sash, and the sticky mount gate. It renders
@@ -487,14 +461,8 @@ function RightWorkbenchContent(props: {
     select: (search) => search.panel,
   });
   const navigate = useNavigate();
-  const visibleTabIds = useMemo(
-    () => new Set(props.right.tabs.map((tab) => tab.id)),
-    [props.right.tabs],
-  );
-  const visibleTabKinds = useMemo(
-    () => new Set(props.right.tabs.map((tab) => tab.kind)),
-    [props.right.tabs],
-  );
+  const visibleTabIds = new Set(props.right.tabs.map((tab) => tab.id));
+  const visibleTabKinds = new Set(props.right.tabs.map((tab) => tab.kind));
   const effectiveActiveTab =
     props.right.tabs.find((tab) => tab.id === tabSnapshot.activeTabId) ??
     props.right.tabs[0] ??
@@ -529,10 +497,11 @@ function RightWorkbenchContent(props: {
   // never unmounted on collapse, so `open` is constant `true` for its lifetime
   // (identical semantics to the former `open: hasOpened`). Collapsing must not
   // disable panel queries, or every expand refetches and replays its skeleton.
-  const runtimeValue: RightWorkbenchPanelRuntime = useMemo(
-    () => ({ activeTab: effectiveActiveTab.kind, activeTabId: effectiveActiveTab.id, open: true }),
-    [effectiveActiveTab.id, effectiveActiveTab.kind],
-  );
+  const runtimeValue: RightWorkbenchPanelRuntime = {
+    activeTab: effectiveActiveTab.kind,
+    activeTabId: effectiveActiveTab.id,
+    open: true,
+  };
 
   return (
     <RightWorkbenchPanelRuntimeContext.Provider value={runtimeValue}>
@@ -575,7 +544,7 @@ function RightWorkbenchContent(props: {
 // its identity survives any incidental render. Adding useRightOpen /
 // useActiveTab / useSearch / useState here would rebuild `content` and collapse
 // the children-stability bailout.
-const RightAside = memo(function RightAside(props: {
+function RightAside(props: {
   cwd: string | null;
   workspaceKey: string | null;
   routeThreadId: string | null;
@@ -583,8 +552,8 @@ const RightAside = memo(function RightAside(props: {
   keybindings: ReturnType<typeof useServerKeybindings>;
   threadTitle: string | null;
 }) {
-  const content = useMemo(
-    () => (
+  return (
+    <RightAsideFrame workspaceKey={props.workspaceKey}>
       <RightWorkbenchContent
         workspaceKey={props.workspaceKey}
         routeThreadId={props.routeThreadId}
@@ -592,12 +561,9 @@ const RightAside = memo(function RightAside(props: {
         keybindings={props.keybindings}
         threadTitle={props.threadTitle}
       />
-    ),
-    [props.workspaceKey, props.routeThreadId, props.right, props.keybindings, props.threadTitle],
+    </RightAsideFrame>
   );
-
-  return <RightAsideFrame workspaceKey={props.workspaceKey}>{content}</RightAsideFrame>;
-});
+}
 
 function RightAsidePanels(props: {
   activeTabId: string;
@@ -641,7 +607,7 @@ function RightAsidePanels(props: {
   );
 }
 
-const ShellLeftToggleButton = memo(function ShellLeftToggleButton() {
+function ShellLeftToggleButton() {
   const leftOpen = useLeftOpen();
   return (
     <button
@@ -659,12 +625,9 @@ const ShellLeftToggleButton = memo(function ShellLeftToggleButton() {
       )}
     </button>
   );
-});
+}
 
-const ShellHeaderControls = memo(function ShellHeaderControls(props: {
-  showRight: boolean;
-  workspaceKey: string | null;
-}) {
+function ShellHeaderControls(props: { showRight: boolean; workspaceKey: string | null }) {
   const rightOpen = useShellLayout((snapshot) => snapshot.editorPanelVisible);
   const setCommandPaletteOpen = useCommandPaletteStore((store) => store.setOpen);
   const keybindings = useServerKeybindings();
@@ -716,7 +679,7 @@ const ShellHeaderControls = memo(function ShellHeaderControls(props: {
       ) : null}
     </>
   );
-});
+}
 
 function ShellCenterRegion(props: { children: ReactNode }) {
   return (
@@ -828,7 +791,11 @@ export function AppShell(props: {
   );
   const agentWindowRef = useRef<HTMLDivElement | null>(null);
   const modes = useShellPanelModes(agentWindowRef);
-  const shellLayoutService = useMemo(() => new ShellLayoutService(), []);
+  const shellLayoutServiceRef = useRef<ShellLayoutService | null>(null);
+  if (shellLayoutServiceRef.current === null) {
+    shellLayoutServiceRef.current = new ShellLayoutService();
+  }
+  const shellLayoutService = shellLayoutServiceRef.current;
   useShellLayoutConfig(shellLayoutService, {
     gitFocusId: props.gitFocusId ?? null,
     leftMode: modes.left,

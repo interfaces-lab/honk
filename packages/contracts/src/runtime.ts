@@ -468,6 +468,8 @@ export const ThreadAgentRuntimeSendTurnInput = Schema.Struct({
   parentEntryId: Schema.optional(Schema.NullOr(ThreadEntryId)),
   images: Schema.Array(ThreadAgentRuntimeImageAttachment),
   policy: AgentModelPolicy,
+  modelSelection: ModelSelection,
+  streamingBehavior: Schema.optionalKey(Schema.Literals(["steer", "followUp"])),
 });
 export type ThreadAgentRuntimeSendTurnInput = typeof ThreadAgentRuntimeSendTurnInput.Type;
 
@@ -489,12 +491,10 @@ export const ThreadAgentRuntimeQueuedFollowUp = Schema.Struct({
   titleSeed: TrimmedNonEmptyString,
   createdAt: IsoDateTime,
 });
-export type ThreadAgentRuntimeQueuedFollowUp =
-  typeof ThreadAgentRuntimeQueuedFollowUp.Type;
+export type ThreadAgentRuntimeQueuedFollowUp = typeof ThreadAgentRuntimeQueuedFollowUp.Type;
 
 export const ThreadAgentRuntimeQueueFollowUpInput = ThreadAgentRuntimeQueuedFollowUp;
-export type ThreadAgentRuntimeQueueFollowUpInput =
-  typeof ThreadAgentRuntimeQueueFollowUpInput.Type;
+export type ThreadAgentRuntimeQueueFollowUpInput = typeof ThreadAgentRuntimeQueueFollowUpInput.Type;
 
 export const ThreadAgentRuntimeUpdateQueuedFollowUpInput = ThreadAgentRuntimeQueuedFollowUp;
 export type ThreadAgentRuntimeUpdateQueuedFollowUpInput =

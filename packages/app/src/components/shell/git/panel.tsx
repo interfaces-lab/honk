@@ -203,7 +203,7 @@ function resolveGitPanelSelectedId(input: {
 export function GitPanel(props: {
   git: GitPanelModel;
   workspaceKey: string | null;
-  onAgentAction: (action: GitAgentAction) => void;
+  onAgentAction: ((action: GitAgentAction) => void) | null;
   onStopAgentAction: (() => void) | null;
   stoppingAgentAction: boolean;
   pendingAgentAction: GitAgentAction | null;
@@ -625,6 +625,7 @@ interface GitCodeViewHeaderProps {
   readonly showViewed: boolean;
 }
 
+// oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- field-level meta equality; compiler cannot replicate custom comparator
 const GitCodeViewHeader = memo(function GitCodeViewHeader(props: GitCodeViewHeaderProps) {
   const { meta } = props;
 
@@ -715,7 +716,7 @@ function getGitPatchFileType(patch: GitFilePatchResult | null): string | null {
 function GitPanelInner(props: {
   git: GitPanelModel;
   workspaceKey: string | null;
-  onAgentAction: (action: GitAgentAction) => void;
+  onAgentAction: ((action: GitAgentAction) => void) | null;
   onStopAgentAction: (() => void) | null;
   stoppingAgentAction: boolean;
   pendingAgentAction: GitAgentAction | null;
@@ -731,6 +732,7 @@ function GitPanelInner(props: {
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   const [ignoreWhitespace, setIgnoreWhitespace] = useState(true);
   const [changesFilter, setChangesFilter] = useState<GitChangesFilter>("uncommitted");
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- effect dep identity for selectedId sync
   const visibleFiles = useMemo(
     () =>
       changesFilter === "unstaged"
@@ -740,16 +742,12 @@ function GitPanelInner(props: {
           : files,
     [changesFilter, files],
   );
-  const visibleTotals = useMemo(
-    () =>
-      visibleFiles.reduce(
-        (totals, row) => ({
-          add: totals.add + row.add,
-          del: totals.del + row.del,
-        }),
-        { add: 0, del: 0 },
-      ),
-    [visibleFiles],
+  const visibleTotals = visibleFiles.reduce(
+    (totals, row) => ({
+      add: totals.add + row.add,
+      del: totals.del + row.del,
+    }),
+    { add: 0, del: 0 },
   );
   const [selectedId, setSelectedId] = useState<string | null>(() =>
     resolveGitPanelSelectedId({
@@ -768,8 +766,8 @@ function GitPanelInner(props: {
       }),
     );
   }, [git.focusId, visibleFiles]);
-  const visiblePaths = useMemo(() => visibleFiles.map((row) => row.path), [visibleFiles]);
-  const viewedPathSet = useMemo(() => new Set(viewed.viewed), [viewed.viewed]);
+  const visiblePaths = visibleFiles.map((row) => row.path);
+  const viewedPathSet = new Set(viewed.viewed);
   const allVisibleFilesViewed =
     visibleFiles.length > 0 && visibleFiles.every((row) => viewedPathSet.has(row.path));
   const gitRef = useRef(git);
@@ -782,139 +780,114 @@ function GitPanelInner(props: {
   const codeViewRef = useRef<CodeViewHandle<GitCodeViewAnnotation>>(null);
   const fileDiffCacheRef = useRef<Map<string, GitCodeViewFileDiffCacheEntry>>(new Map());
   const itemCacheRef = useRef<Map<string, GitCodeViewItemCacheEntry>>(new Map());
-  const handleCodeViewContainerRef = useCallback((node: HTMLDivElement | null) => {
+  const handleCodeViewContainerRef = (node: HTMLDivElement | null) => {
     node?.setAttribute("data-diffs-container", "");
-  }, []);
-  const codeViewOptions = useMemo(
-    () =>
-      ({
-        theme: diffTheme,
-        themeType: resolvedTheme,
-        unsafeCSS: GIT_CODE_VIEW_UNSAFE_CSS,
-        diffStyle,
-        overflow: "wrap",
-        disableBackground: false,
-        disableLineNumbers: false,
-        diffIndicators: "none",
-        lineDiffType: "none",
-        expandUnchanged: false,
-        hunkSeparators: "simple",
-        preferredHighlighter: "shiki-js",
-        stickyHeaders: true,
-        layout: GIT_CODE_VIEW_LAYOUT,
-        itemMetrics: {
-          lineHeight: WORKBENCH_DIFF_LINE_HEIGHT,
-          diffHeaderHeight: GIT_CODE_VIEW_DIFF_HEADER_HEIGHT,
-          spacing: 0,
-        },
-      }) satisfies CodeViewOptions<GitCodeViewAnnotation>,
-    [diffStyle, diffTheme, resolvedTheme],
-  );
-  const codeViewData = useMemo(
-    () =>
-      buildGitCodeViewData({
-        activeDiffIds: git.activeDiffIds,
-        diffErrorByPath: git.diffErrorByPath,
-        diffLoadingByPath: git.diffLoadingByPath,
-        expandedIds: git.expandedIds,
-        fileDiffCache: fileDiffCacheRef.current,
-        imageErrorByPath: git.imageErrorByPath,
-        imageLoadingByPath: git.imageLoadingByPath,
-        imagesByPath: git.imagesByPath,
-        itemCache: itemCacheRef.current,
-        patchesByPath: git.patchesByPath,
-        viewedPaths: viewed.viewed,
-        visibleFiles,
-      }),
-    [
-      git.diffErrorByPath,
-      git.diffLoadingByPath,
-      git.activeDiffIds,
-      git.expandedIds,
-      git.imageErrorByPath,
-      git.imageLoadingByPath,
-      git.imagesByPath,
-      git.patchesByPath,
-      viewed.viewed,
-      visibleFiles,
-    ],
-  );
+  };
+  const codeViewOptions = {
+    theme: diffTheme,
+    themeType: resolvedTheme,
+    unsafeCSS: GIT_CODE_VIEW_UNSAFE_CSS,
+    diffStyle,
+    overflow: "wrap",
+    disableBackground: false,
+    disableLineNumbers: false,
+    diffIndicators: "none",
+    lineDiffType: "none",
+    expandUnchanged: false,
+    hunkSeparators: "simple",
+    preferredHighlighter: "shiki-js",
+    stickyHeaders: true,
+    layout: GIT_CODE_VIEW_LAYOUT,
+    itemMetrics: {
+      lineHeight: WORKBENCH_DIFF_LINE_HEIGHT,
+      diffHeaderHeight: GIT_CODE_VIEW_DIFF_HEADER_HEIGHT,
+      spacing: 0,
+    },
+  } satisfies CodeViewOptions<GitCodeViewAnnotation>;
+  const codeViewData = buildGitCodeViewData({
+    activeDiffIds: git.activeDiffIds,
+    diffErrorByPath: git.diffErrorByPath,
+    diffLoadingByPath: git.diffLoadingByPath,
+    expandedIds: git.expandedIds,
+    fileDiffCache: fileDiffCacheRef.current,
+    imageErrorByPath: git.imageErrorByPath,
+    imageLoadingByPath: git.imageLoadingByPath,
+    imagesByPath: git.imagesByPath,
+    itemCache: itemCacheRef.current,
+    patchesByPath: git.patchesByPath,
+    viewedPaths: viewed.viewed,
+    visibleFiles,
+  });
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- stable props for custom memo comparator
   const handleCopyPath = useCallback((path: string) => {
     void navigator.clipboard.writeText(path);
     toast.success("Path copied");
   }, []);
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- stable props for custom memo comparator
   const handleExpandedChange = useCallback((id: string, open?: boolean) => {
     gitRef.current.toggleExpand(id, open);
   }, []);
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- stable props for custom memo comparator
   const handleRevertFile = useCallback((file: DiffRow) => {
     setPending(file);
   }, []);
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- stable props for custom memo comparator
   const handleToggleViewed = useCallback((path: string) => {
     viewedRef.current.toggleViewed(path);
   }, []);
-  const handleToggleAllViewed = useCallback(() => {
+  const handleToggleAllViewed = () => {
     if (visiblePaths.length === 0) return;
     if (allVisibleFilesViewed) {
       viewedRef.current.unmarkViewed(visiblePaths);
       return;
     }
     viewedRef.current.markAllViewed(visiblePaths);
-  }, [allVisibleFilesViewed, visiblePaths]);
+  };
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- stable requestDiff for header effect deps
   const handleRequestDiff = useCallback((id: string) => {
     gitRef.current.requestDiff(id);
   }, []);
-  const renderGitCodeViewAnnotation = useCallback(
-    (annotation: GitCodeViewLineAnnotation, item: GitCodeViewItem) => {
-      if (annotation.metadata.kind !== "image") {
-        return null;
-      }
+  const renderGitCodeViewAnnotation = (
+    annotation: GitCodeViewLineAnnotation,
+    item: GitCodeViewItem,
+  ) => {
+    if (annotation.metadata.kind !== "image") {
+      return null;
+    }
 
-      const meta = codeViewData.metaById.get(item.id);
-      if (meta === undefined) {
-        return null;
-      }
+    const meta = codeViewData.metaById.get(item.id);
+    if (meta === undefined) {
+      return null;
+    }
 
-      return (
-        <GitImageView
-          path={meta.file.path}
-          patch={meta.patch}
-          image={meta.image}
-          loading={meta.imageLoading && !meta.imageLoaded}
-          error={meta.imageError}
-        />
-      );
-    },
-    [codeViewData.metaById],
-  );
-  const renderGitCodeViewHeader = useCallback(
-    (item: GitCodeViewItem) => {
-      const meta = codeViewData.metaById.get(item.id);
-      if (meta === undefined) {
-        return null;
-      }
+    return (
+      <GitImageView
+        path={meta.file.path}
+        patch={meta.patch}
+        image={meta.image}
+        loading={meta.imageLoading && !meta.imageLoaded}
+        error={meta.imageError}
+      />
+    );
+  };
+  const renderGitCodeViewHeader = (item: GitCodeViewItem) => {
+    const meta = codeViewData.metaById.get(item.id);
+    if (meta === undefined) {
+      return null;
+    }
 
-      return (
-        <GitCodeViewHeader
-          meta={meta}
-          onCopyPath={handleCopyPath}
-          onExpandedChange={handleExpandedChange}
-          onRevert={handleRevertFile}
-          onToggleViewed={handleToggleViewed}
-          requestDiff={handleRequestDiff}
-          showViewed={changesFilter !== "branch"}
-        />
-      );
-    },
-    [
-      codeViewData.metaById,
-      changesFilter,
-      handleCopyPath,
-      handleExpandedChange,
-      handleRequestDiff,
-      handleRevertFile,
-      handleToggleViewed,
-    ],
-  );
+    return (
+      <GitCodeViewHeader
+        meta={meta}
+        onCopyPath={handleCopyPath}
+        onExpandedChange={handleExpandedChange}
+        onRevert={handleRevertFile}
+        onToggleViewed={handleToggleViewed}
+        requestDiff={handleRequestDiff}
+        showViewed={changesFilter !== "branch"}
+      />
+    );
+  };
 
   const pendingDiscardPaths = pending === null ? null : [pending.path];
 
@@ -935,7 +908,7 @@ function GitPanelInner(props: {
   };
 
   const handleCommitAndPush = () => {
-    if (props.pendingAgentAction) return;
+    if (props.pendingAgentAction || props.onAgentAction === null) return;
     props.onAgentAction(GIT_AGENT_PRIMARY_ACTION);
   };
 
@@ -1104,7 +1077,7 @@ function SelectedGitDiffSync(props: {
 
 function LocalBranchBarTrailing(props: {
   onCommitAndPush: () => void;
-  onAgentAction: (action: GitAgentAction) => void;
+  onAgentAction: ((action: GitAgentAction) => void) | null;
   onStopAgentAction: (() => void) | null;
   stoppingAgentAction: boolean;
   diffStyle: "unified" | "split";
@@ -1153,6 +1126,53 @@ function LocalBranchBarTrailing(props: {
     if (isAgentActionPending && open) return;
     props.onCommitMenuOpen(open);
   };
+
+  const agentAction = props.onAgentAction;
+  const commitActions = agentAction ? (
+    <Menu open={props.commitMenuOpen} onOpenChange={handleCommitMenuOpenChange}>
+      <div
+        className="group no-drag inline-flex h-(--honk-workbench-action-size) min-w-0 select-none overflow-hidden rounded-honk-control border border-foreground/10 bg-foreground text-body font-medium text-background shadow-xs"
+        data-pending={isAgentActionPending || undefined}
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          className="inline-flex h-full min-w-0 select-none items-center justify-center gap-(--honk-workbench-text-control-gap) rounded-none border-0 bg-transparent px-(--honk-workbench-text-control-padding-inline) text-inherit shadow-none before:hidden transition-colors hover:bg-background/10 hover:text-inherit disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent"
+          disabled={
+            isAgentActionPending && (props.onStopAgentAction === null || props.stoppingAgentAction)
+          }
+          aria-busy={isAgentActionPending || undefined}
+          aria-label={isAgentActionPending ? "Stop Git action" : undefined}
+          onClick={handlePrimaryCommitAction}
+        >
+          {isAgentActionPending ? <IconStop className="size-3" /> : null}
+          {props.stoppingAgentAction
+            ? "Stopping..."
+            : (pendingActionDetails?.loadingLabel ?? "Commit & Push")}
+        </Button>
+        <MenuTrigger
+          type="button"
+          className="inline-flex h-full w-6 shrink-0 select-none items-center justify-center border-l border-background/20 text-background transition-colors hover:bg-background/10 disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent data-[popup-open]:bg-background/10"
+          disabled={isAgentActionPending}
+          aria-label="Open commit menu"
+          title="Open commit menu"
+        >
+          <IconChevronRightMedium className="size-3 rotate-90" />
+        </MenuTrigger>
+      </div>
+      <MenuPopup align="end" variant="workbench">
+        {GIT_AGENT_ACTION_ORDER.map((action) => (
+          <GitAgentActionMenuItem
+            key={action}
+            action={action}
+            pendingAgentAction={props.pendingAgentAction}
+            onAgentAction={agentAction}
+            onCommitMenuOpen={props.onCommitMenuOpen}
+          />
+        ))}
+      </MenuPopup>
+    </Menu>
+  ) : null;
 
   return (
     <WorkbenchChromeActionGroup gap="sub">
@@ -1220,50 +1240,7 @@ function LocalBranchBarTrailing(props: {
           </MenuPopup>
         </Menu>
       </div>
-      <Menu open={props.commitMenuOpen} onOpenChange={handleCommitMenuOpenChange}>
-        <div
-          className="group no-drag inline-flex h-(--honk-workbench-action-size) min-w-0 select-none overflow-hidden rounded-honk-control border border-foreground/10 bg-foreground text-body font-medium text-background shadow-xs"
-          data-pending={isAgentActionPending || undefined}
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            className="inline-flex h-full min-w-0 select-none items-center justify-center gap-(--honk-workbench-text-control-gap) rounded-none border-0 bg-transparent px-(--honk-workbench-text-control-padding-inline) text-inherit shadow-none before:hidden transition-colors hover:bg-background/10 hover:text-inherit disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent"
-            disabled={
-              isAgentActionPending &&
-              (props.onStopAgentAction === null || props.stoppingAgentAction)
-            }
-            aria-busy={isAgentActionPending || undefined}
-            aria-label={isAgentActionPending ? "Stop Git action" : undefined}
-            onClick={handlePrimaryCommitAction}
-          >
-            {isAgentActionPending ? <IconStop className="size-3" /> : null}
-            {props.stoppingAgentAction
-              ? "Stopping..."
-              : (pendingActionDetails?.loadingLabel ?? "Commit & Push")}
-          </Button>
-          <MenuTrigger
-            type="button"
-            className="inline-flex h-full w-6 shrink-0 select-none items-center justify-center border-l border-background/20 text-background transition-colors hover:bg-background/10 disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent data-[popup-open]:bg-background/10"
-            disabled={isAgentActionPending}
-            aria-label="Open commit menu"
-            title="Open commit menu"
-          >
-            <IconChevronRightMedium className="size-3 rotate-90" />
-          </MenuTrigger>
-        </div>
-        <MenuPopup align="end" variant="workbench">
-          {GIT_AGENT_ACTION_ORDER.map((action) => (
-            <GitAgentActionMenuItem
-              key={action}
-              action={action}
-              pendingAgentAction={props.pendingAgentAction}
-              onAgentAction={props.onAgentAction}
-              onCommitMenuOpen={props.onCommitMenuOpen}
-            />
-          ))}
-        </MenuPopup>
-      </Menu>
+      {commitActions}
     </WorkbenchChromeActionGroup>
   );
 }
@@ -1292,7 +1269,7 @@ function LocalBranchBar(props: {
   onToggleRail: () => void;
   branch: string | null;
   onCommitAndPush: () => void;
-  onAgentAction: (action: GitAgentAction) => void;
+  onAgentAction: ((action: GitAgentAction) => void) | null;
   onStopAgentAction: (() => void) | null;
   stoppingAgentAction: boolean;
   diffStyle: "unified" | "split";

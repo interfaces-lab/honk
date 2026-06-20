@@ -112,9 +112,6 @@ export type TimelineGroupedStep =
   | TimelineWorkStep
   | TimelineMessageStep;
 
-/** Steps a runtime work group can hold: tools, thinking, and short assistant text. */
-type RuntimeGroupStep = TimelineRuntimeThinkingStep | TimelineRuntimeToolStep | TimelineMessageStep;
-
 export interface GroupedSteps {
   id: string;
   createdAt: string;
@@ -916,13 +913,6 @@ function isCommandGroupedStep(step: TimelineGroupedStep): boolean {
   return step.kind === "work" && isCommandWorkEntry(step.entry);
 }
 
-function isEditGroupedStep(step: TimelineGroupedStep): boolean {
-  if (step.kind === "runtime-tool") {
-    return isRuntimeEditToolStep(step);
-  }
-  return step.kind === "work" && isWorkEditEntry(step.entry);
-}
-
 function isExploreGroupedStep(step: TimelineGroupedStep): boolean {
   if (step.kind === "runtime-tool") {
     return isExploreRuntimeToolStep(step);
@@ -1391,7 +1381,7 @@ function finalizeGroupAssistantMessages(
 /** Transcript-scale assistant rows never stay inside work groups (preview or expanded). */
 function releaseIneligibleAssistantMessagesFromGroups(
   items: TimelineRenderItem[],
-  projectRoot?: string | undefined,
+  projectRoot?: string,
 ): TimelineRenderItem[] {
   const next: TimelineRenderItem[] = [];
   for (const item of items) {
@@ -1427,7 +1417,7 @@ function releaseIneligibleAssistantMessagesFromGroups(
 
 function peelGroupedNarrationFromCompletedGroups(
   items: TimelineRenderItem[],
-  projectRoot?: string | undefined,
+  projectRoot?: string,
 ): TimelineRenderItem[] {
   const next: TimelineRenderItem[] = [];
   for (const item of items) {
@@ -1458,7 +1448,7 @@ function peelGroupedNarrationFromCompletedGroups(
 function regroupStepsAfterPeel(
   group: GroupedSteps,
   groupSteps: TimelineGroupedStep[],
-  projectRoot?: string | undefined,
+  projectRoot?: string,
 ): GroupedSteps {
   if (groupSteps.length === 0) {
     return {
@@ -1479,7 +1469,7 @@ function regroupStepsAfterPeel(
   };
 }
 
-function completeGroupedSteps(group: GroupedSteps, projectRoot?: string | undefined): GroupedSteps {
+function completeGroupedSteps(group: GroupedSteps, projectRoot?: string): GroupedSteps {
   if (!group.isRunning) {
     return {
       ...group,
@@ -1495,7 +1485,7 @@ function completeGroupedSteps(group: GroupedSteps, projectRoot?: string | undefi
 function setGroupRunning(
   group: GroupedSteps,
   running: boolean,
-  projectRoot?: string | undefined,
+  projectRoot?: string,
 ): GroupedSteps {
   const base: GroupedSteps = {
     ...group,

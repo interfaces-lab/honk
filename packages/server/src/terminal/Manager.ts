@@ -1073,10 +1073,7 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
       });
     });
 
-    const flushPersist = Effect.fnUntraced(function* (
-      threadId: string,
-      terminalId: string,
-    ) {
+    const flushPersist = Effect.fnUntraced(function* (threadId: string, terminalId: string) {
       yield* persistWorker.drainKey(toSessionKey(threadId, terminalId));
     });
 
@@ -1741,9 +1738,7 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
       readSubprocessPollDecision.pipe(
         Effect.flatMap((decision) =>
           decision.active
-            ? pollSubprocessActivity().pipe(
-                Effect.flatMap(() => Effect.sleep(decision.delayMs)),
-              )
+            ? pollSubprocessActivity().pipe(Effect.flatMap(() => Effect.sleep(decision.delayMs)))
             : Effect.sleep(decision.delayMs),
         ),
       ),

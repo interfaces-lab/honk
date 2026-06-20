@@ -11,7 +11,6 @@ import {
   type DraftThreadState,
 } from "~/stores/chat-drafts";
 import { useRouterState } from "@tanstack/react-router";
-import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   resolveDraftPromotionRouteTarget,
@@ -99,23 +98,21 @@ function decodePathSegment(value: string): string {
 
 export function resolveThreadRouteTargetFromPathname(pathname: string): ThreadRouteTarget | null {
   const segments = pathname.replace(/\/+$/, "").split("/").filter(Boolean);
-  if (segments[0] !== "_chat") {
-    return null;
-  }
+  const routeSegments = segments[0] === "_chat" ? segments.slice(1) : segments;
 
-  if (segments[1] === "draft" && segments[2]) {
+  if (routeSegments[0] === "draft" && routeSegments[1]) {
     return {
       kind: "draft",
-      draftId: DraftId.make(decodePathSegment(segments[2])),
+      draftId: DraftId.make(decodePathSegment(routeSegments[1])),
     };
   }
 
-  if (segments[1] && segments[2]) {
+  if (routeSegments[0] && routeSegments[1]) {
     return {
       kind: "server",
       threadRef: scopeThreadRef(
-        EnvironmentId.make(decodePathSegment(segments[1])),
-        ThreadId.make(decodePathSegment(segments[2])),
+        EnvironmentId.make(decodePathSegment(routeSegments[0])),
+        ThreadId.make(decodePathSegment(routeSegments[1])),
       ),
     };
   }
@@ -224,12 +221,9 @@ export function resolvePreThreadServerRouteTarget(input: {
 
 export function useRouteTarget(): ThreadRouteTarget | null {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const baseTarget = useMemo(() => resolveThreadRouteTargetFromPathname(pathname), [pathname]);
+  const baseTarget = resolveThreadRouteTargetFromPathname(pathname);
   const serverThreadRef = baseTarget?.kind === "server" ? baseTarget.threadRef : null;
-  const serverThreadSelector = useMemo(
-    () => createThreadSelectorByRef(serverThreadRef),
-    [serverThreadRef?.environmentId, serverThreadRef?.threadId],
-  );
+  const serverThreadSelector = createThreadSelectorByRef(serverThreadRef);
   const serverThread = useStore(serverThreadSelector);
   const draftRouteMatch = useComposerDraftStore(
     useShallow((store) => {
@@ -239,17 +233,15 @@ export function useRouteTarget(): ThreadRouteTarget | null {
       return findDraftRouteMatch(store.draftThreadsByThreadKey, serverThreadRef);
     }),
   );
-  return useMemo(() => {
-    if (!baseTarget) {
-      return null;
-    }
-    if (baseTarget.kind !== "server") {
-      return baseTarget;
-    }
-    return resolvePreThreadServerRouteTarget({
-      baseTarget,
-      draftRouteId: draftRouteMatch.draftRouteId,
-      serverThread,
-    });
-  }, [baseTarget, draftRouteMatch.draftRouteId, serverThread]);
+  if (!baseTarget) {
+    return null;
+  }
+  if (baseTarget.kind !== "server") {
+    return baseTarget;
+  }
+  return resolvePreThreadServerRouteTarget({
+    baseTarget,
+    draftRouteId: draftRouteMatch.draftRouteId,
+    serverThread,
+  });
 }

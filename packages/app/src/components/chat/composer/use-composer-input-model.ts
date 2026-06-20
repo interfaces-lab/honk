@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   type ComposerDraftContentPatch,
@@ -71,21 +71,18 @@ export function useComposerInputModel(target: ComposerThreadTarget) {
     });
   }, [targetKey]);
 
-  const updateDraft = useCallback(
-    (patch: ComposerDraftContentPatch) => {
-      updateComposerDraft(target, patch);
-    },
-    [target, updateComposerDraft],
-  );
+  const updateDraft = (patch: ComposerDraftContentPatch) => {
+    updateComposerDraft(target, patch);
+  };
 
-  const clearDraftText = useCallback(() => {
+  const clearDraftText = () => {
     clearComposerText(target);
     forceComposerSync(targetKey);
-  }, [clearComposerText, target, targetKey]);
+  };
 
-  const requestForceSync = useCallback(() => {
+  const requestForceSync = () => {
     forceComposerSync(targetKey);
-  }, [targetKey]);
+  };
 
   return {
     targetKey,

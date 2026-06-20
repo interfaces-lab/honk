@@ -33,6 +33,7 @@ import { scopeThreadRef } from "~/lib/environment-scope";
 import { DEFAULT_UNIFIED_SETTINGS } from "@honk/contracts/settings";
 import { Equal } from "effect";
 import { APP_VERSION } from "~/app/branding";
+import { countRunningThreadsWithServerState } from "~/desktop-active-work";
 import {
   DEFAULT_APPEARANCE_SNAPSHOT,
   appearanceSettingsActions,
@@ -43,6 +44,7 @@ import {
   getDesktopUpdateButtonTooltip,
   getDesktopUpdateInstallConfirmationMessage,
   resolveDesktopUpdateButtonAction,
+  shouldConfirmDesktopUpdateInstall,
 } from "../../components/desktop-update-state";
 import { resolveAndPersistPreferredEditor } from "../../editor-preferences";
 import { isElectron } from "../../env";
@@ -172,12 +174,15 @@ function AboutVersionSection() {
     }
 
     if (action === "install") {
-      const confirmed = window.confirm(
-        getDesktopUpdateInstallConfirmationMessage(
-          updateState ?? { availableVersion: null, downloadedVersion: null },
-        ),
-      );
-      if (!confirmed) return;
+      const runningThreadCount = countRunningThreadsWithServerState(useStore.getState());
+      if (shouldConfirmDesktopUpdateInstall(runningThreadCount)) {
+        const confirmed = window.confirm(
+          getDesktopUpdateInstallConfirmationMessage(
+            updateState ?? { availableVersion: null, downloadedVersion: null },
+          ),
+        );
+        if (!confirmed) return;
+      }
       void bridge
         .installUpdate()
         .then((result) => {
@@ -236,9 +241,9 @@ function AboutVersionSection() {
       ? "Update available."
       : updateState?.status === "installing"
         ? "Installing update."
-      : updateState?.status === "up-to-date"
-        ? "Honk is up to date."
-        : "Current version of the application.";
+        : updateState?.status === "up-to-date"
+          ? "Honk is up to date."
+          : "Current version of the application.";
 
   return (
     <SettingsRow
@@ -904,9 +909,7 @@ function SubagentProfileCard({ profile }: { profile: (typeof SUBAGENT_PROFILE_CA
         <Icon className="mt-0.5 size-4.5 shrink-0 text-honk-icon-secondary" />
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-baseline">
-            <SettingsItemTitle className="min-w-0 truncate">
-              {profile.label}
-            </SettingsItemTitle>
+            <SettingsItemTitle className="min-w-0 truncate">{profile.label}</SettingsItemTitle>
           </div>
           <Text
             render={<p />}
@@ -956,8 +959,7 @@ export function SkillsSettingsPanel() {
   );
   const runtimeSkills =
     runtimeSkillsQuery.data?.skills.toSorted(
-      (left, right) =>
-        left.scope.localeCompare(right.scope) || left.name.localeCompare(right.name),
+      (left, right) => left.scope.localeCompare(right.scope) || left.name.localeCompare(right.name),
     ) ?? [];
 
   const skillsUnavailableReason = !isDesktopRuntimeApiAvailable()
@@ -1127,8 +1129,7 @@ function CredentialKindIcon({
   kind: AgentCredentialKind;
   className?: string;
 }) {
-  const Icon =
-    kind === "claude-api-key" || kind === "claude-oauth" ? IconClawd : IconOpenaiCodex;
+  const Icon = kind === "claude-api-key" || kind === "claude-oauth" ? IconClawd : IconOpenaiCodex;
 
   return <Icon className={className} aria-hidden />;
 }
@@ -1920,9 +1921,7 @@ export function ArchivedThreadsPanel() {
                 }}
               >
                 <div className="min-w-0 flex-1">
-                  <SettingsItemTitle className="truncate">
-                    {thread.title}
-                  </SettingsItemTitle>
+                  <SettingsItemTitle className="truncate">{thread.title}</SettingsItemTitle>
                   <Text render={<p />} size="xs" tone="secondary" className="mt-0.5 block">
                     Archived {formatRelativeTimeLabel(thread.archivedAt ?? thread.createdAt)}
                     {" \u00b7 Created "}

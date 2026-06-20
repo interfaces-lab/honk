@@ -268,7 +268,9 @@ const publishCmd = Command.make(
           Effect.gen(function* () {
             yield* restorePublishIconOverrides(resource.iconBackups).pipe(
               Effect.catch((error) =>
-                Effect.logError(`[cli] Failed to restore publish icon overrides: ${String(error)}`),
+                Effect.logError(
+                  `[cli] Failed to restore publish icon overrides: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+                ),
               ),
             );
             yield* fs.rename(backupPath, packageJsonPath);

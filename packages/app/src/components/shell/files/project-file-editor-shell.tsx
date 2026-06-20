@@ -1,10 +1,9 @@
-import type { EnvironmentId, ProjectReadFileResult } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/contracts";
 import { Button } from "@honk/honkkit/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as monaco from "monaco-editor";
 import {
   forwardRef,
-  useCallback,
   useEffect,
   useImperativeHandle,
   useRef,
@@ -21,10 +20,7 @@ import {
   writeProjectFile,
 } from "~/lib/project-react-query";
 import { refreshGitStatus } from "~/lib/git-status-state";
-import {
-  resetProjectModel,
-  type ProjectModelKey,
-} from "~/lib/monaco/project-models";
+import { resetProjectModel, type ProjectModelKey } from "~/lib/monaco/project-models";
 import { formatProjectErrorDescription } from "~/lib/project-error-description";
 import { useServerKeybindings } from "~/rpc/server-state";
 import { useEditorWordWrap } from "~/stores/workspace-editor-store";
@@ -33,10 +29,7 @@ import {
   ProjectEditorSelectionWidget,
   type EditorSelectionToChatPayload,
 } from "./project-editor-selection-widget";
-import {
-  ProjectMonacoEditor,
-  type ProjectMonacoModelEntry,
-} from "./project-monaco-editor";
+import { ProjectMonacoEditor, type ProjectMonacoModelEntry } from "./project-monaco-editor";
 import { SourcePreview } from "./source-preview";
 
 function isProjectWriteConflictError(error: unknown): boolean {
@@ -122,79 +115,76 @@ export const ProjectFileEditorShell = forwardRef<
     setConflict(false);
   }, [props.cwd, props.environmentId, props.relativePath]);
 
-  const save = useCallback(
-    async (options?: { overwrite?: boolean }) => {
-      const modelEntry = modelEntryRef.current;
-      const key =
-        props.cwd && props.environmentId
-          ? { environmentId: props.environmentId, cwd: props.cwd, relativePath: props.relativePath }
-          : null;
-      if (
-        !key ||
-        !editableFileData ||
-        !modelEntry ||
-        !sameProjectModelKey(modelEntry.key, key) ||
-        saving
-      ) {
-        return;
-      }
+  const save = async (options?: { overwrite?: boolean }) => {
+    const modelEntry = modelEntryRef.current;
+    const key =
+      props.cwd && props.environmentId
+        ? { environmentId: props.environmentId, cwd: props.cwd, relativePath: props.relativePath }
+        : null;
+    if (
+      !key ||
+      !editableFileData ||
+      !modelEntry ||
+      !sameProjectModelKey(modelEntry.key, key) ||
+      saving
+    ) {
+      return;
+    }
 
-      const { cwd, environmentId } = key;
-      const entry = modelEntry.entry;
-      const contents = entry.model.getValue();
-      setSavingKey(key);
-      try {
-        const result = await writeProjectFile({
-          environmentId,
-          file: {
-            cwd,
-            relativePath: props.relativePath,
-            contents,
-            ...(options?.overwrite
-              ? {}
-              : {
-                  expectedMtimeMs: entry.lastReadMtimeMs ?? undefined,
-                  expectedSizeBytes: entry.lastReadSizeBytes,
-                }),
-          },
-        });
-        entry.markSaved(contents, result.mtimeMs, result.sizeBytes);
-        props.onDirtyChange(entry.dirty);
-        const currentEntry = modelEntryRef.current;
-        if (currentEntry && sameProjectModelKey(currentEntry.key, key)) {
-          setConflict(false);
-        }
-        await invalidateProjectFile(queryClient, {
-          environmentId,
+    const { cwd, environmentId } = key;
+    const entry = modelEntry.entry;
+    const contents = entry.model.getValue();
+    setSavingKey(key);
+    try {
+      const result = await writeProjectFile({
+        environmentId,
+        file: {
           cwd,
           relativePath: props.relativePath,
-        });
-        const gitApi = readEnvironmentGitApi(environmentId);
-        if (gitApi) {
-          void refreshGitStatus({ environmentId, cwd }, gitApi, {
-            force: true,
-            scope: "local",
-          }).catch(() => undefined);
-        }
-      } catch (error) {
-        if (isProjectWriteConflictError(error)) {
-          const currentEntry = modelEntryRef.current;
-          if (currentEntry && sameProjectModelKey(currentEntry.key, key)) {
-            setConflict(true);
-          }
-          return;
-        }
-        toast.error(formatProjectErrorDescription(error, "Unable to save file."));
-      } finally {
-        setSavingKey((currentKey) =>
-          currentKey && sameProjectModelKey(currentKey, key) ? null : currentKey,
-        );
+          contents,
+          ...(options?.overwrite
+            ? {}
+            : {
+                expectedMtimeMs: entry.lastReadMtimeMs ?? undefined,
+                expectedSizeBytes: entry.lastReadSizeBytes,
+              }),
+        },
+      });
+      entry.markSaved(contents, result.mtimeMs, result.sizeBytes);
+      props.onDirtyChange(entry.dirty);
+      const currentEntry = modelEntryRef.current;
+      if (currentEntry && sameProjectModelKey(currentEntry.key, key)) {
+        setConflict(false);
       }
-    },
-    [editableFileData, props, queryClient, saving],
-  );
+      await invalidateProjectFile(queryClient, {
+        environmentId,
+        cwd,
+        relativePath: props.relativePath,
+      });
+      const gitApi = readEnvironmentGitApi(environmentId);
+      if (gitApi) {
+        void refreshGitStatus({ environmentId, cwd }, gitApi, {
+          force: true,
+          scope: "local",
+        }).catch(() => undefined);
+      }
+    } catch (error) {
+      if (isProjectWriteConflictError(error)) {
+        const currentEntry = modelEntryRef.current;
+        if (currentEntry && sameProjectModelKey(currentEntry.key, key)) {
+          setConflict(true);
+        }
+        return;
+      }
+      toast.error(formatProjectErrorDescription(error, "Unable to save file."));
+    } finally {
+      setSavingKey((currentKey) =>
+        currentKey && sameProjectModelKey(currentKey, key) ? null : currentKey,
+      );
+    }
+  };
 
-  const reload = useCallback(async () => {
+  const reload = async () => {
     const result = await fileQuery.refetch();
     const data = result.data;
     const modelEntry = modelEntryRef.current;
@@ -206,7 +196,7 @@ export const ProjectFileEditorShell = forwardRef<
     resetProjectModel(modelEntry.entry, data.contents, data.mtimeMs, data.sizeBytes);
     props.onDirtyChange(modelEntry.entry.dirty);
     setConflict(false);
-  }, [fileQuery, props]);
+  };
 
   useImperativeHandle(ref, () => ({ save: () => void save() }), [save]);
 

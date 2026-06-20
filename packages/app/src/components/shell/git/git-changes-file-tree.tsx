@@ -61,23 +61,25 @@ export function GitChangesFileTree(props: {
 
   onSelectRef.current = props.onSelect;
 
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- effect dep identity for tree sync
   const sortedRows = useMemo(
     () => props.rows.toSorted((a, b) => a.path.localeCompare(b.path)),
     [props.rows],
   );
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- effect dep identity for tree sync
   const treePaths = useMemo(
     () => sortedRows.map((row) => normalizeTreePath(row.path)),
     [sortedRows],
   );
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- effect dep identity for tree sync
   const preparedInput = useMemo(() => prepareFileTreeInput(treePaths), [treePaths]);
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- effect dep identity for selection sync
   const pathSet = useMemo(() => new Set(treePaths), [treePaths]);
-  const pathToRow = useMemo(() => {
-    const rowsByPath = new Map<string, DiffRow>();
-    for (const row of sortedRows) {
-      rowsByPath.set(normalizeTreePath(row.path), row);
-    }
-    return rowsByPath;
-  }, [sortedRows]);
+  const pathToRow = new Map<string, DiffRow>();
+  for (const row of sortedRows) {
+    pathToRow.set(normalizeTreePath(row.path), row);
+  }
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- effect dep identity for git status sync
   const gitStatusEntries = useMemo(() => diffRowsToGitStatusEntries(sortedRows), [sortedRows]);
   const isActive = props.active !== false;
 

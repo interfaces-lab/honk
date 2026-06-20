@@ -1,5 +1,4 @@
 import {
-  ClientSettingsSchema,
   type ClientSettings,
   type ContextMenuItem,
   type LocalApi,
@@ -7,8 +6,6 @@ import {
 } from "@honk/contracts";
 
 import { configureRuntimeClientBootstrap, registerRuntimeApiResolver } from "./runtime-client";
-
-const CLIENT_SETTINGS_STORAGE_KEY = "honk:client-settings:v1";
 
 export type LocalApiRpcClient = {
   readonly server: LocalApi["server"];

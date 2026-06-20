@@ -1,8 +1,6 @@
 import {
   forwardRef,
-  memo,
   useImperativeHandle,
-  useMemo,
   useRef,
   useState,
   type ComponentType,
@@ -48,15 +46,12 @@ import {
   IconTodos,
   type CentralIconBaseProps,
 } from "central-icons";
-import { scopedThreadKey } from "~/lib/environment-scope";
 import {
   type AgentMode,
   type AgentPreferencesPatch,
   type AgentThinkingLevel,
   type MessageId,
   type AgentInteractionMode,
-  type ScopedThreadRef,
-  type ThreadId,
 } from "@honk/contracts";
 import type { UnifiedSettings } from "@honk/contracts/settings";
 import {
@@ -71,11 +66,7 @@ import {
   slashCommandRemovalRange,
 } from "./prompt-triggers";
 import { deriveComposerSendState, type ComposerSubmitContext } from "../composer-submit";
-import {
-  type DraftId,
-  useComposerDraftStore,
-  useComposerThreadDraft,
-} from "../../../stores/chat-drafts";
+import { useComposerDraftStore, useComposerThreadDraft } from "../../../stores/chat-drafts";
 import { forceComposerSync, useComposerInputModel } from "./use-composer-input-model";
 import { type ComposerPromptEditorHandle, ComposerPromptEditor } from "./prompt-editor";
 import {
@@ -183,12 +174,6 @@ Object.freeze(EMPTY_QUEUED_COMPOSER_ITEMS);
 
 const EMPTY_PENDING_APPROVALS: NonNullable<ComposerInputProps["pendingApprovals"]> = [];
 Object.freeze(EMPTY_PENDING_APPROVALS);
-
-type ComposerDraftTarget = ScopedThreadRef | DraftId;
-
-function composerDraftTargetKey(target: ComposerDraftTarget): string {
-  return typeof target === "string" ? target : scopedThreadKey(target);
-}
 
 function nextPromptSyncState(
   value: string,
@@ -439,7 +424,7 @@ function isAgentModeEditTarget(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest("[data-agent-mode-edit]") !== null;
 }
 
-const ComposerAgentModePickerTrigger = memo(function ComposerAgentModePickerTrigger(props: {
+const ComposerAgentModePickerTrigger = function ComposerAgentModePickerTrigger(props: {
   agentMode: AgentMode;
   disabled: boolean;
 }) {
@@ -464,7 +449,7 @@ const ComposerAgentModePickerTrigger = memo(function ComposerAgentModePickerTrig
       <IconChevronDownSmall className="size-3 shrink-0 text-honk-icon-tertiary" aria-hidden />
     </MenuTrigger>
   );
-});
+};
 
 function ComposerAgentModePicker(props: {
   agentMode: AgentMode;
@@ -1374,8 +1359,8 @@ function ComposerFooter(props: {
 // Component
 // --------------------------------------------------------------------------
 
-export const ComposerInput = memo(
-  forwardRef<ComposerInputHandle, ComposerInputProps>(function ComposerInput(props, ref) {
+export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>(
+  function ComposerInput(props, ref) {
     const {
       variant = "compact",
       layout = "thread",
@@ -1503,7 +1488,7 @@ export const ComposerInput = memo(
     const agentModeAvailability = deriveAgentModeAvailability(runtimeAuthStatuses);
     const [isAgentModeSaving, setIsAgentModeSaving] = useState(false);
 
-    const statusContextWindow = useMemo(() => {
+    const statusContextWindow = (() => {
       if (settings.agentWindowUsageSummaryDisplay === "never") {
         return null;
       }
@@ -1511,7 +1496,7 @@ export const ComposerInput = memo(
         return null;
       }
       return activeContextWindow;
-    }, [activeContextWindow, settings.agentWindowUsageSummaryDisplay]);
+    })();
     const showContextUsageTrigger = settings.agentWindowUsageSummaryDisplay !== "never";
     const composerStatusBranchName = branchName?.trim() || null;
     const composerStatusExecutionModeLabel = executionModeLabel?.trim() || null;
@@ -3001,5 +2986,5 @@ export const ComposerInput = memo(
         />
       </form>
     );
-  }),
+  },
 );

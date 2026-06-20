@@ -1,4 +1,4 @@
-import { Cause, Effect, Layer, Option, Queue, Ref, Schema, Stream } from "effect";
+import { Effect, Layer, Option, Queue, Ref, Schema, Stream } from "effect";
 import {
   type AuthAccessStreamEvent,
   AuthSessionId,
@@ -386,8 +386,7 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
                 orchestrationEngine.readEvents(fromSequenceExclusive, limit),
               ).pipe(Effect.map((chunk): OrchestrationEvent[] => Array.from(chunk)));
               const enrichedEvents = yield* enrichOrchestrationEvents(events);
-              const nextSequence =
-                enrichedEvents.at(-1)?.sequence ?? fromSequenceExclusive;
+              const nextSequence = enrichedEvents.at(-1)?.sequence ?? fromSequenceExclusive;
               return {
                 events: enrichedEvents,
                 nextSequence,

@@ -118,6 +118,8 @@ function BranchIconWithState(props: { hasLocalChanges: boolean }) {
 
 export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
   const { onStoredBranchAvailabilityChange } = props;
+  const onStoredBranchAvailabilityChangeRef = useRef(onStoredBranchAvailabilityChange);
+  onStoredBranchAvailabilityChangeRef.current = onStoredBranchAvailabilityChange;
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [envModeOpen, setEnvModeOpen] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
@@ -157,8 +159,8 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
     branchesReady,
   );
   useEffect(() => {
-    onStoredBranchAvailabilityChange?.(missingStoredBranch);
-  }, [missingStoredBranch, onStoredBranchAvailabilityChange]);
+    onStoredBranchAvailabilityChangeRef.current?.(missingStoredBranch);
+  }, [missingStoredBranch]);
   const workspacePath = props.workspacePath ?? props.cwd;
   const workspaceLabel =
     props.workspaceName.trim() ||
@@ -285,7 +287,8 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
                   variant="workbench"
                   className={cn(
                     "h-auto py-1.5",
-                    isActive && "bg-honk-bg-tertiary text-honk-fg-primary",
+                    isActive &&
+                      "bg-honk-bg-tertiary text-honk-fg-primary [--truncate-marker-background-color:var(--honk-bg-tertiary)]",
                   )}
                   onClick={() => selectProject(project)}
                 >
@@ -490,7 +493,7 @@ export function WorkspaceToolbar(props: WorkspaceToolbarProps) {
                           variant="workbench"
                           className={cn(
                             branch.name === selectedBranch &&
-                              "bg-honk-bg-tertiary text-honk-fg-primary",
+                              "bg-honk-bg-tertiary text-honk-fg-primary [--truncate-marker-background-color:var(--honk-bg-tertiary)]",
                           )}
                           onClick={() => selectBranch(branch)}
                         >

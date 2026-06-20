@@ -329,10 +329,7 @@ export function hasActiveOrchestrationTurn(
     return true;
   }
 
-  if (
-    session?.orchestrationStatus !== "starting" &&
-    session?.orchestrationStatus !== "running"
-  ) {
+  if (session?.orchestrationStatus !== "starting" && session?.orchestrationStatus !== "running") {
     return false;
   }
 
@@ -341,6 +338,29 @@ export function hasActiveOrchestrationTurn(
     // Runtime-backed sessions can briefly report `running` between turn ids.
     // Treat that gap as active work so completion UX waits for the session to settle.
     return true;
+  }
+
+  return latestTurn?.turnId !== activeTurnId || latestTurn.completedAt === null;
+}
+
+export function hasVisibleActiveOrchestrationTurn(
+  latestTurn: LatestTurnTiming | null,
+  session: SessionActivityState | null,
+): boolean {
+  if (session?.status === "connecting") {
+    return true;
+  }
+  if (latestTurn?.state === "running" && latestTurn.completedAt === null) {
+    return true;
+  }
+
+  if (session?.orchestrationStatus !== "starting" && session?.orchestrationStatus !== "running") {
+    return false;
+  }
+
+  const activeTurnId = session.activeTurnId ?? null;
+  if (activeTurnId === null) {
+    return latestTurn === null || latestTurn.completedAt === null;
   }
 
   return latestTurn?.turnId !== activeTurnId || latestTurn.completedAt === null;

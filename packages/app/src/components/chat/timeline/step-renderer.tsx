@@ -2,7 +2,7 @@ import { type EnvironmentId, type ThreadId } from "@honk/contracts";
 import { Button } from "@honk/honkkit/button";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { IconChevronRightMedium } from "central-icons";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { type ChatMessage, type ProposedPlan } from "../../../types";
 import { hasRenderableText, resolveStreamingShellOutput } from "../message/tool-renderer";
@@ -133,9 +133,9 @@ export function GroupedStepsRenderer({
   const previewStepCount = countRenderableWorkGroupPreviewSteps(row.steps);
   const showPreview = isRunning && !expanded && previewStepCount > 0;
   const [previewScrollable, setPreviewScrollable] = useState(false);
-  const onPreviewScrollableChange = useCallback((scrollable: boolean) => {
+  const onPreviewScrollableChange = (scrollable: boolean) => {
     setPreviewScrollable((current) => current || scrollable);
-  }, []);
+  };
   const contentId = `timeline-work-group:${row.id}`;
   const handleToggle = () => {
     onToggleExpanded(row.id);
@@ -621,10 +621,7 @@ function WorkGroupPreviewStep({
 
 function CompactToolOutputStrip({ output, loading }: { output: string; loading: boolean }) {
   const scrollRef = useRef<HTMLPreElement | null>(null);
-  const displayOutput = useMemo(
-    () => resolveStreamingShellOutput(output, loading),
-    [loading, output],
-  );
+  const displayOutput = resolveStreamingShellOutput(output, loading);
 
   useLayoutSyncEffect(() => {
     const host = scrollRef.current;

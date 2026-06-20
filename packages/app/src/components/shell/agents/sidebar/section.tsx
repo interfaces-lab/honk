@@ -2,7 +2,7 @@ import { scopedThreadKey } from "~/lib/environment-scope";
 import type { ScopedProjectRef, ScopedThreadRef } from "@honk/contracts";
 import { SidebarItem } from "@honk/honkkit/sidebar";
 import { IconChevronRightMedium, IconFolder1, IconFolderOpen } from "central-icons";
-import { type DragEvent, memo, useEffect, useMemo, useState } from "react";
+import { type DragEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { resolveAndPersistPreferredEditor } from "~/editor-preferences";
@@ -37,7 +37,7 @@ function minVisibleForSelection(
   return Math.min(items.length, Math.max(firstPage, index + 1));
 }
 
-export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
+export function AgentSidebarSection(props: {
   section: SidebarSectionModel;
   selectedId: string | null;
   dragPayload: SidebarDragPayload | null;
@@ -93,6 +93,7 @@ export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
     props.dropTarget?.sectionId === section.id ? props.dropTarget.position : null;
   const draggingProject = props.dragPayload?.sectionId === section.id;
   const canRemoveProject = section.projectRef !== undefined && section.projectCwd !== undefined;
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- effect dep identity for prefetch
   const prefetchItems = useMemo(
     () => (open ? section.items.slice(0, visible + nearViewportPrefetchLimit) : []),
     [open, section.items, visible],
@@ -320,4 +321,4 @@ export const AgentSidebarSection = memo(function AgentSidebarSection(props: {
       ) : null}
     </section>
   );
-});
+}

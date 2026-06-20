@@ -1,8 +1,8 @@
 "use client";
-import { IconChevronRightMedium, IconClipboard, IconStepBack } from "central-icons";
+import { IconClipboard, IconStepBack } from "central-icons";
 import type { GitFilePatchResult } from "@honk/contracts";
 import { MiddleTruncate } from "@pierre/truncate/react";
-import { memo, type RefObject, useRef } from "react";
+import { type RefObject, useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@honk/honkkit/button";
 import { Checkbox } from "@honk/honkkit/checkbox";
@@ -232,7 +232,7 @@ export function GitDiffCardHeader(props: {
   );
 }
 
-const GitDiffHeaderPath = memo(function GitDiffHeaderPath(props: { readonly path: string }) {
+function GitDiffHeaderPath(props: { readonly path: string }) {
   return (
     <MiddleTruncate
       split="leaf-path"
@@ -242,7 +242,7 @@ const GitDiffHeaderPath = memo(function GitDiffHeaderPath(props: { readonly path
       {props.path}
     </MiddleTruncate>
   );
-});
+}
 
 function GitDiffHeaderIconButton(props: {
   readonly "aria-label": string;

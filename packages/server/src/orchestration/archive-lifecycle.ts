@@ -60,23 +60,25 @@ const appendCleanupFailureActivity = (
             },
           };
 
-    yield* input.dispatch({
-      type: "thread.activity.append",
-      commandId: CommandId.make(
-        `archive-cleanup-activity:${input.archiveCommand.commandId}:${input.kind}`,
-      ),
-      threadId: input.archiveCommand.threadId,
-      activity,
-      createdAt,
-    }).pipe(
-      Effect.catchCause((cause) =>
-        elog.warn("failed to append archive cleanup failure activity", {
-          threadId: input.archiveCommand.threadId,
-          activityKind: input.kind,
-          cause: causeDetail(cause),
-        }),
-      ),
-    );
+    yield* input
+      .dispatch({
+        type: "thread.activity.append",
+        commandId: CommandId.make(
+          `archive-cleanup-activity:${input.archiveCommand.commandId}:${input.kind}`,
+        ),
+        threadId: input.archiveCommand.threadId,
+        activity,
+        createdAt,
+      })
+      .pipe(
+        Effect.catchCause((cause) =>
+          elog.warn("failed to append archive cleanup failure activity", {
+            threadId: input.archiveCommand.threadId,
+            activityKind: input.kind,
+            cause: causeDetail(cause),
+          }),
+        ),
+      );
   });
 
 export const dispatchThreadArchiveLifecycle = (input: DispatchThreadArchiveLifecycleInput) =>
@@ -99,28 +101,30 @@ export const dispatchThreadArchiveLifecycle = (input: DispatchThreadArchiveLifec
     const result = yield* input.dispatch(input.archiveCommand);
 
     if (shouldStopSessionAfterArchive) {
-      yield* input.dispatch({
-        type: "thread.session.stop",
-        commandId: CommandId.make(`session-stop-for-archive:${input.archiveCommand.commandId}`),
-        threadId: input.archiveCommand.threadId,
-        createdAt: new Date().toISOString(),
-      }).pipe(
-        Effect.catchCause((cause) =>
-          Effect.gen(function* () {
-            const detail = causeDetail(cause);
-            yield* elog.warn("failed to stop runtime session during archive", {
-              threadId: input.archiveCommand.threadId,
-              cause: detail,
-            });
-            yield* appendCleanupFailureActivity({
-              ...input,
-              kind: "runtime.session.stop.failed",
-              summary: "Failed to stop runtime session while archiving.",
-              detail,
-            });
-          }),
-        ),
-      );
+      yield* input
+        .dispatch({
+          type: "thread.session.stop",
+          commandId: CommandId.make(`session-stop-for-archive:${input.archiveCommand.commandId}`),
+          threadId: input.archiveCommand.threadId,
+          createdAt: new Date().toISOString(),
+        })
+        .pipe(
+          Effect.catchCause((cause) =>
+            Effect.gen(function* () {
+              const detail = causeDetail(cause);
+              yield* elog.warn("failed to stop runtime session during archive", {
+                threadId: input.archiveCommand.threadId,
+                cause: detail,
+              });
+              yield* appendCleanupFailureActivity({
+                ...input,
+                kind: "runtime.session.stop.failed",
+                summary: "Failed to stop runtime session while archiving.",
+                detail,
+              });
+            }),
+          ),
+        );
     }
 
     yield* terminalManager.close({ threadId: input.archiveCommand.threadId }).pipe(

@@ -169,9 +169,7 @@ function cursorToolResult(result: unknown): unknown {
         status: "success",
         ...(typeof value.exitCode === "number" ? { exitCode: value.exitCode } : {}),
         ...(typeof value.signal === "string" ? { signal: value.signal } : {}),
-        ...(typeof value.executionTime === "number"
-          ? { executionTime: value.executionTime }
-          : {}),
+        ...(typeof value.executionTime === "number" ? { executionTime: value.executionTime } : {}),
       },
     };
   }

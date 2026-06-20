@@ -51,7 +51,10 @@ export function MarketingSidebar(props: {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain px-2 pb-2">
-        <section className="relative flex w-full min-w-0 flex-col select-none" data-agent-sidebar-section="">
+        <section
+          className="relative flex w-full min-w-0 flex-col select-none"
+          data-agent-sidebar-section=""
+        >
           <div className="group/sidebar-section outline-hidden" tabIndex={-1}>
             <SidebarItem
               render={<div />}

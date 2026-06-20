@@ -62,7 +62,10 @@ export function MarketingComposer() {
         event.preventDefault();
       }}
     >
-      <div className="mx-auto flex w-full min-w-0 max-w-agent-chat flex-col gap-2" data-variant="compact">
+      <div
+        className="mx-auto flex w-full min-w-0 max-w-agent-chat flex-col gap-2"
+        data-variant="compact"
+      >
         <div
           className="group relative w-full max-w-full min-w-0 overflow-hidden"
           data-honk-composer-surface=""
@@ -96,7 +99,10 @@ export function MarketingComposer() {
               data-honk-composer-toolbar="bottom"
               className="flex min-w-0 shrink items-center gap-1"
             >
-              <div data-honk-composer-toolbar="left" className="flex min-w-0 max-w-[46%] shrink items-center gap-1 overflow-hidden">
+              <div
+                data-honk-composer-toolbar="left"
+                className="flex min-w-0 max-w-[46%] shrink items-center gap-1 overflow-hidden"
+              >
                 <span
                   className={cn(
                     workbenchChromeTextControlVariants(),
@@ -105,7 +111,10 @@ export function MarketingComposer() {
                   aria-label="Mode: Rush"
                   title="Rush"
                 >
-                  <IconOpenaiCodex className="size-3 shrink-0 text-honk-icon-secondary" aria-hidden />
+                  <IconOpenaiCodex
+                    className="size-3 shrink-0 text-honk-icon-secondary"
+                    aria-hidden
+                  />
                   <span className="min-w-0 truncate">Rush</span>
                 </span>
               </div>

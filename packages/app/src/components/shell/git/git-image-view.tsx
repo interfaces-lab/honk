@@ -1,7 +1,7 @@
 "use client";
 
 import type { GitFileImageResult, GitFilePatchResult } from "@honk/contracts";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { cn } from "~/lib/utils";
 
@@ -59,12 +59,8 @@ export function GitImageView(props: {
   readonly className?: string | undefined;
 }) {
   const image = props.image;
-  const imageSrc = useMemo(() => {
-    if (image?.kind !== "image") {
-      return null;
-    }
-    return `data:${image.mediaType};base64,${image.dataBase64}`;
-  }, [image]);
+  const imageSrc =
+    image?.kind === "image" ? `data:${image.mediaType};base64,${image.dataBase64}` : null;
   const [decodeFailed, setDecodeFailed] = useState(false);
 
   useEffect(() => {

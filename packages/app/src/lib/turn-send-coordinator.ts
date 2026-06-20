@@ -76,7 +76,7 @@ export interface CoordinateTurnSendInput {
 export interface CoordinateTurnSendResult {
   readonly serverTurnStartSucceeded: boolean;
   readonly runtimeSendSucceeded: boolean;
-  readonly serverPersistenceError: unknown | null;
+  readonly serverPersistenceError: unknown;
   readonly preparedWorktree: {
     readonly worktreePath: string;
     readonly branch: string;
@@ -171,49 +171,51 @@ export async function coordinateTurnSend(
 
   const startRuntimeBeforePersistence = input.startRuntimeBeforePersistence ?? true;
   let runtimeSendPromise: Promise<void> | null = null;
-  const startRuntimeTurn = () => {
-    input.onBeforeRuntimeSend?.();
-    runtimeSendPromise ??= (async () => {
-      const turnAttachments = await input.message.getTurnAttachments();
-      const runtimeInput = {
-        threadId: input.threadId,
-        cwd: runtimeCwd,
-        text: input.message.text,
-        interactionMode: input.interactionMode,
-        sourceProposedPlan: input.sourceProposedPlan ?? null,
-        clientMessageId: input.clientMessageId,
-        replacesClientMessageId: input.replacesClientMessageId ?? null,
-        parentEntryId: localParentEntryId,
-        images: turnAttachments as ThreadAgentRuntimeImageAttachment[],
-        modelSelection: input.modelSelection,
-        preparedPolicy: input.preparedPolicy,
-      };
-      try {
-        await sendRuntimeTurnWithPreparedPolicy(runtimeInput);
-      } catch (error) {
-        if (
-          input.parentEntryId !== undefined ||
-          localParentEntryId === null ||
-          !isRuntimeParentResolutionError(error)
-        ) {
-          throw error;
+  const startRuntimeTurn = (): Promise<void> => {
+    if (!runtimeSendPromise) {
+      input.onBeforeRuntimeSend?.();
+      runtimeSendPromise = (async () => {
+        const turnAttachments = await input.message.getTurnAttachments();
+        const runtimeInput = {
+          threadId: input.threadId,
+          cwd: runtimeCwd,
+          text: input.message.text,
+          interactionMode: input.interactionMode,
+          sourceProposedPlan: input.sourceProposedPlan ?? null,
+          clientMessageId: input.clientMessageId,
+          replacesClientMessageId: input.replacesClientMessageId ?? null,
+          parentEntryId: localParentEntryId,
+          images: turnAttachments as ThreadAgentRuntimeImageAttachment[],
+          modelSelection: input.modelSelection,
+          preparedPolicy: input.preparedPolicy,
+        };
+        try {
+          await sendRuntimeTurnWithPreparedPolicy(runtimeInput);
+        } catch (error) {
+          if (
+            input.parentEntryId !== undefined ||
+            localParentEntryId === null ||
+            !isRuntimeParentResolutionError(error)
+          ) {
+            throw error;
+          }
+          await sendRuntimeTurnWithPreparedPolicy({
+            threadId: runtimeInput.threadId,
+            cwd: runtimeInput.cwd,
+            text: runtimeInput.text,
+            interactionMode: runtimeInput.interactionMode,
+            sourceProposedPlan: runtimeInput.sourceProposedPlan,
+            clientMessageId: runtimeInput.clientMessageId,
+            replacesClientMessageId: runtimeInput.replacesClientMessageId,
+            images: runtimeInput.images,
+            modelSelection: runtimeInput.modelSelection,
+            preparedPolicy: runtimeInput.preparedPolicy,
+          });
         }
-        await sendRuntimeTurnWithPreparedPolicy({
-          threadId: runtimeInput.threadId,
-          cwd: runtimeInput.cwd,
-          text: runtimeInput.text,
-          interactionMode: runtimeInput.interactionMode,
-          sourceProposedPlan: runtimeInput.sourceProposedPlan,
-          clientMessageId: runtimeInput.clientMessageId,
-          replacesClientMessageId: runtimeInput.replacesClientMessageId,
-          images: runtimeInput.images,
-          modelSelection: runtimeInput.modelSelection,
-          preparedPolicy: runtimeInput.preparedPolicy,
-        });
-      }
-      runtimeSendSucceeded = true;
-    })();
-    void runtimeSendPromise.catch(() => undefined);
+        runtimeSendSucceeded = true;
+      })();
+      void runtimeSendPromise.catch(() => undefined);
+    }
     return runtimeSendPromise;
   };
 
@@ -266,11 +268,7 @@ export async function coordinateTurnSend(
       }
     }
 
-    if (!startRuntimeBeforePersistence) {
-      await startRuntimeTurn();
-    } else if (runtimeSendPromise) {
-      await runtimeSendPromise;
-    }
+    await startRuntimeTurn();
   } finally {
     clearUnpersistedLocalArtifacts();
   }

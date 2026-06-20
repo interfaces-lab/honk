@@ -155,4 +155,65 @@ describe("sidebar thread selectors", () => {
     expect(summary?.latestTurn?.state).toBe("completed");
     expect(summary?.latestTurn?.completedAt).toBe(turnCompletedAt);
   });
+
+  it("clears a live Pi running shell state once the server confirms the completed latest turn", () => {
+    const baseState = syncServerShellSnapshot(initialState, shellSnapshot, environmentId);
+    const turnStartedEvent = {
+      id: EventId.make("runtime-event:sidebar-live-state-turn-started"),
+      type: "turn.started",
+      agentRuntime: "pi",
+      threadId,
+      runtimeSessionId,
+      turnId,
+      createdAt: startedAt,
+    } satisfies AgentRuntimeEvent;
+    const turnCompletedEvent = {
+      id: EventId.make("runtime-event:sidebar-live-state-turn-completed"),
+      type: "turn.completed",
+      agentRuntime: "pi",
+      threadId,
+      runtimeSessionId,
+      turnId,
+      createdAt: turnCompletedAt,
+      data: { type: "turn_end" },
+    } satisfies AgentRuntimeEvent;
+    const completedShellSnapshot = {
+      ...shellSnapshot,
+      threads: [
+        {
+          ...shellSnapshot.threads[0]!,
+          session: null,
+          latestTurn: {
+            turnId,
+            state: "completed",
+            requestedAt: startedAt,
+            startedAt,
+            completedAt: turnCompletedAt,
+            assistantMessageId: null,
+          },
+          updatedAt: turnCompletedAt,
+        },
+      ],
+      updatedAt: turnCompletedAt,
+    } satisfies OrchestrationShellSnapshot;
+
+    const runningState = applyAgentRuntimeEvent(
+      applyAgentRuntimeEvent(baseState, turnStartedEvent, environmentId),
+      turnCompletedEvent,
+      environmentId,
+    );
+    const resyncedState = syncServerShellSnapshot(
+      runningState,
+      completedShellSnapshot,
+      environmentId,
+    );
+    const summary = selectSidebarThreadSummaryByRef(
+      resyncedState,
+      scopeThreadRef(environmentId, threadId),
+    );
+
+    expect(summary?.session).toBeNull();
+    expect(summary?.latestTurn?.state).toBe("completed");
+    expect(summary?.latestTurn?.completedAt).toBe(turnCompletedAt);
+  });
 });

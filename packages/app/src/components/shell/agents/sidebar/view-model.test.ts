@@ -6,7 +6,11 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "~/lib/environment-scope";
-import { getSidebarThreadModifiedAt, needsSidebarAttention } from "./use-agent-sidebar-model";
+import {
+  getSidebarThreadModifiedAt,
+  needsSidebarAttention,
+} from "./use-agent-sidebar-model";
+import { hasActiveOrchestrationTurn, hasVisibleActiveOrchestrationTurn } from "~/session-logic";
 import { buildProjectChatSections } from "./view-model";
 import type { SidebarThreadSummary as StoreSidebarThreadSummary } from "~/types";
 import type { SidebarThreadSummary } from "./types";
@@ -300,5 +304,29 @@ describe("needsSidebarAttention", () => {
         }),
       ),
     ).toBe(false);
+  });
+
+  it("does not keep the sidebar loading after a completed Pi turn loses its active turn id", () => {
+    const thread = storeThreadSummary({
+      hasActionableProposedPlan: true,
+      session: {
+        status: "running",
+        orchestrationStatus: "running",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-02T00:00:00.000Z",
+      },
+      latestTurn: {
+        turnId: latestTurnId,
+        state: "completed",
+        requestedAt: "2026-01-01T00:00:00.000Z",
+        startedAt: "2026-01-02T00:00:00.000Z",
+        completedAt: "2026-01-03T00:00:00.000Z",
+        assistantMessageId: null,
+      },
+    });
+
+    expect(hasActiveOrchestrationTurn(thread.latestTurn, thread.session)).toBe(true);
+    expect(hasVisibleActiveOrchestrationTurn(thread.latestTurn, thread.session)).toBe(false);
+    expect(needsSidebarAttention(thread)).toBe(true);
   });
 });

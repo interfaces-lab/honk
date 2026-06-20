@@ -36,7 +36,9 @@ function duplicateAgentIdsForTileset(tileset: ChatPaneTileset): string[] {
 }
 
 function shouldPersistTileset(tileset: ChatPaneTileset): boolean {
-  return flattenPanelIds(tileset.layout).length > 1 && duplicateAgentIdsForTileset(tileset).length === 0;
+  return (
+    flattenPanelIds(tileset.layout).length > 1 && duplicateAgentIdsForTileset(tileset).length === 0
+  );
 }
 
 interface ChatPaneTilingStoreState {

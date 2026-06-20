@@ -102,12 +102,7 @@ export function SettingsRow({
   children?: ReactNode;
 }) {
   return (
-    <SettingsItemShell
-      preferenceId={preferenceId}
-      className={cn(
-        children ? "py-3" : "py-2.5",
-      )}
-    >
+    <SettingsItemShell preferenceId={preferenceId} className={cn(children ? "py-3" : "py-2.5")}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex min-h-4 items-center gap-1.5">

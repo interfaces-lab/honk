@@ -815,7 +815,11 @@ function isEquivalentUserMessageAlreadyRendered(
     (existingMessage) =>
       existingMessage.role === "user" &&
       existingMessage.text === message.text &&
-      isEquivalentUserMessageTimestamp(message, existingMessage, options?.createdAtToleranceMs ?? 0),
+      isEquivalentUserMessageTimestamp(
+        message,
+        existingMessage,
+        options?.createdAtToleranceMs ?? 0,
+      ),
   );
 }
 

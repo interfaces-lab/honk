@@ -5,8 +5,8 @@ import {
   type OrchestrationReactorShape,
 } from "./OrchestrationReactor.service.ts";
 
-export const makeOrchestrationReactor = Effect.gen(function* () {
-  const start: OrchestrationReactorShape["start"] = Effect.fn("start")(function* () {});
+export const makeOrchestrationReactor = Effect.sync(() => {
+  const start: OrchestrationReactorShape["start"] = Effect.fn("start")(() => Effect.void);
 
   return {
     start,

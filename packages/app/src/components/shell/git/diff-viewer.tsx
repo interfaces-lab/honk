@@ -1,7 +1,7 @@
 import type { GitFilePatchResult } from "@honk/contracts";
 import type { GitFileState } from "~/lib/ui-session-types";
 import { PatchDiff } from "@pierre/diffs/react";
-import { type ReactNode, useMemo } from "react";
+import type { ReactNode } from "react";
 
 import { resolveDiffThemeName, WORKBENCH_CODE_UNSAFE_CSS } from "~/lib/diff-rendering";
 import { cn } from "~/lib/utils";
@@ -28,24 +28,21 @@ export function DiffViewer(props: Props) {
   const diffStyle = props.diffStyle ?? "unified";
   const hasCustomHeader = props.renderCustomHeader !== undefined;
   const fileType = getGitFileTypeDescriptor({ path: props.path, patch: props.filePatch });
-  const options = useMemo(
-    () => ({
-      theme,
-      themeType: resolvedTheme,
-      unsafeCSS: WORKBENCH_CODE_UNSAFE_CSS,
-      diffStyle,
-      overflow: "wrap" as const,
-      disableFileHeader: !hasCustomHeader,
-      disableBackground: false,
-      disableLineNumbers: false,
-      diffIndicators: "none" as const,
-      lineDiffType: "none" as const,
-      expandUnchanged: false,
-      hunkSeparators: "simple" as const,
-      preferredHighlighter: "shiki-js" as const,
-    }),
-    [diffStyle, hasCustomHeader, resolvedTheme, theme],
-  );
+  const options = {
+    theme,
+    themeType: resolvedTheme,
+    unsafeCSS: WORKBENCH_CODE_UNSAFE_CSS,
+    diffStyle,
+    overflow: "wrap" as const,
+    disableFileHeader: !hasCustomHeader,
+    disableBackground: false,
+    disableLineNumbers: false,
+    diffIndicators: "none" as const,
+    lineDiffType: "none" as const,
+    expandUnchanged: false,
+    hunkSeparators: "simple" as const,
+    preferredHighlighter: "shiki-js" as const,
+  };
   const patch =
     props.filePatch?.kind === "patch" || props.filePatch?.kind === "untracked"
       ? props.filePatch.patch.trim()

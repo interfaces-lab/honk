@@ -4,7 +4,7 @@ import { EnvironmentId, ThreadId } from "@honk/contracts";
 import { IconDotGrid1x3Horizontal } from "central-icons";
 import { Truncate } from "@pierre/truncate/react";
 import type { DragEvent, ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { flushSync } from "react-dom";
 
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "@honk/honkkit/menu";
@@ -384,7 +384,12 @@ function PromotedDraftTileSync(props: { readonly target: ChatPaneTarget }) {
   const draftId = props.target.routeKind === "draft" ? props.target.draftId : null;
 
   useEffect(() => {
-    if (props.target.routeKind !== "draft" || !draftId || !promotedThreadRef || !hasRenderableUserStart) {
+    if (
+      props.target.routeKind !== "draft" ||
+      !draftId ||
+      !promotedThreadRef ||
+      !hasRenderableUserStart
+    ) {
       return;
     }
     chatPaneTilingActions.promoteDraftTilesets(draftId, promotedThreadRef);
@@ -412,7 +417,7 @@ function StandaloneChatDropTarget(props: {
   readonly routeTarget: ChatPaneTarget;
 }) {
   const [dropZone, setDropZone] = useState<ChatPaneDropZone | null>(null);
-  const targetData = useMemo(() => createAgentPanelData(props.routeTarget), [props.routeTarget]);
+  const targetData = createAgentPanelData(props.routeTarget);
 
   const allowSameAgent = props.routeTarget.routeKind === "server";
 
@@ -477,113 +482,92 @@ function StandaloneChatDropTarget(props: {
 }
 
 export function ChatPaneTilingSurface(props: ChatPaneTilingSurfaceProps) {
-  const routeTarget = useMemo(
-    () => targetFromProps(props),
-    [
-      props.routeKind,
-      props.environmentId,
-      props.threadId,
-      props.routeKind === "draft" ? props.draftId : null,
-    ],
-  );
+  const routeTarget = targetFromProps(props);
   const routeKey = chatPaneTilingRouteKeyForTarget(routeTarget);
   const tileset = useChatPaneTileset(routeKey);
-  const routePanelData = useMemo(() => createAgentPanelData(routeTarget), [routeTarget]);
+  const routePanelData = createAgentPanelData(routeTarget);
   const routeTitle = useTileTitle(routePanelData);
 
-  const createInitialTileset = useCallback(() => {
+  const createInitialTileset = () => {
     return createChatPaneTileset({
       data: routePanelData,
       panelId: "panel-1",
       tilesetId: chatPaneTilesetIdForRouteKey(routeKey),
     });
-  }, [routeKey, routePanelData]);
+  };
 
-  const handleCloseTile = useCallback(
-    (panelId: string) => {
-      chatPaneTilingActions.updateRouteTileset(routeKey, (current) => {
-        if (!current) return current;
-        const next = closeTile(current, panelId);
-        const panelIds = flattenPanelIds(next.layout);
-        const remainingPanel = panelIds.length === 1 ? next.panels[panelIds[0] ?? ""] : null;
-        return remainingPanel?.data.kind === "agent" &&
-          chatPaneTilingRouteKeyForTarget(remainingPanel.data.target) === routeKey
-          ? null
-          : next;
+  const handleCloseTile = (panelId: string) => {
+    chatPaneTilingActions.updateRouteTileset(routeKey, (current) => {
+      if (!current) return current;
+      const next = closeTile(current, panelId);
+      const panelIds = flattenPanelIds(next.layout);
+      const remainingPanel = panelIds.length === 1 ? next.panels[panelIds[0] ?? ""] : null;
+      return remainingPanel?.data.kind === "agent" &&
+        chatPaneTilingRouteKeyForTarget(remainingPanel.data.target) === routeKey
+        ? null
+        : next;
+    });
+  };
+
+  const handleFocusTile = (panelId: string) => {
+    chatPaneTilingActions.updateRouteTileset(routeKey, (current) =>
+      current ? setFocusedPanel(current, panelId) : current,
+    );
+  };
+
+  const handleExpandAgent = (panelId: string) => {
+    chatPaneTilingActions.updateRouteTileset(routeKey, (current) =>
+      current ? expandAgent(current, panelId) : current,
+    );
+  };
+
+  const handleSplitTile = (panelId: string, direction: ChatPaneSplitDirection) => {
+    chatPaneTilingActions.updateRouteTileset(routeKey, (current) => {
+      if (!current) return current;
+      const panel = current.panels[panelId];
+      const environmentId = panel
+        ? (environmentIdForPanelData(panel.data) ?? routeTarget.environmentId)
+        : routeTarget.environmentId;
+      return splitTile(
+        current,
+        panelId,
+        direction,
+        createNewAgentPanelData(environmentId),
+        nextPanelIdForTileset(current),
+      );
+    });
+  };
+
+  const handleDropAgentOnPanel = (
+    targetPanelId: string,
+    payload: ChatPanePanelDragPayload,
+    zone: ChatPaneDropZone,
+  ) => {
+    chatPaneTilingActions.updateRouteTileset(routeKey, (current) =>
+      current ? dropAgentOnPanel(current, targetPanelId, payload, zone) : current,
+    );
+  };
+
+  const handlePlaceAgentOnPanel = (
+    targetPanelId: string,
+    data: ChatPanePanelData,
+    zone: ChatPaneDropZone,
+  ) => {
+    chatPaneTilingActions.updateRouteTileset(routeKey, (current) =>
+      current
+        ? placeAgentOnPanel(current, targetPanelId, data, zone, nextPanelIdForTileset(current))
+        : current,
+    );
+  };
+
+  const handleDropSidebarChatOnStandalone = (data: ChatPanePanelData, zone: ChatPaneDropZone) => {
+    chatPaneTilingActions.updateRouteTileset(routeKey, (current) => {
+      const base = current ?? createInitialTileset();
+      return dropAgentOnSelectedAgent(base, data, zone, nextPanelIdForTileset(base), {
+        allowDuplicateTargetAgent: true,
       });
-    },
-    [routeKey],
-  );
-
-  const handleFocusTile = useCallback(
-    (panelId: string) => {
-      chatPaneTilingActions.updateRouteTileset(routeKey, (current) =>
-        current ? setFocusedPanel(current, panelId) : current,
-      );
-    },
-    [routeKey],
-  );
-
-  const handleExpandAgent = useCallback(
-    (panelId: string) => {
-      chatPaneTilingActions.updateRouteTileset(routeKey, (current) =>
-        current ? expandAgent(current, panelId) : current,
-      );
-    },
-    [routeKey],
-  );
-
-  const handleSplitTile = useCallback(
-    (panelId: string, direction: ChatPaneSplitDirection) => {
-      chatPaneTilingActions.updateRouteTileset(routeKey, (current) => {
-        if (!current) return current;
-        const panel = current.panels[panelId];
-        const environmentId = panel
-          ? (environmentIdForPanelData(panel.data) ?? routeTarget.environmentId)
-          : routeTarget.environmentId;
-        return splitTile(
-          current,
-          panelId,
-          direction,
-          createNewAgentPanelData(environmentId),
-          nextPanelIdForTileset(current),
-        );
-      });
-    },
-    [routeKey, routeTarget.environmentId],
-  );
-
-  const handleDropAgentOnPanel = useCallback(
-    (targetPanelId: string, payload: ChatPanePanelDragPayload, zone: ChatPaneDropZone) => {
-      chatPaneTilingActions.updateRouteTileset(routeKey, (current) =>
-        current ? dropAgentOnPanel(current, targetPanelId, payload, zone) : current,
-      );
-    },
-    [routeKey],
-  );
-
-  const handlePlaceAgentOnPanel = useCallback(
-    (targetPanelId: string, data: ChatPanePanelData, zone: ChatPaneDropZone) => {
-      chatPaneTilingActions.updateRouteTileset(routeKey, (current) =>
-        current
-          ? placeAgentOnPanel(current, targetPanelId, data, zone, nextPanelIdForTileset(current))
-          : current,
-      );
-    },
-    [routeKey],
-  );
-
-  const handleDropSidebarChatOnStandalone = useCallback(
-    (data: ChatPanePanelData, zone: ChatPaneDropZone) => {
-      chatPaneTilingActions.updateRouteTileset(routeKey, (current) => {
-        const base = current ?? createInitialTileset();
-        return dropAgentOnSelectedAgent(base, data, zone, nextPanelIdForTileset(base), {
-          allowDuplicateTargetAgent: true,
-        });
-      });
-    },
-    [createInitialTileset, routeKey],
-  );
+    });
+  };
 
   if (!tileset) {
     return (

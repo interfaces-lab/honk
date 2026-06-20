@@ -25,6 +25,14 @@
     "react-doctor/react-compiler-no-manual-memoization": "warn",
     "typescript/consistent-return": "off"
   },
+  "overrides": [
+    {
+      "files": ["packages/marketing/**"],
+      "rules": {
+        "react-doctor/react-compiler-no-manual-memoization": "off"
+      }
+    }
+  ],
   "env": {
     "builtin": true
   }

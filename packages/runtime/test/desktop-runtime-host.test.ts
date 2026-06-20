@@ -1,7 +1,6 @@
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import process from "node:process";
 import {
   AccountId,
   AuthProviderId,
@@ -39,6 +38,10 @@ describe("DesktopRuntimeHost", () => {
     thinkingLevel: "high",
     allowedToolNames: [],
     excludedToolNames: [],
+  };
+  const testModelSelection = {
+    instanceId: "test-model-provider",
+    model: "test-model",
   };
 
   afterEach(() => {
@@ -524,6 +527,7 @@ describe("DesktopRuntimeHost", () => {
         sourceProposedPlan: null,
         clientMessageId: MessageId.make("message:after-failed-start"),
         images: [],
+        modelSelection: testModelSelection,
       }),
     ).rejects.toThrow("No runtime thread exists");
 
@@ -636,6 +640,7 @@ describe("DesktopRuntimeHost", () => {
           modelId: ModelId.make("anthropic/claude-opus-4-8"),
         },
       },
+      modelSelection: testModelSelection,
     });
 
     expect(sentMessages).toEqual([
@@ -685,12 +690,17 @@ describe("DesktopRuntimeHost", () => {
       parentEntryId,
       images: [],
       policy: testPolicy,
+      modelSelection: testModelSelection,
     });
 
     expect(sentOptions).toEqual([
       expect.objectContaining({
         clientMessageId: messageId,
         streamingBehavior: "followUp",
+        runtimeUserTurnStart: expect.objectContaining({
+          modelSelection: testModelSelection,
+          titleSeed: "queued follow-up",
+        }),
       }),
     ]);
     expect(sentOptions[0]).not.toHaveProperty("parentEntryId");

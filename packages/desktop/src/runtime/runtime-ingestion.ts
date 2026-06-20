@@ -103,9 +103,10 @@ function decodeOutboxRecord(value: unknown): RuntimeRecordOutboxRecord | null {
   }
   const createdAt = typeof record.createdAt === "string" ? record.createdAt : null;
   const updatedAt = typeof record.updatedAt === "string" ? record.updatedAt : createdAt;
-  const attempts = typeof record.attempts === "number" && Number.isFinite(record.attempts)
-    ? Math.max(0, Math.floor(record.attempts))
-    : 0;
+  const attempts =
+    typeof record.attempts === "number" && Number.isFinite(record.attempts)
+      ? Math.max(0, Math.floor(record.attempts))
+      : 0;
   if (!createdAt || !updatedAt || !isRuntimeRecordOutboxStatus(record.status)) {
     return null;
   }
@@ -568,8 +569,6 @@ export function __resetRuntimeIngestionForTests(): void {
   ingestionState = null;
 }
 
-export function __configureRuntimeIngestionForTests(
-  config: RuntimeIngestionClientConfig,
-): void {
+export function __configureRuntimeIngestionForTests(config: RuntimeIngestionClientConfig): void {
   getIngestionState().configureForTests(config);
 }

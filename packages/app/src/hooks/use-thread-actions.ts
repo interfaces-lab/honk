@@ -10,7 +10,7 @@ import type { SidebarThreadSortOrder } from "@honk/contracts/settings";
 import { createAgentModelPolicy } from "@honk/shared/agent-model-policy";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { useComposerDraftStore } from "../stores/chat-drafts";
 import { useNewThreadHandler } from "./use-handle-new-thread";
@@ -281,61 +281,52 @@ export function useThreadActions() {
   );
   const archiveWarningResolveRef = useRef<((confirmed: boolean) => void) | null>(null);
 
-  const completeArchiveWarning = useCallback((confirmed: boolean) => {
+  const completeArchiveWarning = (confirmed: boolean) => {
     const resolve = archiveWarningResolveRef.current;
     archiveWarningResolveRef.current = null;
     setArchiveWarningPrompt(null);
     resolve?.(confirmed);
-  }, []);
+  };
 
-  const requestArchiveWarningConfirmation = useCallback(
-    (threadTitles: readonly string[]): Promise<boolean> => {
-      const prompt = getArchiveWarningPrompt(threadTitles);
-      if (!prompt) {
-        return Promise.resolve(true);
-      }
-      return new Promise<boolean>((resolve) => {
-        archiveWarningResolveRef.current?.(false);
-        archiveWarningResolveRef.current = resolve;
-        setArchiveWarningPrompt(prompt);
-      });
-    },
-    [],
-  );
-
-  const confirmArchiveWarning = useCallback(() => {
-    completeArchiveWarning(true);
-  }, [completeArchiveWarning]);
-
-  const handleArchiveWarningOpenChange = useCallback(
-    (open: boolean) => {
-      if (!open) {
-        completeArchiveWarning(false);
-      }
-    },
-    [completeArchiveWarning],
-  );
-
-  const archiveWarningDialog = useMemo<ArchiveWarningDialogController | null>(() => {
-    if (!archiveWarningPrompt) {
-      return null;
+  const requestArchiveWarningConfirmation = (threadTitles: readonly string[]): Promise<boolean> => {
+    const prompt = getArchiveWarningPrompt(threadTitles);
+    if (!prompt) {
+      return Promise.resolve(true);
     }
-    return {
-      ...archiveWarningPrompt,
-      onConfirm: confirmArchiveWarning,
-      onOpenChange: handleArchiveWarningOpenChange,
-    };
-  }, [archiveWarningPrompt, confirmArchiveWarning, handleArchiveWarningOpenChange]);
+    return new Promise<boolean>((resolve) => {
+      archiveWarningResolveRef.current?.(false);
+      archiveWarningResolveRef.current = resolve;
+      setArchiveWarningPrompt(prompt);
+    });
+  };
 
-  const getCurrentRouteTarget = useCallback(() => {
+  const confirmArchiveWarning = () => {
+    completeArchiveWarning(true);
+  };
+
+  const handleArchiveWarningOpenChange = (open: boolean) => {
+    if (!open) {
+      completeArchiveWarning(false);
+    }
+  };
+
+  const archiveWarningDialog: ArchiveWarningDialogController | null = !archiveWarningPrompt
+    ? null
+    : {
+        ...archiveWarningPrompt,
+        onConfirm: confirmArchiveWarning,
+        onOpenChange: handleArchiveWarningOpenChange,
+      };
+
+  const getCurrentRouteTarget = () => {
     return routeTargetRef.current;
-  }, []);
-  const getCurrentRouteThreadRef = useCallback(() => {
+  };
+  const getCurrentRouteThreadRef = () => {
     const target = getCurrentRouteTarget();
     return target?.kind === "server" ? target.threadRef : null;
-  }, [getCurrentRouteTarget]);
+  };
 
-  const undoArchiveThreads = useCallback((targets: readonly ScopedThreadRef[]) => {
+  const undoArchiveThreads = (targets: readonly ScopedThreadRef[]) => {
     for (const target of targets) {
       void unarchiveThread(target).catch((error) => {
         toastManager.add({
@@ -345,463 +336,420 @@ export function useThreadActions() {
         });
       });
     }
-  }, []);
+  };
 
-  const cloneThread = useCallback(
-    async (target: ScopedThreadRef, cwd: string): Promise<void> => {
-      if (target.environmentId !== DESKTOP_RUNTIME_ENVIRONMENT_ID) {
-        throw new Error("Fork chat is only available for local Pi runtime threads.");
-      }
+  const cloneThread = async (target: ScopedThreadRef, cwd: string): Promise<void> => {
+    if (target.environmentId !== DESKTOP_RUNTIME_ENVIRONMENT_ID) {
+      throw new Error("Fork chat is only available for local Pi runtime threads.");
+    }
 
-      const resolved = resolveThreadTarget(target);
-      if (!resolved) {
-        throw new Error("Thread is unavailable.");
-      }
+    const resolved = resolveThreadTarget(target);
+    if (!resolved) {
+      throw new Error("Thread is unavailable.");
+    }
 
-      const runtimeApi = readHonkRuntimeApi();
-      const targetThreadId = newThreadId();
-      const preferences = await runtimeApi.getPreferences();
-      const policy = createAgentModelPolicy({
-        preferences,
-        interactionMode: resolved.thread.interactionMode,
-        modelSelection: resolved.thread.modelSelection,
+    const runtimeApi = readHonkRuntimeApi();
+    const targetThreadId = newThreadId();
+    const preferences = await runtimeApi.getPreferences();
+    const policy = createAgentModelPolicy({
+      preferences,
+      interactionMode: resolved.thread.interactionMode,
+      modelSelection: resolved.thread.modelSelection,
+    });
+
+    markLocalRuntimeThread(targetThreadId);
+    try {
+      await runtimeApi.cloneThread({
+        sourceThreadId: target.threadId,
+        targetThreadId,
+        cwd,
+        policy,
       });
+    } catch (error) {
+      clearLocalRuntimeThread(targetThreadId);
+      throw error;
+    }
 
-      markLocalRuntimeThread(targetThreadId);
-      try {
-        await runtimeApi.cloneThread({
-          sourceThreadId: target.threadId,
-          targetThreadId,
-          cwd,
-          policy,
-        });
-      } catch (error) {
-        clearLocalRuntimeThread(targetThreadId);
-        throw error;
+    await openThread(router, scopeThreadRef(DESKTOP_RUNTIME_ENVIRONMENT_ID, targetThreadId));
+  };
+
+  const archiveThread = async (target: ScopedThreadRef) => {
+    const api = readEnvironmentApi(target.environmentId);
+    if (!api) return;
+    const resolved = resolveThreadTarget(target);
+    if (!resolved) return;
+    const { thread, threadRef } = resolved;
+
+    if (threadHasOngoingWork(thread)) {
+      const confirmed = await requestArchiveWarningConfirmation([thread.title]);
+      if (!confirmed) return;
+    }
+    await stopThreadWork(threadRef, thread);
+
+    await api.orchestration.dispatchCommand({
+      type: "thread.archive",
+      commandId: newCommandId(),
+      threadId: threadRef.threadId,
+    });
+    enqueueArchiveUndoToast([{ threadRef, title: thread.title }], undoArchiveThreads);
+    const currentRouteThreadRef = getCurrentRouteThreadRef();
+
+    if (
+      currentRouteThreadRef?.threadId === threadRef.threadId &&
+      currentRouteThreadRef.environmentId === threadRef.environmentId
+    ) {
+      if (thread.projectId === null) {
+        await openChatIndex(router, { replace: true });
+        return;
       }
+      const workspaceProject = findWorkspaceProjectForSource(
+        selectProjectsAcrossEnvironments(useStore.getState()),
+        thread,
+      );
+      if (!workspaceProject) {
+        await openChatIndex(router, { replace: true });
+        return;
+      }
+      await handleNewThreadRef.current(
+        scopeProjectRef(workspaceProject.environmentId, workspaceProject.id),
+      );
+    }
+  };
 
-      await openThread(router, scopeThreadRef(DESKTOP_RUNTIME_ENVIRONMENT_ID, targetThreadId));
-    },
-    [clearLocalRuntimeThread, markLocalRuntimeThread, router],
-  );
+  const archiveThreads = async (targets: readonly ScopedThreadRef[]) => {
+    const state = useStore.getState();
+    const targetByKey = new Map<string, ScopedThreadRef>();
+    for (const target of targets) {
+      const thread = selectThreadByRef(state, target);
+      if (!thread || thread.archivedAt !== null) {
+        continue;
+      }
+      targetByKey.set(scopedThreadKey(target), target);
+    }
+    const archiveTargets = [...targetByKey.values()];
+    if (archiveTargets.length === 0) {
+      return;
+    }
 
-  const archiveThread = useCallback(
-    async (target: ScopedThreadRef) => {
+    const targetsWithOngoingWork = archiveTargets.flatMap((target) => {
+      const thread = selectThreadByRef(state, target);
+      return thread && threadHasOngoingWork(thread) ? [{ target, thread }] : [];
+    });
+    if (targetsWithOngoingWork.length > 0) {
+      const confirmed = await requestArchiveWarningConfirmation(
+        targetsWithOngoingWork.map(({ thread }) => thread.title),
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+    for (const target of archiveTargets) {
+      const thread = selectThreadByRef(state, target);
+      if (thread) {
+        await stopThreadWork(target, thread);
+      }
+    }
+
+    const currentRouteThreadRef = getCurrentRouteThreadRef();
+    const currentRouteThreadKey = currentRouteThreadRef
+      ? scopedThreadKey(currentRouteThreadRef)
+      : null;
+    const shouldNavigateToFallback =
+      currentRouteThreadKey !== null && targetByKey.has(currentRouteThreadKey);
+    const currentThread = currentRouteThreadRef
+      ? selectThreadByRef(state, currentRouteThreadRef)
+      : undefined;
+    const projects = selectProjectsAcrossEnvironments(state);
+    const currentWorkspaceProject = currentThread
+      ? findWorkspaceProjectForSource(projects, currentThread)
+      : null;
+    const fallbackProjectRef =
+      shouldNavigateToFallback && currentWorkspaceProject
+        ? scopeProjectRef(currentWorkspaceProject.environmentId, currentWorkspaceProject.id)
+        : null;
+    const archivedIds =
+      shouldNavigateToFallback && currentRouteThreadRef
+        ? new Set<ThreadId>(
+            archiveTargets.flatMap((target) =>
+              target.environmentId === currentRouteThreadRef.environmentId ? [target.threadId] : [],
+            ),
+          )
+        : undefined;
+    const fallbackThreadId =
+      shouldNavigateToFallback && currentRouteThreadRef && archivedIds
+        ? getFallbackThreadIdAfterDelete({
+            threads: selectThreadsForEnvironment(state, currentRouteThreadRef.environmentId).filter(
+              (thread) => thread.archivedAt === null,
+            ),
+            deletedThreadId: currentRouteThreadRef.threadId,
+            deletedThreadIds: archivedIds,
+            sortOrder: sidebarThreadSortOrder,
+          })
+        : null;
+    const fallbackThreadRef =
+      fallbackThreadId && currentRouteThreadRef
+        ? scopeThreadRef(currentRouteThreadRef.environmentId, fallbackThreadId)
+        : null;
+
+    const archivedToastItems: ArchiveToastItem[] = [];
+    for (const target of archiveTargets) {
       const api = readEnvironmentApi(target.environmentId);
-      if (!api) return;
-      const resolved = resolveThreadTarget(target);
-      if (!resolved) return;
-      const { thread, threadRef } = resolved;
-
-      if (threadHasOngoingWork(thread)) {
-        const confirmed = await requestArchiveWarningConfirmation([thread.title]);
-        if (!confirmed) return;
+      if (!api) {
+        continue;
       }
-      await stopThreadWork(threadRef, thread);
-
       await api.orchestration.dispatchCommand({
         type: "thread.archive",
         commandId: newCommandId(),
-        threadId: threadRef.threadId,
+        threadId: target.threadId,
       });
-      enqueueArchiveUndoToast([{ threadRef, title: thread.title }], undoArchiveThreads);
-      const currentRouteThreadRef = getCurrentRouteThreadRef();
-
-      if (
-        currentRouteThreadRef?.threadId === threadRef.threadId &&
-        currentRouteThreadRef.environmentId === threadRef.environmentId
-      ) {
-        if (thread.projectId === null) {
-          await openChatIndex(router, { replace: true });
-          return;
-        }
-        const workspaceProject = findWorkspaceProjectForSource(
-          selectProjectsAcrossEnvironments(useStore.getState()),
-          thread,
-        );
-        if (!workspaceProject) {
-          await openChatIndex(router, { replace: true });
-          return;
-        }
-        await handleNewThreadRef.current(
-          scopeProjectRef(workspaceProject.environmentId, workspaceProject.id),
-        );
-      }
-    },
-    [getCurrentRouteThreadRef, requestArchiveWarningConfirmation, router, undoArchiveThreads],
-  );
-
-  const archiveThreads = useCallback(
-    async (targets: readonly ScopedThreadRef[]) => {
-      const state = useStore.getState();
-      const targetByKey = new Map<string, ScopedThreadRef>();
-      for (const target of targets) {
-        const thread = selectThreadByRef(state, target);
-        if (!thread || thread.archivedAt !== null) {
-          continue;
-        }
-        targetByKey.set(scopedThreadKey(target), target);
-      }
-      const archiveTargets = [...targetByKey.values()];
-      if (archiveTargets.length === 0) {
-        return;
-      }
-
-      const targetsWithOngoingWork = archiveTargets.flatMap((target) => {
-        const thread = selectThreadByRef(state, target);
-        return thread && threadHasOngoingWork(thread) ? [{ target, thread }] : [];
+      const thread = selectThreadByRef(state, target);
+      archivedToastItems.push({
+        threadRef: target,
+        title: thread?.title ?? null,
       });
-      if (targetsWithOngoingWork.length > 0) {
-        const confirmed = await requestArchiveWarningConfirmation(
-          targetsWithOngoingWork.map(({ thread }) => thread.title),
-        );
-        if (!confirmed) {
-          return;
-        }
-      }
-      for (const target of archiveTargets) {
-        const thread = selectThreadByRef(state, target);
-        if (thread) {
-          await stopThreadWork(target, thread);
-        }
-      }
+    }
+    enqueueArchiveUndoToast(archivedToastItems, undoArchiveThreads);
 
-      const currentRouteThreadRef = getCurrentRouteThreadRef();
-      const currentRouteThreadKey = currentRouteThreadRef
-        ? scopedThreadKey(currentRouteThreadRef)
-        : null;
-      const shouldNavigateToFallback =
-        currentRouteThreadKey !== null && targetByKey.has(currentRouteThreadKey);
-      const currentThread = currentRouteThreadRef
-        ? selectThreadByRef(state, currentRouteThreadRef)
-        : undefined;
-      const projects = selectProjectsAcrossEnvironments(state);
-      const currentWorkspaceProject = currentThread
-        ? findWorkspaceProjectForSource(projects, currentThread)
-        : null;
-      const fallbackProjectRef =
-        shouldNavigateToFallback && currentWorkspaceProject
-          ? scopeProjectRef(currentWorkspaceProject.environmentId, currentWorkspaceProject.id)
-          : null;
-      const archivedIds =
-        shouldNavigateToFallback && currentRouteThreadRef
-          ? new Set<ThreadId>(
-              archiveTargets.flatMap((target) =>
-                target.environmentId === currentRouteThreadRef.environmentId
-                  ? [target.threadId]
-                  : [],
-              ),
-            )
-          : undefined;
-      const fallbackThreadId =
-        shouldNavigateToFallback && currentRouteThreadRef && archivedIds
-          ? getFallbackThreadIdAfterDelete({
-              threads: selectThreadsForEnvironment(
-                state,
-                currentRouteThreadRef.environmentId,
-              ).filter((thread) => thread.archivedAt === null),
-              deletedThreadId: currentRouteThreadRef.threadId,
-              deletedThreadIds: archivedIds,
-              sortOrder: sidebarThreadSortOrder,
-            })
-          : null;
-      const fallbackThreadRef =
-        fallbackThreadId && currentRouteThreadRef
-          ? scopeThreadRef(currentRouteThreadRef.environmentId, fallbackThreadId)
-          : null;
+    if (!shouldNavigateToFallback) {
+      return;
+    }
 
-      const archivedToastItems: ArchiveToastItem[] = [];
-      for (const target of archiveTargets) {
-        const api = readEnvironmentApi(target.environmentId);
-        if (!api) {
-          continue;
-        }
-        await api.orchestration.dispatchCommand({
-          type: "thread.archive",
-          commandId: newCommandId(),
-          threadId: target.threadId,
-        });
-        const thread = selectThreadByRef(state, target);
-        archivedToastItems.push({
-          threadRef: target,
-          title: thread?.title ?? null,
-        });
-      }
-      enqueueArchiveUndoToast(archivedToastItems, undoArchiveThreads);
+    if (fallbackThreadRef) {
+      await openThread(router, fallbackThreadRef, { replace: true });
+      return;
+    }
 
-      if (!shouldNavigateToFallback) {
-        return;
-      }
+    if (fallbackProjectRef) {
+      await handleNewThreadRef.current(fallbackProjectRef);
+      return;
+    }
 
-      if (fallbackThreadRef) {
-        await openThread(router, fallbackThreadRef, { replace: true });
-        return;
-      }
+    await openChatIndex(router, { replace: true });
+  };
 
-      if (fallbackProjectRef) {
-        await handleNewThreadRef.current(fallbackProjectRef);
-        return;
-      }
+  const removeProjectFromSidebar = async (target: ScopedProjectRef) => {
+    const api = readEnvironmentApi(target.environmentId);
+    if (!api) return;
 
-      await openChatIndex(router, { replace: true });
-    },
-    [
-      getCurrentRouteThreadRef,
-      requestArchiveWarningConfirmation,
-      router,
-      sidebarThreadSortOrder,
-      undoArchiveThreads,
-    ],
-  );
-
-  const removeProjectFromSidebar = useCallback(
-    async (target: ScopedProjectRef) => {
-      const api = readEnvironmentApi(target.environmentId);
-      if (!api) return;
-
-      const state = useStore.getState();
-      const projects = selectProjectsAcrossEnvironments(state);
-      const routeTarget = getCurrentRouteTarget();
-      const shouldNavigateToFallback =
-        routeTarget?.kind === "server"
+    const state = useStore.getState();
+    const projects = selectProjectsAcrossEnvironments(state);
+    const routeTarget = getCurrentRouteTarget();
+    const shouldNavigateToFallback =
+      routeTarget?.kind === "server"
+        ? (() => {
+            const thread = selectThreadByRef(state, routeTarget.threadRef);
+            return isSourceForWorkspaceProject({ project: target, projects, source: thread });
+          })()
+        : routeTarget?.kind === "draft"
           ? (() => {
-              const thread = selectThreadByRef(state, routeTarget.threadRef);
-              return isSourceForWorkspaceProject({ project: target, projects, source: thread });
+              const draft = useComposerDraftStore.getState().getDraftSession(routeTarget.draftId);
+              return isSourceForWorkspaceProject({ project: target, projects, source: draft });
             })()
-          : routeTarget?.kind === "draft"
-            ? (() => {
-                const draft = useComposerDraftStore.getState().getDraftSession(routeTarget.draftId);
-                return isSourceForWorkspaceProject({ project: target, projects, source: draft });
-              })()
-            : false;
-      const fallbackProject = projects.find(
-        (project) =>
-          project.environmentId !== target.environmentId || project.id !== target.projectId,
+          : false;
+    const fallbackProject = projects.find(
+      (project) =>
+        project.environmentId !== target.environmentId || project.id !== target.projectId,
+    );
+
+    await api.orchestration.dispatchCommand({
+      type: "project.delete",
+      commandId: newCommandId(),
+      projectId: target.projectId,
+    });
+
+    if (!shouldNavigateToFallback) {
+      return;
+    }
+
+    if (fallbackProject) {
+      await handleNewThreadRef.current(
+        scopeProjectRef(fallbackProject.environmentId, fallbackProject.id),
       );
+      return;
+    }
 
-      await api.orchestration.dispatchCommand({
-        type: "project.delete",
-        commandId: newCommandId(),
-        projectId: target.projectId,
-      });
+    await openChatIndex(router, { replace: true });
+  };
 
-      if (!shouldNavigateToFallback) {
-        return;
+  const deleteThread = async (
+    target: ScopedThreadRef,
+    opts: { deletedThreadKeys?: ReadonlySet<string> } = {},
+  ) => {
+    const api = readEnvironmentApi(target.environmentId);
+    if (!api) return;
+    const resolved = resolveThreadTarget(target);
+    if (!resolved) return;
+    const { thread, threadRef } = resolved;
+    const state = useStore.getState();
+    const threads = selectThreadsForEnvironment(state, threadRef.environmentId);
+    const projects = selectProjectsAcrossEnvironments(state);
+    const threadProject = findWorkspaceProjectForSource(projects, thread) ?? undefined;
+    const deletedIds =
+      opts.deletedThreadKeys && opts.deletedThreadKeys.size > 0
+        ? new Set<ThreadId>(
+            [...opts.deletedThreadKeys].flatMap((threadKey) => {
+              const ref = parseScopedThreadKey(threadKey);
+              return ref && ref.environmentId === threadRef.environmentId ? [ref.threadId] : [];
+            }),
+          )
+        : undefined;
+    const survivingThreads =
+      deletedIds && deletedIds.size > 0
+        ? threads.filter((entry) => entry.id === threadRef.threadId || !deletedIds.has(entry.id))
+        : threads;
+    const orphanedWorktreePath = getOrphanedWorktreePathForThread(
+      survivingThreads,
+      threadRef.threadId,
+    );
+    const displayWorktreePath = orphanedWorktreePath
+      ? formatWorktreePathForDisplay(orphanedWorktreePath)
+      : null;
+    const canDeleteWorktree = orphanedWorktreePath !== null && threadProject !== undefined;
+    const localApi = readLocalApi();
+    const shouldDeleteWorktree =
+      canDeleteWorktree &&
+      localApi &&
+      (await localApi.dialogs.confirm(
+        [
+          "This thread is the only one linked to this worktree:",
+          displayWorktreePath ?? orphanedWorktreePath,
+          "",
+          "Delete the worktree too?",
+        ].join("\n"),
+      ));
+
+    if (thread.session && thread.session.status !== "closed") {
+      await api.orchestration
+        .dispatchCommand({
+          type: "thread.session.stop",
+          commandId: newCommandId(),
+          threadId: threadRef.threadId,
+          createdAt: new Date().toISOString(),
+        })
+        .catch(() => undefined);
+    }
+
+    try {
+      await api.terminal.close({ threadId: threadRef.threadId, deleteHistory: true });
+    } catch {
+      // Terminal may already be closed.
+    }
+
+    const deletedThreadIds = deletedIds ?? new Set<ThreadId>();
+    const currentRouteThreadRef = getCurrentRouteThreadRef();
+    const shouldNavigateToFallback =
+      currentRouteThreadRef?.threadId === threadRef.threadId &&
+      currentRouteThreadRef.environmentId === threadRef.environmentId;
+    const fallbackThreadId = getFallbackThreadIdAfterDelete({
+      threads,
+      deletedThreadId: threadRef.threadId,
+      deletedThreadIds,
+      sortOrder: sidebarThreadSortOrder,
+    });
+    await api.orchestration.dispatchCommand({
+      type: "thread.delete",
+      commandId: newCommandId(),
+      threadId: threadRef.threadId,
+    });
+    clearComposerDraftForThread(threadRef);
+    if (threadProject) {
+      clearProjectDraftThreadById(
+        scopeProjectRef(threadProject.environmentId, threadProject.id),
+        threadRef,
+      );
+    }
+    clearTerminalState(threadRef);
+
+    if (shouldNavigateToFallback) {
+      if (fallbackThreadId) {
+        const fallbackThread = selectThreadByRef(
+          useStore.getState(),
+          scopeThreadRef(threadRef.environmentId, fallbackThreadId),
+        );
+        if (fallbackThread) {
+          await openThread(
+            router,
+            scopeThreadRef(fallbackThread.environmentId, fallbackThread.id),
+            { replace: true },
+          );
+          return;
+        }
       }
 
-      if (fallbackProject) {
+      if (threadProject) {
         await handleNewThreadRef.current(
-          scopeProjectRef(fallbackProject.environmentId, fallbackProject.id),
+          scopeProjectRef(threadProject.environmentId, threadProject.id),
         );
         return;
       }
 
       await openChatIndex(router, { replace: true });
-    },
-    [getCurrentRouteTarget, router],
-  );
+    }
 
-  const deleteThread = useCallback(
-    async (target: ScopedThreadRef, opts: { deletedThreadKeys?: ReadonlySet<string> } = {}) => {
-      const api = readEnvironmentApi(target.environmentId);
-      if (!api) return;
-      const resolved = resolveThreadTarget(target);
-      if (!resolved) return;
-      const { thread, threadRef } = resolved;
-      const state = useStore.getState();
-      const threads = selectThreadsForEnvironment(state, threadRef.environmentId);
-      const projects = selectProjectsAcrossEnvironments(state);
-      const threadProject = findWorkspaceProjectForSource(projects, thread) ?? undefined;
-      const deletedIds =
-        opts.deletedThreadKeys && opts.deletedThreadKeys.size > 0
-          ? new Set<ThreadId>(
-              [...opts.deletedThreadKeys].flatMap((threadKey) => {
-                const ref = parseScopedThreadKey(threadKey);
-                return ref && ref.environmentId === threadRef.environmentId ? [ref.threadId] : [];
-              }),
-            )
-          : undefined;
-      const survivingThreads =
-        deletedIds && deletedIds.size > 0
-          ? threads.filter((entry) => entry.id === threadRef.threadId || !deletedIds.has(entry.id))
-          : threads;
-      const orphanedWorktreePath = getOrphanedWorktreePathForThread(
-        survivingThreads,
-        threadRef.threadId,
+    if (!shouldDeleteWorktree || !orphanedWorktreePath || !threadProject) {
+      return;
+    }
+
+    try {
+      await ensureEnvironmentGitApi(threadProject.environmentId).removeWorktree({
+        cwd: threadProject.cwd,
+        path: orphanedWorktreePath,
+        force: true,
+      });
+      await invalidateGitQueries(queryClient, {
+        environmentId: threadProject.environmentId,
+      });
+    } catch (error) {
+      const message = formatSchemaBackedTransportErrorDescription(
+        error,
+        "Unknown error removing worktree.",
       );
-      const displayWorktreePath = orphanedWorktreePath
-        ? formatWorktreePathForDisplay(orphanedWorktreePath)
-        : null;
-      const canDeleteWorktree = orphanedWorktreePath !== null && threadProject !== undefined;
-      const localApi = readLocalApi();
-      const shouldDeleteWorktree =
-        canDeleteWorktree &&
-        localApi &&
-        (await localApi.dialogs.confirm(
-          [
-            "This thread is the only one linked to this worktree:",
-            displayWorktreePath ?? orphanedWorktreePath,
-            "",
-            "Delete the worktree too?",
-          ].join("\n"),
-        ));
-
-      if (thread.session && thread.session.status !== "closed") {
-        await api.orchestration
-          .dispatchCommand({
-            type: "thread.session.stop",
-            commandId: newCommandId(),
-            threadId: threadRef.threadId,
-            createdAt: new Date().toISOString(),
-          })
-          .catch(() => undefined);
-      }
-
-      try {
-        await api.terminal.close({ threadId: threadRef.threadId, deleteHistory: true });
-      } catch {
-        // Terminal may already be closed.
-      }
-
-      const deletedThreadIds = deletedIds ?? new Set<ThreadId>();
-      const currentRouteThreadRef = getCurrentRouteThreadRef();
-      const shouldNavigateToFallback =
-        currentRouteThreadRef?.threadId === threadRef.threadId &&
-        currentRouteThreadRef.environmentId === threadRef.environmentId;
-      const fallbackThreadId = getFallbackThreadIdAfterDelete({
-        threads,
-        deletedThreadId: threadRef.threadId,
-        deletedThreadIds,
-        sortOrder: sidebarThreadSortOrder,
-      });
-      await api.orchestration.dispatchCommand({
-        type: "thread.delete",
-        commandId: newCommandId(),
+      console.error("Failed to remove orphaned worktree after thread deletion", {
         threadId: threadRef.threadId,
+        projectCwd: threadProject.cwd,
+        worktreePath: orphanedWorktreePath,
+        error,
       });
-      clearComposerDraftForThread(threadRef);
-      if (threadProject) {
-        clearProjectDraftThreadById(
-          scopeProjectRef(threadProject.environmentId, threadProject.id),
-          threadRef,
-        );
-      }
-      clearTerminalState(threadRef);
+      toastManager.add({
+        type: "error",
+        title: "Thread deleted, but worktree removal failed",
+        description: `Could not remove ${displayWorktreePath ?? orphanedWorktreePath}. ${message}`,
+      });
+    }
+  };
 
-      if (shouldNavigateToFallback) {
-        if (fallbackThreadId) {
-          const fallbackThread = selectThreadByRef(
-            useStore.getState(),
-            scopeThreadRef(threadRef.environmentId, fallbackThreadId),
-          );
-          if (fallbackThread) {
-            await openThread(
-              router,
-              scopeThreadRef(fallbackThread.environmentId, fallbackThread.id),
-              { replace: true },
-            );
-            return;
-          }
-        }
+  const confirmAndDeleteThread = async (target: ScopedThreadRef) => {
+    const api = readEnvironmentApi(target.environmentId);
+    if (!api) return;
+    const localApi = readLocalApi();
+    const resolved = resolveThreadTarget(target);
+    if (!resolved) return;
+    const { thread } = resolved;
 
-        if (threadProject) {
-          await handleNewThreadRef.current(
-            scopeProjectRef(threadProject.environmentId, threadProject.id),
-          );
-          return;
-        }
-
-        await openChatIndex(router, { replace: true });
-      }
-
-      if (!shouldDeleteWorktree || !orphanedWorktreePath || !threadProject) {
+    if (confirmThreadDelete && localApi) {
+      const confirmed = await localApi.dialogs.confirm(
+        [
+          `Delete thread "${thread.title}"?`,
+          "This permanently clears conversation history for this thread.",
+        ].join("\n"),
+      );
+      if (!confirmed) {
         return;
       }
+    }
 
-      try {
-        await ensureEnvironmentGitApi(threadProject.environmentId).removeWorktree({
-          cwd: threadProject.cwd,
-          path: orphanedWorktreePath,
-          force: true,
-        });
-        await invalidateGitQueries(queryClient, {
-          environmentId: threadProject.environmentId,
-        });
-      } catch (error) {
-        const message = formatSchemaBackedTransportErrorDescription(
-          error,
-          "Unknown error removing worktree.",
-        );
-        console.error("Failed to remove orphaned worktree after thread deletion", {
-          threadId: threadRef.threadId,
-          projectCwd: threadProject.cwd,
-          worktreePath: orphanedWorktreePath,
-          error,
-        });
-        toastManager.add({
-          type: "error",
-          title: "Thread deleted, but worktree removal failed",
-          description: `Could not remove ${displayWorktreePath ?? orphanedWorktreePath}. ${message}`,
-        });
-      }
-    },
-    [
-      clearComposerDraftForThread,
-      clearProjectDraftThreadById,
-      clearTerminalState,
-      getCurrentRouteThreadRef,
-      queryClient,
-      router,
-      sidebarThreadSortOrder,
-    ],
-  );
+    await deleteThread(target);
+  };
 
-  const confirmAndDeleteThread = useCallback(
-    async (target: ScopedThreadRef) => {
-      const api = readEnvironmentApi(target.environmentId);
-      if (!api) return;
-      const localApi = readLocalApi();
-      const resolved = resolveThreadTarget(target);
-      if (!resolved) return;
-      const { thread } = resolved;
-
-      if (confirmThreadDelete && localApi) {
-        const confirmed = await localApi.dialogs.confirm(
-          [
-            `Delete thread "${thread.title}"?`,
-            "This permanently clears conversation history for this thread.",
-          ].join("\n"),
-        );
-        if (!confirmed) {
-          return;
-        }
-      }
-
-      await deleteThread(target);
-    },
-    [confirmThreadDelete, deleteThread],
-  );
-
-  return useMemo(
-    () => ({
-      commitRename,
-      cloneThread,
-      archiveThread,
-      archiveThreads,
-      unarchiveThread,
-      deleteThread,
-      confirmAndDeleteThread,
-      removeProjectFromSidebar,
-      archiveWarningDialog,
-    }),
-    [
-      archiveThread,
-      archiveThreads,
-      archiveWarningDialog,
-      cloneThread,
-      confirmAndDeleteThread,
-      deleteThread,
-      removeProjectFromSidebar,
-    ],
-  );
+  return {
+    commitRename,
+    cloneThread,
+    archiveThread,
+    archiveThreads,
+    unarchiveThread,
+    deleteThread,
+    confirmAndDeleteThread,
+    removeProjectFromSidebar,
+    archiveWarningDialog,
+  };
 }

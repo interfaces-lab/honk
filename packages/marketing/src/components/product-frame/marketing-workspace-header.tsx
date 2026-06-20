@@ -32,9 +32,15 @@ export function MarketingWorkspaceHeader(props: { threadTitle: string }) {
       </div>
 
       <div className="@container/header-actions flex min-w-0 flex-1 items-center bg-honk-chat px-(--honk-workbench-chrome-padding-inline) text-body">
-        <div className="no-drag flex min-w-0 flex-1 items-center overflow-hidden" data-shell-no-drag="">
+        <div
+          className="no-drag flex min-w-0 flex-1 items-center overflow-hidden"
+          data-shell-no-drag=""
+        >
           <WorkbenchChromeDivider className="hidden lg:block" />
-          <div className="no-drag flex min-w-0 shrink items-center overflow-hidden" data-shell-no-drag="">
+          <div
+            className="no-drag flex min-w-0 shrink items-center overflow-hidden"
+            data-shell-no-drag=""
+          >
             <Button
               type="button"
               variant="ghost"

@@ -35,6 +35,15 @@ export function ProjectCenterEditorSurface(props: {
   const returnToSidePanel = () => {
     workspaceEditorActions.setEditorPlacement(props.workspaceKey, "right-panel");
   };
+  const navigateBreadcrumbPath = (target: { kind: "directory" | "file"; path: string }) => {
+    if (target.kind === "file") {
+      workbenchTabPersistenceActions.createFile(props.workspaceKey, target.path);
+    } else {
+      workbenchTabPersistenceActions.createFile(props.workspaceKey, selectedPath);
+    }
+    workspaceEditorActions.setEditorPlacement(props.workspaceKey, "right-panel");
+    shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", true);
+  };
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--honk-workbench-editor-surface-background)">
@@ -91,6 +100,7 @@ export function ProjectCenterEditorSurface(props: {
             availableEditors: props.availableEditors,
           });
         }}
+        onBreadcrumbNavigate={navigateBreadcrumbPath}
       />
       <ProjectFileEditorShell
         ref={editorShellRef}

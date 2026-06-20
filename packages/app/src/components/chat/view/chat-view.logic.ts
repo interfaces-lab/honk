@@ -80,14 +80,12 @@ export function deriveChatViewLiveness(input: {
   readonly goalStatusProgressActive: boolean;
 } {
   const runtimeTurnRunning =
-    input.runtimeAgentRunActive || input.runtimeTimelineHasActiveWork;
+    input.runtimeTimelineHasActiveWork || (input.runtimeAgentRunActive && !input.latestTurnSettled);
   if (input.runtimeOwned) {
     const canonicalRuntimeTurnActive =
-      !input.latestTurnSettled &&
-      (input.activeRunningTurnId !== null || runtimeTurnRunning);
+      !input.latestTurnSettled && (input.activeRunningTurnId !== null || runtimeTurnRunning);
     const isTimelineSurfaceActive = canonicalRuntimeTurnActive || input.isCompactingActive;
-    const timelineTurnActive =
-      isTimelineSurfaceActive || input.visibleSendIntentCount > 0;
+    const timelineTurnActive = isTimelineSurfaceActive || input.visibleSendIntentCount > 0;
     const isWorking = isTimelineSurfaceActive || input.isSendBusy || input.isConnecting;
     return {
       isTurnRunning: canonicalRuntimeTurnActive || input.isCompactingActive,
@@ -101,8 +99,7 @@ export function deriveChatViewLiveness(input: {
   const runtimeSurfaceActive = runtimeTurnRunning || input.runtimePresentationActive;
   const isTimelineSurfaceActive =
     input.activeRunningTurnId !== null || runtimeSurfaceActive || input.isCompactingActive;
-  const timelineTurnActive =
-    isTimelineSurfaceActive || input.visibleSendIntentCount > 0;
+  const timelineTurnActive = isTimelineSurfaceActive || input.visibleSendIntentCount > 0;
   const isWorking = isTimelineSurfaceActive || input.isSendBusy || input.isConnecting;
   return {
     isTurnRunning:

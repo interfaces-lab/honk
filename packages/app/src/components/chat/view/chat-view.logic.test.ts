@@ -107,4 +107,70 @@ describe("deriveChatViewLiveness", () => {
       goalStatusProgressActive: false,
     });
   });
+
+  it("does not keep runtime-owned threads waiting on a stale active runtime run", () => {
+    expect(
+      deriveChatViewLiveness({
+        runtimeOwned: true,
+        latestTurnSettled: true,
+        activeRunningTurnId: null,
+        runtimeAgentRunActive: true,
+        runtimeTimelineHasActiveWork: false,
+        runtimePresentationActive: false,
+        visibleSendIntentCount: 0,
+        isCompactingActive: false,
+        isSendBusy: false,
+        isConnecting: false,
+      }),
+    ).toMatchObject({
+      isTurnRunning: false,
+      isWorking: false,
+      timelineTurnActive: false,
+      goalStatusProgressActive: false,
+    });
+  });
+
+  it("does not keep runtime-owned threads waiting on stale active runtime timeline work", () => {
+    expect(
+      deriveChatViewLiveness({
+        runtimeOwned: true,
+        latestTurnSettled: true,
+        activeRunningTurnId: null,
+        runtimeAgentRunActive: false,
+        runtimeTimelineHasActiveWork: true,
+        runtimePresentationActive: false,
+        visibleSendIntentCount: 0,
+        isCompactingActive: false,
+        isSendBusy: false,
+        isConnecting: false,
+      }),
+    ).toMatchObject({
+      isTurnRunning: false,
+      isWorking: false,
+      timelineTurnActive: false,
+      goalStatusProgressActive: false,
+    });
+  });
+
+  it("keeps runtime-owned threads active during an unsettled runtime run gap", () => {
+    expect(
+      deriveChatViewLiveness({
+        runtimeOwned: true,
+        latestTurnSettled: false,
+        activeRunningTurnId: null,
+        runtimeAgentRunActive: true,
+        runtimeTimelineHasActiveWork: false,
+        runtimePresentationActive: false,
+        visibleSendIntentCount: 0,
+        isCompactingActive: false,
+        isSendBusy: false,
+        isConnecting: false,
+      }),
+    ).toMatchObject({
+      isTurnRunning: true,
+      isWorking: true,
+      timelineTurnActive: true,
+      goalStatusProgressActive: true,
+    });
+  });
 });

@@ -1,18 +1,7 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useRouter, useSearch } from "@tanstack/react-router";
 
-import {
-  findSettingsPreferenceEntry,
-  settingsPreferenceDomId,
-} from "./settings-preference-index";
+import { findSettingsPreferenceEntry, settingsPreferenceDomId } from "./settings-preference-index";
 
 interface SettingsSearchContextValue {
   readonly focusPreference: (preferenceId: string) => void;
@@ -34,24 +23,21 @@ export function SettingsSearchProvider(props: { children: ReactNode }) {
   const { section } = useSearch({ from: "/settings" });
   const [pendingPreferenceId, setPendingPreferenceId] = useState<string | null>(null);
 
-  const focusPreference = useCallback(
-    (preferenceId: string) => {
-      const entry = findSettingsPreferenceEntry(preferenceId);
-      if (!entry) {
-        return;
-      }
+  const focusPreference = (preferenceId: string) => {
+    const entry = findSettingsPreferenceEntry(preferenceId);
+    if (!entry) {
+      return;
+    }
 
-      setPendingPreferenceId(preferenceId);
-      if (router.state.location.search.section !== entry.section) {
-        void router.navigate({
-          to: "/settings",
-          search: { section: entry.section },
-          replace: true,
-        });
-      }
-    },
-    [router],
-  );
+    setPendingPreferenceId(preferenceId);
+    if (router.state.location.search.section !== entry.section) {
+      void router.navigate({
+        to: "/settings",
+        search: { section: entry.section },
+        replace: true,
+      });
+    }
+  };
 
   useEffect(() => {
     if (!pendingPreferenceId) {
@@ -90,7 +76,7 @@ export function SettingsSearchProvider(props: { children: ReactNode }) {
     };
   }, [pendingPreferenceId, section]);
 
-  const value = useMemo(() => ({ focusPreference }), [focusPreference]);
+  const value = { focusPreference };
 
   return (
     <SettingsSearchContext.Provider value={value}>{props.children}</SettingsSearchContext.Provider>

@@ -5,7 +5,6 @@ import { IconArchive1, IconPin, IconUnpin } from "central-icons";
 import {
   type DragEvent,
   type KeyboardEvent,
-  memo,
   type MouseEvent,
   useEffect,
   useRef,
@@ -17,10 +16,7 @@ import { resolveThreadCopyId } from "~/routes/-thread-route-targets";
 import { useComposerDraftStore } from "~/stores/chat-drafts";
 import { useUiStateStore } from "~/stores/ui-state-store";
 import { ThreadContextMenu } from "./context-menu";
-import {
-  SIDEBAR_CHAT_DRAG_MIME_TYPE,
-  type SidebarChatDragPayload,
-} from "./drag-and-drop";
+import { SIDEBAR_CHAT_DRAG_MIME_TYPE, type SidebarChatDragPayload } from "./drag-and-drop";
 import { SidebarIconButton, SidebarItemTime, SidebarItemTitle } from "./item-parts";
 import { StatusSlot } from "./status";
 import type { SidebarChatItem } from "./types";
@@ -106,7 +102,7 @@ function writeSidebarChatDragPayload(event: DragEvent<HTMLElement>, item: Sideba
   attachSidebarChatDragPreview(event);
 }
 
-const AgentSidebarDraftItem = memo(function AgentSidebarDraftItem(props: {
+function AgentSidebarDraftItem(props: {
   item: DraftSidebarChatItem;
   selected: boolean;
   onSelectAgent: (id: string) => void;
@@ -135,9 +131,9 @@ const AgentSidebarDraftItem = memo(function AgentSidebarDraftItem(props: {
       <SidebarItemTime ago={props.item.ago} selected={props.selected} />
     </SidebarButton>
   );
-});
+}
 
-export const AgentSidebarThreadItem = memo(function AgentSidebarThreadItem(props: {
+export function AgentSidebarThreadItem(props: {
   item: SidebarChatItem;
   selected: boolean;
   archiveThread: ArchiveThread;
@@ -170,9 +166,9 @@ export const AgentSidebarThreadItem = memo(function AgentSidebarThreadItem(props
       {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}
     />
   );
-});
+}
 
-const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(props: {
+function AgentSidebarServerThreadItem(props: {
   item: ThreadSidebarChatItem;
   selected: boolean;
   archiveThread: ArchiveThread;
@@ -405,4 +401,4 @@ const AgentSidebarServerThreadItem = memo(function AgentSidebarServerThreadItem(
       </SidebarItem>
     </ThreadContextMenu>
   );
-});
+}

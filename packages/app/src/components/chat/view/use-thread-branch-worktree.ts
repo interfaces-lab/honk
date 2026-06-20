@@ -1,5 +1,5 @@
 import type { GitBranch } from "@honk/contracts";
-import { useCallback, useState, type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 
 import { toastManager } from "~/app/toast";
 import { formatGitActionErrorDescription } from "~/git/action-error-description";
@@ -58,9 +58,9 @@ export function useThreadBranchWorktree(
 
   const [unavailableBaseBranch, setUnavailableBaseBranch] = useState<string | null>(null);
 
-  const handleStoredBranchAvailabilityChange = useCallback((missingBranch: string | null) => {
+  const handleStoredBranchAvailabilityChange = (missingBranch: string | null) => {
     setUnavailableBaseBranch((current) => (current === missingBranch ? current : missingBranch));
-  }, []);
+  };
 
   function handleBranchEnvModeChange(mode: DraftThreadEnvMode, branch: string | null) {
     const nextBranch = mode === "worktree" ? (branch ?? activeThreadBranch) : activeThreadBranch;

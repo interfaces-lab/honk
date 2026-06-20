@@ -14,11 +14,7 @@ import {
 import type { SessionEntry, SessionManager } from "@earendil-works/pi-coding-agent";
 import { Schema } from "effect";
 import { makeRuntimeItemId, makeRuntimeSessionId, makeThreadEntryIdForRuntimeEntry } from "./ids";
-import {
-  extractMessageText,
-  extractMessageThinking,
-  toUnknownRecord,
-} from "./message-text";
+import { extractMessageText, extractMessageThinking, toUnknownRecord } from "./message-text";
 
 type RuntimeTreeNode = ReturnType<SessionManager["getTree"]>[number];
 export const CLIENT_MESSAGE_ID_SIDECAR_TYPE = "honk.client-message-id";

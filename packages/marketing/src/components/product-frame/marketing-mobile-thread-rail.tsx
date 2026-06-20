@@ -3,11 +3,7 @@ import { SidebarButton } from "@honk/honkkit/sidebar";
 import { cn } from "@honk/honkkit/utils";
 import { useCallback } from "react";
 
-import {
-  marketingDemoThreads,
-  type MarketingDemoThreadId,
-  type ThreadState,
-} from "./demo-data";
+import { marketingDemoThreads, type MarketingDemoThreadId, type ThreadState } from "./demo-data";
 
 function sidebarDotState(
   threadState: ThreadState,
@@ -61,7 +57,10 @@ export function MarketingMobileThreadRail(props: {
                   aria-hidden
                 />
               </span>
-              <span className="min-w-0 flex-1 truncate text-honk-fg-primary" data-agent-sidebar-title="">
+              <span
+                className="min-w-0 flex-1 truncate text-honk-fg-primary"
+                data-agent-sidebar-title=""
+              >
                 {thread.title}
               </span>
               <span

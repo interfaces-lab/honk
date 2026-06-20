@@ -39,7 +39,6 @@ import {
 } from "lexical";
 import {
   forwardRef,
-  useCallback,
   useImperativeHandle,
   useRef,
   type ClipboardEventHandler,
@@ -71,7 +70,6 @@ import {
 } from "./chips";
 import {
   commandText,
-  composerSegmentCollapsedLength,
   composerSegmentExpandedText,
   inlineTokenText,
   mentionText,
@@ -1413,15 +1411,12 @@ const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, Compose
     onPasteRef.current = onPaste;
     commandMenuOpenRef.current = commandMenuOpen;
     const localCaretAnchorRef = useRef<HTMLSpanElement | null>(null);
-    const setCaretAnchor = useCallback(
-      (element: HTMLSpanElement | null) => {
-        localCaretAnchorRef.current = element;
-        if (caretAnchorRef) {
-          caretAnchorRef.current = element;
-        }
-      },
-      [caretAnchorRef],
-    );
+    const setCaretAnchor = (element: HTMLSpanElement | null) => {
+      localCaretAnchorRef.current = element;
+      if (caretAnchorRef) {
+        caretAnchorRef.current = element;
+      }
+    };
     const pendingSurroundSelectionRef = useRef<SurroundSelectionSnapshot | null>(null);
     const isApplyingControlledUpdateRef = useRef(false);
     const measuredMultilineRef = useRef(false);
@@ -1460,7 +1455,7 @@ const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, Compose
       anchorElementRef: localCaretAnchorRef,
     });
 
-    const emitSnapshot = useCallback((editorState: EditorState, nextEditor: LexicalEditor) => {
+    const emitSnapshot = (editorState: EditorState, nextEditor: LexicalEditor) => {
       if (isApplyingControlledUpdateRef.current) {
         return;
       }
@@ -1480,7 +1475,7 @@ const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, Compose
         cursorAdjacentToMention,
       );
       emitMeasuredMultiline(nextEditor, onMeasuredMultilineChangeRef.current, measuredMultilineRef);
-    }, []);
+    };
 
     const focusAt = (nextCursor: number) => {
       const boundedCursor = clampCollapsedComposerCursor(snapshotRef.current.value, nextCursor);

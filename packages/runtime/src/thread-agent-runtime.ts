@@ -19,6 +19,7 @@ import type {
   TurnId,
 } from "@honk/contracts";
 import {
+  DEFAULT_RUNTIME_MODE,
   RuntimeIngestionRecordId,
   threadEntryIdForMessageId,
   type ThreadEntryId,
@@ -127,6 +128,8 @@ export interface SendMessageOptions {
   readonly source: NonNullable<PromptOptions["source"]> | null;
   readonly streamingBehavior: "steer" | "followUp" | null;
   readonly createdAt?: string;
+  readonly awaitPiQueueAcceptance?: boolean;
+  readonly runtimeUserTurnStart?: PendingRuntimeUserTurnStart;
 }
 
 export type AgentRuntimeEventListener = (event: AgentRuntimeEvent) => void;
@@ -144,7 +147,23 @@ interface PendingPromptClientMessage {
   readonly clientMessageId: MessageId;
   readonly turnId: TurnId;
   readonly entryIdsBeforePrompt: ReadonlySet<string>;
+  readonly images: readonly ThreadAgentRuntimeImageAttachment[];
+  readonly interactionMode: AgentInteractionMode;
+  readonly sourceProposedPlan: SourceProposedPlanReference | null;
+  readonly parentEntryId?: ThreadEntryId | null;
+  readonly runtimeUserTurnStart?: PendingRuntimeUserTurnStart;
 }
+
+type RuntimeUserTurnStartPayload = Extract<
+  RuntimeIngestionRecord,
+  { kind: "user.turn-start" }
+>["payload"];
+
+export type PendingRuntimeUserTurnStart = {
+  readonly modelSelection: NonNullable<RuntimeUserTurnStartPayload["modelSelection"]>;
+  readonly runtimeMode?: RuntimeUserTurnStartPayload["runtimeMode"];
+  readonly titleSeed?: RuntimeUserTurnStartPayload["titleSeed"];
+};
 
 type ForkSessionEntryOptions = Parameters<ExtensionCommandContextActions["fork"]>[1];
 
@@ -185,19 +204,17 @@ export class ThreadAgentRuntime {
   private readonly turnIdByEntryId = new Map<string, TurnId>();
   private readonly pendingMessageTurnIds: TurnId[] = [];
   private readonly pendingPromptClientMessages: PendingPromptClientMessage[] = [];
-  private readonly queuedFollowUps: ThreadAgentRuntimeQueuedFollowUp[] = [];
+  private readonly queuedComposerFollowUps: ThreadAgentRuntimeQueuedFollowUp[] = [];
   private readonly queueListeners = new Set<RuntimeQueueListener>();
   private readonly ingestionRecordListeners = new Set<RuntimeIngestionRecordListener>();
+  private readonly emittedRuntimeUserTurnStartTurnIds = new Set<string>();
   private eventSequence = 0;
   private turnSequence = 0;
   private readonly pendingFirstTurnIds: TurnId[] = [];
   private readonly pendingFollowUpTurnIds: TurnId[] = [];
   private activeTurnId: TurnId | undefined;
   private activeRunFirstTurnId: TurnId | undefined;
-  private nextTurnStartsQueuedFollowUp = false;
-  private suppressedAgentEndPending = false;
-  private queuedFollowUpDrainScheduled = false;
-  private drainingQueuedFollowUp = false;
+  private nextPiTurnStartsFollowUpPrompt = false;
   private readonly sourceProposedPlanByTurnId = new Map<
     TurnId,
     SourceProposedPlanReference | null
@@ -412,45 +429,42 @@ export class ThreadAgentRuntime {
   }
 
   getQueuedFollowUps(): readonly ThreadAgentRuntimeQueuedFollowUp[] {
-    return this.queuedFollowUps.map((item) => ({ ...item, images: [...item.images] }));
+    return this.queuedComposerFollowUps.map((item) => ({ ...item, images: [...item.images] }));
   }
 
   enqueueFollowUp(item: ThreadAgentRuntimeQueuedFollowUp): void {
-    const existingIndex = this.queuedFollowUps.findIndex(
+    const existingIndex = this.queuedComposerFollowUps.findIndex(
       (candidate) => candidate.clientMessageId === item.clientMessageId,
     );
     const nextItem = cloneQueuedFollowUp(item);
     if (existingIndex === -1) {
-      this.queuedFollowUps.push(nextItem);
+      this.queuedComposerFollowUps.push(nextItem);
     } else {
-      this.queuedFollowUps.splice(existingIndex, 1, nextItem);
+      this.queuedComposerFollowUps.splice(existingIndex, 1, nextItem);
     }
     this.emitQueueUpdate();
   }
 
   updateQueuedFollowUp(item: ThreadAgentRuntimeQueuedFollowUp): void {
-    const existingIndex = this.queuedFollowUps.findIndex(
+    const existingIndex = this.queuedComposerFollowUps.findIndex(
       (candidate) => candidate.clientMessageId === item.clientMessageId,
     );
     if (existingIndex === -1) {
       throw new Error(`Queued follow-up ${item.clientMessageId} not found.`);
     }
-    this.queuedFollowUps.splice(existingIndex, 1, cloneQueuedFollowUp(item));
+    this.queuedComposerFollowUps.splice(existingIndex, 1, cloneQueuedFollowUp(item));
     this.emitQueueUpdate();
   }
 
   removeQueuedFollowUp(clientMessageId: MessageId): void {
-    const existingIndex = this.queuedFollowUps.findIndex(
+    const existingIndex = this.queuedComposerFollowUps.findIndex(
       (candidate) => candidate.clientMessageId === clientMessageId,
     );
     if (existingIndex === -1) {
       return;
     }
-    this.queuedFollowUps.splice(existingIndex, 1);
+    this.queuedComposerFollowUps.splice(existingIndex, 1);
     this.emitQueueUpdate();
-    if (this.suppressedAgentEndPending && this.queuedFollowUps.length === 0) {
-      this.scheduleQueuedFollowUpDrain();
-    }
   }
 
   reorderQueuedFollowUp(
@@ -461,29 +475,29 @@ export class ThreadAgentRuntime {
     if (clientMessageId === targetClientMessageId) {
       return;
     }
-    const existingIndex = this.queuedFollowUps.findIndex(
+    const existingIndex = this.queuedComposerFollowUps.findIndex(
       (candidate) => candidate.clientMessageId === clientMessageId,
     );
     if (existingIndex === -1) {
       return;
     }
-    const [item] = this.queuedFollowUps.splice(existingIndex, 1);
+    const [item] = this.queuedComposerFollowUps.splice(existingIndex, 1);
     if (!item) {
       return;
     }
-    let targetIndex = insertAfter ? this.queuedFollowUps.length : 0;
+    let targetIndex = insertAfter ? this.queuedComposerFollowUps.length : 0;
     if (targetClientMessageId !== null) {
-      const resolvedTargetIndex = this.queuedFollowUps.findIndex(
+      const resolvedTargetIndex = this.queuedComposerFollowUps.findIndex(
         (candidate) => candidate.clientMessageId === targetClientMessageId,
       );
       if (resolvedTargetIndex === -1) {
-        this.queuedFollowUps.splice(existingIndex, 0, item);
+        this.queuedComposerFollowUps.splice(existingIndex, 0, item);
         return;
       }
       targetIndex = resolvedTargetIndex + (insertAfter ? 1 : 0);
     }
-    this.queuedFollowUps.splice(
-      Math.max(0, Math.min(targetIndex, this.queuedFollowUps.length)),
+    this.queuedComposerFollowUps.splice(
+      Math.max(0, Math.min(targetIndex, this.queuedComposerFollowUps.length)),
       0,
       item,
     );
@@ -491,31 +505,25 @@ export class ThreadAgentRuntime {
   }
 
   async sendQueuedFollowUpNow(clientMessageId: MessageId): Promise<void> {
-    const existingIndex = this.queuedFollowUps.findIndex(
+    const existingIndex = this.queuedComposerFollowUps.findIndex(
       (candidate) => candidate.clientMessageId === clientMessageId,
     );
     if (existingIndex === -1) {
       return;
     }
-    if (this.isBusy()) {
-      if (existingIndex !== 0) {
-        const [item] = this.queuedFollowUps.splice(existingIndex, 1);
-        if (!item) {
-          return;
-        }
-        this.queuedFollowUps.unshift(item);
-        this.emitQueueUpdate();
-      }
-      await this.abort();
-      this.scheduleQueuedFollowUpDrain();
-      return;
-    }
-
     const item = this.takeQueuedFollowUp(clientMessageId);
     if (!item) {
       return;
     }
-    await this.sendQueuedFollowUp(item);
+    try {
+      if (this.isBusy()) {
+        await this.abort();
+      }
+      await this.submitQueuedComposerFollowUpWithPiPrompt(item, null);
+    } catch (error) {
+      this.restoreQueuedFollowUp(item);
+      throw error;
+    }
   }
 
   async bindExtensions(ui = createDesktopExtensionUi()): Promise<DesktopExtensionUiController> {
@@ -747,12 +755,21 @@ export class ThreadAgentRuntime {
             clientMessageId,
             turnId,
             entryIdsBeforePrompt,
+            images,
+            interactionMode: options.interactionMode,
+            sourceProposedPlan: options.sourceProposedPlan,
+            ...(options.parentEntryId !== undefined ? { parentEntryId: options.parentEntryId } : {}),
+            ...(options.runtimeUserTurnStart
+              ? { runtimeUserTurnStart: options.runtimeUserTurnStart }
+              : {}),
           };
     if (pendingClientMessage) {
       this.pendingPromptClientMessages.push(pendingClientMessage);
     }
     this.sourceProposedPlanByTurnId.set(turnId, options.sourceProposedPlan);
-    this.emit(this.createPromptUserMessageEvent(text, turnId, clientMessageId, options.createdAt));
+    if (!queueIntoActiveRun) {
+      this.emit(this.createPromptUserMessageEvent(text, turnId, clientMessageId, options.createdAt));
+    }
     const interactionMode = queueIntoActiveRun
       ? null
       : this.interactionModeQueue.enqueue(options.interactionMode);
@@ -781,6 +798,14 @@ export class ThreadAgentRuntime {
       const promptPromise = this.session.prompt(text, {
         ...promptOptions,
       });
+      if (options.awaitPiQueueAcceptance && queueIntoActiveRun) {
+        await promptPromise;
+        if (modeToolProfileApplied) {
+          this.session.setActiveToolsByName(baselineActiveToolNames);
+          this.refreshToolCallDescriptionSupport();
+        }
+        return turnId;
+      }
       void promptPromise
         .then(() => {
           if (queueIntoActiveRun) {
@@ -808,6 +833,10 @@ export class ThreadAgentRuntime {
           this.emit(this.createEvent("tree.updated", "Session tree updated", turnId));
         })
         .catch((error: unknown) => {
+          if (queueIntoActiveRun) {
+            this.removePendingPromptClientMessage(pendingClientMessage);
+            this.clearTurnTracking(turnId);
+          }
           this.emit(
             this.createEvent(
               "runtime.error",
@@ -895,8 +924,6 @@ export class ThreadAgentRuntime {
       ...(this.activeTurnId ? { activeTurnId: this.activeTurnId } : {}),
       ...(this.activeRunFirstTurnId ? { activeRunFirstTurnId: this.activeRunFirstTurnId } : {}),
       pendingTurnCount: this.pendingFirstTurnIds.length + this.pendingFollowUpTurnIds.length,
-      suppressedAgentEndPending: this.suppressedAgentEndPending,
-      drainingQueuedFollowUp: this.drainingQueuedFollowUp,
       extraBridgeRecords: input?.extraBridgeRecords ?? [],
     });
   }
@@ -921,36 +948,31 @@ export class ThreadAgentRuntime {
   }
 
   private handlePiSessionEvent(event: AgentSessionEvent): void {
-    // Pi awaits session subscribers before it can emit later lifecycle events and clear
+    // Pi notifies session subscribers before it can emit later lifecycle events and clear
     // `isStreaming`. Honk projection/listener failures are integration failures; they must not
     // poison Pi's canonical run lifecycle.
     let turnId: TurnId | undefined;
-    const suppressTerminalAgentEnd =
-      event.type === "agent_end" && !event.willRetry && this.queuedFollowUps.length > 0;
+    let suppressTerminalAgentEnd = false;
     try {
       this.bindPendingPromptClientMessages();
       turnId = this.preparePiEventTurnId(event);
+      suppressTerminalAgentEnd =
+        event.type === "agent_end" &&
+        !event.willRetry &&
+        !isAbortedPiAgentEnd(event) &&
+        this.submitNextQueuedComposerFollowUpWithPiFollowUp(event);
       if (!suppressTerminalAgentEnd) {
-        const runtimeEvent = this.withSourceProposedPlanData(
-          projectPiAgentSessionEvent(event, {
-            threadId: this.threadId,
-            runtimeSessionId: this.runtimeSessionId,
-            ...(turnId ? { turnId } : {}),
-            sequence: this.nextEventSequence(),
-          }),
-          turnId,
-        );
+        const runtimeEvent = this.projectRuntimePiSessionEvent(event, turnId);
         this.emit(runtimeEvent);
+        this.emitRuntimeUserTurnStartRecord(event, runtimeEvent, turnId);
         this.emitCreatePlanEvent(event, turnId);
       }
     } catch (error) {
       warnRuntimeBridgeError(`processing Pi session event ${event.type}`, error);
     } finally {
       try {
-        this.finishPiEventTurn(event, turnId);
-        if (suppressTerminalAgentEnd) {
-          this.suppressedAgentEndPending = true;
-          this.scheduleQueuedFollowUpDrain();
+        if (!suppressTerminalAgentEnd) {
+          this.finishPiEventTurn(event, turnId);
         }
       } catch (error) {
         warnRuntimeBridgeError(`finishing Pi session event ${event.type}`, error);
@@ -990,7 +1012,8 @@ export class ThreadAgentRuntime {
 
     if (parentEntryId === null) {
       this.session.sessionManager.resetLeaf();
-      this.session.agent.state.messages = this.session.sessionManager.buildSessionContext().messages;
+      this.session.agent.state.messages =
+        this.session.sessionManager.buildSessionContext().messages;
       return;
     }
 
@@ -1008,8 +1031,7 @@ export class ThreadAgentRuntime {
       this.pendingFirstTurnIds.length > 0 ||
       this.pendingFollowUpTurnIds.length > 0 ||
       this.activeTurnId !== undefined ||
-      this.activeRunFirstTurnId !== undefined ||
-      this.suppressedAgentEndPending
+      this.activeRunFirstTurnId !== undefined
     );
   }
 
@@ -1150,7 +1172,7 @@ export class ThreadAgentRuntime {
     if (event.type === "turn_end" && turnId && this.activeTurnId === turnId) {
       this.captureQueuedPromptEntriesForTurn(turnId);
       if (event.toolResults.length === 0 && this.pendingFollowUpTurnIds.length > 0) {
-        this.nextTurnStartsQueuedFollowUp = true;
+        this.nextPiTurnStartsFollowUpPrompt = true;
       }
       this.activeTurnId = undefined;
       this.clearTurnTracking(turnId);
@@ -1159,15 +1181,15 @@ export class ThreadAgentRuntime {
     if (event.type === "agent_end" && !event.willRetry) {
       this.pendingFirstTurnIds.splice(0);
       this.pendingFollowUpTurnIds.splice(0);
-      this.nextTurnStartsQueuedFollowUp = false;
+      this.nextPiTurnStartsFollowUpPrompt = false;
       this.activeTurnId = undefined;
       this.activeRunFirstTurnId = undefined;
     }
   }
 
   private consumeTurnStartId(): TurnId {
-    if (this.nextTurnStartsQueuedFollowUp) {
-      this.nextTurnStartsQueuedFollowUp = false;
+    if (this.nextPiTurnStartsFollowUpPrompt) {
+      this.nextPiTurnStartsFollowUpPrompt = false;
       const pendingFollowUpTurnId = this.pendingFollowUpTurnIds.shift();
       if (pendingFollowUpTurnId) {
         return pendingFollowUpTurnId;
@@ -1214,7 +1236,8 @@ export class ThreadAgentRuntime {
 
     const remaining: PendingPromptClientMessage[] = [];
     for (const pending of this.pendingPromptClientMessages) {
-      if (!this.attachClientMessageIdToPromptEntry(pending)) {
+      const attached = this.attachClientMessageIdToPromptEntry(pending);
+      if (!attached || pending.runtimeUserTurnStart) {
         remaining.push(pending);
       }
     }
@@ -1225,7 +1248,12 @@ export class ThreadAgentRuntime {
     );
   }
 
-  private attachClientMessageIdToPromptEntry(input: PendingPromptClientMessage): boolean {
+  private attachClientMessageIdToPromptEntry(input: {
+    readonly text: string;
+    readonly clientMessageId: MessageId;
+    readonly turnId: TurnId;
+    readonly entryIdsBeforePrompt: ReadonlySet<string>;
+  }): boolean {
     const matchingEntry = this.session.sessionManager.getEntries().find((entry) => {
       if (
         input.entryIdsBeforePrompt.has(entry.id) ||
@@ -1291,6 +1319,7 @@ export class ThreadAgentRuntime {
   private clearTurnTracking(turnId: TurnId): void {
     this.sourceProposedPlanByTurnId.delete(turnId);
     this.proposedPlanTurnIds.delete(turnId);
+    this.emittedRuntimeUserTurnStartTurnIds.delete(String(turnId));
     const pendingTurnIndex = this.pendingFirstTurnIds.findIndex(
       (pendingTurnId) => pendingTurnId === turnId,
     );
@@ -1327,89 +1356,97 @@ export class ThreadAgentRuntime {
     }
   }
 
+  private submitNextQueuedComposerFollowUpWithPiFollowUp(
+    terminalEvent: Extract<AgentSessionEvent, { type: "agent_end" }>,
+  ): boolean {
+    const item = this.takeQueuedFollowUp();
+    if (!item) {
+      return false;
+    }
+    const pending = this.registerQueuedComposerFollowUpTurn(item);
+    this.nextPiTurnStartsFollowUpPrompt = true;
+    void this.session.followUp(item.input, toPiImageContent(item.images)).catch((error: unknown) => {
+      this.nextPiTurnStartsFollowUpPrompt = false;
+      this.removePendingPromptClientMessage(pending);
+      this.clearTurnTracking(pending.turnId);
+      this.restoreQueuedFollowUp(item);
+      this.emit(
+        this.createEvent(
+          "runtime.error",
+          error instanceof Error
+            ? error.message
+            : "Failed to submit queued follow-up to Pi.",
+        ),
+      );
+      this.emit(this.projectRuntimePiSessionEvent(terminalEvent, undefined));
+      this.finishPiEventTurn(terminalEvent, undefined);
+    });
+    return true;
+  }
+
+  private registerQueuedComposerFollowUpTurn(
+    item: ThreadAgentRuntimeQueuedFollowUp,
+  ): PendingPromptClientMessage {
+    const turnId = makeTurnId(this.threadId, ++this.turnSequence);
+    this.pendingFollowUpTurnIds.push(turnId);
+    if (!this.activeRunFirstTurnId) {
+      this.activeRunFirstTurnId = turnId;
+    }
+    this.sourceProposedPlanByTurnId.set(turnId, item.sourceProposedPlan);
+    const pending = {
+      text: item.input,
+      clientMessageId: item.clientMessageId,
+      turnId,
+      entryIdsBeforePrompt: new Set(
+        this.session.sessionManager.getEntries().map((entry) => entry.id),
+      ),
+      images: item.images,
+      interactionMode: item.interactionMode,
+      sourceProposedPlan: item.sourceProposedPlan,
+      ...(item.parentEntryId !== undefined ? { parentEntryId: item.parentEntryId } : {}),
+      runtimeUserTurnStart: {
+        modelSelection: item.modelSelection,
+        runtimeMode: item.runtimeMode,
+        titleSeed: item.titleSeed,
+      },
+    } satisfies PendingPromptClientMessage;
+    this.pendingPromptClientMessages.push(pending);
+    return pending;
+  }
+
   private takeQueuedFollowUp(clientMessageId?: MessageId): ThreadAgentRuntimeQueuedFollowUp | null {
     const index =
       clientMessageId === undefined
         ? 0
-        : this.queuedFollowUps.findIndex(
+        : this.queuedComposerFollowUps.findIndex(
             (candidate) => candidate.clientMessageId === clientMessageId,
           );
-    if (index < 0 || index >= this.queuedFollowUps.length) {
+    if (index < 0 || index >= this.queuedComposerFollowUps.length) {
       return null;
     }
-    const [item] = this.queuedFollowUps.splice(index, 1);
+    const [item] = this.queuedComposerFollowUps.splice(index, 1);
     this.emitQueueUpdate();
     return item ? cloneQueuedFollowUp(item) : null;
   }
 
   private restoreQueuedFollowUp(item: ThreadAgentRuntimeQueuedFollowUp): void {
     if (
-      this.queuedFollowUps.some((candidate) => candidate.clientMessageId === item.clientMessageId)
+      this.queuedComposerFollowUps.some(
+        (candidate) => candidate.clientMessageId === item.clientMessageId,
+      )
     ) {
       return;
     }
-    this.queuedFollowUps.unshift(cloneQueuedFollowUp(item));
+    this.queuedComposerFollowUps.unshift(cloneQueuedFollowUp(item));
     this.emitQueueUpdate();
   }
 
-  private scheduleQueuedFollowUpDrain(): void {
-    if (this.queuedFollowUpDrainScheduled) {
-      return;
-    }
-    this.queuedFollowUpDrainScheduled = true;
-    setTimeout(() => {
-      this.queuedFollowUpDrainScheduled = false;
-      void this.drainNextQueuedFollowUp();
-    }, 0);
-  }
-
-  private async drainNextQueuedFollowUp(): Promise<void> {
-    if (this.drainingQueuedFollowUp || this.isBusy()) {
-      if (this.queuedFollowUps.length > 0 || this.suppressedAgentEndPending) {
-        this.scheduleQueuedFollowUpDrain();
-      }
-      return;
-    }
-
-    const item = this.takeQueuedFollowUp();
-    if (!item) {
-      this.finishSuppressedAgentEnd();
-      return;
-    }
-
-    this.drainingQueuedFollowUp = true;
-    const hadSuppressedAgentEnd = this.suppressedAgentEndPending;
-    try {
-      this.suppressedAgentEndPending = false;
-      await this.sendQueuedFollowUp(item);
-    } catch (error) {
-      this.restoreQueuedFollowUp(item);
-      if (hadSuppressedAgentEnd) {
-        this.suppressedAgentEndPending = true;
-      }
-      this.emit(
-        this.createEvent(
-          "runtime.error",
-          error instanceof Error ? error.message : "Failed to send queued follow-up.",
-        ),
-      );
-      this.finishSuppressedAgentEnd();
-    } finally {
-      this.drainingQueuedFollowUp = false;
-    }
-  }
-
-  private finishSuppressedAgentEnd(): void {
-    if (!this.suppressedAgentEndPending) {
-      return;
-    }
-    this.suppressedAgentEndPending = false;
-    this.emit(this.createEvent("agent.completed", "Agent completed"));
-  }
-
-  private async sendQueuedFollowUp(item: ThreadAgentRuntimeQueuedFollowUp): Promise<void> {
+  private async submitQueuedComposerFollowUpWithPiPrompt(
+    item: ThreadAgentRuntimeQueuedFollowUp,
+    streamingBehavior: "followUp" | null,
+  ): Promise<void> {
     const createdAt = new Date().toISOString();
-    const turnId = await this.sendMessage(item.input, {
+    await this.sendMessage(item.input, {
       clientMessageId: item.clientMessageId,
       replacesClientMessageId: item.replacesClientMessageId,
       ...(item.parentEntryId !== undefined ? { parentEntryId: item.parentEntryId } : {}),
@@ -1418,41 +1455,15 @@ export class ThreadAgentRuntime {
       images: item.images,
       expandPromptTemplates: null,
       source: null,
-      streamingBehavior: null,
+      streamingBehavior,
       createdAt,
-    });
-    this.emitRuntimeIngestionRecords([
-      this.createQueuedFollowUpUserTurnStartRecord(item, turnId, createdAt),
-    ]);
-  }
-
-  private createQueuedFollowUpUserTurnStartRecord(
-    item: ThreadAgentRuntimeQueuedFollowUp,
-    turnId: TurnId,
-    createdAt: string,
-  ): RuntimeIngestionRecord {
-    const recordId = RuntimeIngestionRecordId.make(
-      `runtime-user-turn:${this.threadId}:${this.runtimeSessionId}:${item.clientMessageId}`,
-    );
-    return {
-      recordId,
-      threadId: this.threadId,
-      runtimeSessionId: this.runtimeSessionId,
-      sourceEventId: `queued-follow-up:${turnId}`,
-      createdAt,
-      kind: "user.turn-start",
-      payload: {
-        messageId: item.clientMessageId,
-        text: item.input,
-        attachments: item.images.map((image) => ({ ...image })),
+      awaitPiQueueAcceptance: true,
+      runtimeUserTurnStart: {
         modelSelection: item.modelSelection,
-        titleSeed: item.titleSeed,
         runtimeMode: item.runtimeMode,
-        interactionMode: item.interactionMode,
-        ...(item.parentEntryId !== undefined ? { parentEntryId: item.parentEntryId } : {}),
-        ...(item.sourceProposedPlan ? { sourceProposedPlan: item.sourceProposedPlan } : {}),
+        titleSeed: item.titleSeed,
       },
-    };
+    });
   }
 
   private hydrateClientMessageIdSidecars(): void {
@@ -1568,6 +1579,126 @@ export class ThreadAgentRuntime {
     };
   }
 
+  private projectRuntimePiSessionEvent(
+    event: AgentSessionEvent,
+    turnId: TurnId | undefined,
+  ): AgentRuntimeEvent {
+    return this.withPromptClientMessageData(
+      event,
+      this.withSourceProposedPlanData(
+        projectPiAgentSessionEvent(event, {
+          threadId: this.threadId,
+          runtimeSessionId: this.runtimeSessionId,
+          ...(turnId ? { turnId } : {}),
+          sequence: this.nextEventSequence(),
+        }),
+        turnId,
+      ),
+      turnId,
+    );
+  }
+
+  private withPromptClientMessageData(
+    piEvent: AgentSessionEvent,
+    event: AgentRuntimeEvent,
+    turnId: TurnId | undefined,
+  ): AgentRuntimeEvent {
+    const pending = this.pendingPromptClientMessageForPiUserEvent(piEvent, turnId);
+    if (!pending) {
+      return event;
+    }
+    const data =
+      typeof event.data === "object" && event.data !== null && !Array.isArray(event.data)
+        ? { ...event.data, clientMessageId: pending.clientMessageId }
+        : { value: event.data, clientMessageId: pending.clientMessageId };
+    return {
+      ...event,
+      data,
+    };
+  }
+
+  private emitRuntimeUserTurnStartRecord(
+    piEvent: AgentSessionEvent,
+    event: AgentRuntimeEvent,
+    turnId: TurnId | undefined,
+  ): void {
+    if (piEvent.type !== "message_end" || turnId === undefined) {
+      return;
+    }
+    const pending = this.pendingPromptClientMessageForPiUserEvent(piEvent, turnId);
+    if (!pending?.runtimeUserTurnStart) {
+      return;
+    }
+    const turnKey = String(turnId);
+    if (this.emittedRuntimeUserTurnStartTurnIds.has(turnKey)) {
+      return;
+    }
+    this.emittedRuntimeUserTurnStartTurnIds.add(turnKey);
+    this.emitRuntimeIngestionRecords([
+      this.createRuntimeUserTurnStartRecord({
+        pending,
+        turnId,
+        createdAt: event.createdAt,
+      }),
+    ]);
+  }
+
+  private pendingPromptClientMessageForPiUserEvent(
+    event: AgentSessionEvent,
+    turnId: TurnId | undefined,
+  ): PendingPromptClientMessage | null {
+    if (
+      turnId === undefined ||
+      !("message" in event) ||
+      event.message.role !== "user"
+    ) {
+      return null;
+    }
+    const text = extractMessageText(event.message);
+    return (
+      this.pendingPromptClientMessages.find(
+        (pending) => String(pending.turnId) === String(turnId) && pending.text === text,
+      ) ?? null
+    );
+  }
+
+  private createRuntimeUserTurnStartRecord(input: {
+    readonly pending: PendingPromptClientMessage;
+    readonly turnId: TurnId;
+    readonly createdAt: string;
+  }): RuntimeIngestionRecord {
+    const runtimeUserTurnStart = input.pending.runtimeUserTurnStart;
+    if (!runtimeUserTurnStart) {
+      throw new Error("Cannot create runtime user turn start record without metadata.");
+    }
+    const recordId = RuntimeIngestionRecordId.make(
+      `runtime-user-turn:${this.threadId}:${this.runtimeSessionId}:${input.pending.clientMessageId}`,
+    );
+    return {
+      recordId,
+      threadId: this.threadId,
+      runtimeSessionId: this.runtimeSessionId,
+      sourceEventId: `runtime-user-turn:${input.turnId}`,
+      createdAt: input.createdAt,
+      kind: "user.turn-start",
+      payload: {
+        messageId: input.pending.clientMessageId,
+        text: input.pending.text,
+        attachments: input.pending.images.map((image) => ({ ...image })),
+        modelSelection: runtimeUserTurnStart.modelSelection,
+        titleSeed: runtimeUserTurnStart.titleSeed ?? input.pending.text,
+        runtimeMode: runtimeUserTurnStart.runtimeMode ?? DEFAULT_RUNTIME_MODE,
+        interactionMode: input.pending.interactionMode,
+        ...(input.pending.parentEntryId !== undefined
+          ? { parentEntryId: input.pending.parentEntryId }
+          : {}),
+        ...(input.pending.sourceProposedPlan
+          ? { sourceProposedPlan: input.pending.sourceProposedPlan }
+          : {}),
+      },
+    };
+  }
+
   private emitCreatePlanEvent(event: AgentSessionEvent, turnId: TurnId | undefined): void {
     if (
       !turnId ||
@@ -1611,6 +1742,18 @@ export class ThreadAgentRuntime {
 
 function warnRuntimeBridgeError(context: string, error: unknown): void {
   console.warn(`[runtime] Failed while ${context}: ${formatUnknownError(error)}`);
+}
+
+function isAbortedPiAgentEnd(event: AgentSessionEvent): boolean {
+  if (event.type !== "agent_end") {
+    return false;
+  }
+  return event.messages.some((message) => {
+    if (message.role !== "assistant" || !("stopReason" in message)) {
+      return false;
+    }
+    return message.stopReason === "aborted";
+  });
 }
 
 function formatUnknownError(error: unknown): string {

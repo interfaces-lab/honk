@@ -10,6 +10,7 @@ import {
   resolveDraftIdForRoute,
   resolveSidebarSelectionId,
   resolveThreadCopyId,
+  resolveThreadRouteTargetFromPathname,
   resolveThreadRouteTarget,
 } from "./-thread-route-targets";
 
@@ -65,6 +66,29 @@ describe("resolveThreadRouteTarget", () => {
     ).toEqual({
       kind: "server",
       threadRef: draftThreadRef,
+    });
+  });
+});
+
+describe("resolveThreadRouteTargetFromPathname", () => {
+  it("parses pathless draft urls", () => {
+    expect(resolveThreadRouteTargetFromPathname(`/draft/${draftId}`)).toEqual({
+      kind: "draft",
+      draftId,
+    });
+  });
+
+  it("parses generated route-id-shaped draft paths", () => {
+    expect(resolveThreadRouteTargetFromPathname(`/_chat/draft/${draftId}`)).toEqual({
+      kind: "draft",
+      draftId,
+    });
+  });
+
+  it("parses pathless server urls", () => {
+    expect(resolveThreadRouteTargetFromPathname(`/${environmentId}/${serverThreadId}`)).toEqual({
+      kind: "server",
+      threadRef: serverThreadRef,
     });
   });
 });

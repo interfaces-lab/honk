@@ -1053,8 +1053,9 @@ export const ClientOrchestrationCommand = Schema.Union([
 ]);
 export type ClientOrchestrationCommand = typeof ClientOrchestrationCommand.Type;
 
-export const RuntimeIngestionRecordId =
-  TrimmedNonEmptyString.pipe(Schema.brand("RuntimeIngestionRecordId"));
+export const RuntimeIngestionRecordId = TrimmedNonEmptyString.pipe(
+  Schema.brand("RuntimeIngestionRecordId"),
+);
 export type RuntimeIngestionRecordId = typeof RuntimeIngestionRecordId.Type;
 
 const RuntimeIngestionRecordBase = {

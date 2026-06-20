@@ -163,19 +163,6 @@ function pushEditorHistory(
   };
 }
 
-function fileStateFromHistory(history: WorkspaceEditorHistory): WorkspaceEditorFileState {
-  const normalizedHistory = normalizeHistory(history);
-  return {
-    activePath:
-      normalizedHistory.index >= 0
-        ? (normalizedHistory.paths[normalizedHistory.index] ?? null)
-        : null,
-    previewPath: null,
-    history: normalizedHistory,
-    placement: "right-panel",
-  };
-}
-
 function readPersistedWorkspaceEditors(): Record<string, WorkspaceEditorFileState> {
   if (typeof window === "undefined") return {};
   const raw = window.localStorage.getItem(WORKSPACE_EDITOR_STORAGE_KEY);

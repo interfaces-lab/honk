@@ -200,28 +200,20 @@ function useChatLoaderPhases(options: { animated: boolean; hoverAnimated: boolea
 
 export function ChatLoader({
   animated = true,
-  cellPadding = 1,
   className,
-  dotSize = 2,
   hoverAnimated = false,
   label = "Thinking",
-  maxExtent,
   onMouseEnter,
   onMouseLeave,
-  pattern = "full",
-  speed = 1,
   style,
   ...props
 }: ChatLoaderProps) {
   const reducedMotion = usePrefersReducedMotion();
-  const {
-    phase,
-    onMouseEnter: onLoaderMouseEnter,
-    onMouseLeave: onLoaderMouseLeave,
-  } = useChatLoaderPhases({
-    animated: animated && !reducedMotion,
-    hoverAnimated: hoverAnimated && !reducedMotion,
-  });
+  const { onMouseEnter: onLoaderMouseEnter, onMouseLeave: onLoaderMouseLeave } =
+    useChatLoaderPhases({
+      animated: animated && !reducedMotion,
+      hoverAnimated: hoverAnimated && !reducedMotion,
+    });
   const handleMouseEnter: MouseEventHandler<HTMLDivElement> = (event) => {
     onMouseEnter?.(event);
     onLoaderMouseEnter(event);

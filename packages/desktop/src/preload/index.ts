@@ -49,8 +49,7 @@ const RUNTIME_ENQUEUE_FOLLOW_UP_CHANNEL = "desktop:runtime-enqueue-follow-up";
 const RUNTIME_UPDATE_QUEUED_FOLLOW_UP_CHANNEL = "desktop:runtime-update-queued-follow-up";
 const RUNTIME_REMOVE_QUEUED_FOLLOW_UP_CHANNEL = "desktop:runtime-remove-queued-follow-up";
 const RUNTIME_REORDER_QUEUED_FOLLOW_UP_CHANNEL = "desktop:runtime-reorder-queued-follow-up";
-const RUNTIME_SEND_QUEUED_FOLLOW_UP_NOW_CHANNEL =
-  "desktop:runtime-send-queued-follow-up-now";
+const RUNTIME_SEND_QUEUED_FOLLOW_UP_NOW_CHANNEL = "desktop:runtime-send-queued-follow-up-now";
 const RUNTIME_COMPACT_THREAD_CHANNEL = "desktop:runtime-compact-thread";
 const RUNTIME_ABORT_CHANNEL = "desktop:runtime-abort";
 const RUNTIME_RESPOND_EXTENSION_UI_CHANNEL = "desktop:runtime-respond-extension-ui";

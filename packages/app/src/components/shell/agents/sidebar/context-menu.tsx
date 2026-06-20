@@ -70,9 +70,7 @@ export function ThreadContextMenu(props: {
         <WorkbenchContextMenuItem
           label={props.pinned ? "Unpin" : "Pin"}
           onClick={props.onTogglePinned}
-          icon={
-            props.pinned ? <IconUnpin aria-hidden /> : <IconPin aria-hidden />
-          }
+          icon={props.pinned ? <IconUnpin aria-hidden /> : <IconPin aria-hidden />}
         >
           {props.pinned ? "Unpin" : "Pin"}
         </WorkbenchContextMenuItem>

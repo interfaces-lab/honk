@@ -132,12 +132,7 @@ export function HumanMessage({
   }
 
   return (
-    <ChatMessageBubble
-      messageRole="user"
-      body={body}
-      footer={turnErrorFooter}
-      media={media}
-    />
+    <ChatMessageBubble messageRole="user" body={body} footer={turnErrorFooter} media={media} />
   );
 }
 

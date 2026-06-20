@@ -820,6 +820,9 @@ export function ComposerCommandMenuPositioned(props: ComposerCommandMenuPosition
   // observe it. A new anchor identity per revision re-runs Floating UI positioning when
   // the trigger-origin span moves (Cursor-style MutationObserver → updateFloating). Do not
   // `key={anchorRevision}` the popup — remounting causes jitter (see AGENTS.md).
+  // Floating UI needs a fresh virtual-anchor identity when caret revision changes;
+  // React Compiler does not preserve object identity for this external consumer.
+  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- anchor identity contract
   const revisionedAnchor = useMemo<ComposerMenuPopoverAnchor>(
     () => ({ getBoundingClientRect: () => anchor.getBoundingClientRect() }),
     [anchor, anchorRevision],

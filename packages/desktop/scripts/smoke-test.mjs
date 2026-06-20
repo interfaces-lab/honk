@@ -7,9 +7,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const desktopDir = resolve(__dirname, "..");
 const electronBin = resolve(desktopDir, "node_modules/.bin/electron");
 const mainJs = resolve(desktopDir, "out/main/index.js");
-let mainBundle = "";
 try {
-  mainBundle = await readFile(mainJs, "utf8");
+  await readFile(mainJs, "utf8");
 } catch (error) {
   console.error(`\nDesktop smoke test failed: could not read ${mainJs}.`);
   console.error(error);

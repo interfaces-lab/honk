@@ -18,7 +18,6 @@ import {
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import {
   CURSOR_COMPOSER_ACP_MODEL_ID,
-  CURSOR_COMPOSER_FAST_OPTION_ID,
   CURSOR_COMPOSER_MODEL_ID,
   CURSOR_COMPOSER_MODEL_NAME,
   CURSOR_PROVIDER_ID,
@@ -508,7 +507,9 @@ function estimateTextTokens(text: string): number {
 }
 
 function estimateCursorPromptTokens(prompt: CursorUserMessage): number {
-  return estimateTextTokens(prompt.text) + (prompt.images?.length ?? 0) * CURSOR_IMAGE_TOKEN_ESTIMATE;
+  return (
+    estimateTextTokens(prompt.text) + (prompt.images?.length ?? 0) * CURSOR_IMAGE_TOKEN_ESTIMATE
+  );
 }
 
 function stringifyUsageValue(value: unknown): string {
@@ -681,7 +682,8 @@ function applyCursorAcpSessionUpdate(
       applyCursorAcpToolUpdate(stream, message, update, toolEventState);
       break;
     case "plan":
-      turnState.pendingPlanMarkdown = cursorAcpPlanMarkdown(update) ?? turnState.pendingPlanMarkdown;
+      turnState.pendingPlanMarkdown =
+        cursorAcpPlanMarkdown(update) ?? turnState.pendingPlanMarkdown;
       break;
     default:
       break;
@@ -699,7 +701,8 @@ function applyCursorAcpToolUpdate(
   if (!rawToolCall) {
     return;
   }
-  const callId = stringField(mergedUpdate, "toolCallId") ?? `cursor-acp:${cursorToolFingerprint(rawToolCall)}`;
+  const callId =
+    stringField(mergedUpdate, "toolCallId") ?? `cursor-acp:${cursorToolFingerprint(rawToolCall)}`;
   const status = normalizeAcpToolStatus(mergedUpdate.status);
   if (status === "completed" || status === "failed") {
     appendCursorToolCompleted(stream, message, callId, rawToolCall, toolEventState);
@@ -844,7 +847,9 @@ function cursorToolArguments(toolCall: Record<string, unknown>): Record<string, 
   return recordField(toolCall, "args") ?? recordField(toolCall, "input") ?? {};
 }
 
-function cursorAcpSyntheticRawToolCall(update: Record<string, unknown>): Record<string, unknown> | null {
+function cursorAcpSyntheticRawToolCall(
+  update: Record<string, unknown>,
+): Record<string, unknown> | null {
   const kind = stringField(update, "kind") ?? "cursor";
   const title = stringField(update, "title");
   const rawInput = toRecord(update.rawInput) ?? {};
@@ -896,7 +901,9 @@ function normalizeCommandValue(value: unknown): string | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
-  const parts = value.flatMap((part) => (typeof part === "string" && part.trim() ? [part.trim()] : []));
+  const parts = value.flatMap((part) =>
+    typeof part === "string" && part.trim() ? [part.trim()] : [],
+  );
   return parts.length > 0 ? parts.join(" ") : undefined;
 }
 
@@ -979,7 +986,7 @@ function cursorAcpOutputText(output: unknown): string | undefined {
 
 function cursorAcpErrorOutput(output: unknown): string | undefined {
   const record = toRecord(output);
-  return record ? textFromUnknown(record.error) ?? textFromUnknown(record.message) : undefined;
+  return record ? (textFromUnknown(record.error) ?? textFromUnknown(record.message)) : undefined;
 }
 
 function textFromUnknown(value: unknown): string | undefined {
@@ -1007,7 +1014,11 @@ function textFromAcpToolContent(value: unknown): string | undefined {
   for (const item of value) {
     const record = toRecord(item);
     const content = toRecord(record?.content);
-    if (record?.type === "content" && content?.type === "text" && typeof content.text === "string") {
+    if (
+      record?.type === "content" &&
+      content?.type === "text" &&
+      typeof content.text === "string"
+    ) {
       const text = content.text.trim();
       if (text) {
         chunks.push(text);
@@ -1055,7 +1066,9 @@ function selectAcpPermissionOption(params: unknown): string {
   return (
     findPermissionOption(records, "allow_once") ??
     findPermissionOption(records, "allow_always") ??
-    records.map((record) => stringField(record, "optionId")).find((id): id is string => Boolean(id)) ??
+    records
+      .map((record) => stringField(record, "optionId"))
+      .find((id): id is string => Boolean(id)) ??
     "allow-once"
   );
 }
@@ -1103,7 +1116,10 @@ function isCursorFastConfigOption(option: Record<string, unknown>): boolean {
   );
 }
 
-function cursorBooleanConfigValue(option: Record<string, unknown>, enabled: boolean): string | boolean | undefined {
+function cursorBooleanConfigValue(
+  option: Record<string, unknown>,
+  enabled: boolean,
+): string | boolean | undefined {
   if (option.type === "boolean") {
     return enabled;
   }
@@ -1166,7 +1182,9 @@ function updatePendingPlanFromTodos(turnState: CursorAcpTurnState, params: unkno
   }
   const lines = todos.flatMap((todo) => {
     const record = toRecord(todo);
-    const content = record ? stringField(record, "content") ?? stringField(record, "title") : undefined;
+    const content = record
+      ? (stringField(record, "content") ?? stringField(record, "title"))
+      : undefined;
     return content ? [`- ${content}`] : [];
   });
   if (lines.length > 0) {
@@ -1322,7 +1340,11 @@ function jsonRpcError(rawError: unknown, method: string): Error {
   return new Error(`Cursor ACP ${method} failed: ${message}`);
 }
 
-function formatCursorAcpError(error: unknown, apiKey: string | undefined, stderr: string | undefined): string {
+function formatCursorAcpError(
+  error: unknown,
+  apiKey: string | undefined,
+  stderr: string | undefined,
+): string {
   const rawMessage = error instanceof Error ? error.message : String(error);
   const message = stderr ? `${rawMessage}\n${stderr}` : rawMessage;
   const scrubbed = scrubSensitiveText(message, apiKey);

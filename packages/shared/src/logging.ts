@@ -331,14 +331,21 @@ function text(input: unknown): string {
   if (input === undefined) return "";
   if (Array.isArray(input)) return input.map((item) => String(item)).join(" ");
   if (input instanceof Error) return input.message;
+  if (typeof input === "string") return input;
+  if (typeof input === "number" || typeof input === "boolean" || typeof input === "bigint") {
+    return String(input);
+  }
+  if (typeof input === "symbol" || typeof input === "function") {
+    return input.toString();
+  }
   if (typeof input === "object" && input !== null) {
     try {
       return JSON.stringify(input);
     } catch {
-      return String(input);
+      return "[unstringifiable object]";
     }
   }
-  return String(input);
+  return "";
 }
 
 function readService(fields: Record<string, unknown>): string | undefined {
@@ -382,7 +389,6 @@ function sanitizeValue(value: unknown, seen: WeakSet<object>, depth: number): un
     };
   }
   if (depth > MAX_SANITIZE_DEPTH) return "[truncated-depth]";
-  if (typeof value !== "object") return String(value);
   if (seen.has(value)) return "[circular]";
   seen.add(value);
   if (Array.isArray(value)) {

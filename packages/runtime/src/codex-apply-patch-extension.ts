@@ -87,8 +87,7 @@ type ApplyPatchDetails = ApplyPatchSuccessDetails | ApplyPatchPartialFailureDeta
 
 interface ApplyPatchState {
   readonly cwd: string;
-  readonly originalContentByPath: Map<string, string | null>;
-  readonly relativePathByPath: Map<string, string>;
+  readonly unifiedDiffs: string[];
   readonly changedFiles: Set<string>;
   readonly createdFiles: Set<string>;
   readonly deletedFiles: Set<string>;
@@ -124,6 +123,14 @@ interface UnifiedDiffRow {
   readonly text: string;
   readonly oldLine?: number | undefined;
   readonly newLine?: number | undefined;
+}
+
+interface AppliedPatchHunk {
+  readonly oldStart: number;
+  readonly newStart: number;
+  readonly oldCount: number;
+  readonly newCount: number;
+  readonly lines: readonly PatchLine[];
 }
 
 export function createCodexApplyPatchExtension(policy: AgentModelPolicy): ExtensionFactory {
@@ -188,7 +195,7 @@ function prepareApplyPatchArguments(args: unknown): { readonly input: string } {
   return { input };
 }
 
-async function applyCodexPatch(input: {
+export async function applyCodexPatch(input: {
   readonly cwd: string;
   readonly patchText: string;
   readonly signal?: AbortSignal | undefined;
@@ -210,6 +217,7 @@ async function applyCodexPatch(input: {
       const result = summarizePatchState(state);
       const appliedFiles = result.changedFiles.filter((path) => !failedFiles.includes(path));
       const recoveryMessage = buildPartialFailureMessage(message, failedFiles, appliedFiles);
+      const patch = createUnifiedDiff(state);
       return {
         status: "partial_failure",
         result,
@@ -220,22 +228,24 @@ async function applyCodexPatch(input: {
           mustReadFiles: failedFiles,
           mustNotReadFiles: appliedFiles,
         },
+        ...(patch.length > 0 ? { patch } : {}),
       };
     }
   }
 
   const result = summarizePatchState(state);
+  const patch = createUnifiedDiff(state);
   return {
     status: "success",
     result,
+    ...(patch.length > 0 ? { patch } : {}),
   };
 }
 
 function createApplyPatchState(cwd: string): ApplyPatchState {
   return {
     cwd,
-    originalContentByPath: new Map(),
-    relativePathByPath: new Map(),
+    unifiedDiffs: [],
     changedFiles: new Set(),
     createdFiles: new Set(),
     deletedFiles: new Set(),
@@ -257,31 +267,28 @@ async function applyPatchAction(state: ApplyPatchState, action: PatchAction): Pr
 
 async function applyAddAction(state: ApplyPatchState, action: AddPatchAction): Promise<void> {
   const target = resolvePatchPath(state.cwd, action.path);
-  await recordOriginalContent(state, target);
   const existing = await readTextFileOrNull(target.absolutePath);
   if (existing !== null) {
     throw new Error(`${target.relativePath} already exists.`);
   }
 
+  const nextContent = joinFileLines(action.lines, action.lines.length > 0);
   await mkdir(dirname(target.absolutePath), { recursive: true });
-  await writeFile(
-    target.absolutePath,
-    joinFileLines(action.lines, action.lines.length > 0),
-    "utf8",
-  );
+  await writeFile(target.absolutePath, nextContent, "utf8");
+  pushUnifiedDiff(state, formatFileDiff(target.relativePath, null, nextContent));
   state.createdFiles.add(target.relativePath);
   state.changedFiles.add(target.relativePath);
 }
 
 async function applyDeleteAction(state: ApplyPatchState, action: DeletePatchAction): Promise<void> {
   const target = resolvePatchPath(state.cwd, action.path);
-  await recordOriginalContent(state, target);
   const existing = await readTextFileOrNull(target.absolutePath);
   if (existing === null) {
     throw new Error(`${target.relativePath} does not exist.`);
   }
 
   await rm(target.absolutePath, { force: false });
+  pushUnifiedDiff(state, formatFileDiff(target.relativePath, existing, null));
   state.deletedFiles.add(target.relativePath);
   state.changedFiles.add(target.relativePath);
 }
@@ -289,10 +296,6 @@ async function applyDeleteAction(state: ApplyPatchState, action: DeletePatchActi
 async function applyUpdateAction(state: ApplyPatchState, action: UpdatePatchAction): Promise<void> {
   const source = resolvePatchPath(state.cwd, action.path);
   const moveTarget = action.movePath ? resolvePatchPath(state.cwd, action.movePath) : null;
-  await recordOriginalContent(state, source);
-  if (moveTarget) {
-    await recordOriginalContent(state, moveTarget);
-  }
 
   const existing = await readTextFileOrNull(source.absolutePath);
   if (existing === null) {
@@ -306,10 +309,20 @@ async function applyUpdateAction(state: ApplyPatchState, action: UpdatePatchActi
   }
 
   const originalHadFinalNewline = existing.endsWith("\n");
+  const originalLineCount = splitFileLines(existing).length;
   let nextLines = splitFileLines(existing);
   let cursor = 0;
+  const appliedHunks: AppliedPatchHunk[] = [];
   for (const hunk of action.hunks) {
+    const lineOffset = nextLines.length - originalLineCount;
     const applied = applyPatchHunk(nextLines, hunk, cursor);
+    appliedHunks.push({
+      oldStart: Math.max(1, applied.matchIndex - lineOffset + 1),
+      newStart: applied.matchIndex + 1,
+      oldCount: hunk.lines.filter((line) => line.marker !== "+").length,
+      newCount: hunk.lines.filter((line) => line.marker !== "-").length,
+      lines: hunk.lines,
+    });
     nextLines = applied.lines;
     cursor = applied.nextCursor;
     state.fuzz += applied.fuzz;
@@ -324,13 +337,26 @@ async function applyUpdateAction(state: ApplyPatchState, action: UpdatePatchActi
     state.movedFiles.add(`${source.relativePath} -> ${moveTarget.relativePath}`);
     state.changedFiles.add(moveTarget.relativePath);
   }
+  pushUnifiedDiff(
+    state,
+    formatAppliedUpdateDiff(
+      source.relativePath,
+      moveTarget?.relativePath ?? source.relativePath,
+      appliedHunks,
+    ),
+  );
 }
 
 function applyPatchHunk(
   lines: readonly string[],
   hunk: PatchHunk,
   cursor: number,
-): { readonly lines: string[]; readonly nextCursor: number; readonly fuzz: number } {
+): {
+  readonly lines: string[];
+  readonly nextCursor: number;
+  readonly fuzz: number;
+  readonly matchIndex: number;
+} {
   const oldSequence = hunk.lines.filter((line) => line.marker !== "+").map((line) => line.text);
   const newSequence = hunk.lines.filter((line) => line.marker !== "-").map((line) => line.text);
   const anchorIndex = hunk.header ? findSectionAnchor(lines, hunk.header, cursor) : -1;
@@ -361,6 +387,7 @@ function applyPatchHunk(
     lines: nextLines,
     nextCursor: match.index + newSequence.length,
     fuzz: match.fuzzy ? 1 : 0,
+    matchIndex: match.index,
   };
 }
 
@@ -583,19 +610,6 @@ function resolvePatchPath(cwd: string, patchPath: string): ResolvedPatchPath {
   return { absolutePath, relativePath };
 }
 
-async function recordOriginalContent(
-  state: ApplyPatchState,
-  target: ResolvedPatchPath,
-): Promise<void> {
-  if (!state.originalContentByPath.has(target.absolutePath)) {
-    state.originalContentByPath.set(
-      target.absolutePath,
-      await readTextFileOrNull(target.absolutePath),
-    );
-    state.relativePathByPath.set(target.absolutePath, target.relativePath);
-  }
-}
-
 async function readTextFileOrNull(path: string): Promise<string | null> {
   try {
     return await readFile(path, "utf8");
@@ -636,21 +650,42 @@ function summarizePatchState(state: ApplyPatchState): ApplyPatchResultSummary {
   };
 }
 
-async function createUnifiedDiff(state: ApplyPatchState): Promise<string> {
-  const fileDiffs: string[] = [];
-  for (const [absolutePath, original] of state.originalContentByPath.entries()) {
-    const current = await readTextFileOrNull(absolutePath);
-    if (original === current) {
-      continue;
-    }
-    const relativePath =
-      state.relativePathByPath.get(absolutePath) ?? relative(state.cwd, absolutePath);
-    const diff = formatFileDiff(relativePath, original, current);
-    if (diff.trim().length > 0) {
-      fileDiffs.push(diff);
-    }
+function pushUnifiedDiff(state: ApplyPatchState, diff: string): void {
+  if (diff.trim().length > 0) {
+    state.unifiedDiffs.push(diff);
   }
-  return fileDiffs.join("\n");
+}
+
+function createUnifiedDiff(state: ApplyPatchState): string {
+  return state.unifiedDiffs.join("\n");
+}
+
+function formatAppliedUpdateDiff(
+  oldPath: string,
+  newPath: string,
+  hunks: readonly AppliedPatchHunk[],
+): string {
+  if (hunks.length === 0) {
+    return "";
+  }
+
+  return [
+    `diff --git a/${oldPath} b/${newPath}`,
+    `--- a/${oldPath}`,
+    `+++ b/${newPath}`,
+    ...hunks.map(formatAppliedHunk),
+  ].join("\n");
+}
+
+function formatAppliedHunk(hunk: AppliedPatchHunk): string {
+  return [
+    `@@ -${hunk.oldStart},${hunk.oldCount} +${hunk.newStart},${hunk.newCount} @@`,
+    ...hunk.lines.map(formatPatchLine),
+  ].join("\n");
+}
+
+function formatPatchLine(line: PatchLine): string {
+  return `${line.marker}${line.text}`;
 }
 
 export function formatFileDiff(

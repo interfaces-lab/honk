@@ -2,7 +2,7 @@
 
 import { IconBrowserTabs } from "central-icons";
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { normalizePathSeparators } from "@honk/shared/paths";
 
 import { useCopyToClipboard } from "~/hooks/use-copy-to-clipboard";
@@ -94,10 +94,6 @@ function readWebviewNavigationState(
   }
 }
 
-function isEmptyBrowserState(state: BrowserWorkbenchState): boolean {
-  return !state.committedUrl && !state.pendingUrl;
-}
-
 function isShortcutEventLike(value: unknown): value is ShortcutEventLike {
   if (typeof value !== "object" || value === null) return false;
   return (
@@ -110,12 +106,10 @@ function isShortcutEventLike(value: unknown): value is ShortcutEventLike {
 }
 
 function useBrowserWebviewPreloadUrl(): string | undefined {
-  return useMemo(() => {
-    if (typeof window === "undefined") return undefined;
-    return browserWebviewPreloadPathToUrl(
-      window.desktopBridge?.getBrowserWebviewPreloadPath?.() ?? null,
-    );
-  }, []);
+  if (typeof window === "undefined") return undefined;
+  return browserWebviewPreloadPathToUrl(
+    window.desktopBridge?.getBrowserWebviewPreloadPath?.() ?? null,
+  );
 }
 
 function toDetectedLocalhostServers(ports: readonly number[]): DetectedLocalhostServer[] {
@@ -156,60 +150,51 @@ export function BrowserPanel(props: BrowserPanelProps) {
   const browserIsEmpty = !browserCommittedUrl && !browserPendingUrl;
   const webviewInstanceKey = `${props.browserId ?? "default"}:${browserIsEmpty ? "empty" : "loaded"}`;
 
-  const updateBrowserState = useCallback(
-    (patch: Partial<BrowserWorkbenchState>) => {
-      shellPanelsActions.setBrowserWorkbenchState(props.workspaceKey, patch, props.browserId);
-    },
-    [props.browserId, props.workspaceKey],
-  );
+  const updateBrowserState = (patch: Partial<BrowserWorkbenchState>) => {
+    shellPanelsActions.setBrowserWorkbenchState(props.workspaceKey, patch, props.browserId);
+  };
 
-  const focusLocationBar = useCallback(() => {
+  const focusLocationBar = () => {
     inputRef.current?.focus();
     inputRef.current?.select();
-  }, []);
+  };
 
-  const matchesFocusLocationBarShortcut = useCallback(
-    (event: ShortcutEventLike) =>
-      resolveShortcutCommand(event, keybindings, {
-        context: {
-          browserActive,
-          terminalFocus: false,
-        },
-      }) === "browser.focusLocationBar",
-    [browserActive, keybindings],
-  );
+  const matchesFocusLocationBarShortcut = (event: ShortcutEventLike) =>
+    resolveShortcutCommand(event, keybindings, {
+      context: {
+        browserActive,
+        terminalFocus: false,
+      },
+    }) === "browser.focusLocationBar";
 
-  const navigateToUrl = useCallback(
-    async (url: string) => {
+  const navigateToUrl = async (url: string) => {
+    updateBrowserState({
+      committedUrl: url,
+      inputValue: url,
+      isLoading: true,
+      loadError: null,
+      pendingUrl: url,
+    });
+
+    const webview = webviewRef.current;
+    if (!webview) {
       updateBrowserState({
-        committedUrl: url,
-        inputValue: url,
-        isLoading: true,
-        loadError: null,
-        pendingUrl: url,
+        isLoading: false,
+        pendingUrl: null,
       });
+      return;
+    }
 
-      const webview = webviewRef.current;
-      if (!webview) {
-        updateBrowserState({
-          isLoading: false,
-          pendingUrl: null,
-        });
-        return;
-      }
-
-      try {
-        await webview.loadURL(url);
-      } catch (error) {
-        updateBrowserState({
-          isLoading: false,
-          loadError: error instanceof Error ? error.message : "Failed to load page.",
-          pendingUrl: null,
-        });
-      }
-    },
-    [updateBrowserState],
-  );
+    try {
+      await webview.loadURL(url);
+    } catch (error) {
+      updateBrowserState({
+        isLoading: false,
+        loadError: error instanceof Error ? error.message : "Failed to load page.",
+        pendingUrl: null,
+      });
+    }
+  };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -296,7 +281,7 @@ export function BrowserPanel(props: BrowserPanelProps) {
     };
   }, [browserActive, browserIsEmpty]);
 
-  const syncLoadedWebviewState = useCallback(() => {
+  const syncLoadedWebviewState = () => {
     const webview = webviewRef.current;
     if (!webview) {
       updateBrowserState({
@@ -334,20 +319,20 @@ export function BrowserPanel(props: BrowserPanelProps) {
         title: readWebviewTitle(webview),
       });
     }
-  }, [browserCommittedUrl, browserIsEmpty, props.tabId, props.workspaceKey, updateBrowserState]);
+  };
 
-  const syncWebviewNavigationState = useCallback(() => {
+  const syncWebviewNavigationState = () => {
     const webview = webviewRef.current;
     if (!webview) return;
     updateBrowserState(readWebviewNavigationState(webview));
-  }, [updateBrowserState]);
+  };
 
-  const handleWebviewRef = useCallback((element: HTMLElement | null) => {
+  const handleWebviewRef = (element: HTMLElement | null) => {
     const webview = element as HTMLWebViewElement | null;
     webview?.setAttribute("allowpopups", "true");
     webviewRef.current = webview;
     setWebviewElement(webview);
-  }, []);
+  };
 
   useEffect(() => {
     if (!browserActive) return undefined;
@@ -458,23 +443,23 @@ export function BrowserPanel(props: BrowserPanelProps) {
     webviewElement,
   ]);
 
-  const goBack = useCallback(() => {
+  const goBack = () => {
     const webview = webviewRef.current;
     if (!webview || !browserState.canGoBack) return;
     webview.goBack();
     syncWebviewNavigationState();
     window.setTimeout(syncWebviewNavigationState, 120);
-  }, [browserState.canGoBack, syncWebviewNavigationState]);
+  };
 
-  const goForward = useCallback(() => {
+  const goForward = () => {
     const webview = webviewRef.current;
     if (!webview || !browserState.canGoForward) return;
     webview.goForward();
     syncWebviewNavigationState();
     window.setTimeout(syncWebviewNavigationState, 120);
-  }, [browserState.canGoForward, syncWebviewNavigationState]);
+  };
 
-  const reload = useCallback(() => {
+  const reload = () => {
     const targetUrl = browserState.committedUrl;
     if (!targetUrl) return;
     updateBrowserState({
@@ -488,9 +473,9 @@ export function BrowserPanel(props: BrowserPanelProps) {
       return;
     }
     webview.reload();
-  }, [browserState.committedUrl, navigateToUrl, updateBrowserState]);
+  };
 
-  const hardReload = useCallback(() => {
+  const hardReload = () => {
     const targetUrl = browserState.committedUrl;
     if (!targetUrl) return;
     updateBrowserState({
@@ -504,50 +489,47 @@ export function BrowserPanel(props: BrowserPanelProps) {
       return;
     }
     browserWebviewHardReload(webview);
-  }, [browserState.committedUrl, navigateToUrl, updateBrowserState]);
+  };
 
-  const openDevTools = useCallback(() => {
+  const openDevTools = () => {
     const webview = webviewRef.current;
     if (!webview) return;
     browserWebviewOpenDevTools(webview);
-  }, []);
+  };
 
-  const copyCurrentUrl = useCallback(() => {
+  const copyCurrentUrl = () => {
     const url = browserState.committedUrl;
     if (!url) return;
     copyToClipboard(url, undefined);
-  }, [browserState.committedUrl, copyToClipboard]);
+  };
 
-  const takeScreenshot = useCallback(() => {
+  const takeScreenshot = () => {
     const webview = webviewRef.current;
     if (!webview) return;
     void browserWebviewCapturePage(webview).then((dataUrl) => {
       if (!dataUrl) return;
       void copyBrowserScreenshotDataUrl(dataUrl);
     });
-  }, []);
+  };
 
-  const clearBrowserPartitionStorage = useCallback(
-    async (
-      storages: readonly (
-        | "cachestorage"
-        | "cookies"
-        | "filesystem"
-        | "indexdb"
-        | "localstorage"
-        | "serviceworkers"
-        | "shadercache"
-        | "websql"
-      )[],
-    ) => {
-      const clearStorage = window.desktopBridge?.clearBrowserPartitionStorage;
-      if (!clearStorage) return;
-      await clearStorage({ storages });
-    },
-    [],
-  );
+  const clearBrowserPartitionStorage = async (
+    storages: readonly (
+      | "cachestorage"
+      | "cookies"
+      | "filesystem"
+      | "indexdb"
+      | "localstorage"
+      | "serviceworkers"
+      | "shadercache"
+      | "websql"
+    )[],
+  ) => {
+    const clearStorage = window.desktopBridge?.clearBrowserPartitionStorage;
+    if (!clearStorage) return;
+    await clearStorage({ storages });
+  };
 
-  const clearBrowsingHistory = useCallback(() => {
+  const clearBrowsingHistory = () => {
     const webview = webviewRef.current;
     if (webview) {
       browserWebviewClearHistory(webview);
@@ -556,20 +538,20 @@ export function BrowserPanel(props: BrowserPanelProps) {
       canGoBack: false,
       canGoForward: false,
     });
-  }, [updateBrowserState]);
+  };
 
-  const clearCookies = useCallback(() => {
+  const clearCookies = () => {
     void clearBrowserPartitionStorage(["cookies"]);
-  }, [clearBrowserPartitionStorage]);
+  };
 
-  const clearCache = useCallback(() => {
+  const clearCache = () => {
     void clearBrowserPartitionStorage([
       "cachestorage",
       "filesystem",
       "shadercache",
       "serviceworkers",
     ]);
-  }, [clearBrowserPartitionStorage]);
+  };
 
   const locationPlaceholder = detectedLocalhostServers[0]?.url ?? "Search or enter URL";
 

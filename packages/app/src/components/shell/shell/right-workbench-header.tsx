@@ -10,13 +10,11 @@ import {
   IconSidebarHiddenRightWide,
 } from "central-icons";
 import {
-  memo,
   type ComponentType,
   type CSSProperties,
   type DragEvent,
   type KeyboardEvent,
   type ReactNode,
-  useCallback,
   useRef,
   useState,
 } from "react";
@@ -30,10 +28,7 @@ import {
   WorkbenchMenuPrimaryText,
 } from "@honk/honkkit/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
-import {
-  WorkbenchIconButton,
-  workbenchIconButtonVariants,
-} from "@honk/honkkit/workbench-button";
+import { WorkbenchIconButton, workbenchIconButtonVariants } from "@honk/honkkit/workbench-button";
 import { WorkbenchChromeDivider } from "@honk/honkkit/workbench-chrome-row";
 
 import { cn } from "~/lib/utils";
@@ -321,20 +316,20 @@ function WorkbenchTabClusters(props: {
   const activeMeta =
     props.tabs.find((tab) => tab.id === props.activeTabId) ?? props.tabs[0] ?? null;
 
-  const setNextDropTarget = useCallback((nextTarget: TabDropTarget | null) => {
+  const setNextDropTarget = (nextTarget: TabDropTarget | null) => {
     setDropTarget((current) =>
       current?.insertIndex === nextTarget?.insertIndex && current?.left === nextTarget?.left
         ? current
         : nextTarget,
     );
-  }, []);
+  };
 
-  const syncScrollMaskState = useCallback(() => {
+  const syncScrollMaskState = () => {
     const next = scrollMaskStateFromElement(scrollableRef.current);
     setScrollMaskState((current) => (areScrollMaskStatesEqual(current, next) ? current : next));
-  }, []);
+  };
 
-  const onTabDragStart = useCallback((event: DragEvent<HTMLElement>, tabId: string) => {
+  const onTabDragStart = (event: DragEvent<HTMLElement>, tabId: string) => {
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest("[data-no-drag]")) {
       event.preventDefault();
@@ -346,61 +341,55 @@ function WorkbenchTabClusters(props: {
     event.dataTransfer.setData("text/plain", `workbench-tab:${tabId}`);
     setDraggingTabId(tabId);
     setDropTarget(null);
-  }, []);
+  };
 
-  const resetDragState = useCallback(() => {
+  const resetDragState = () => {
     setDraggingTabId(null);
     setDropTarget(null);
-  }, []);
+  };
 
-  const onScrollableDragOver = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      const viewport = viewportRef.current;
-      const tabId = readDraggedTabId(event, draggingTabId);
-      if (!viewport || !tabId || !props.tabs.some((tab) => tab.id === tabId)) {
-        setNextDropTarget(null);
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      event.dataTransfer.dropEffect = "move";
-      setNextDropTarget(tabDropTargetFromPoint(viewport, event.clientX));
-    },
-    [draggingTabId, props.tabs, setNextDropTarget],
-  );
+  const onScrollableDragOver = (event: DragEvent<HTMLDivElement>) => {
+    const viewport = viewportRef.current;
+    const tabId = readDraggedTabId(event, draggingTabId);
+    if (!viewport || !tabId || !props.tabs.some((tab) => tab.id === tabId)) {
+      setNextDropTarget(null);
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+    setNextDropTarget(tabDropTargetFromPoint(viewport, event.clientX));
+  };
 
-  const onScrollableDrop = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      const viewport = viewportRef.current;
-      const tabId = readDraggedTabId(event, draggingTabId);
-      if (!viewport || !tabId) {
-        resetDragState();
-        return;
-      }
-      const currentIndex = props.tabs.findIndex((tab) => tab.id === tabId);
-      if (currentIndex < 0) {
-        resetDragState();
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      const target = dropTarget ?? tabDropTargetFromPoint(viewport, event.clientX);
-      const targetIndex =
-        currentIndex < target.insertIndex ? target.insertIndex - 1 : target.insertIndex;
-      if (targetIndex !== currentIndex) {
-        props.onMoveTab(tabId, targetIndex);
-      }
+  const onScrollableDrop = (event: DragEvent<HTMLDivElement>) => {
+    const viewport = viewportRef.current;
+    const tabId = readDraggedTabId(event, draggingTabId);
+    if (!viewport || !tabId) {
       resetDragState();
-    },
-    [draggingTabId, dropTarget, props.tabs, props.onMoveTab, resetDragState],
-  );
+      return;
+    }
+    const currentIndex = props.tabs.findIndex((tab) => tab.id === tabId);
+    if (currentIndex < 0) {
+      resetDragState();
+      return;
+    }
 
-  const onScrollableDragLeave = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const target = dropTarget ?? tabDropTargetFromPoint(viewport, event.clientX);
+    const targetIndex =
+      currentIndex < target.insertIndex ? target.insertIndex - 1 : target.insertIndex;
+    if (targetIndex !== currentIndex) {
+      props.onMoveTab(tabId, targetIndex);
+    }
+    resetDragState();
+  };
+
+  const onScrollableDragLeave = (event: DragEvent<HTMLDivElement>) => {
     const nextTarget = event.relatedTarget instanceof Node ? event.relatedTarget : null;
     if (nextTarget && event.currentTarget.contains(nextTarget)) return;
     setDropTarget(null);
-  }, []);
+  };
 
   useLayoutSyncEffect(() => {
     if (draggingTabId) return;
@@ -473,7 +462,7 @@ function WorkbenchTabClusters(props: {
 
 function NewTabMenu(props: {
   onActivateChanges: () => void;
-  onCreateBrowser: (url?: string | undefined) => void;
+  onCreateBrowser: (url?: string) => void;
   onCreateFile: () => void;
   onCreateTerminal: () => void;
 }) {
@@ -583,16 +572,14 @@ interface RightWorkbenchHeaderProps {
   onActivateChanges: () => void;
   onActivateTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
-  onCreateBrowser: (url?: string | undefined) => void;
+  onCreateBrowser: (url?: string) => void;
   onCreateFile: () => void;
   onCreateTerminal: () => void;
   onHidePanel: () => void;
   onMoveTab: (tabId: string, targetIndex: number) => void;
 }
 
-export const RightWorkbenchHeader = memo(function RightWorkbenchHeader(
-  props: RightWorkbenchHeaderProps,
-) {
+export function RightWorkbenchHeader(props: RightWorkbenchHeaderProps) {
   const trailing = (
     <>
       <NewTabMenu
@@ -633,4 +620,4 @@ export const RightWorkbenchHeader = memo(function RightWorkbenchHeader(
       </>
     </RightWorkbenchToolIsland>
   );
-});
+}

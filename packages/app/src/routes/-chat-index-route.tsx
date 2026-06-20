@@ -1,6 +1,6 @@
 import type { EnvironmentId, ScopedProjectRef } from "@honk/contracts";
 import { useRouter } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { ChatPaneTilingSurface } from "~/components/chat/view/chat-pane-tiling-surface";
 import {
@@ -60,13 +60,10 @@ function ChatIndexAgentPanel(props: {
   const environmentProjectCount = useStore(
     (state) => selectEnvironmentState(state, props.activeEnvironmentId).projectIds.length,
   );
-  const indexSelectedProjectRef = useMemo(
-    () =>
-      selectedProjectRef?.environmentId && selectedProjectRef.projectId
-        ? scopeProjectRef(selectedProjectRef.environmentId, selectedProjectRef.projectId)
-        : null,
-    [selectedProjectRef?.environmentId, selectedProjectRef?.projectId],
-  );
+  const indexSelectedProjectRef =
+    selectedProjectRef?.environmentId && selectedProjectRef.projectId
+      ? scopeProjectRef(selectedProjectRef.environmentId, selectedProjectRef.projectId)
+      : null;
 
   const draftIdToRestore = initialRouteTarget?.kind === "draft" ? initialRouteTarget.draftId : null;
 

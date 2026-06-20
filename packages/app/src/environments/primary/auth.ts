@@ -123,7 +123,9 @@ function readCurrentHttpBaseUrl(): string | null {
 }
 
 function readBootstrapCredential(): string | null {
-  return takePairingTokenFromUrl() ?? readDesktopLocalEnvironmentBootstrap()?.bootstrapToken ?? null;
+  return (
+    takePairingTokenFromUrl() ?? readDesktopLocalEnvironmentBootstrap()?.bootstrapToken ?? null
+  );
 }
 
 function parseServerBearerSessionRecord(raw: string | null): ServerBearerSessionRecord | null {

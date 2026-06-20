@@ -74,10 +74,7 @@ function uniqueLocalhostPorts(ports: readonly number[]): number[] {
   return [...new Set(ports.filter((port) => Number.isInteger(port) && port > 0 && port <= 65535))];
 }
 
-function setWindowBackgroundColorIfChanged(
-  window: Electron.BrowserWindow,
-  color: string,
-): void {
+function setWindowBackgroundColorIfChanged(window: Electron.BrowserWindow, color: string): void {
   if (windowBackgroundColorByWindow.get(window) === color) {
     return;
   }
@@ -95,10 +92,7 @@ function setWindowDisplayZoomIfChanged(window: Electron.BrowserWindow, factor: n
   windowDisplayZoomByWindow.set(window, factor);
 }
 
-function setWindowVibrancyIfChanged(
-  window: Electron.BrowserWindow,
-  enabled: boolean,
-): void {
+function setWindowVibrancyIfChanged(window: Electron.BrowserWindow, enabled: boolean): void {
   if (windowVibrancyByWindow.get(window) === enabled) {
     return;
   }

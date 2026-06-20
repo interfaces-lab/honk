@@ -3,11 +3,7 @@ import { TrimmedNonEmptyString } from "@honk/contracts";
 
 import { runProcess } from "../process-runner";
 import { GitHubCliError } from "@honk/contracts";
-import {
-  GitHubCli,
-  type GitHubRepositoryCloneUrls,
-  type GitHubCliShape,
-} from "./GitHubCli.service.ts";
+import { GitHubCli, type GitHubCliShape } from "./GitHubCli.service.ts";
 import {
   decodeGitHubPullRequestJson,
   decodeGitHubPullRequestListJson,

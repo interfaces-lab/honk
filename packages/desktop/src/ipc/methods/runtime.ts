@@ -337,7 +337,9 @@ export const compactRuntimeThread = makeIpcMethod({
       yield* elog.info("runtime thread compact started", { threadId: input.threadId });
       const host = yield* requireRuntimeHost;
       yield* Effect.promise(() => host.compactThread(input)).pipe(
-        Effect.tapError((error) => logRuntimeFailure("runtime thread compact failed", input, error)),
+        Effect.tapError((error) =>
+          logRuntimeFailure("runtime thread compact failed", input, error),
+        ),
       );
       yield* elog.debug("runtime thread compact completed", { threadId: input.threadId });
     }),

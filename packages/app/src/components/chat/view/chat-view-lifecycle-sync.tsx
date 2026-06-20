@@ -192,10 +192,7 @@ function acquireRuntimeThreadFocus(threadId: ThreadId): () => void {
   };
 }
 
-function releaseRuntimeThreadFocus(
-  registry: RuntimeThreadFocusRegistry,
-  threadId: ThreadId,
-): void {
+function releaseRuntimeThreadFocus(registry: RuntimeThreadFocusRegistry, threadId: ThreadId): void {
   const record = registry.records.get(threadId);
   if (!record) {
     return;

@@ -33,7 +33,6 @@ export type RuntimeCanonicalTurnState =
       readonly kind: "queued-follow-up";
       readonly turnId: TurnId | null;
       readonly queuedCount: number;
-      readonly suppressedTerminalCompletion: boolean;
     }
   | {
       readonly kind: "completed";
@@ -78,8 +77,6 @@ export function projectRuntimeCanonicalThread(input: {
   readonly activeTurnId?: TurnId;
   readonly activeRunFirstTurnId?: TurnId;
   readonly pendingTurnCount?: number;
-  readonly suppressedAgentEndPending?: boolean;
-  readonly drainingQueuedFollowUp?: boolean;
   readonly extraBridgeRecords?: ReadonlyArray<RuntimeIngestionRecord>;
 }): RuntimeCanonicalThread {
   const sessionTree = projectRuntimeSessionTree({
@@ -108,8 +105,6 @@ export function projectRuntimeCanonicalThread(input: {
       ...(input.activeRunFirstTurnId ? { activeRunFirstTurnId: input.activeRunFirstTurnId } : {}),
       pendingTurnCount: input.pendingTurnCount ?? 0,
       queuedFollowUps: input.queuedFollowUps ?? [],
-      suppressedAgentEndPending: input.suppressedAgentEndPending ?? false,
-      drainingQueuedFollowUp: input.drainingQueuedFollowUp ?? false,
     }),
     queuedFollowUps: input.queuedFollowUps ?? [],
     bridgeFacts,
@@ -160,7 +155,9 @@ function runtimeBridgeRecordsForRuntimeEvent(event: AgentRuntimeEvent): RuntimeI
   ];
 }
 
-function bridgeFactsFromRecords(records: ReadonlyArray<RuntimeIngestionRecord>): RuntimeBridgeFact[] {
+function bridgeFactsFromRecords(
+  records: ReadonlyArray<RuntimeIngestionRecord>,
+): RuntimeBridgeFact[] {
   const factsById = new Map<string, RuntimeBridgeFact>();
   for (const record of records) {
     factsById.set(record.recordId, {
@@ -179,8 +176,6 @@ function runtimeCanonicalTurnState(input: {
   readonly activeRunFirstTurnId?: TurnId;
   readonly pendingTurnCount: number;
   readonly queuedFollowUps: ReadonlyArray<ThreadAgentRuntimeQueuedFollowUp>;
-  readonly suppressedAgentEndPending: boolean;
-  readonly drainingQueuedFollowUp: boolean;
 }): RuntimeCanonicalTurnState {
   const latestEvent = [...input.runtimeEvents]
     .toSorted(
@@ -188,16 +183,16 @@ function runtimeCanonicalTurnState(input: {
         left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
     )
     .at(-1);
-  const activeTurnId = input.activeTurnId ?? input.activeRunFirstTurnId ?? latestEvent?.turnId ?? null;
+  const activeTurnId =
+    input.activeTurnId ?? input.activeRunFirstTurnId ?? latestEvent?.turnId ?? null;
   if (input.pendingTurnCount > 0 || input.activeTurnId || input.activeRunFirstTurnId) {
     return { kind: "running", turnId: activeTurnId };
   }
-  if (input.suppressedAgentEndPending || input.drainingQueuedFollowUp || input.queuedFollowUps.length > 0) {
+  if (input.queuedFollowUps.length > 0) {
     return {
       kind: "queued-follow-up",
       turnId: activeTurnId,
       queuedCount: input.queuedFollowUps.length,
-      suppressedTerminalCompletion: input.suppressedAgentEndPending,
     };
   }
   if (latestEvent?.type === "runtime.error") {

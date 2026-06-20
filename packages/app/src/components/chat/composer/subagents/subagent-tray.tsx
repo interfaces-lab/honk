@@ -7,15 +7,7 @@ import {
 } from "@honk/contracts";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { IconCrossSmall } from "central-icons";
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  type CSSProperties,
-  type RefObject,
-} from "react";
+import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
 import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import { Button } from "@honk/honkkit/button";
 import { ToolCallLine } from "@honk/honkkit/tool-call";
@@ -268,28 +260,18 @@ function SubagentTrayBody(props: {
   const { subagent } = props;
   const transcriptItems = subagent?.transcriptItems ?? EMPTY_SUBAGENT_TRANSCRIPT_ITEMS;
   const logs = subagent?.logs ?? EMPTY_SUBAGENT_LOGS;
-  const renderableTranscriptItems = useMemo(
-    () => transcriptItems.filter(hasRenderableSubagentTranscriptItem),
-    [transcriptItems],
-  );
+  const renderableTranscriptItems = transcriptItems.filter(hasRenderableSubagentTranscriptItem);
   const hasActivityTranscript = renderableTranscriptItems.length > 0;
-  const runningLogs = useMemo(
-    () => deriveVisibleSubagentLogs(logs, hasActivityTranscript),
-    [hasActivityTranscript, logs],
-  );
+  const runningLogs = deriveVisibleSubagentLogs(logs, hasActivityTranscript);
   const streamingLogId = runningLogs.at(-1)?.id;
   const scrollElementRef = useRef<HTMLDivElement | null>(null);
   const isStreaming = subagent?.isActive === true;
-  const rows = useMemo(
-    () =>
-      deriveSubagentTrayVirtualRows({
-        items: renderableTranscriptItems,
-        isStreaming,
-        logs: runningLogs,
-        streamingLogId,
-      }),
-    [isStreaming, renderableTranscriptItems, runningLogs, streamingLogId],
-  );
+  const rows = deriveSubagentTrayVirtualRows({
+    items: renderableTranscriptItems,
+    isStreaming,
+    logs: runningLogs,
+    streamingLogId,
+  });
 
   return (
     <div
@@ -376,10 +358,7 @@ function SubagentTrayVirtualRows({
   scrollElementRef: RefObject<HTMLDivElement | null>;
 }) {
   const shouldFollowScrollRef = useRef(true);
-  const estimateSize = useCallback(
-    (index: number) => estimateSubagentTrayVirtualRowSize(rows[index]),
-    [rows],
-  );
+  const estimateSize = (index: number) => estimateSubagentTrayVirtualRowSize(rows[index]);
   const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
     getScrollElement: () => scrollElementRef.current,
@@ -464,7 +443,7 @@ function SubagentTrayVirtualRows({
   );
 }
 
-const SubagentTrayVirtualRowContent = memo(function SubagentTrayVirtualRowContent({
+function SubagentTrayVirtualRowContent({
   activeThreadId,
   environmentId,
   projectRoot,
@@ -499,28 +478,6 @@ const SubagentTrayVirtualRowContent = memo(function SubagentTrayVirtualRowConten
     case "empty":
       return <div className="py-1 text-detail text-honk-fg-tertiary">No thread content yet.</div>;
   }
-}, areSameSubagentTrayVirtualRowContentProps);
-
-function areSameSubagentTrayVirtualRowContentProps(
-  previous: {
-    activeThreadId: ThreadId;
-    environmentId: EnvironmentId;
-    projectRoot: string | undefined;
-    row: SubagentTrayVirtualRow;
-  },
-  next: {
-    activeThreadId: ThreadId;
-    environmentId: EnvironmentId;
-    projectRoot: string | undefined;
-    row: SubagentTrayVirtualRow;
-  },
-): boolean {
-  return (
-    previous.activeThreadId === next.activeThreadId &&
-    previous.environmentId === next.environmentId &&
-    previous.projectRoot === next.projectRoot &&
-    previous.row === next.row
-  );
 }
 
 function subagentVirtualRowStyle(virtualRow: VirtualItem): CSSProperties {
@@ -580,7 +537,7 @@ interface SubagentTranscriptItemRowProps {
   projectRoot: string | undefined;
 }
 
-export const SubagentTranscriptItemRow = memo(function SubagentTranscriptItemRow({
+export function SubagentTranscriptItemRow({
   activeThreadId,
   environmentId,
   isStreaming,
@@ -658,43 +615,6 @@ export const SubagentTranscriptItemRow = memo(function SubagentTranscriptItemRow
       detail={detail}
       loading={isStreaming}
     />
-  );
-}, areSameSubagentTranscriptItemRowProps);
-
-function areSameSubagentTranscriptItemRowProps(
-  previous: SubagentTranscriptItemRowProps,
-  next: SubagentTranscriptItemRowProps,
-): boolean {
-  return (
-    previous.activeThreadId === next.activeThreadId &&
-    previous.environmentId === next.environmentId &&
-    previous.isStreaming === next.isStreaming &&
-    previous.projectRoot === next.projectRoot &&
-    areSameSubagentTranscriptItem(previous.item, next.item)
-  );
-}
-
-function areSameSubagentTranscriptItem(
-  previous: SubagentTranscriptItem,
-  next: SubagentTranscriptItem,
-): boolean {
-  return (
-    previous.id === next.id &&
-    previous.itemId === next.itemId &&
-    previous.kind === next.kind &&
-    previous.role === next.role &&
-    previous.title === next.title &&
-    previous.text === next.text &&
-    previous.command === next.command &&
-    previous.rawCommand === next.rawCommand &&
-    previous.output === next.output &&
-    previous.changedFiles?.join("\u0000") === next.changedFiles?.join("\u0000") &&
-    previous.itemType === next.itemType &&
-    previous.status === next.status &&
-    previous.streamKind === next.streamKind &&
-    previous.loading === next.loading &&
-    previous.createdAt === next.createdAt &&
-    previous.sequence === next.sequence
   );
 }
 

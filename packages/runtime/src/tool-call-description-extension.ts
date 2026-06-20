@@ -58,7 +58,7 @@ function isToolCallDescriptionModel(model: Model<string> | undefined): boolean {
   return model.api.includes("anthropic") || model.api.includes("openai");
 }
 
-export function patchToolCallDescriptionProviderPayload(payload: unknown): unknown | undefined {
+export function patchToolCallDescriptionProviderPayload(payload: unknown): unknown {
   const record = asRecord(payload);
   const tools = Array.isArray(record?.tools) ? record.tools : null;
   if (!record || !tools) {
@@ -100,7 +100,12 @@ function patchOpenAiChatTool(tool: JsonObject): JsonObject | undefined {
   const functionRecord = asRecord(tool.function);
   const toolName = trimmedString(functionRecord?.name);
   const parameters = asRecord(functionRecord?.parameters);
-  if (!functionRecord || !toolName || !isToolCallDescriptionTargetToolName(toolName) || !parameters) {
+  if (
+    !functionRecord ||
+    !toolName ||
+    !isToolCallDescriptionTargetToolName(toolName) ||
+    !parameters
+  ) {
     return undefined;
   }
   const patchedParameters = patchToolInputSchema(parameters, { addIfMissing: false });
@@ -160,9 +165,7 @@ function patchToolInputSchema(
     : undefined;
 }
 
-export function patchToolCallDescriptionAgentTools(
-  tools: readonly AgentTool[],
-): AgentTool[] {
+export function patchToolCallDescriptionAgentTools(tools: readonly AgentTool[]): AgentTool[] {
   return tools.map((tool) => {
     if (!isToolCallDescriptionTargetToolName(tool.name)) {
       return tool;

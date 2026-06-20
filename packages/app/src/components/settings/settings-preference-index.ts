@@ -296,7 +296,9 @@ export const SETTINGS_PREFERENCE_IDS = SETTINGS_PREFERENCE_ENTRIES_TYPED.map((en
 
 const SETTINGS_PREFERENCE_ID_SET = new Set<string>(SETTINGS_PREFERENCE_IDS);
 
-export function isSettingsPreferenceId(value: string): value is (typeof SETTINGS_PREFERENCE_IDS)[number] {
+export function isSettingsPreferenceId(
+  value: string,
+): value is (typeof SETTINGS_PREFERENCE_IDS)[number] {
   return SETTINGS_PREFERENCE_ID_SET.has(value);
 }
 

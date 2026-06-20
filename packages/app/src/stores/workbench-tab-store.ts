@@ -1,5 +1,4 @@
 import { DEFAULT_TERMINAL_ID } from "@honk/contracts";
-import { useMemo } from "react";
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
@@ -508,11 +507,7 @@ function moveTabToIndex(
   const withoutTab = tabs.filter((candidate) => candidate.id !== tabId);
   const clampedIndex = Math.min(Math.max(targetIndex, 0), withoutTab.length);
 
-  return [
-    ...withoutTab.slice(0, clampedIndex),
-    tab,
-    ...withoutTab.slice(clampedIndex),
-  ];
+  return [...withoutTab.slice(0, clampedIndex), tab, ...withoutTab.slice(clampedIndex)];
 }
 
 function tabLabelFromPath(relativePath: string): string {
@@ -545,7 +540,7 @@ function tabLabelFromUrl(url: string): string {
   }
 }
 
-function tabLabelFromBrowserMetadata(url: string, title?: string | undefined): string {
+function tabLabelFromBrowserMetadata(url: string, title?: string): string {
   const trimmedTitle = title?.trim();
   return trimmedTitle || tabLabelFromUrl(url);
 }
@@ -609,7 +604,7 @@ function activeTabForKind(
   workspaceKey: string | null,
   tabs: readonly WorkbenchManagedTab[],
   kind: WorkbenchTab,
-  activeTabId?: string | undefined,
+  activeTabId?: string,
 ): WorkbenchManagedTab | null {
   if (kind === "git") {
     return tabs.find((tab) => tab.id === CHANGES_TAB_ID) ?? null;
@@ -682,16 +677,6 @@ function activateManagedTab(
   return active;
 }
 
-function updateTerminalTabsFromSessions(workspaceKey: string | null): void {
-  const terminal = readTerminalSessions(workspaceKey);
-  updateWorkspaceState(workspaceKey, (current) => {
-    return {
-      ...current,
-      tabs: applyTerminalRuntimeTabs(current.tabs, terminal),
-    };
-  });
-}
-
 function upsertPlanTab(workspaceKey: string | null, label: string): void {
   updateWorkspaceState(workspaceKey, (current) => {
     return {
@@ -708,26 +693,24 @@ function activatePlanTab(workspaceKey: string | null, label = "Plan"): void {
 
 export function useWorkbenchTabSnapshot(
   workspaceKey: string | null,
-  runtime?: WorkbenchTabSnapshotRuntimeInput | undefined,
+  runtime?: WorkbenchTabSnapshotRuntimeInput,
 ): WorkbenchTabSnapshot {
   const workspace = useWorkbenchTabStore(
     useShallow((state) => readWorkspaceState(state.byWorkspaceKey, workspaceKey)),
   );
 
-  return useMemo(() => {
-    const tabs = applyRuntimeTabs(workspace.tabs, runtime);
-    const activeTabId = activeTabIdForTabs(tabs, workspace.activeTabId);
-    const activeTab =
-      tabs.find((tab) => tab.id === activeTabId) ?? tabs[0] ?? DEFAULT_WORKBENCH_TABS[0]!;
-    return {
-      tabs,
-      activeTabId: activeTab.id,
-      activeTab,
-      visitedTabIds: new Set(
-        workspace.visitedTabIds.filter((id) => tabs.some((tab) => tab.id === id)),
-      ),
-    };
-  }, [runtime, workspace]);
+  const tabs = applyRuntimeTabs(workspace.tabs, runtime);
+  const activeTabId = activeTabIdForTabs(tabs, workspace.activeTabId);
+  const activeTab =
+    tabs.find((tab) => tab.id === activeTabId) ?? tabs[0] ?? DEFAULT_WORKBENCH_TABS[0]!;
+  return {
+    tabs,
+    activeTabId: activeTab.id,
+    activeTab,
+    visitedTabIds: new Set(
+      workspace.visitedTabIds.filter((id) => tabs.some((tab) => tab.id === id)),
+    ),
+  };
 }
 
 export const workbenchTabPersistenceActions = {
@@ -794,11 +777,7 @@ export const workbenchTabPersistenceActions = {
     };
     updateWorkspaceState(workspaceKey, (current) => ({
       ...current,
-      tabs: upsertTab(
-        current.tabs,
-        terminalSessionTab(session),
-        current.tabs.length,
-      ),
+      tabs: upsertTab(current.tabs, terminalSessionTab(session), current.tabs.length),
     }));
     activateManagedTab(workspaceKey, terminalTabId(terminalId));
     return terminalId;
@@ -906,9 +885,7 @@ export const workbenchTabPersistenceActions = {
         id: tabId,
         relativePath: trimmedPath,
       });
-      const existingDurable = current.tabs.some(
-        (tab) => tab.id === tabId && tab.preview !== true,
-      );
+      const existingDurable = current.tabs.some((tab) => tab.id === tabId && tab.preview !== true);
       const existingPreview = previewFileTab(current.tabs);
       if (existingPreview?.filePath === trimmedPath && !existingDurable) {
         return {

@@ -36,8 +36,7 @@ export const RUNTIME_SEND_TURN_CHANNEL = "desktop:runtime-send-turn";
 export const RUNTIME_ENQUEUE_FOLLOW_UP_CHANNEL = "desktop:runtime-enqueue-follow-up";
 export const RUNTIME_UPDATE_QUEUED_FOLLOW_UP_CHANNEL = "desktop:runtime-update-queued-follow-up";
 export const RUNTIME_REMOVE_QUEUED_FOLLOW_UP_CHANNEL = "desktop:runtime-remove-queued-follow-up";
-export const RUNTIME_REORDER_QUEUED_FOLLOW_UP_CHANNEL =
-  "desktop:runtime-reorder-queued-follow-up";
+export const RUNTIME_REORDER_QUEUED_FOLLOW_UP_CHANNEL = "desktop:runtime-reorder-queued-follow-up";
 export const RUNTIME_SEND_QUEUED_FOLLOW_UP_NOW_CHANNEL =
   "desktop:runtime-send-queued-follow-up-now";
 export const RUNTIME_COMPACT_THREAD_CHANNEL = "desktop:runtime-compact-thread";

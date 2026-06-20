@@ -1,8 +1,7 @@
 import { syncAppearanceDisplayZoom } from "./lib/appearance-settings";
+import { countRunningThreadsWithServerState } from "./desktop-active-work";
 import { isElectron } from "./env";
-import { hasActiveOrchestrationTurn } from "./session-logic";
-import { selectSidebarThreadsAcrossEnvironments, useStore } from "./stores/thread-store";
-import type { AppState } from "./stores/thread-store";
+import { useStore } from "./stores/thread-store";
 
 interface DesktopActiveWorkBridgeInstallation {
   lastRunningThreadCount: number;
@@ -12,20 +11,6 @@ interface DesktopActiveWorkBridgeInstallation {
 type WindowWithDesktopActiveWorkBridge = Window & {
   __honkDesktopActiveWorkBridge?: DesktopActiveWorkBridgeInstallation;
 };
-
-export function countRunningThreadsWithServerState(state: AppState): number {
-  const serverEnvironmentIds = new Set(
-    Object.entries(state.environmentStateById).flatMap(([environmentId, environmentState]) =>
-      environmentState.snapshotSource === "server" ? [environmentId] : [],
-    ),
-  );
-
-  return selectSidebarThreadsAcrossEnvironments(state).filter(
-    (summary) =>
-      serverEnvironmentIds.has(summary.environmentId) &&
-      hasActiveOrchestrationTurn(summary.latestTurn, summary.session),
-  ).length;
-}
 
 function publishRunningThreadCount(
   installation: DesktopActiveWorkBridgeInstallation,

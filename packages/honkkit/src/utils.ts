@@ -61,7 +61,8 @@ export const interactiveControlCursorVariants = cva("cursor-(--honk-button-curso
 export const interactiveHostCursorVariants = cva("[button&,a&]:cursor-(--honk-button-cursor)");
 
 /** Portaled menu/popup shells read `--honk-menu-surface-background` from `html`. */
-export const honkMenuPopupSurfaceClasses = "bg-(--honk-menu-surface-background)";
+export const honkMenuPopupSurfaceClasses =
+  "bg-(--honk-menu-surface-background) [--truncate-marker-background-color:var(--honk-menu-surface-background)]";
 
 export const honkMenuPopupFontClasses = "font-honk text-honk-chrome text-honk-fg-primary";
 
@@ -70,7 +71,10 @@ export const honkMenuPopupTypographyClasses = cn(
   "backdrop-blur-[length:var(--honk-glass-blur-surface)] dark:backdrop-blur-none",
 );
 
-export const honkMenuPopupShellClasses = cn(honkMenuPopupSurfaceClasses, honkMenuPopupTypographyClasses);
+export const honkMenuPopupShellClasses = cn(
+  honkMenuPopupSurfaceClasses,
+  honkMenuPopupTypographyClasses,
+);
 
 /** Cursor picker-menu edge: one hairline via shadow-sm, not border + shadow + inset ring. */
 export const honkMenuPickerChromeClasses = "border-0 shadow-honk-sm outline-hidden";

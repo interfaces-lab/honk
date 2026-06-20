@@ -2,7 +2,6 @@ import { scopedProjectKey } from "~/lib/environment-scope";
 import { type ScopedProjectRef } from "@honk/contracts";
 import { projectScriptCwd } from "@honk/shared/project-scripts";
 import { useRouter } from "@tanstack/react-router";
-import { useCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { type DraftThreadEnvMode, DraftId, useComposerDraftStore } from "../stores/chat-drafts";
 import { deriveLogicalProjectKey } from "../stores/project-identity";
@@ -131,11 +130,8 @@ export async function openNewThreadWithRouter(
 function useNewThreadAction() {
   const router = useRouter();
 
-  return useCallback(
-    (projectRef: ScopedProjectRef, options?: NewThreadActionOptions) =>
-      openNewThreadWithRouter(router, projectRef, options),
-    [router],
-  );
+  return (projectRef: ScopedProjectRef, options?: NewThreadActionOptions) =>
+    openNewThreadWithRouter(router, projectRef, options);
 }
 
 export function useNewThreadHandler() {

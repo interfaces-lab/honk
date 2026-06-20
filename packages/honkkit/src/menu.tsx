@@ -39,7 +39,7 @@ type MenuPopupVariant = NonNullable<VariantProps<typeof menuPopupVariants>["vari
 
 const workbenchMenuItemVariants = cva(
   cn(
-    "flex min-h-6 select-none items-center gap-1.5 rounded-honk-sm px-(--honk-spacing-1) py-[3px] text-honk-chrome text-honk-fg-secondary outline-hidden transition-colors hover:bg-honk-bg-quaternary hover:text-honk-fg-primary data-disabled:pointer-events-none data-highlighted:bg-honk-bg-tertiary data-highlighted:text-honk-fg-primary data-disabled:opacity-40 [&>svg:not([class*='size-'])]:size-3 [&>svg]:pointer-events-none [&>svg]:shrink-0",
+    "flex min-h-6 select-none items-center gap-1.5 rounded-honk-sm px-(--honk-spacing-1) py-[3px] text-honk-chrome text-honk-fg-secondary outline-hidden transition-colors hover:bg-honk-bg-quaternary hover:text-honk-fg-primary hover:[--truncate-marker-background-color:var(--honk-bg-quaternary)] data-disabled:pointer-events-none data-highlighted:bg-honk-bg-tertiary data-highlighted:text-honk-fg-primary data-highlighted:[--truncate-marker-background-color:var(--honk-bg-tertiary)] data-disabled:opacity-40 [&>svg:not([class*='size-'])]:size-3 [&>svg]:pointer-events-none [&>svg]:shrink-0",
     interactiveControlCursorVariants(),
     controlTransitionVariants(),
   ),
@@ -47,7 +47,7 @@ const workbenchMenuItemVariants = cva(
 
 const workbenchMenuRadioItemVariants = cva(
   cn(
-    "grid min-h-6 select-none grid-cols-[1rem_1fr] items-center gap-1.5 rounded-[4px] py-[3px] ps-1 pe-2 text-body text-honk-fg-secondary outline-hidden transition-colors hover:bg-honk-bg-quaternary hover:text-honk-fg-primary data-disabled:pointer-events-none data-highlighted:bg-honk-bg-tertiary data-highlighted:text-honk-fg-primary data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+    "grid min-h-6 select-none grid-cols-[1rem_1fr] items-center gap-1.5 rounded-[4px] py-[3px] ps-1 pe-2 text-body text-honk-fg-secondary outline-hidden transition-colors hover:bg-honk-bg-quaternary hover:text-honk-fg-primary hover:[--truncate-marker-background-color:var(--honk-bg-quaternary)] data-disabled:pointer-events-none data-highlighted:bg-honk-bg-tertiary data-highlighted:text-honk-fg-primary data-highlighted:[--truncate-marker-background-color:var(--honk-bg-tertiary)] data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
     interactiveControlCursorVariants(),
     controlTransitionVariants(),
   ),
@@ -209,7 +209,7 @@ function MenuCheckboxItem({
             )
           : variant === "workbench-switch"
             ? cn(
-                "grid min-h-6 cursor-default items-center rounded-[4px] py-[3px] ps-1 text-body text-honk-fg-secondary outline-hidden transition-colors data-disabled:pointer-events-none data-highlighted:bg-honk-bg-tertiary data-highlighted:text-honk-fg-primary data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+                "grid min-h-6 cursor-default items-center rounded-[4px] py-[3px] ps-1 text-body text-honk-fg-secondary outline-hidden transition-colors data-disabled:pointer-events-none data-highlighted:bg-honk-bg-tertiary data-highlighted:text-honk-fg-primary data-highlighted:[--truncate-marker-background-color:var(--honk-bg-tertiary)] data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
                 interactiveControlCursorVariants(),
                 controlTransitionVariants(),
               )
@@ -337,9 +337,7 @@ function MenuSeparator({
   return (
     <MenuPrimitive.Separator
       className={cn(
-        variant === "workbench"
-          ? honkMenuSeparatorClasses
-          : "mx-2 my-1 h-px bg-border",
+        variant === "workbench" ? honkMenuSeparatorClasses : "mx-2 my-1 h-px bg-border",
         className,
       )}
       data-slot="menu-separator"

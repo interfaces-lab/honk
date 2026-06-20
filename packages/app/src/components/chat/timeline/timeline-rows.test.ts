@@ -1,12 +1,4 @@
-import {
-  EventId,
-  MessageId,
-  RuntimeItemId,
-  RuntimeSessionId,
-  ThreadEntryId,
-  ThreadId,
-  TurnId,
-} from "@honk/contracts";
+import { EventId, MessageId, RuntimeSessionId, ThreadId, TurnId } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
 import type { WorkLogEntry } from "../../../session-logic";

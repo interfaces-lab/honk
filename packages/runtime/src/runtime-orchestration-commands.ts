@@ -229,7 +229,9 @@ function runtimeProviderFailureActivityId(
   tree: SessionTreeProjection,
   entry: SessionTreeEntry,
 ): EventId {
-  return EventId.make(`runtime-provider-failure:${tree.threadId}:${tree.runtimeSessionId}:${entry.id}`);
+  return EventId.make(
+    `runtime-provider-failure:${tree.threadId}:${tree.runtimeSessionId}:${entry.id}`,
+  );
 }
 
 function runtimeProviderFailureRecordId(
@@ -601,7 +603,9 @@ export function runtimeToolCompletedActivityCommands(
   }));
 }
 
-export function runtimeContextWindowActivityRecords(event: AgentRuntimeEvent): RuntimeIngestionRecord[] {
+export function runtimeContextWindowActivityRecords(
+  event: AgentRuntimeEvent,
+): RuntimeIngestionRecord[] {
   return runtimeContextWindowActivities(event).map((activity) => ({
     recordId: RuntimeIngestionRecordId.make(
       `runtime-context-window:${event.threadId}:${event.runtimeSessionId}:${event.id}`,
@@ -615,7 +619,9 @@ export function runtimeContextWindowActivityRecords(event: AgentRuntimeEvent): R
   }));
 }
 
-export function runtimeToolCompletedActivityRecords(event: AgentRuntimeEvent): RuntimeIngestionRecord[] {
+export function runtimeToolCompletedActivityRecords(
+  event: AgentRuntimeEvent,
+): RuntimeIngestionRecord[] {
   if (event.type !== "tool.completed") {
     return [];
   }

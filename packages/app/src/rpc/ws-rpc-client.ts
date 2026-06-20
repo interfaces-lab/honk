@@ -16,7 +16,7 @@ import { type WsRpcProtocolClient } from "./protocol";
 import { resetWsReconnectBackoff } from "./ws-connection-state";
 import { WsTransport } from "./ws-transport";
 
-type RpcTag = keyof WsRpcProtocolClient & string;
+type RpcTag = Extract<keyof WsRpcProtocolClient, string>;
 type RpcMethod<TTag extends RpcTag> = WsRpcProtocolClient[TTag];
 type RpcInput<TTag extends RpcTag> = Parameters<RpcMethod<TTag>>[0];
 

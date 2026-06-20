@@ -10,7 +10,6 @@ import {
   type RuntimeDisplayTimelineItem,
   type RuntimeDisplayTimelineProjection,
   type RuntimeThreadIdentity,
-  type SessionTreeProjection,
   type ThreadId,
   type TurnId,
 } from "@honk/contracts";
@@ -515,7 +514,6 @@ function runtimeLifecycleAfterEvent(
     case "turn.started":
       return "active";
     case "agent.completed":
-    case "turn.completed":
     case "turn.interrupted":
     case "runtime.error":
       return "terminal";
@@ -927,7 +925,7 @@ function areRuntimeToolVisibleDetailsEqual(
 
 function normalizeRuntimeHostSnapshot(
   snapshot: HonkRuntimeHostSnapshot,
-  previousSnapshot?: HonkRuntimeHostSnapshot | undefined,
+  previousSnapshot?: HonkRuntimeHostSnapshot,
 ): HonkRuntimeHostSnapshot {
   return {
     ...snapshot,
@@ -1116,18 +1114,21 @@ export function startDesktopRuntimeHostSync(): () => void {
     }
   };
 
-  void api.getHostSnapshot().then((snapshot) => {
-    if (!disposed) {
-      useAgentRuntimeStore.getState().setSnapshot(snapshot);
-      snapshotApplied = true;
-      applyBufferedEvents();
-    }
-  }, () => {
-    if (!disposed) {
-      snapshotApplied = true;
-      applyBufferedEvents();
-    }
-  });
+  void api.getHostSnapshot().then(
+    (snapshot) => {
+      if (!disposed) {
+        useAgentRuntimeStore.getState().setSnapshot(snapshot);
+        snapshotApplied = true;
+        applyBufferedEvents();
+      }
+    },
+    () => {
+      if (!disposed) {
+        snapshotApplied = true;
+        applyBufferedEvents();
+      }
+    },
+  );
 
   const unsubscribe = api.onHostEvent((event) => {
     if (!disposed) {

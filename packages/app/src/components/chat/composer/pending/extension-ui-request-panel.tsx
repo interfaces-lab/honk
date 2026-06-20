@@ -255,10 +255,7 @@ export function ComposerPendingExtensionUiRequestPanel({
   };
 
   return (
-    <div
-      className="relative z-10 mt-2 mb-2 px-3"
-      onKeyDownCapture={handleKeyDownCapture}
-    >
+    <div className="relative z-10 mt-2 mb-2 px-3" onKeyDownCapture={handleKeyDownCapture}>
       <div className="mx-auto w-full max-w-[580px]">
         <QuestionnaireSurface>
           <QuestionnaireHeader

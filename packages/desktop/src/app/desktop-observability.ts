@@ -96,30 +96,33 @@ const writeConsoleOutput = (
 
 export const backendOutputLogLayer = Layer.effect(
   DesktopBackendOutputLog,
-  Effect.gen(function* () {
-    return {
-      writeSessionBoundary: Effect.fn("desktop.observability.backendOutput.writeSessionBoundary")(
-        function* ({ phase, details }) {
+  Effect.sync(
+    () =>
+      ({
+        writeSessionBoundary: Effect.fn("desktop.observability.backendOutput.writeSessionBoundary")(
+          function* ({ phase, details }) {
+            yield* backendChildLog
+              .info(`backend child process session ${phase.toLowerCase()}`, {
+                phase,
+                details: sanitizeLogValue(details),
+              })
+              .pipe(Effect.withTracerEnabled(false));
+          },
+        ),
+        writeOutputChunk: Effect.fnUntraced(function* (streamName, chunk) {
+          yield* writeConsoleOutput(streamName, chunk);
+          if (streamName === "stdout") {
+            return;
+          }
           yield* backendChildLog
-            .info(`backend child process session ${phase.toLowerCase()}`, {
-              phase,
-              details: sanitizeLogValue(details),
+            .error("backend child process output", {
+              stream: streamName,
+              text: textDecoder.decode(chunk),
             })
             .pipe(Effect.withTracerEnabled(false));
-        },
-      ),
-      writeOutputChunk: Effect.fnUntraced(function* (streamName, chunk) {
-        yield* writeConsoleOutput(streamName, chunk);
-        if (streamName === "stdout") {
-          return;
-        }
-        yield* backendChildLog.error("backend child process output", {
-          stream: streamName,
-          text: textDecoder.decode(chunk),
-        }).pipe(Effect.withTracerEnabled(false));
-      }),
-    } satisfies DesktopBackendOutputLogShape;
-  }),
+        }),
+      }) satisfies DesktopBackendOutputLogShape,
+  ),
 );
 
 const desktopLoggerLayer = Layer.unwrap(

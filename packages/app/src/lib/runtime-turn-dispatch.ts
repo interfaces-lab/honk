@@ -28,6 +28,7 @@ interface RuntimeTurnInput {
   readonly parentEntryId?: ThreadEntryId | null;
   readonly images: readonly ThreadAgentRuntimeImageAttachment[];
   readonly modelSelection: ModelSelection;
+  readonly streamingBehavior?: "steer" | "followUp";
 }
 
 export interface PreparedRuntimeTurnPolicy {
@@ -69,6 +70,8 @@ export async function sendRuntimeTurnWithPreparedPolicy(
     ...(input.parentEntryId !== undefined ? { parentEntryId: input.parentEntryId } : {}),
     images: [...input.images],
     policy: await input.preparedPolicy.policy,
+    modelSelection: input.modelSelection,
+    ...(input.streamingBehavior ? { streamingBehavior: input.streamingBehavior } : {}),
   });
   hydratedRuntimeThreadIds.add(String(input.threadId));
 }

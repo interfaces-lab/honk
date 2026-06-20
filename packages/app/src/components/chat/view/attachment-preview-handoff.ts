@@ -1,11 +1,4 @@
-import {
-  createElement,
-  type RefObject,
-  type ReactNode,
-  useCallback,
-  useRef,
-  useState,
-} from "react";
+import { createElement, type RefObject, type ReactNode, useRef, useState } from "react";
 
 import type { MessageId } from "@honk/contracts";
 import { useMountEffect } from "~/hooks/use-mount-effect";
@@ -43,28 +36,28 @@ export function useAttachmentPreviewHandoff(input: {
   const attachmentPreviewHandoffByMessageIdRef = useRef<PreviewHandoffByMessageId>({});
   const attachmentPreviewPromotionInFlightByMessageIdRef = useRef<Record<string, true>>({});
 
-  const clearAttachmentPreviewHandoff = useCallback(
-    (messageId: MessageId, previewUrls?: ReadonlyArray<string>) => {
-      delete attachmentPreviewPromotionInFlightByMessageIdRef.current[messageId];
-      const currentPreviewUrls =
-        previewUrls ?? attachmentPreviewHandoffByMessageIdRef.current[messageId] ?? [];
-      setAttachmentPreviewHandoffByMessageId((existing) => {
-        if (!(messageId in existing)) {
-          return existing;
-        }
-        const next = { ...existing };
-        delete next[messageId];
-        attachmentPreviewHandoffByMessageIdRef.current = next;
-        return next;
-      });
-      for (const previewUrl of currentPreviewUrls) {
-        revokeBlobPreviewUrl(previewUrl);
+  const clearAttachmentPreviewHandoff = (
+    messageId: MessageId,
+    previewUrls?: ReadonlyArray<string>,
+  ) => {
+    delete attachmentPreviewPromotionInFlightByMessageIdRef.current[messageId];
+    const currentPreviewUrls =
+      previewUrls ?? attachmentPreviewHandoffByMessageIdRef.current[messageId] ?? [];
+    setAttachmentPreviewHandoffByMessageId((existing) => {
+      if (!(messageId in existing)) {
+        return existing;
       }
-    },
-    [],
-  );
+      const next = { ...existing };
+      delete next[messageId];
+      attachmentPreviewHandoffByMessageIdRef.current = next;
+      return next;
+    });
+    for (const previewUrl of currentPreviewUrls) {
+      revokeBlobPreviewUrl(previewUrl);
+    }
+  };
 
-  const clearAttachmentPreviewHandoffs = useCallback(() => {
+  const clearAttachmentPreviewHandoffs = () => {
     attachmentPreviewPromotionInFlightByMessageIdRef.current = {};
     for (const previewUrls of Object.values(attachmentPreviewHandoffByMessageIdRef.current)) {
       for (const previewUrl of previewUrls) {
@@ -75,9 +68,9 @@ export function useAttachmentPreviewHandoff(input: {
     setAttachmentPreviewHandoffByMessageId((existing) =>
       Object.keys(existing).length === 0 ? existing : {},
     );
-  }, []);
+  };
 
-  const handoffAttachmentPreviews = useCallback((messageId: MessageId, previewUrls: string[]) => {
+  const handoffAttachmentPreviews = (messageId: MessageId, previewUrls: string[]) => {
     if (previewUrls.length === 0) return;
 
     const previousPreviewUrls = attachmentPreviewHandoffByMessageIdRef.current[messageId] ?? [];
@@ -95,7 +88,7 @@ export function useAttachmentPreviewHandoff(input: {
       attachmentPreviewHandoffByMessageIdRef.current = next;
       return next;
     });
-  }, []);
+  };
 
   const attachmentPreviewHandoffSync: ReactNode = createElement(
     AttachmentPreviewHandoffPromotionSync,
@@ -110,44 +103,41 @@ export function useAttachmentPreviewHandoff(input: {
     },
   );
 
-  const applyAttachmentPreviewHandoff = useCallback(
-    (messages: ChatMessage[]): ChatMessage[] => {
-      if (Object.keys(attachmentPreviewHandoffByMessageId).length === 0) {
-        return messages;
+  const applyAttachmentPreviewHandoff = (messages: ChatMessage[]): ChatMessage[] => {
+    if (Object.keys(attachmentPreviewHandoffByMessageId).length === 0) {
+      return messages;
+    }
+
+    return messages.map((message) => {
+      if (message.role !== "user" || !message.attachments || message.attachments.length === 0) {
+        return message;
+      }
+      const handoffPreviewUrls = attachmentPreviewHandoffByMessageId[message.id];
+      if (!handoffPreviewUrls || handoffPreviewUrls.length === 0) {
+        return message;
       }
 
-      return messages.map((message) => {
-        if (message.role !== "user" || !message.attachments || message.attachments.length === 0) {
-          return message;
+      let changed = false;
+      let imageIndex = 0;
+      const attachments = message.attachments.map((attachment) => {
+        if (attachment.type !== "image") {
+          return attachment;
         }
-        const handoffPreviewUrls = attachmentPreviewHandoffByMessageId[message.id];
-        if (!handoffPreviewUrls || handoffPreviewUrls.length === 0) {
-          return message;
+        const handoffPreviewUrl = handoffPreviewUrls[imageIndex];
+        imageIndex += 1;
+        if (!handoffPreviewUrl || attachment.previewUrl === handoffPreviewUrl) {
+          return attachment;
         }
-
-        let changed = false;
-        let imageIndex = 0;
-        const attachments = message.attachments.map((attachment) => {
-          if (attachment.type !== "image") {
-            return attachment;
-          }
-          const handoffPreviewUrl = handoffPreviewUrls[imageIndex];
-          imageIndex += 1;
-          if (!handoffPreviewUrl || attachment.previewUrl === handoffPreviewUrl) {
-            return attachment;
-          }
-          changed = true;
-          return {
-            ...attachment,
-            previewUrl: handoffPreviewUrl,
-          };
-        });
-
-        return changed ? { ...message, attachments } : message;
+        changed = true;
+        return {
+          ...attachment,
+          previewUrl: handoffPreviewUrl,
+        };
       });
-    },
-    [attachmentPreviewHandoffByMessageId],
-  );
+
+      return changed ? { ...message, attachments } : message;
+    });
+  };
 
   useMountEffect(() => clearAttachmentPreviewHandoffs);
 

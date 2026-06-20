@@ -41,7 +41,7 @@ export class DesktopOrchestrationClient {
     );
     if (Exit.isFailure(decoded)) {
       throw new Error(
-        `Runtime record ingestion payload failed schema validation: ${formatSchemaError(decoded.cause)} (${formatSchemaIssues(decoded.cause)})`,
+        `Runtime record ingestion payload failed schema validation: ${formatSchemaError(decoded.cause)} (${JSON.stringify(formatSchemaIssues(decoded.cause))})`,
       );
     }
 
@@ -58,7 +58,7 @@ export class DesktopOrchestrationClient {
     });
     if (Exit.isFailure(decoded)) {
       throw new Error(
-        `Runtime record ingestion payload failed schema validation: ${formatSchemaError(decoded.cause)} (${formatSchemaIssues(decoded.cause)})`,
+        `Runtime record ingestion payload failed schema validation: ${formatSchemaError(decoded.cause)} (${JSON.stringify(formatSchemaIssues(decoded.cause))})`,
       );
     }
 
