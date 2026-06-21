@@ -124,7 +124,7 @@ describe("compactSubagentActivityData", () => {
 });
 
 describe("createSubagentExtension", () => {
-  function registerSubagentTool(): ToolDefinition {
+  async function registerSubagentTool(): Promise<ToolDefinition> {
     const registeredTools: ToolDefinition[] = [];
     const extension = createSubagentExtension({ agentDir: "/tmp/honk-agent" });
     const pi = {
@@ -133,7 +133,7 @@ describe("createSubagentExtension", () => {
       },
     } as unknown as ExtensionAPI;
 
-    extension(pi);
+    await extension(pi);
 
     const registeredTool = registeredTools[0];
     if (!registeredTool) {
@@ -142,8 +142,8 @@ describe("createSubagentExtension", () => {
     return registeredTool;
   }
 
-  it("guides models to omit agent for default Worker tasks and describe visible work", () => {
-    const registeredTool = registerSubagentTool();
+  it("guides models to omit agent for default Worker tasks and describe visible work", async () => {
+    const registeredTool = await registerSubagentTool();
     expect(registeredTool?.description).toContain("Omit agent for the default Worker");
     expect(registeredTool?.promptSnippet).toContain("present-participle description");
     expect(registeredTool?.promptGuidelines).toContain(
@@ -159,7 +159,7 @@ describe("createSubagentExtension", () => {
   });
 
   it("rejects unknown agent types", async () => {
-    const registeredTool = registerSubagentTool();
+    const registeredTool = await registerSubagentTool();
 
     await expect(
       registeredTool.execute(
