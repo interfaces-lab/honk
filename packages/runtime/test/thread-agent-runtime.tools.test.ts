@@ -5,7 +5,7 @@ import { defineTool } from "@earendil-works/pi-coding-agent";
 import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import { Type } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
-import type { AgentRuntimeEvent } from "@honk/contracts";
+import type { AgentRuntimeEvent, RuntimeIngestionRecord } from "@honk/contracts";
 import { createDesktopAgentExtensionFactories } from "../src/desktop-agent-extensions";
 import {
   createDesktopExtensionUi,
@@ -148,8 +148,8 @@ describe("ThreadAgentRuntime tools", () => {
     expect(turnStartedEvents).toHaveLength(2);
     expect(turnCompletedEvents).toHaveLength(2);
     expect(turnStartedEvents[0]?.turnId).toBe(firstTurnId);
-    expect(turnStartedEvents[1]?.turnId).not.toBe(firstTurnId);
-    expect(finalMessageEvent?.turnId).toBe(turnStartedEvents[1]?.turnId);
+    expect(turnStartedEvents[1]?.turnId).toBe(firstTurnId);
+    expect(finalMessageEvent?.turnId).toBe(firstTurnId);
     expect(events.map((event) => event.type)).toContain("tool.started");
     expect(events.map((event) => event.type)).toContain("tool.completed");
     const startedEvent = events.find((event) => event.type === "tool.started");
@@ -246,7 +246,9 @@ describe("ThreadAgentRuntime tools", () => {
     });
     harnesses.push(harness);
     const events: AgentRuntimeEvent[] = [];
+    const ingestionRecords: RuntimeIngestionRecord[] = [];
     harness.runtime.subscribe((event) => events.push(event));
+    harness.runtime.subscribeRuntimeIngestionRecords((records) => ingestionRecords.push(...records));
     harness.setResponses([
       fauxAssistantMessage(
         fauxToolCall(CREATE_PLAN_TOOL_NAME, {
@@ -293,6 +295,25 @@ describe("ThreadAgentRuntime tools", () => {
       },
     });
     expect(events.filter((event) => event.type === "turn.proposed.completed")).toHaveLength(1);
+    expect(ingestionRecords).toContainEqual({
+      recordId: `runtime-proposed-plan:${harness.runtime.threadId}:${harness.runtime.runtimeSessionId}:${turnId}`,
+      threadId: harness.runtime.threadId,
+      runtimeSessionId: harness.runtime.runtimeSessionId,
+      sourceEventId: planEvent?.id,
+      kind: "proposed-plan",
+      createdAt: planEvent?.createdAt,
+      payload: {
+        proposedPlan: {
+          id: `plan:${harness.runtime.threadId}:${turnId}`,
+          turnId,
+          planMarkdown: "# Plan\n\n1. Add schemas\n2. Remove casts",
+          implementedAt: null,
+          implementationThreadId: null,
+          createdAt: planEvent?.createdAt,
+          updatedAt: planEvent?.createdAt,
+        },
+      },
+    });
   });
 
   it("runs the first-party subagent extension as an embedded child session from a prompt", async () => {

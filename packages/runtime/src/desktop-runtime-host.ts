@@ -81,6 +81,15 @@ const MAX_RUNTIME_EVENTS_PER_THREAD = 1000;
 const DISPLAY_TIMELINE_FLUSH_INTERVAL_MS = 16;
 const BACKGROUND_DISPLAY_TIMELINE_FLUSH_INTERVAL_MS = 250;
 
+function defaultExtensionPaths(agentDir: string): readonly string[] {
+  const extensionsDir = join(agentDir, "extensions");
+  try {
+    return statSync(extensionsDir).isDirectory() ? [join(extensionsDir, "*")] : [];
+  } catch {
+    return [];
+  }
+}
+
 // Push with amortized O(1) trimming: let the array grow to 2x the cap, then trim back to the cap in a
 // single splice, so steady-state retention is bounded without an O(n) shift on every push.
 function boundedPush<T>(array: T[], item: T, max: number): void {
@@ -192,10 +201,13 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     if (this.modelRegistry) {
       registerCursorComposerProvider(this.modelRegistry, { cwd: this.agentDir });
     }
+    this.extensionPaths = options.extensionPaths ?? defaultExtensionPaths(this.agentDir);
     this.extensionFactories =
       options.extensionFactories ??
-      createDesktopAgentExtensionFactories({ agentDir: this.agentDir });
-    this.extensionPaths = options.extensionPaths ?? [];
+      createDesktopAgentExtensionFactories({
+        agentDir: this.agentDir,
+        extensionPaths: this.extensionPaths,
+      });
     this.bindRuntimeExtensions = options?.bindExtensions ?? null;
   }
 

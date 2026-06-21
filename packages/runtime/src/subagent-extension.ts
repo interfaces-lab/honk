@@ -34,6 +34,7 @@ import {
   type ResolvedSubagentProfile,
   type SubagentProfileOverrides,
 } from "./subagent-profiles";
+import { normalizeAdditionalExtensionPaths } from "./extension-paths";
 
 const MAX_PARALLEL_TASKS = 8;
 const MAX_CONCURRENCY = 4;
@@ -87,6 +88,7 @@ function normalizeAgentThinkingLevel(value: string | undefined): AgentThinkingLe
 
 interface SubagentExtensionOptions {
   readonly agentDir: string;
+  readonly extensionPaths?: readonly string[];
   // Depth of the agent this extension is registered on (0 = top-level). Threaded to children so the
   // recursion guard can bound nesting in-process (there is no child process / env to carry it).
   readonly depth?: number;
@@ -131,10 +133,16 @@ interface SubagentExecutionState {
 const TaskItem = Type.Object({
   prompt: Type.String({ description: "Specific prompt to run in the subagent." }),
   description: Type.Optional(
-    Type.String({ description: "Short display label for this subagent task." }),
+    Type.String({
+      description:
+        "Short visible work label shown while this subagent runs. Prefer a present-participle phrase like 'researching session IDs' or 'checking release scripts'.",
+    }),
   ),
   agent: Type.Optional(
-    Type.String({ description: "Named agent for this task (scout, oracle, or general-purpose)." }),
+    Type.String({
+      description:
+        "Specialist for this task. Use 'librarian' for fast codebase research or 'oracle' for deep analysis. Omit for the default Worker; 'general-purpose' is accepted for legacy/default compatibility but is not preferred.",
+    }),
   ),
   model: Type.Optional(Type.String({ description: "Override model id for this task." })),
   context: Type.Optional(Type.String({ description: "Extra context to give this task." })),
@@ -146,10 +154,16 @@ const ChainItem = Type.Object({
     description: "Specific prompt. Use {previous} to include the prior step output.",
   }),
   description: Type.Optional(
-    Type.String({ description: "Short display label for this chain step." }),
+    Type.String({
+      description:
+        "Short visible work label shown while this chain step runs. Prefer a present-participle phrase like 'reviewing architecture' or 'working through type errors'.",
+    }),
   ),
   agent: Type.Optional(
-    Type.String({ description: "Named agent for this step (scout, oracle, or general-purpose)." }),
+    Type.String({
+      description:
+        "Specialist for this step. Use 'librarian' for fast codebase research or 'oracle' for deep analysis. Omit for the default Worker; 'general-purpose' is accepted for legacy/default compatibility but is not preferred.",
+    }),
   ),
   model: Type.Optional(Type.String({ description: "Override model id for this step." })),
   context: Type.Optional(Type.String({ description: "Extra context to give this step." })),
@@ -159,12 +173,15 @@ const ChainItem = Type.Object({
 const SubagentParams = Type.Object({
   prompt: Type.Optional(Type.String({ description: "Specific prompt for a single subagent." })),
   description: Type.Optional(
-    Type.String({ description: "Short display label for the single subagent task." }),
+    Type.String({
+      description:
+        "Short visible work label shown while the subagent runs. Prefer a present-participle phrase like 'researching session IDs', 'checking release scripts', 'reviewing architecture', or 'working through type errors'.",
+    }),
   ),
   agent: Type.Optional(
     Type.String({
       description:
-        "Default named agent for all tasks (scout, oracle, or general-purpose). Per-task agent overrides this.",
+        "Default specialist for all tasks. Use 'librarian' for fast codebase research or 'oracle' for deep analysis. Omit for the default Worker; 'general-purpose' is accepted for legacy/default compatibility but is not preferred. Per-task agent overrides this.",
     }),
   ),
   model: Type.Optional(Type.String({ description: "Default override model id for all tasks." })),
@@ -625,6 +642,7 @@ async function runSubagentTask(input: {
   readonly toolCallId: string;
   readonly task: SubagentTask;
   readonly agentDir: string;
+  readonly extensionPaths: readonly string[];
   readonly ctx: ExtensionContext;
   readonly signal: AbortSignal | undefined;
   readonly thinkingLevel: ThinkingLevel;
@@ -673,6 +691,7 @@ async function runSubagentTask(input: {
       ? [
           createSubagentExtension({
             agentDir: input.agentDir,
+            extensionPaths: input.extensionPaths,
             depth: childDepth,
             maxSubagentDepth: effectiveMaxDepth,
           }),
@@ -682,6 +701,9 @@ async function runSubagentTask(input: {
   const resourceLoader = new DefaultResourceLoader({
     cwd: input.task.cwd ?? input.ctx.cwd,
     agentDir: input.agentDir,
+    additionalExtensionPaths: profile.resourceAccess.extensions
+      ? normalizeAdditionalExtensionPaths(input.extensionPaths, input.ctx.cwd)
+      : [],
     extensionFactories: childExtensionFactories,
     appendSystemPrompt: subagentSystemPromptForChild(profile),
     noExtensions: !profile.resourceAccess.extensions,
@@ -807,6 +829,7 @@ function resultTextForRun(run: MutableSubagentRun): string {
 export function createSubagentExtension(options: SubagentExtensionOptions): ExtensionFactory {
   const depth = options.depth ?? 0;
   const maxSubagentDepth = options.maxSubagentDepth ?? DEFAULT_MAX_SUBAGENT_DEPTH;
+  const extensionPaths = options.extensionPaths ?? [];
   return (pi) => {
     // Recursion guard: an agent at or beyond the depth cap never receives the subagent tool, so it
     // cannot fan out further no matter what its prompt asks. Children only reach this code when their
@@ -819,13 +842,14 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
         name: "subagent",
         label: "Subagent",
         description:
-          "Delegate a focused task to a separate subagent running in its own context. Use scout for fast codebase reconnaissance, oracle for deep analysis and debugging, or general-purpose when no specialist fits. Supports single prompt, parallel tasks, and chain steps where {previous} carries the prior step output.",
+          "Delegate a focused task to a separate subagent running in its own context. Omit agent for the default Worker, use librarian for fast codebase research, or oracle for deep analysis and debugging. Include a concise visible description for the GUI while it runs. Supports single prompt, parallel tasks, and chain steps where {previous} carries the prior step output.",
         promptSnippet:
-          "Use subagent for independent research or analysis work; give it complete context and a precise expected output.",
+          "Use subagent for independent research or analysis work; give it complete context, a precise expected output, and a concise present-participle description shown while it runs.",
         promptGuidelines: [
-          "Use scout for fast codebase reconnaissance and file/symbol mapping.",
-          "Use oracle for deep reasoning, debugging, architecture analysis, and tradeoff review.",
-          "Use general-purpose when no specialist fits.",
+          "Omit agent for normal Worker/default tasks; include a short visible description such as 'working through type errors'.",
+          "Use agent: 'librarian' for fast codebase reconnaissance and file/symbol mapping; pair it with a description such as 'researching session IDs'.",
+          "Use agent: 'oracle' for Oracle-style deep reasoning, debugging, architecture analysis, and tradeoff review; pair it with a description such as 'manifesting a migration plan'.",
+          "The legacy value 'general-purpose' is accepted but not preferred; omit agent for default Worker tasks instead.",
           "Give each subagent all required context: goal, relevant files, constraints, and expected output. The child cannot see this conversation unless you pass context.",
           "Use parallel tasks only when the tasks are independent.",
           "Use chain when each step depends on the previous step's output via {previous}.",
@@ -846,7 +870,7 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
             ...(params.tools && params.tools.length > 0 ? { tools: params.tools } : {}),
           };
           // Resolve a built-in profile per task, then apply per-call overrides. Per-task agent/model
-          // values win over the shared defaults.
+          // values win over the shared defaults. Unknown agent types throw before any child starts.
           const resolveProfileForTask = (taskAgent?: string, taskModel?: string) =>
             resolveSubagentProfile({
               name: taskAgent ?? params.agent ?? null,
@@ -893,6 +917,17 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
             };
           }
 
+          if (params.agent !== undefined) {
+            resolveSubagentProfile({ name: params.agent, overrides: sharedOverrides });
+          }
+          const chainProfiles = params.chain?.map((step) =>
+            resolveProfileForTask(step.agent, step.model),
+          );
+          const taskProfiles = params.tasks?.map((task) =>
+            resolveProfileForTask(task.agent, task.model),
+          );
+          const singleProfile = params.prompt ? resolveProfileForTask(undefined, undefined) : null;
+
           if (params.chain && params.chain.length > 0) {
             let previousOutput = "";
             for (let index = 0; index < params.chain.length; index += 1) {
@@ -912,10 +947,11 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
                   context: step.context ?? params.context ?? null,
                 },
                 agentDir,
+                extensionPaths,
                 ctx,
                 signal,
                 thinkingLevel: pi.getThinkingLevel(),
-                profile: resolveProfileForTask(step.agent, step.model),
+                profile: chainProfiles?.[index]!,
                 depth,
                 maxSubagentDepth,
                 notify,
@@ -926,7 +962,7 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
               }
             }
           } else if (params.tasks && params.tasks.length > 0) {
-            await mapWithConcurrency(params.tasks, MAX_CONCURRENCY, (task) =>
+            await mapWithConcurrency(params.tasks, MAX_CONCURRENCY, (task, index) =>
               runSubagentTask({
                 state,
                 parentThreadId: ctx.sessionManager.getSessionId(),
@@ -939,10 +975,11 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
                   context: task.context ?? params.context ?? null,
                 },
                 agentDir,
+                extensionPaths,
                 ctx,
                 signal,
                 thinkingLevel: pi.getThinkingLevel(),
-                profile: resolveProfileForTask(task.agent, task.model),
+                profile: taskProfiles?.[index]!,
                 depth,
                 maxSubagentDepth,
                 notify,
@@ -961,10 +998,11 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
                 context: params.context ?? null,
               },
               agentDir,
+              extensionPaths,
               ctx,
               signal,
               thinkingLevel: pi.getThinkingLevel(),
-              profile: resolveProfileForTask(params.agent, params.model),
+              profile: singleProfile!,
               depth,
               maxSubagentDepth,
               notify,

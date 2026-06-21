@@ -29,14 +29,14 @@ function asTrimmedString(value: unknown): string | undefined {
 }
 
 const SUBAGENT_ROLE_LABELS: Record<string, string> = {
-  "general-purpose": "General Purpose",
+  "general-purpose": "Worker",
+  librarian: "Librarian",
   oracle: "Oracle",
-  scout: "Scout",
 };
 
 export function formatSubagentRoleLabel(role: string | undefined): string | undefined {
   const trimmed = role?.trim();
-  return trimmed && trimmed.length > 0 ? SUBAGENT_ROLE_LABELS[trimmed] : undefined;
+  return trimmed && trimmed.length > 0 ? (SUBAGENT_ROLE_LABELS[trimmed] ?? trimmed) : undefined;
 }
 
 function readSubagentDetails(

@@ -753,6 +753,62 @@ describe("runtime display timeline projection", () => {
     ]);
   });
 
+  it("uses apply_patch changed files as the edit display path", () => {
+    const patch = [
+      "diff --git a/packages/app/src/components/chat/message/tool-message.tsx b/packages/app/src/components/chat/message/tool-message.tsx",
+      "--- a/packages/app/src/components/chat/message/tool-message.tsx",
+      "+++ b/packages/app/src/components/chat/message/tool-message.tsx",
+      "@@ -1,1 +1,1 @@",
+      "-old",
+      "+new",
+    ].join("\n");
+    const projection = projectRuntimeDisplayTimeline({
+      threadId,
+      runtimeSessionId,
+      runtimeEvents: [
+        runtimeEvent({
+          id: "runtime-event:apply-patch-completed",
+          type: "tool.completed",
+          summary: "Edited",
+          data: {
+            toolCallId: "toolu-apply-patch",
+            toolName: "apply_patch",
+            args: {
+              input:
+                "*** Begin Patch\n*** Update File: packages/app/src/components/chat/message/tool-message.tsx",
+            },
+            result: {
+              content: [{ type: "text", text: "Applied patch successfully" }],
+              details: {
+                status: "success",
+                result: {
+                  changedFiles: ["packages/app/src/components/chat/message/tool-message.tsx"],
+                  createdFiles: [],
+                  deletedFiles: [],
+                  movedFiles: [],
+                  fuzz: 0,
+                },
+                patch,
+              },
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(projection.items).toEqual([
+      expect.objectContaining({
+        id: "tool:toolu-apply-patch",
+        display: expect.objectContaining({
+          kind: "edit",
+          path: "packages/app/src/components/chat/message/tool-message.tsx",
+          additions: 1,
+          deletions: 1,
+        }),
+      }),
+    ]);
+  });
+
   it("projects typed subagent tool display data", () => {
     const projection = projectRuntimeDisplayTimeline({
       threadId,

@@ -221,6 +221,7 @@ export const askQuestionExtension: ExtensionFactory = (pi: ExtensionAPI) => {
 
 export interface DesktopAgentExtensionFactoryOptions {
   readonly agentDir: string;
+  readonly extensionPaths?: readonly string[];
 }
 
 export function createDesktopAgentExtensionFactories(

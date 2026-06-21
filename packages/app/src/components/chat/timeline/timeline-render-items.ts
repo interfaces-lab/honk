@@ -1371,11 +1371,8 @@ function finalizeGroupAssistantMessages(
   items: TimelineRenderItem[],
   input: { isTurnActive: boolean; projectRoot?: string | undefined },
 ): TimelineRenderItem[] {
-  let result = releaseIneligibleAssistantMessagesFromGroups(items, input.projectRoot);
-  if (!input.isTurnActive) {
-    result = peelGroupedNarrationFromCompletedGroups(result, input.projectRoot);
-  }
-  return result;
+  const result = releaseIneligibleAssistantMessagesFromGroups(items, input.projectRoot);
+  return peelGroupedNarrationFromCompletedGroups(result, input.projectRoot);
 }
 
 /** Transcript-scale assistant rows never stay inside work groups (preview or expanded). */
@@ -1422,6 +1419,10 @@ function peelGroupedNarrationFromCompletedGroups(
   const next: TimelineRenderItem[] = [];
   for (const item of items) {
     if (item.kind !== "group") {
+      next.push(item);
+      continue;
+    }
+    if (item.group.isRunning) {
       next.push(item);
       continue;
     }

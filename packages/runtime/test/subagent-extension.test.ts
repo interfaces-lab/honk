@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { SubagentActivityDetails, SubagentToolDetails } from "@honk/contracts";
+import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 
 import {
   capLiveSubagentActivities,
   compactSubagentActivityData,
+  createSubagentExtension,
   MAX_LIVE_SUBAGENT_ACTIVITIES,
 } from "../src/subagent-extension";
 
@@ -21,7 +23,7 @@ function makeActivity(sequence: number): SubagentActivityDetails {
       parentThreadId: "parent-thread",
       parentItemId: "parent-item",
       agentId: "general-purpose",
-      nickname: "scout",
+      nickname: "librarian",
       role: "researcher",
       model: null,
       prompt: "Investigate the bug",
@@ -118,5 +120,55 @@ describe("compactSubagentActivityData", () => {
     const summary = typeof metadata?.summary === "string" ? metadata.summary : "";
     expect(summary.length).toBeLessThan(8_000);
     expect(summary).toContain("[truncated]");
+  });
+});
+
+describe("createSubagentExtension", () => {
+  function registerSubagentTool(): ToolDefinition {
+    const registeredTools: ToolDefinition[] = [];
+    const extension = createSubagentExtension({ agentDir: "/tmp/honk-agent" });
+    const pi = {
+      registerTool(tool: ToolDefinition) {
+        registeredTools.push(tool);
+      },
+    } as unknown as ExtensionAPI;
+
+    extension(pi);
+
+    const registeredTool = registeredTools[0];
+    if (!registeredTool) {
+      throw new Error("Expected subagent tool to be registered");
+    }
+    return registeredTool;
+  }
+
+  it("guides models to omit agent for default Worker tasks and describe visible work", () => {
+    const registeredTool = registerSubagentTool();
+    expect(registeredTool?.description).toContain("Omit agent for the default Worker");
+    expect(registeredTool?.promptSnippet).toContain("present-participle description");
+    expect(registeredTool?.promptGuidelines).toContain(
+      "Omit agent for normal Worker/default tasks; include a short visible description such as 'working through type errors'.",
+    );
+    expect(registeredTool?.description).toContain("use librarian for fast codebase research");
+    expect(registeredTool?.promptGuidelines).toContain(
+      "Use agent: 'librarian' for fast codebase reconnaissance and file/symbol mapping; pair it with a description such as 'researching session IDs'.",
+    );
+    expect(registeredTool?.promptGuidelines).toContain(
+      "The legacy value 'general-purpose' is accepted but not preferred; omit agent for default Worker tasks instead.",
+    );
+  });
+
+  it("rejects unknown agent types", async () => {
+    const registeredTool = registerSubagentTool();
+
+    await expect(
+      registeredTool.execute(
+        "toolu-subagent",
+        { prompt: "Inspect auth", agent: "custom-reviewer" },
+        undefined,
+        undefined,
+        {} as ExtensionContext,
+      ),
+    ).rejects.toThrow('Unknown subagent agent type "custom-reviewer"');
   });
 });

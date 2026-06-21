@@ -101,15 +101,17 @@ function ChatIndexAgentPanel(props: {
         void openDraft(router, unsentDraft.draftId, { replace: true });
         return;
       }
+      const threadId = newThreadId();
       const draftId = DraftId.make(
-        `new-thread-draft:project:${indexSelectedProjectRef.environmentId}:${indexSelectedProjectRef.projectId}`,
+        // Prefix is for routing; thread-id suffix keeps drafts distinct.
+        `new-thread-draft:project:${indexSelectedProjectRef.environmentId}:${indexSelectedProjectRef.projectId}:${threadId}`,
       );
       draftStore.setLogicalProjectDraftThreadId(
         logicalProjectKey ?? scopedProjectKey(indexSelectedProjectRef),
         indexSelectedProjectRef,
         draftId,
         {
-          threadId: newThreadId(),
+          threadId,
           createdAt: new Date().toISOString(),
           interactionMode: DEFAULT_INTERACTION_MODE,
           envMode: "local",
@@ -217,15 +219,17 @@ export function prepareChatIndexRouteDraft(): ProjectDraftSession["draftId"] | n
     if (unsentDraft && unsentDraft.promotedTo == null) {
       return unsentDraft.draftId;
     }
+    const threadId = newThreadId();
     const draftId = DraftId.make(
-      `new-thread-draft:project:${selectedProjectRef.environmentId}:${selectedProjectRef.projectId}`,
+      // Prefix is for routing; thread-id suffix keeps drafts distinct.
+      `new-thread-draft:project:${selectedProjectRef.environmentId}:${selectedProjectRef.projectId}:${threadId}`,
     );
     draftStore.setLogicalProjectDraftThreadId(
       logicalProjectKey ?? scopedProjectKey(selectedProjectRef),
       selectedProjectRef,
       draftId,
       {
-        threadId: newThreadId(),
+        threadId,
         createdAt: new Date().toISOString(),
         interactionMode: DEFAULT_INTERACTION_MODE,
         envMode: "local",

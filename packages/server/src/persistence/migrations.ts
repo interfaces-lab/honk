@@ -51,6 +51,7 @@ import Migration0037 from "./migrations/037_BackfillProjectionThreadLatestTurnId
 import Migration0038 from "./migrations/038_NormalizeBashActivityLabels.ts";
 import Migration0039 from "./migrations/039_PruneMetadataOnlyCommandActivities.ts";
 import Migration0040 from "./migrations/040_RebuildThreadTreeProjections.ts";
+import Migration0041 from "./migrations/041_RebuildRuntimeTurnProjections.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -101,6 +102,7 @@ export const migrationEntries = [
   [38, "NormalizeBashActivityLabels", Migration0038],
   [39, "PruneMetadataOnlyCommandActivities", Migration0039],
   [40, "RebuildThreadTreeProjections", Migration0040],
+  [41, "RebuildRuntimeTurnProjections", Migration0041],
 ] as const;
 
 export const makeMigrationLoader = (throughId?: number) =>

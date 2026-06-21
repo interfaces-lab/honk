@@ -56,6 +56,7 @@ import {
 import { createCodexRuntimePolicyExtension } from "./codex-runtime-policy-extension";
 import { createCodexApplyPatchExtension } from "./codex-apply-patch-extension";
 import { createDesktopExtensionUi, type DesktopExtensionUiController } from "./extension-ui";
+import { normalizeAdditionalExtensionPaths } from "./extension-paths";
 import { makeRuntimeEventId, makeRuntimeSessionId, makeTurnId } from "./ids";
 import { projectPiAgentSessionEvent } from "./event-projection";
 import { extractMessageText } from "./message-text";
@@ -213,6 +214,7 @@ export class ThreadAgentRuntime {
   private readonly pendingFirstTurnIds: TurnId[] = [];
   private readonly pendingFollowUpTurnIds: TurnId[] = [];
   private activeTurnId: TurnId | undefined;
+  private activePromptTurnId: TurnId | undefined;
   private activeRunFirstTurnId: TurnId | undefined;
   private nextPiTurnStartsFollowUpPrompt = false;
   private readonly sourceProposedPlanByTurnId = new Map<
@@ -299,7 +301,7 @@ export class ThreadAgentRuntime {
         cwd: options.cwd,
         agentDir: options.agentDir,
         settingsManager,
-        additionalExtensionPaths: [...(options.extensionPaths ?? [])],
+        additionalExtensionPaths: normalizeAdditionalExtensionPaths(options.extensionPaths ?? [], options.cwd),
         extensionFactories: [
           createCodexApplyPatchExtension(options.policy),
           createToolCallDescriptionExtension(),
@@ -1152,6 +1154,7 @@ export class ThreadAgentRuntime {
       case "turn_start": {
         const turnId = this.consumeTurnStartId();
         this.activeTurnId = turnId;
+        this.activePromptTurnId = turnId;
         if (!this.activeRunFirstTurnId) {
           this.activeRunFirstTurnId = turnId;
         }
@@ -1175,7 +1178,7 @@ export class ThreadAgentRuntime {
         this.nextPiTurnStartsFollowUpPrompt = true;
       }
       this.activeTurnId = undefined;
-      this.clearTurnTracking(turnId);
+      this.clearTurnTracking(turnId, { clearActivePrompt: false, clearActiveRun: false });
       return;
     }
     if (event.type === "agent_end" && !event.willRetry) {
@@ -1183,6 +1186,7 @@ export class ThreadAgentRuntime {
       this.pendingFollowUpTurnIds.splice(0);
       this.nextPiTurnStartsFollowUpPrompt = false;
       this.activeTurnId = undefined;
+      this.activePromptTurnId = undefined;
       this.activeRunFirstTurnId = undefined;
     }
   }
@@ -1194,6 +1198,9 @@ export class ThreadAgentRuntime {
       if (pendingFollowUpTurnId) {
         return pendingFollowUpTurnId;
       }
+    }
+    if (this.activePromptTurnId) {
+      return this.activePromptTurnId;
     }
     return this.pendingFirstTurnIds.shift() ?? makeTurnId(this.threadId, ++this.turnSequence);
   }
@@ -1316,7 +1323,13 @@ export class ThreadAgentRuntime {
     this.emit(this.createEvent("tree.updated", "Session tree updated", turnId));
   }
 
-  private clearTurnTracking(turnId: TurnId): void {
+  private clearTurnTracking(
+    turnId: TurnId,
+    options: {
+      readonly clearActivePrompt?: boolean;
+      readonly clearActiveRun?: boolean;
+    } = {},
+  ): void {
     this.sourceProposedPlanByTurnId.delete(turnId);
     this.proposedPlanTurnIds.delete(turnId);
     this.emittedRuntimeUserTurnStartTurnIds.delete(String(turnId));
@@ -1335,7 +1348,10 @@ export class ThreadAgentRuntime {
     if (this.activeTurnId === turnId) {
       this.activeTurnId = undefined;
     }
-    if (this.activeRunFirstTurnId === turnId) {
+    if ((options.clearActivePrompt ?? true) && this.activePromptTurnId === turnId) {
+      this.activePromptTurnId = undefined;
+    }
+    if ((options.clearActiveRun ?? true) && this.activeRunFirstTurnId === turnId) {
       this.activeRunFirstTurnId = undefined;
     }
   }
@@ -1712,13 +1728,57 @@ export class ThreadAgentRuntime {
     if (!planMarkdown) {
       return;
     }
-    this.proposedPlanTurnIds.add(turnId);
-    this.emit(
-      this.createEvent("turn.proposed.completed", "Proposed plan captured", turnId, {
-        planId: proposedPlanIdForTurn(this.threadId, turnId),
+    const planId = proposedPlanIdForTurn(this.threadId, turnId);
+    const proposedPlanEvent = this.createEvent(
+      "turn.proposed.completed",
+      "Proposed plan captured",
+      turnId,
+      {
+        planId,
         planMarkdown,
-      }),
+      },
     );
+    this.proposedPlanTurnIds.add(turnId);
+    this.emit(proposedPlanEvent);
+    this.emitRuntimeIngestionRecords([
+      this.createRuntimeProposedPlanRecord({
+        turnId,
+        planId,
+        planMarkdown,
+        createdAt: proposedPlanEvent.createdAt,
+        sourceEventId: proposedPlanEvent.id,
+      }),
+    ]);
+  }
+
+  private createRuntimeProposedPlanRecord(input: {
+    readonly turnId: TurnId;
+    readonly planId: string;
+    readonly planMarkdown: string;
+    readonly createdAt: string;
+    readonly sourceEventId: string;
+  }): RuntimeIngestionRecord {
+    return {
+      recordId: RuntimeIngestionRecordId.make(
+        `runtime-proposed-plan:${this.threadId}:${this.runtimeSessionId}:${input.turnId}`,
+      ),
+      threadId: this.threadId,
+      runtimeSessionId: this.runtimeSessionId,
+      sourceEventId: input.sourceEventId,
+      kind: "proposed-plan",
+      createdAt: input.createdAt,
+      payload: {
+        proposedPlan: {
+          id: input.planId,
+          turnId: input.turnId,
+          planMarkdown: input.planMarkdown.trim(),
+          implementedAt: null,
+          implementationThreadId: null,
+          createdAt: input.createdAt,
+          updatedAt: input.createdAt,
+        },
+      },
+    };
   }
 
   private emitOrDefer(event: AgentRuntimeEvent): void {

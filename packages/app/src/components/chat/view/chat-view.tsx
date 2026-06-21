@@ -917,11 +917,13 @@ export default function ChatView(props: ChatViewProps) {
       return activeDraftSession.threadId;
     }
 
+    const threadId = newThreadId();
     const nextDraftId = DraftId.make(
-      `new-thread-draft:project:${activeProjectRef.environmentId}:${activeProjectRef.projectId}`,
+      // Prefix is for routing; thread-id suffix keeps drafts distinct.
+      `new-thread-draft:project:${activeProjectRef.environmentId}:${activeProjectRef.projectId}:${threadId}`,
     );
     setLogicalProjectDraftThreadId(logicalProjectKey, activeProjectRef, nextDraftId, {
-      threadId: newThreadId(),
+      threadId,
       createdAt: new Date().toISOString(),
       interactionMode: DEFAULT_INTERACTION_MODE,
       ...input,

@@ -1137,8 +1137,8 @@ function projectRuntimeToolDisplay(input: {
     };
   }
   if (isEditToolName(normalizedToolName)) {
-    const path = extractToolPath(input.args);
     const diff = extractUnifiedEditDiff(input.details);
+    const path = extractEditToolPath(input.args, input.details, diff);
     const diffStats = diff !== undefined ? countUnifiedDiffStats(diff) : undefined;
     const additions =
       extractNonNegativeNumber(input.details, ["additions", "added", "linesAdded"]) ??
@@ -1254,6 +1254,55 @@ function extractToolPath(args: unknown): string | undefined {
     "relativePath",
     "relative_path",
   ]);
+}
+
+function extractEditToolPath(
+  args: unknown,
+  details: unknown,
+  diff: string | undefined,
+): string | undefined {
+  const path = extractToolPath(args);
+  if (path !== undefined) {
+    return path;
+  }
+
+  const detailsRecord = asRecord(details);
+  const resultRecord = asRecord(detailsRecord?.result);
+  for (const values of [
+    asStringArray(detailsRecord?.changedFiles),
+    asStringArray(detailsRecord?.createdFiles),
+    asStringArray(detailsRecord?.deletedFiles),
+    asStringArray(detailsRecord?.movedFiles),
+    asStringArray(detailsRecord?.appliedFiles),
+    asStringArray(resultRecord?.changedFiles),
+    asStringArray(resultRecord?.createdFiles),
+    asStringArray(resultRecord?.deletedFiles),
+    asStringArray(resultRecord?.movedFiles),
+    asStringArray(resultRecord?.appliedFiles),
+  ]) {
+    const first = values?.map((value) => value.trim()).find((value) => value.length > 0);
+    if (first) {
+      return first;
+    }
+  }
+
+  if (diff === undefined) {
+    return undefined;
+  }
+  for (const line of diff.split("\n")) {
+    if (!line.startsWith("+++ ")) {
+      continue;
+    }
+    const diffPath = line.slice(4).trim().split(/\s+/)[0]?.trim();
+    if (!diffPath || diffPath === "/dev/null") {
+      continue;
+    }
+    if (diffPath.startsWith("b/") || diffPath.startsWith("a/")) {
+      return diffPath.slice(2);
+    }
+    return diffPath;
+  }
+  return undefined;
 }
 
 function extractSearchQuery(args: unknown): string | undefined {

@@ -12,7 +12,7 @@ import {
   readChatRouteTarget,
   useChatRouteTarget,
 } from "~/app/chat-route-state";
-import { clearNewThreadDraftSendArtifacts, openDraft } from "~/app/chat-navigation";
+import { openDraft } from "~/app/chat-navigation";
 import type { AppRouter } from "~/router";
 import { useSelectedWorkspaceProject } from "../lib/selected-workspace-project";
 import { newThreadId } from "../lib/utils";
@@ -71,52 +71,19 @@ export async function openNewThreadWithRouter(
   const logicalProjectKey =
     options?.logicalProjectKey?.trim() ||
     (project ? deriveLogicalProjectKey(project) : scopedProjectKey(projectRef));
-
-  const unsentDraft =
+  const previousDraft =
     store.getDraftSessionByLogicalProjectKey(logicalProjectKey) ??
     store.getDraftSessionByProjectRef(projectRef);
 
-  if (unsentDraft && unsentDraft.promotedTo == null) {
-    const draftWorktreePath = options?.worktreePath ?? unsentDraft.worktreePath;
-    exitFullscreenForNewThreadProject(project, draftWorktreePath, currentFullscreenThreadId);
-
-    const alreadyOnUnsentDraft =
-      currentRouteTarget?.kind === "draft" &&
-      currentRouteTarget.draftId === unsentDraft.draftId &&
-      unsentDraft.environmentId === projectRef.environmentId &&
-      unsentDraft.projectId === projectRef.projectId;
-
-    if (alreadyOnUnsentDraft) {
-      clearNewThreadDraftSendArtifacts(unsentDraft.draftId);
-      return;
-    }
-
-    if (
-      options?.branch !== undefined ||
-      options?.worktreePath !== undefined ||
-      options?.envMode !== undefined
-    ) {
-      store.setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, unsentDraft.draftId, {
-        threadId: unsentDraft.threadId,
-        createdAt: unsentDraft.createdAt,
-        interactionMode: unsentDraft.interactionMode,
-        branch: options.branch ?? unsentDraft.branch,
-        worktreePath: draftWorktreePath,
-        envMode: options.envMode ?? unsentDraft.envMode,
-      });
-    }
-
-    await openDraft(router, unsentDraft.draftId);
-    return;
-  }
-
+  const threadId = newThreadId();
   const draftId = DraftId.make(
-    `new-thread-draft:project:${projectRef.environmentId}:${projectRef.projectId}`,
+    // Prefix is for routing; thread-id suffix keeps drafts distinct.
+    `new-thread-draft:project:${projectRef.environmentId}:${projectRef.projectId}:${threadId}`,
   );
-  const draftWorktreePath = options?.worktreePath ?? null;
+  const draftWorktreePath = options?.worktreePath ?? previousDraft?.worktreePath ?? null;
   exitFullscreenForNewThreadProject(project, draftWorktreePath, currentFullscreenThreadId);
   store.setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, draftId, {
-    threadId: newThreadId(),
+    threadId,
     createdAt: new Date().toISOString(),
     interactionMode: DEFAULT_INTERACTION_MODE,
     branch: options?.branch ?? null,

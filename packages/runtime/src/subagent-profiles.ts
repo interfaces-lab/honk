@@ -37,6 +37,23 @@ export interface SubagentProfileOverrides {
 }
 
 export const DEFAULT_SUBAGENT_AGENT_NAME = "general-purpose";
+export const SUBAGENT_AGENT_NAMES = [DEFAULT_SUBAGENT_AGENT_NAME, "librarian", "oracle"] as const;
+
+type SubagentAgentName = (typeof SUBAGENT_AGENT_NAMES)[number];
+
+export class UnknownSubagentProfileError extends Error {
+  readonly requestedName: string;
+
+  constructor(requestedName: string) {
+    super(
+      `Unknown subagent agent type "${requestedName}". Supported agents: ${SUBAGENT_AGENT_NAMES.join(
+        ", ",
+      )}. Omit agent for the default Worker.`,
+    );
+    this.name = "UnknownSubagentProfileError";
+    this.requestedName = requestedName;
+  }
+}
 
 const NARROW_RESOURCE_ACCESS: SubagentResourceAccess = {
   extensions: false,
@@ -45,14 +62,14 @@ const NARROW_RESOURCE_ACCESS: SubagentResourceAccess = {
   themes: false,
 };
 
-const SCOUT_PROMPT = `You are a reconnaissance subagent. Quickly map the relevant parts of the codebase and report concise, accurate findings. Read and search aggressively, but do not modify anything. Return the specific files and symbols that matter with file:line references, plus a short summary of how they fit together. Prefer breadth and speed over exhaustive detail.`;
+const LIBRARIAN_PROMPT = `You are a reconnaissance subagent. Quickly map the relevant parts of the codebase and report concise, accurate findings. Read and search aggressively, but do not modify anything. Return the specific files and symbols that matter with file:line references, plus a short summary of how they fit together. Prefer breadth and speed over exhaustive detail.`;
 
 const ORACLE_PROMPT = `You are a deep-reasoning advisory subagent. Analyze the problem thoroughly: root-cause the issue, weigh design trade-offs, and recommend a concrete approach. Read and search to ground every claim in the actual code; do not modify files. Think carefully before answering, show the key reasoning that supports your recommendation, then end with a clear, actionable conclusion.`;
 
 // Inspection tools for the recon/analysis specialists.
 const READONLY_TOOLS = ["read", "grep", "find", "ls", "bash"] as const;
 
-const BUILTIN_SUBAGENT_PROFILES: Record<string, ResolvedSubagentProfile> = {
+const BUILTIN_SUBAGENT_PROFILES: Record<SubagentAgentName, ResolvedSubagentProfile> = {
   [DEFAULT_SUBAGENT_AGENT_NAME]: {
     name: DEFAULT_SUBAGENT_AGENT_NAME,
     systemPrompt: null,
@@ -63,9 +80,9 @@ const BUILTIN_SUBAGENT_PROFILES: Record<string, ResolvedSubagentProfile> = {
     resourceAccess: NARROW_RESOURCE_ACCESS,
     maxSubagentDepth: 0,
   },
-  scout: {
-    name: "scout",
-    systemPrompt: SCOUT_PROMPT,
+  librarian: {
+    name: "librarian",
+    systemPrompt: LIBRARIAN_PROMPT,
     model: null,
     thinkingLevel: "medium",
     tools: [...READONLY_TOOLS],
@@ -101,13 +118,22 @@ function applyOverrides(
   return next;
 }
 
+function canonicalSubagentAgentName(requested: string): SubagentAgentName | null {
+  return (SUBAGENT_AGENT_NAMES as readonly string[]).includes(requested)
+    ? (requested as SubagentAgentName)
+    : null;
+}
+
 export function resolveSubagentProfile(input: {
   readonly name: string | null | undefined;
   readonly overrides?: SubagentProfileOverrides;
 }): ResolvedSubagentProfile {
   const requested = input.name?.trim() || DEFAULT_SUBAGENT_AGENT_NAME;
-  const base =
-    BUILTIN_SUBAGENT_PROFILES[requested] ?? BUILTIN_SUBAGENT_PROFILES[DEFAULT_SUBAGENT_AGENT_NAME]!;
+  const canonical = canonicalSubagentAgentName(requested);
+  if (!canonical) {
+    throw new UnknownSubagentProfileError(requested);
+  }
+  const base = BUILTIN_SUBAGENT_PROFILES[canonical];
   return applyOverrides(base, input.overrides);
 }
 

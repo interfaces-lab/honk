@@ -1104,10 +1104,19 @@ const RuntimeThreadActivityRecord = Schema.Struct({
   }),
 });
 
+const RuntimeProposedPlanRecord = Schema.Struct({
+  ...RuntimeIngestionRecordBase,
+  kind: Schema.Literal("proposed-plan"),
+  payload: Schema.Struct({
+    proposedPlan: OrchestrationProposedPlan,
+  }),
+});
+
 export const RuntimeIngestionRecord = Schema.Union([
   RuntimeAssistantCompletionRecord,
   RuntimeUserTurnStartRecord,
   RuntimeThreadActivityRecord,
+  RuntimeProposedPlanRecord,
 ]);
 export type RuntimeIngestionRecord = typeof RuntimeIngestionRecord.Type;
 

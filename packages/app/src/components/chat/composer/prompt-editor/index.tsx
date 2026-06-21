@@ -1718,7 +1718,7 @@ const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, Compose
               tabIndex={-1}
             />
           }
-          placeholder={<PromptEditorPlaceholder className={className} placeholder={placeholder} />}
+          placeholder={<PromptEditorPlaceholder placeholder={placeholder} />}
         />
         <span
           ref={setCaretAnchor}
@@ -1733,16 +1733,14 @@ const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, Compose
 );
 
 const PromptEditorPlaceholder = function PromptEditorPlaceholder({
-  className,
   placeholder,
 }: {
-  className: string | undefined;
   placeholder: string;
 }) {
   return (
     <div
       aria-hidden="true"
-      className={cn("block w-full whitespace-pre-wrap break-words", className)}
+      className="block w-full whitespace-pre-wrap break-words"
       data-prompt-editor-placeholder=""
     >
       {placeholder}

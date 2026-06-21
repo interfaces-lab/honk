@@ -13,7 +13,7 @@ import {
 import { hasActiveOrchestrationTurn, hasVisibleActiveOrchestrationTurn } from "~/session-logic";
 import { buildProjectChatSections } from "./view-model";
 import type { SidebarThreadSummary as StoreSidebarThreadSummary } from "~/types";
-import type { SidebarThreadSummary } from "./types";
+import type { SidebarDraftSummary, SidebarThreadSummary } from "./types";
 
 const primaryEnvironmentId = EnvironmentId.make("environment:primary");
 const projectId = ProjectId.make("project:workspace");
@@ -68,6 +68,21 @@ function threadSummary(input: Partial<SidebarThreadSummary> = {}): SidebarThread
     orchestrationStatus: null,
     latestTurnState: null,
     needsAttention: false,
+    ...input,
+  };
+}
+
+function draftSummary(input: Partial<SidebarDraftSummary> = {}): SidebarDraftSummary {
+  return {
+    id: "new-thread-draft:project:environment:primary:project:workspace:thread:draft",
+    environmentId: primaryEnvironmentId,
+    projectId,
+    workspaceProjectRef: projectRef,
+    projectCwd: "/repo",
+    cwd: "/repo",
+    title: "Draft",
+    state: "draft",
+    updatedAt: "2026-01-02T00:00:00.000Z",
     ...input,
   };
 }
@@ -151,6 +166,35 @@ describe("buildProjectChatSections", () => {
     );
 
     expect(sections[0]?.items.map((item) => item.id)).toEqual([newerThreadId, olderThreadId]);
+  });
+
+  it("keeps multiple draft rows for the same project sorted by recency", () => {
+    const olderDraftId = "new-thread-draft:project:environment:primary:project:workspace:thread:older";
+    const newerDraftId = "new-thread-draft:project:environment:primary:project:workspace:thread:newer";
+    const sections = buildProjectChatSections(
+      [],
+      [
+        draftSummary({
+          id: olderDraftId,
+          title: "Older draft",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        }),
+        draftSummary({
+          id: newerDraftId,
+          title: "Newer draft",
+          updatedAt: "2026-01-02T00:00:00.000Z",
+        }),
+      ],
+      "/repo",
+      null,
+      undefined,
+      ["/repo"],
+    );
+
+    expect(sections[0]?.items.map((item) => [item.kind, item.id])).toEqual([
+      ["draft", newerDraftId],
+      ["draft", olderDraftId],
+    ]);
   });
 
   it("maps stopped sessions to the stopped sidebar state", () => {

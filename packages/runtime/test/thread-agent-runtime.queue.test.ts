@@ -105,6 +105,48 @@ describe("ThreadAgentRuntime canonical queued follow-up behavior", () => {
     }
   });
 
+  it("keeps one logical turn id across Pi internal tool turns", async () => {
+    const { harness, releaseToolExecution } = await createRuntimeBlockedOnTool(harnesses);
+    const events = collectRuntimeEvents(harness.runtime);
+    harness.setResponses([
+      fauxAssistantMessage(fauxToolCall("wait", {}), { stopReason: "toolUse" }),
+      fauxAssistantMessage("finished after tool"),
+    ]);
+
+    const turnId = await waitForEvent(harness.runtime, "tool.started", () =>
+      harness.runtime.sendMessage("start", EMPTY_SEND_MESSAGE_OPTIONS),
+    );
+    const finalTreeUpdated = new Promise<void>((resolve) => {
+      const unsubscribe = harness.runtime.subscribe((event) => {
+        if (event.type === "tree.updated" && event.turnId === turnId) {
+          unsubscribe();
+          resolve();
+        }
+      });
+    });
+    releaseToolExecution();
+    await harness.runtime.session.agent.waitForIdle();
+    await finalTreeUpdated;
+
+    const entryTurnIds = new Set(
+      harness.runtime
+        .getSessionTree()
+        .entries.map((entry) => entry.turnId)
+        .filter((entryTurnId): entryTurnId is NonNullable<typeof entryTurnId> =>
+          Boolean(entryTurnId),
+        )
+        .map(String),
+    );
+    const runtimeTurnIds = new Set(
+      events
+        .filter((event) => event.turnId !== undefined)
+        .map((event) => String(event.turnId)),
+    );
+
+    expect(entryTurnIds).toEqual(new Set([String(turnId)]));
+    expect(runtimeTurnIds).toEqual(new Set([String(turnId)]));
+  });
+
   it("keeps Pi steer and Pi followUp semantics distinct while tool work is active", async () => {
     const { harness, releaseToolExecution } = await createRuntimeBlockedOnTool(harnesses);
     const events = collectRuntimeEvents(harness.runtime);

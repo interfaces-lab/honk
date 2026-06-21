@@ -92,19 +92,35 @@
   min-height: 44px;
 }
 
-[data-honk-composer-shell="thread"] [data-prompt-editor-input="true"] {
+[data-honk-composer-shell="thread"] [data-prompt-editor-input="true"],
+[data-honk-composer-shell="thread"] [data-prompt-editor-placeholder] {
   font-size: var(--honk-composer-editor-font-size);
   line-height: var(--honk-composer-editor-line-height);
   min-height: var(--honk-composer-editor-min-height);
-  max-height: 200px;
-  padding: 0;
   margin: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
+[data-honk-composer-shell="thread"] [data-prompt-editor-input="true"] {
+  max-height: 200px;
+}
+
+[data-honk-composer-shell="thread"]:not([data-expanded=""]) [data-prompt-editor-placeholder] {
+  padding-left: 0.25rem;
+}
+
 [data-honk-composer-shell="thread"]:not([data-expanded=""]) [data-prompt-editor-input="true"] {
   max-height: 72px;
+}
+
+[data-honk-composer-shell="thread"][data-expanded=""] [data-prompt-editor-placeholder] {
+  padding: 0.5rem 0.75rem 0;
+}
+
+[data-honk-composer-shell="inline-edit"] [data-prompt-editor-placeholder] {
+  min-height: 1.25rem;
+  padding: 0.5rem 0.75rem;
 }
 
 [data-prompt-editor-root] .honk-lexical-composer-paragraph {

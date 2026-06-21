@@ -837,8 +837,8 @@ const SUBAGENT_PROFILE_CARDS = [
     icon: IconAgentNetwork,
   },
   {
-    name: "scout",
-    label: "Scout",
+    name: "librarian",
+    label: "Librarian",
     description: "Read-only reconnaissance for quickly mapping files, symbols, and code paths.",
     mode: "Rush",
     thinking: "Medium",

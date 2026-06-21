@@ -443,7 +443,8 @@ describe("RuntimeToolCallMessage command entries", () => {
     expect(html).toContain("data-subagent-role");
     expect(html).toContain("data-subagent-name");
     expect(html).toContain("data-subagent-task");
-    expect(html).toContain("General Purpose");
+    expect(html).toContain("Worker");
+    expect(html).not.toContain("General Purpose");
     expect(html).toContain("Research");
     expect(html).toContain("gpt-5.5");
     expect(html).toContain("Renderer reviewed");
@@ -461,15 +462,121 @@ describe("RuntimeToolCallMessage command entries", () => {
     expect(html).not.toContain("Ran");
   });
 
+  it("renders active default subagents as Worker rows with the task description", () => {
+    const html = renderRuntimeToolWithContext(
+      runtimeActiveSubagentTool({
+        nickname: "Research session IDs",
+        role: "general-purpose",
+      }),
+    );
+
+    expect(html).toContain("Worker handling");
+    expect(html).toContain("Research session IDs");
+    expect(html).toContain('data-slot="chat-loader-matrix"');
+    expect(html).not.toContain(">Running<");
+  });
+
+  it("renders active specialist subagents with product verbs", () => {
+    const librarianHtml = renderRuntimeToolWithContext(
+      runtimeActiveSubagentTool({
+        nickname: "Research files",
+        role: "librarian",
+      }),
+    );
+    const oracleHtml = renderRuntimeToolWithContext(
+      runtimeActiveSubagentTool({
+        nickname: "Migration plan",
+        role: "oracle",
+      }),
+    );
+
+    expect(librarianHtml).toContain("Librarian researching");
+    expect(oracleHtml).toContain("Oracle manifesting");
+  });
+
+  it("renders active runtime subagent logs as a bounded inline activity tree", () => {
+    const html = renderRuntimeToolWithContext(
+      runtimeActiveSubagentTool({
+        nickname: "Research session IDs",
+        role: "librarian",
+        activityCount: 18,
+      }),
+    );
+
+    expect(html).toContain("data-subagent-inline-activity");
+    expect(html).toContain("Activity 17");
+    expect(html).not.toContain("Activity 0");
+  });
+
   it("does not project parent runtime subagent activities into tray transcript items", () => {
     const subagents = runtimeToolItemToSubagents(runtimeSubagentToolWithTranscript());
 
     expect(subagents).toHaveLength(1);
-    expect(subagents[0]?.logs).toEqual([]);
+    expect(subagents[0]?.logs).toHaveLength(2);
     expect(subagents[0]?.transcriptItems).toBeUndefined();
     expect(subagents[0]?.latestUpdate).toBe("Renderer reviewed");
   });
 });
+
+function runtimeActiveSubagentTool(input: {
+  nickname: string;
+  role: string;
+  activityCount?: number | undefined;
+}): RuntimeDisplayTimelineToolItem {
+  const activityCount = input.activityCount ?? 1;
+  return {
+    id: "tool:active-subagent",
+    kind: "tool",
+    orderKey: `${createdAt}:tool:active-subagent`,
+    createdAt,
+    toolCallId: "toolu-active-subagent",
+    toolName: "subagent",
+    status: "running",
+    eventIds: [],
+    display: {
+      kind: "subagent",
+      mode: "single",
+      runs: [
+        {
+          subagentThreadId: "thread:active-child",
+          agentId: "agent:active-child",
+          nickname: input.nickname,
+          role: input.role,
+          model: "gpt-5.5",
+          prompt: "Inspect active subagent display",
+          state: "running",
+          finalText: null,
+          errorMessage: null,
+        },
+      ],
+      activities: Array.from({ length: activityCount }, (_, index) => ({
+        id: `runtime-subagent:toolu-active-subagent:thread:active-child:${index}`,
+        kind: index === 0 ? "subagent.thread.started" : "subagent.item.updated",
+        tone: "info",
+        summary: `Activity ${index}`,
+        createdAt,
+        sequence: index + 1,
+        payload: {
+          subagentThreadId: "thread:active-child",
+          parentThreadId: "thread:runtime-tool-context",
+          parentItemId: "toolu-active-subagent",
+          agentId: "agent:active-child",
+          nickname: input.nickname,
+          role: input.role,
+          model: "gpt-5.5",
+          prompt: "Inspect active subagent display",
+          state: "running",
+          itemType: index === 0 ? null : "file_search",
+          itemId: index === 0 ? null : `item:${index}`,
+          status: index === activityCount - 1 ? "running" : "completed",
+          title: `Activity ${index}`,
+          detail: index === 0 ? null : `Detail ${index}`,
+          data: null,
+        },
+      })),
+    },
+  };
+}
 
 function runtimeSubagentTool(): RuntimeDisplayTimelineToolItem {
   return {

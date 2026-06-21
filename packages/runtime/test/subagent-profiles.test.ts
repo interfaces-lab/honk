@@ -4,16 +4,16 @@ import { DEFAULT_SUBAGENT_AGENT_NAME, resolveSubagentProfile } from "../src/suba
 
 describe("resolveSubagentProfile", () => {
   it("only resolves Honk built-in subagent profiles", () => {
-    expect(resolveSubagentProfile({ name: "scout" }).name).toBe("scout");
+    expect(resolveSubagentProfile({ name: "librarian" }).name).toBe("librarian");
     expect(resolveSubagentProfile({ name: "oracle" }).name).toBe("oracle");
-    expect(resolveSubagentProfile({ name: "custom-reviewer" }).name).toBe(
-      DEFAULT_SUBAGENT_AGENT_NAME,
+    expect(() => resolveSubagentProfile({ name: "custom-reviewer" })).toThrow(
+      'Unknown subagent agent type "custom-reviewer"',
     );
   });
 
-  it("applies model and tool overrides without turning unknown names into custom agents", () => {
+  it("applies model and tool overrides to the default agent", () => {
     const profile = resolveSubagentProfile({
-      name: "custom-reviewer",
+      name: null,
       overrides: {
         model: "provider/model",
         tools: ["read", "grep"],

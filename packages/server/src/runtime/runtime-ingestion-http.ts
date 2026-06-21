@@ -76,7 +76,10 @@ export function clientCommandForRuntimeUserTurnStartRecord(
 // is the deterministic record id, so re-ingesting the same fact yields the same command and the
 // engine deduplicates it.
 export function internalCommandForRuntimeFact(
-  record: Extract<RuntimeIngestionRecord, { kind: "assistant.completion" | "thread.activity" }>,
+  record: Extract<
+    RuntimeIngestionRecord,
+    { kind: "assistant.completion" | "thread.activity" | "proposed-plan" }
+  >,
 ): OrchestrationCommand {
   switch (record.kind) {
     case "assistant.completion":
@@ -98,6 +101,14 @@ export function internalCommandForRuntimeFact(
         activity: record.payload.activity,
         createdAt: record.createdAt,
       };
+    case "proposed-plan":
+      return {
+        type: "thread.proposed-plan.upsert",
+        commandId: runtimeRecordCommandId(record),
+        threadId: record.threadId,
+        proposedPlan: record.payload.proposedPlan,
+        createdAt: record.createdAt,
+      };
   }
 }
 
@@ -108,6 +119,7 @@ export function runtimeRecordToCommand(record: RuntimeIngestionRecord) {
     }
     case "assistant.completion":
     case "thread.activity":
+    case "proposed-plan":
       return Effect.succeed(internalCommandForRuntimeFact(record));
   }
 }

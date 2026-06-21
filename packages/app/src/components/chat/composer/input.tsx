@@ -175,6 +175,64 @@ Object.freeze(EMPTY_QUEUED_COMPOSER_ITEMS);
 const EMPTY_PENDING_APPROVALS: NonNullable<ComposerInputProps["pendingApprovals"]> = [];
 Object.freeze(EMPTY_PENDING_APPROVALS);
 
+const MODEL_FAST_MODE_STORAGE_KEY = "honk:model-fast-mode:v1";
+
+type PersistedModelFastModePreferences = {
+  readonly openaiModelFastMode: boolean;
+  readonly cursorComposerFastMode: boolean;
+};
+
+function parsePersistedModelFastModePreferences(
+  value: string | null,
+): PersistedModelFastModePreferences | null {
+  if (!value) {
+    return null;
+  }
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return null;
+    }
+    const record = parsed as Record<string, unknown>;
+    if (
+      typeof record.openaiModelFastMode !== "boolean" ||
+      typeof record.cursorComposerFastMode !== "boolean"
+    ) {
+      return null;
+    }
+    return {
+      openaiModelFastMode: record.openaiModelFastMode,
+      cursorComposerFastMode: record.cursorComposerFastMode,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readPersistedModelFastModePreferences(): PersistedModelFastModePreferences | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    return parsePersistedModelFastModePreferences(
+      window.localStorage.getItem(MODEL_FAST_MODE_STORAGE_KEY),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function persistModelFastModePreferences(preferences: PersistedModelFastModePreferences): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(MODEL_FAST_MODE_STORAGE_KEY, JSON.stringify(preferences));
+  } catch {
+    // Ignore storage failures; the runtime preference update still applies for this session.
+  }
+}
+
 function nextPromptSyncState(
   value: string,
   cursor: number = value.length,
@@ -1631,6 +1689,41 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
         .finally(() => setSaving?.(false));
     };
 
+    useMountEffect(() => {
+      if (!isNewAgentComposer || !isDesktopRuntimeApiAvailable()) {
+        return;
+      }
+
+      const persistedFastModePreferences = readPersistedModelFastModePreferences();
+      if (!persistedFastModePreferences) {
+        return;
+      }
+      const restoreOpenAIFastMode =
+        persistedFastModePreferences.openaiModelFastMode !== runtimePreferences.fast;
+      const restoreCursorComposerFastMode =
+        persistedFastModePreferences.cursorComposerFastMode !==
+          cursorComposerFastEnabled(runtimePreferences.modelSelection);
+
+      if (!restoreOpenAIFastMode && !restoreCursorComposerFastMode) {
+        return;
+      }
+
+      const patch: AgentPreferencesPatch = {
+        ...(restoreOpenAIFastMode
+          ? { fast: persistedFastModePreferences.openaiModelFastMode }
+          : {}),
+        ...(restoreCursorComposerFastMode
+          ? {
+              modelSelection: cursorComposerPolicyModelSelection(
+                persistedFastModePreferences.cursorComposerFastMode,
+              ),
+            }
+          : {}),
+      };
+
+      updateAgentRuntimePreferences(patch, "Failed to restore fast mode preferences.");
+    });
+
     const handleAgentModeChange = (agentMode: AgentMode) => {
       const thinkingLevel = AGENT_MODE_THINKING_LEVELS[agentMode];
       const modelSelection =
@@ -1671,6 +1764,10 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
     };
 
     const handleComposerFastModeChange = (fastEnabled: boolean) => {
+      persistModelFastModePreferences({
+        openaiModelFastMode: runtimePreferences.fast,
+        cursorComposerFastMode: fastEnabled,
+      });
       const modelSelection = cursorComposerPolicyModelSelection(fastEnabled);
       if (
         runtimePreferences.agentMode === "composer" &&
@@ -1691,6 +1788,10 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
     };
 
     const handleFastModeChange = (fastMode: boolean) => {
+      persistModelFastModePreferences({
+        openaiModelFastMode: fastMode,
+        cursorComposerFastMode: cursorComposerFastEnabled(runtimePreferences.modelSelection),
+      });
       updateAgentRuntimePreferences({ fast: fastMode }, "Failed to update fast mode.");
     };
 

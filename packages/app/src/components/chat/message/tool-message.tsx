@@ -5,13 +5,14 @@ import {
   type ThreadId,
 } from "@honk/contracts";
 import { Button } from "@honk/honkkit/button";
-import { IconBubbleQuestion, IconChevronRightMedium, IconClock, IconSummary } from "central-icons";
+import { IconBubbleQuestion, IconChevronRightMedium, IconSummary } from "central-icons";
 import { type KeyboardEvent, type MouseEvent } from "react";
 import {
   type ToolDiffArtifact,
   type ToolDisplayArtifact,
   type WorkLogEntry,
   type WorkLogSubagent,
+  type WorkLogSubagentLog,
 } from "../../../session-logic";
 import { formatSubagentRoleLabel } from "../../../session/subagents";
 import { formatProjectRelativePath } from "../shared/file-path-display";
@@ -35,6 +36,7 @@ import {
   subagentTraySelection,
   useSubagentTrayStore,
 } from "../../../stores/subagent-tray-store";
+import { ChatLoaderGlyph } from "./chat-loader";
 
 type ToolCallStatus = "loading" | "completed" | "error";
 type RuntimeToolDisplay = NonNullable<RuntimeDisplayTimelineToolItem["display"]>;
@@ -427,10 +429,33 @@ function runtimeToolDisplayToSubagents(
       title,
       statusLabel: runtimeSubagentStatusLabel(run.state),
       isActive: run.state === "running",
-      logs: [],
+      logs: runtimeSubagentActivityLogs(display, run.subagentThreadId),
       hasDetails: true,
     };
   });
+}
+
+function runtimeSubagentActivityLogs(
+  display: RuntimeSubagentDisplay,
+  subagentThreadId: string,
+): WorkLogSubagentLog[] {
+  return display.activities
+    .filter((activity) => activity.payload.subagentThreadId === subagentThreadId)
+    .map((activity): WorkLogSubagentLog => {
+      const payload = activity.payload;
+      return {
+        id: activity.id,
+        createdAt: activity.createdAt,
+        kind: activity.kind,
+        label: payload.title ?? activity.summary,
+        ...(payload.itemId ? { itemId: payload.itemId } : {}),
+        ...(payload.detail ? { detail: payload.detail } : {}),
+        ...(payload.itemType ? { itemType: payload.itemType } : {}),
+        ...((payload.status ?? payload.state)
+          ? { status: payload.status ?? payload.state ?? undefined }
+          : {}),
+      };
+    });
 }
 
 function runtimeSubagentLatestUpdate(run: RuntimeSubagentRun): string | undefined {
@@ -765,9 +790,25 @@ function SubagentStatusRow({
     ((subagent.logs?.length ?? 0) > 0 || subagent.hasDetails === true || hasSubagentThread);
   const title = subagent.title ?? subagent.nickname ?? subagent.role ?? "Subagent";
   const roleLabel = formatSubagentRoleLabel(subagent.role);
-  const visibleRoleLabel = roleLabel && roleLabel !== title ? roleLabel : undefined;
-  const accessibleTitle = visibleRoleLabel ? `${visibleRoleLabel} subagent: ${title}` : title;
-  const statusText = subagent.latestUpdate ?? subagent.statusLabel;
+  const role = subagent.role?.trim();
+  const activeRoleLabel = roleLabel ?? "Worker";
+  const activeVerb =
+    role === "oracle"
+      ? "manifesting"
+      : role === "librarian"
+        ? "researching"
+        : "handling";
+  const displayTitle = subagent.isActive ? `${activeRoleLabel} ${activeVerb}` : title;
+  const visibleRoleLabel =
+    !subagent.isActive && roleLabel && roleLabel !== title ? roleLabel : undefined;
+  const accessibleTitle = visibleRoleLabel
+    ? `${visibleRoleLabel} subagent: ${title}`
+    : displayTitle;
+  const statusText = subagent.isActive
+    ? [subagent.nickname, subagent.prompt, subagent.latestUpdate, subagent.statusLabel].find(
+        (value) => value?.trim(),
+      )
+    : (subagent.latestUpdate ?? subagent.statusLabel);
   const rowState = subagent.rawStatus ?? (subagent.isActive ? "running" : "completed");
 
   const handleOpenTray = (event: MouseEvent<HTMLButtonElement>) => {
@@ -824,7 +865,7 @@ function SubagentStatusRow({
           data-subagent-name=""
           className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium text-honk-fg-primary"
         >
-          {title}
+          {displayTitle}
         </span>
         {subagent.model ? (
           <span className="shrink-0 text-caption text-honk-fg-tertiary tabular-nums">
@@ -861,7 +902,58 @@ function SubagentStatusRow({
           {statusText}
         </span>
       ) : null}
+      <SubagentInlineActivityTree subagent={subagent} />
     </Button>
+  );
+}
+
+const SUBAGENT_INLINE_ACTIVITY_LIMIT = 14;
+
+function SubagentInlineActivityTree({ subagent }: { subagent: WorkLogSubagent }) {
+  const logs = subagent.logs?.slice(-SUBAGENT_INLINE_ACTIVITY_LIMIT) ?? [];
+  if (!subagent.isActive || logs.length === 0) {
+    return null;
+  }
+
+  return (
+    <span
+      className="mt-0.5 ml-4.5 flex max-w-full min-w-0 flex-col border-l border-honk-stroke-secondary/60 pl-2 text-honk-fg-tertiary"
+      data-subagent-inline-activity=""
+    >
+      {logs.map((log) => (
+        <SubagentInlineActivityRow key={log.id} log={log} />
+      ))}
+    </span>
+  );
+}
+
+function SubagentInlineActivityRow({ log }: { log: WorkLogSubagentLog }) {
+  const status = log.status?.trim();
+  const isRunning = status === "running" || status === "inProgress";
+  const detail = log.detail?.trim();
+  return (
+    <span
+      className="flex min-h-5 max-w-full min-w-0 items-center gap-1.5"
+      data-subagent-inline-activity-row=""
+      data-subagent-inline-activity-status={status || undefined}
+    >
+      <span className="inline-flex w-3 shrink-0 items-center justify-center" aria-hidden="true">
+        {isRunning ? (
+          <ChatLoaderGlyph className="text-honk-icon-accent-primary" maxExtent={10} />
+        ) : (
+          <span className="size-1.5 rounded-full bg-honk-icon-tertiary" />
+        )}
+      </span>
+      <span
+        className={cn(
+          "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap",
+          isRunning && "tool-call-shimmer",
+        )}
+      >
+        {log.label}
+        {detail ? <span className="text-honk-fg-quaternary">: {detail}</span> : null}
+      </span>
+    </span>
   );
 }
 
@@ -874,7 +966,7 @@ function SubagentStatusIndicator({ subagent }: { subagent: WorkLogSubagent }) {
   if (subagent.isActive) {
     return (
       <span className="inline-flex shrink-0 items-center justify-center text-honk-icon-accent-primary">
-        <IconClock className="tool-call-shimmer size-3" />
+        <ChatLoaderGlyph maxExtent={12} />
       </span>
     );
   }
