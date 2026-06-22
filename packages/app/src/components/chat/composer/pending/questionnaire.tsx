@@ -1,5 +1,7 @@
 import { type ReactNode } from "react";
 
+import { cn } from "~/lib/utils";
+
 /**
  * Compact questionnaire surface for pending ask panels. The shell mirrors the
  * product editor card: quiet header, numbered option rows, and a small primary
@@ -20,15 +22,20 @@ export function questionnaireOptionIndexForKey(key: string): number | null {
   return upperKey.charCodeAt(0) - 65;
 }
 
-export function QuestionnaireSurface(props: { children: ReactNode; embedded?: boolean }) {
+export function QuestionnaireSurface(props: {
+  children: ReactNode;
+  className?: string | undefined;
+  embedded?: boolean;
+}) {
   return (
     <div
       data-questionnaire-surface=""
-      className={
+      className={cn(
         props.embedded
           ? "grid w-full bg-honk-bubble-opaque"
-          : "grid w-full rounded-lg border border-honk-stroke-tertiary bg-honk-bubble-opaque"
-      }
+          : "grid w-full rounded-lg border border-honk-stroke-tertiary bg-honk-bubble-opaque",
+        props.className,
+      )}
     >
       {props.children}
     </div>

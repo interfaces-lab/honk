@@ -34,6 +34,17 @@
   --z-index-toast-viewport: 100;
   --z-index-toast-positioner: 100;
 
+  /* dialog geometry */
+  --honk-dialog-max-width: 32rem;
+  --honk-dialog-radius: var(--honk-radius-lg, 8px);
+  --honk-dialog-viewport-padding: var(--honk-spacing-4, 16px);
+  --honk-dialog-mobile-top-padding: calc(var(--honk-spacing-7, 28px) + var(--honk-spacing-4, 16px));
+  --honk-dialog-padding-inline: calc(var(--honk-spacing-4, 16px) + var(--honk-spacing-2, 8px));
+  --honk-dialog-padding-block: calc(var(--honk-spacing-4, 16px) + var(--honk-spacing-2, 8px));
+  --honk-dialog-header-gap: var(--honk-spacing-2, 8px);
+  --honk-dialog-footer-gap: var(--honk-spacing-2, 8px);
+  --honk-dialog-footer-padding-block: var(--honk-spacing-4, 16px);
+
   /* transitions-dev */
   --pulse-dur: 1000ms;
   --pulse-count: 1;

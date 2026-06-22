@@ -1,3 +1,4 @@
+import stylex from "@stylexjs/unplugin";
 import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import babel from "@rolldown/plugin-babel";
@@ -52,6 +53,7 @@ const devProxyTarget = resolveDevProxyTarget(resolvedWsUrl);
 export default defineConfig({
   plugins: [
     tanstackRouter(),
+    stylex.vite({ useCSSLayers: true }),
     react(),
     babel({
       // We need to be explicit about the parser options after moving to @vitejs/plugin-react v6.0.0
@@ -65,6 +67,7 @@ export default defineConfig({
     tailwindcss(),
   ],
   optimizeDeps: {
+    exclude: ["@honk/honkkit"],
     include: [
       "@pierre/diffs",
       "@pierre/diffs/react",

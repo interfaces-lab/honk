@@ -84,6 +84,8 @@ const SLASH_MENU_COLLAPSED_SKILL_COUNT = 3;
 const SLASH_MENU_SKILLS_SECTION_ID = "skills";
 const MENTIONS_MENU_COLLAPSED_FILE_COUNT = 3;
 const MENTIONS_MENU_FILES_SECTION_ID = "files";
+const MENTIONS_MENU_COLLAPSED_THREAD_COUNT = 5;
+const MENTIONS_MENU_THREADS_SECTION_ID = "threads";
 
 export type ComposerCommandItem =
   | {
@@ -331,6 +333,7 @@ export function useComposerCommandMenu(input: {
   activeThreadId: ThreadId | null;
   agentMode?: AgentMode | undefined;
   allowModeSlashCommands?: boolean | undefined;
+  allowThreadActionSlashCommands?: boolean | undefined;
   composerTrigger: ComposerTrigger | null;
   environmentId: EnvironmentId;
   expandedSections: ReadonlySet<string>;
@@ -411,10 +414,12 @@ export function useComposerCommandMenu(input: {
       // is empty) so the default highlight never locks onto a thread row that
       // file results are about to displace.
       const includeThreads = runtimeApiAvailable && (pathUnsearched || !isPathSearchPending);
-      const threadItems: ComposerCommandItem[] = includeThreads
+      const baseThreadItems: ComposerCommandItem[] = includeThreads
         ? buildPastThreadCandidates(sidebarThreads, {
             activeThreadId: input.activeThreadId,
             environmentId: input.environmentId,
+            limit: Number.POSITIVE_INFINITY,
+            poolLimit: Number.POSITIVE_INFINITY,
             query: pathTriggerQuery,
           }).map((candidate) => ({
             id: `thread:${candidate.threadId}`,
@@ -424,7 +429,30 @@ export function useComposerCommandMenu(input: {
             description: candidate.description,
           }))
         : [];
-      return [...visibleFileItems, ...fileExpanderItems, ...threadItems];
+      const threadsExpanded = input.expandedSections.has(MENTIONS_MENU_THREADS_SECTION_ID);
+      const visibleThreadItems =
+        pathUnsearched && !threadsExpanded
+          ? baseThreadItems.slice(0, MENTIONS_MENU_COLLAPSED_THREAD_COUNT)
+          : baseThreadItems;
+      const firstHiddenThreadItem = baseThreadItems[MENTIONS_MENU_COLLAPSED_THREAD_COUNT];
+      const threadExpanderItems: ComposerCommandItem[] =
+        pathUnsearched && !threadsExpanded && firstHiddenThreadItem !== undefined
+          ? [
+              {
+                id: `expander:${MENTIONS_MENU_THREADS_SECTION_ID}`,
+                type: "expander",
+                sectionId: MENTIONS_MENU_THREADS_SECTION_ID,
+                count: baseThreadItems.length - MENTIONS_MENU_COLLAPSED_THREAD_COUNT,
+                firstRevealedItemId: firstHiddenThreadItem.id,
+              },
+            ]
+          : [];
+      return [
+        ...visibleFileItems,
+        ...fileExpanderItems,
+        ...visibleThreadItems,
+        ...threadExpanderItems,
+      ];
     }
     if (input.composerTrigger.kind !== "slash-command") {
       return [];
@@ -455,14 +483,16 @@ export function useComposerCommandMenu(input: {
           label: "/debug",
           description: "Focus on diagnostics before making changes",
         },
-        {
-          id: "slash:compact",
-          type: "slash-command",
-          command: "compact",
-          label: "/compact",
-          description: "Compact this thread's context",
-        },
       );
+    }
+    if (input.allowThreadActionSlashCommands !== false) {
+      builtInSlashCommandItems.push({
+        id: "slash:compact",
+        type: "slash-command",
+        command: "compact",
+        label: "/compact",
+        description: "Compact this thread's context",
+      });
       if (input.agentMode === "deep" || input.agentMode === "rush") {
         builtInSlashCommandItems.push({
           id: "slash:goal",
@@ -583,8 +613,16 @@ function groupCommandItems(
   isSearching: boolean,
 ): ComposerCommandGroup[] {
   if (triggerKind === "path") {
-    const fileItems = items.filter((item) => item.type === "path" || item.type === "expander");
-    const threadItems = items.filter((item) => item.type === "thread");
+    const fileItems = items.filter(
+      (item) =>
+        item.type === "path" ||
+        (item.type === "expander" && item.sectionId === MENTIONS_MENU_FILES_SECTION_ID),
+    );
+    const threadItems = items.filter(
+      (item) =>
+        item.type === "thread" ||
+        (item.type === "expander" && item.sectionId === MENTIONS_MENU_THREADS_SECTION_ID),
+    );
     const groups: ComposerCommandGroup[] = [];
     if (fileItems.length > 0) {
       groups.push({ id: "files", label: "Files & Folders", items: fileItems });

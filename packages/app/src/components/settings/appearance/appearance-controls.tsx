@@ -59,10 +59,12 @@ function SettingsSlider(props: {
             style={{ backgroundColor: swatchBackground }}
           />
         ) : (
-          <Text size="xs" tone="tertiary" className="w-full text-right tabular-nums">
-            {props.value}
-            {props.suffix ?? ""}
-          </Text>
+          <span className="w-full">
+            <Text size="xs" tone="tertiary" align="end" tabularNums>
+              {props.value}
+              {props.suffix ?? ""}
+            </Text>
+          </span>
         )}
       </span>
     </div>

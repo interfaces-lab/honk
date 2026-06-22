@@ -38,6 +38,7 @@ import * as DesktopShellEnvironment from "../shell/desktop-shell-environment";
 import * as DesktopState from "../app/desktop-state";
 import * as DesktopUpdates from "../updates/desktop-updates";
 import * as DesktopWindow from "../window/desktop-window";
+import * as DesktopBrowserAutomation from "../browser/browser-automation";
 
 const currentDirname = NodePath.dirname(NodeUrl.fileURLToPath(import.meta.url));
 
@@ -96,6 +97,7 @@ const desktopApplicationLayer = Layer.mergeAll(
   DesktopQuitGuard.layer,
   DesktopApplicationMenu.layer,
   DesktopShellEnvironment.layer,
+  DesktopBrowserAutomation.layer,
 ).pipe(Layer.provideMerge(DesktopUpdates.layer), Layer.provideMerge(desktopBackendLayer));
 
 const desktopRuntimeLayer = ElectronProtocol.layerSchemePrivileges.pipe(

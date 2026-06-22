@@ -18,13 +18,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "^0.79.4",
-    "@earendil-works/pi-ai": "^0.79.4",
-    "@earendil-works/pi-coding-agent": "^0.79.4",
+    "@earendil-works/pi-agent-core": "^0.79.10",
+    "@earendil-works/pi-ai": "^0.79.10",
+    "@earendil-works/pi-coding-agent": "^0.79.10",
     "@honk/contracts": "workspace:*",
     "@honk/shared": "workspace:*",
     "effect": "catalog:",
-    "typebox": "^1.2.12"
+    "typebox": "^1.3.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",

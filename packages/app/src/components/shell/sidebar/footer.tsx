@@ -22,33 +22,33 @@ export function ShellSidebarFooter(props: ShellSidebarFooterProps) {
   const inSettings = props.settings === true;
 
   return (
-    <div className="mt-auto flex shrink-0 select-none flex-col px-2.5 py-1.5">
-      <UpdatePill />
-      <div className="flex min-h-7 items-center justify-end gap-2 px-1.5 py-1">
-        {inSettings ? (
-          <button
-            type="button"
-            onClick={props.onToggleSettings}
-            className={cn(settingsGearClassName, "text-foreground")}
-            aria-label="Settings"
-            aria-pressed
-            draggable={false}
-            title="Settings"
-          >
-            <IconSettingsGear2 className="size-4 shrink-0" />
-          </button>
-        ) : (
-          <Link
-            to={DEFAULT_SETTINGS_ROUTE}
-            search={DEFAULT_SETTINGS_SEARCH}
-            className={settingsGearClassName}
-            aria-label="Open settings"
-            draggable={false}
-          >
-            <IconSettingsGear2 className="size-4 shrink-0" />
-          </Link>
-        )}
+    <div className="mt-auto flex shrink-0 select-none items-center justify-between gap-2 px-2.5 py-1.5">
+      <div className="min-w-0 flex-1">
+        <UpdatePill />
       </div>
+      {inSettings ? (
+        <button
+          type="button"
+          onClick={props.onToggleSettings}
+          className={cn(settingsGearClassName, "text-foreground")}
+          aria-label="Settings"
+          aria-pressed
+          draggable={false}
+          title="Settings"
+        >
+          <IconSettingsGear2 className="size-4 shrink-0" />
+        </button>
+      ) : (
+        <Link
+          to={DEFAULT_SETTINGS_ROUTE}
+          search={DEFAULT_SETTINGS_SEARCH}
+          className={settingsGearClassName}
+          aria-label="Open settings"
+          draggable={false}
+        >
+          <IconSettingsGear2 className="size-4 shrink-0" />
+        </Link>
+      )}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import type {
   AssistantMessageEventStream,
   Context,
   Model,
-} from "@earendil-works/pi-ai";
+} from "@earendil-works/pi-ai/base";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { CURSOR_PROVIDER_ID } from "@honk/shared/cursor-composer";
 import { beforeEach, describe, expect, it, vi } from "vitest";

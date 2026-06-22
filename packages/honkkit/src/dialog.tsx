@@ -54,10 +54,14 @@ function DialogViewport({ className, ...props }: DialogPrimitive.Viewport.Props)
 function DialogPopup({
   className,
   children,
+  viewportClassName,
+  viewportStyle,
   showCloseButton = true,
   bottomStickOnMobile = true,
   ...props
 }: DialogPrimitive.Popup.Props & {
+  viewportClassName?: string;
+  viewportStyle?: React.CSSProperties;
   showCloseButton?: boolean;
   bottomStickOnMobile?: boolean;
 }) {
@@ -65,11 +69,16 @@ function DialogPopup({
     <DialogPortal>
       <DialogBackdrop />
       <DialogViewport
-        className={cn(bottomStickOnMobile && "max-sm:grid-rows-[1fr_auto] max-sm:p-0 max-sm:pt-12")}
+        className={cn(
+          bottomStickOnMobile &&
+            "max-sm:grid-rows-[1fr_auto] max-sm:p-0 max-sm:pt-(--honk-dialog-mobile-top-padding)",
+          viewportClassName,
+        )}
+        style={viewportStyle}
       >
         <DialogPrimitive.Popup
           className={cn(
-            "-translate-y-[calc(1.25rem*var(--nested-dialogs))] relative row-start-2 flex max-h-full min-h-0 w-full min-w-0 max-w-lg scale-[calc(1-0.1*var(--nested-dialogs))] flex-col overflow-hidden rounded-honk-lg border border-honk-stroke-tertiary bg-honk-bg-elevated font-honk text-honk-chrome text-honk-fg-primary opacity-[calc(1-0.1*var(--nested-dialogs))] shadow-honk-base outline-none transition-[scale,opacity,translate] duration-(--motion-duration-dialog) ease-(--ease-dialog) will-change-transform data-nested:data-ending-style:translate-y-8 data-nested:data-starting-style:translate-y-8 data-nested-dialog-open:origin-top data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0",
+            "-translate-y-[calc(1.25rem*var(--nested-dialogs))] relative row-start-2 flex max-h-full min-h-0 w-full min-w-0 max-w-(--honk-dialog-max-width) scale-[calc(1-0.1*var(--nested-dialogs))] flex-col overflow-hidden rounded-(--honk-dialog-radius) border border-honk-stroke-tertiary bg-honk-bg-elevated font-honk text-honk-chrome text-honk-fg-primary opacity-[calc(1-0.1*var(--nested-dialogs))] shadow-honk-base outline-none transition-[scale,opacity,translate] duration-(--motion-duration-dialog) ease-(--ease-dialog) will-change-transform data-nested:data-ending-style:translate-y-8 data-nested:data-starting-style:translate-y-8 data-nested-dialog-open:origin-top data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0",
             bottomStickOnMobile &&
               "max-sm:max-w-none max-sm:rounded-none max-sm:border-x-0 max-sm:border-t max-sm:border-b-0 max-sm:opacity-[calc(1-min(var(--nested-dialogs),1))] max-sm:data-ending-style:translate-y-4 max-sm:data-starting-style:translate-y-4",
             className,
@@ -97,7 +106,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 p-6 in-[[data-slot=dialog-popup]:has([data-slot=dialog-panel])]:pb-3 max-sm:pb-4",
+        "flex flex-col gap-(--honk-dialog-header-gap) px-(--honk-dialog-padding-inline) py-(--honk-dialog-padding-block) in-[[data-slot=dialog-popup]:has([data-slot=dialog-panel])]:pb-3 max-sm:pb-4",
         className,
       )}
       data-slot="dialog-header"
@@ -116,11 +125,11 @@ function DialogFooter({
   return (
     <div
       className={cn(
-        "flex flex-col-reverse gap-2 px-6 sm:flex-row sm:justify-end sm:rounded-b-[calc(var(--radius-2xl)-1px)]",
+        "flex flex-col-reverse gap-(--honk-dialog-footer-gap) px-(--honk-dialog-padding-inline) sm:flex-row sm:justify-end sm:rounded-b-[calc(var(--honk-dialog-radius)-1px)]",
         variant === "default" &&
-          "border-t border-honk-stroke-tertiary bg-honk-bg-secondary/60 py-4",
+          "border-t border-honk-stroke-tertiary bg-honk-bg-secondary/60 py-(--honk-dialog-footer-padding-block)",
         variant === "bare" &&
-          "in-[[data-slot=dialog-popup]:has([data-slot=dialog-panel])]:pt-3 pt-4 pb-6",
+          "in-[[data-slot=dialog-popup]:has([data-slot=dialog-panel])]:pt-3 pt-(--honk-dialog-footer-padding-block) pb-(--honk-dialog-padding-block)",
         className,
       )}
       data-slot="dialog-footer"
@@ -161,7 +170,7 @@ function DialogPanel({
     <ScrollArea scrollFade={scrollFade}>
       <div
         className={cn(
-          "p-6 in-[[data-slot=dialog-popup]:has([data-slot=dialog-header])]:pt-1 in-[[data-slot=dialog-popup]:has([data-slot=dialog-footer]:not(.border-t))]:pb-1",
+          "px-(--honk-dialog-padding-inline) py-(--honk-dialog-padding-block) in-[[data-slot=dialog-popup]:has([data-slot=dialog-header])]:pt-1 in-[[data-slot=dialog-popup]:has([data-slot=dialog-footer]:not(.border-t))]:pb-1",
           className,
         )}
         data-slot="dialog-panel"

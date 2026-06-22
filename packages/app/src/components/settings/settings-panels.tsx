@@ -494,9 +494,11 @@ export function GeneralSettingsPanel() {
                 {keybindingsConfigPath ?? "Resolving keybindings path..."}
               </span>
               {openPathErrorByTarget.keybindings ? (
-                <Text render={<span />} size="xs" className="mt-1 block text-destructive">
-                  {openPathErrorByTarget.keybindings}
-                </Text>
+                <span className="mt-1 block">
+                  <Text as="span" size="xs" tone="destructive">
+                    {openPathErrorByTarget.keybindings}
+                  </Text>
+                </span>
               ) : null}
             </>
           }
@@ -537,9 +539,11 @@ export function GeneralSettingsPanel() {
                 {logsDirectoryPath ?? "Resolving logs directory..."}
               </span>
               {openPathErrorByTarget.logsDirectory ? (
-                <Text render={<span />} size="xs" className="mt-1 block text-destructive">
-                  {openPathErrorByTarget.logsDirectory}
-                </Text>
+                <span className="mt-1 block">
+                  <Text as="span" size="xs" tone="destructive">
+                    {openPathErrorByTarget.logsDirectory}
+                  </Text>
+                </span>
               ) : null}
             </>
           }
@@ -880,14 +884,11 @@ function SkillSummaryRow({
               {skill.scope === "project" ? "Project skill" : "User skill"}
             </span>
           </div>
-          <Text
-            render={<p />}
-            size="base"
-            tone="secondary"
-            className="mt-1 max-w-[64ch] text-pretty"
-          >
-            {skill.description}
-          </Text>
+          <p className="mt-1 max-w-[64ch] text-pretty">
+            <Text as="span" size="base" tone="secondary">
+              {skill.description}
+            </Text>
+          </p>
           <code
             className="mt-2 block truncate font-honk-mono text-honk-sm text-honk-fg-tertiary"
             title={skill.filePath}
@@ -911,36 +912,33 @@ function SubagentProfileCard({ profile }: { profile: (typeof SUBAGENT_PROFILE_CA
           <div className="flex min-w-0 items-baseline">
             <SettingsItemTitle className="min-w-0 truncate">{profile.label}</SettingsItemTitle>
           </div>
-          <Text
-            render={<p />}
-            size="base"
-            tone="secondary"
-            className="mt-1 max-w-[64ch] text-pretty"
-          >
-            {profile.description}
-          </Text>
+          <p className="mt-1 max-w-[64ch] text-pretty">
+            <Text as="span" size="base" tone="secondary">
+              {profile.description}
+            </Text>
+          </p>
           <div className="mt-3 grid gap-x-3 gap-y-2 sm:grid-cols-3">
             <div className="min-w-0">
-              <Text render={<div />} size="sm" tone="tertiary">
+              <Text as="div" size="sm" tone="tertiary">
                 Mode
               </Text>
-              <Text render={<div />} size="sm" tone="primary" weight="medium">
+              <Text as="div" size="sm" tone="primary" weight="medium">
                 {profile.mode}
               </Text>
             </div>
             <div className="min-w-0">
-              <Text render={<div />} size="sm" tone="tertiary">
+              <Text as="div" size="sm" tone="tertiary">
                 Thinking
               </Text>
-              <Text render={<div />} size="sm" tone="primary" weight="medium">
+              <Text as="div" size="sm" tone="primary" weight="medium">
                 {profile.thinking}
               </Text>
             </div>
             <div className="min-w-0">
-              <Text render={<div />} size="sm" tone="tertiary">
+              <Text as="div" size="sm" tone="tertiary">
                 Tools
               </Text>
-              <Text render={<div />} size="sm" tone="primary" weight="medium" className="truncate">
+              <Text as="div" size="sm" tone="primary" weight="medium" truncate>
                 {profile.tools}
               </Text>
             </div>
@@ -1339,12 +1337,14 @@ function CredentialAuthFlowPanel({ flow }: { flow: AgentCredentialAuthFlow }) {
     <div className="mt-3 border-t border-honk-stroke-quaternary pt-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <Text render={<div />} size="sm" tone="primary" weight="medium">
+          <Text as="div" size="sm" tone="primary" weight="medium">
             {flow.state === "error" ? "Login failed" : "Waiting for login"}
           </Text>
-          <Text render={<p />} size="base" tone="tertiary" className="mt-0.5">
-            {flow.message ?? "Complete authentication to continue."}
-          </Text>
+          <p className="mt-0.5">
+            <Text as="span" size="base" tone="tertiary">
+              {flow.message ?? "Complete authentication to continue."}
+            </Text>
+          </p>
         </div>
         {flow.verificationUri ? (
           <Button size="xs" variant="outline" onClick={openVerificationUri}>
@@ -1424,9 +1424,11 @@ function CredentialApiKeyForm({
           Cancel
         </Button>
       </div>
-      <Text render={<p />} size="sm" tone="tertiary" className="mt-2">
-        Saved locally. Existing keys stay hidden.
-      </Text>
+      <p className="mt-2">
+        <Text as="span" size="sm" tone="tertiary">
+          Saved locally. Existing keys stay hidden.
+        </Text>
+      </p>
     </form>
   );
 }
@@ -1922,7 +1924,7 @@ export function ArchivedThreadsPanel() {
               >
                 <div className="min-w-0 flex-1">
                   <SettingsItemTitle className="truncate">{thread.title}</SettingsItemTitle>
-                  <Text render={<p />} size="xs" tone="secondary" className="mt-0.5 block">
+                  <Text as="p" display="block" size="xs" tone="secondary">
                     Archived {formatRelativeTimeLabel(thread.archivedAt ?? thread.createdAt)}
                     {" \u00b7 Created "}
                     {formatRelativeTimeLabel(thread.createdAt)}

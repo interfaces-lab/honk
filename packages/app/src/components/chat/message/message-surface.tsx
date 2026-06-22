@@ -1,6 +1,5 @@
-import { cva } from "class-variance-authority";
+import * as stylex from "@stylexjs/stylex";
 import { type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import { cn } from "~/lib/utils";
 
 type MessageBubbleActivateEvent = MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>;
 
@@ -42,57 +41,129 @@ type UserMessageBubbleSurfaceProps =
       readonlyAction?: boolean;
     };
 
-const assistantMessageSurfaceVariants = cva("box-border flex w-full justify-start", {
-  variants: {
-    leading: {
-      false: "flex-col",
-      true: "items-start gap-2",
+const styles = stylex.create({
+  metaRow: {
+    alignItems: "center",
+    display: "flex",
+    gap: "var(--honk-spacing-2)",
+  },
+  metaRowEnd: {
+    justifyContent: "flex-end",
+  },
+  meta: {
+    color: "color-mix(in srgb, var(--honk-fg-tertiary) 55%, transparent)",
+    fontSize: "var(--honk-text-caption)",
+    lineHeight: "var(--honk-leading-caption)",
+    margin: 0,
+    userSelect: "none",
+  },
+  actions: {
+    alignItems: "center",
+    display: "flex",
+    gap: "var(--honk-spacing-1-5)",
+    opacity: 0,
+    transitionDuration: "var(--motion-duration-hover)",
+    transitionProperty: "opacity",
+    transitionTimingFunction: "var(--ease-shell)",
+    ":focus-within": {
+      opacity: 1,
     },
   },
-  defaultVariants: {
-    leading: false,
+  assistantSurface: {
+    boxSizing: "border-box",
+    display: "flex",
+    justifyContent: "flex-start",
+    width: "100%",
+  },
+  assistantSurfaceStacked: {
+    flexDirection: "column",
+  },
+  assistantSurfaceLeading: {
+    alignItems: "flex-start",
+    gap: "var(--honk-spacing-2)",
+  },
+  leadingIcon: {
+    flexShrink: 0,
+    marginTop: 3,
+  },
+  assistantBody: {
+    color: "var(--honk-fg-primary)",
+    fontSize: "var(--conversation-text-font-size)",
+    lineHeight: "var(--conversation-text-leading)",
+    minWidth: 0,
+    width: "100%",
+    ":hover [data-message-actions]": {
+      opacity: 1,
+    },
+    ":focus-within [data-message-actions]": {
+      opacity: 1,
+    },
+  },
+  assistantFooter: {
+    marginTop: "var(--honk-spacing-1-5)",
+  },
+  userRow: {
+    boxSizing: "border-box",
+    display: "flex",
+    justifyContent: "flex-end",
+    minWidth: 0,
+    width: "100%",
+  },
+  userBubble: {
+    borderRadius: "var(--honk-radius-xl)",
+    boxSizing: "border-box",
+    isolation: "isolate",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflow: "hidden",
+    paddingBlock: "var(--honk-spacing-2)",
+    paddingInline: "var(--honk-spacing-2-5)",
+    position: "relative",
+    width: "100%",
+    ":hover [data-message-actions]": {
+      opacity: 1,
+    },
+    ":focus-within [data-message-actions]": {
+      opacity: 1,
+    },
+  },
+  userBubbleEditable: {
+    cursor: "pointer",
+  },
+  userBubbleReadonlyAction: {
+    cursor: "default",
+  },
+  media: {
+    minWidth: 0,
+  },
+  userBody: {
+    color: "var(--honk-fg-primary)",
+    display: "flex",
+    flexDirection: "column",
+    fontSize: "var(--conversation-text-font-size)",
+    lineHeight: "var(--conversation-text-leading)",
+    minWidth: 0,
+    overflowWrap: "anywhere",
+    userSelect: "text",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+  },
+  userFooter: {
+    marginTop: "var(--honk-spacing-1)",
   },
 });
 
-const humanMessageBubbleVariants = cva(
-  cn(
-    "group/message-bubble relative isolate box-border w-full min-w-0 max-w-full overflow-hidden",
-    "rounded-xl px-2.5 py-2",
-  ),
-  {
-    variants: {
-      editable: {
-        false: "",
-        true: "cursor-pointer",
-      },
-    },
-    defaultVariants: {
-      editable: false,
-    },
-  },
-);
-
 export function MessageMetaRow(props: { alignEnd?: boolean; children: ReactNode }) {
-  return (
-    <div className={cn("flex items-center gap-2", props.alignEnd && "justify-end")}>
-      {props.children}
-    </div>
-  );
+  return <div {...stylex.props(styles.metaRow, props.alignEnd ? styles.metaRowEnd : null)}>{props.children}</div>;
 }
 
 export function MessageMeta(props: { children: ReactNode }) {
-  return <p className="m-0 select-none text-caption text-honk-fg-tertiary/55">{props.children}</p>;
+  return <p {...stylex.props(styles.meta)}>{props.children}</p>;
 }
 
 export function MessageActions(props: { children: ReactNode }) {
   return (
-    <div
-      className={cn(
-        "flex items-center gap-1.5",
-        "opacity-0 transition-opacity duration-100",
-        "group-hover/message-bubble:opacity-100 focus-within:opacity-100",
-      )}
-    >
+    <div {...stylex.props(styles.actions)} data-message-actions="">
       {props.children}
     </div>
   );
@@ -110,11 +181,16 @@ export function ChatMessageBubble({
   }
 
   return (
-    <div className={assistantMessageSurfaceVariants({ leading: Boolean(leadingIcon) })}>
-      {leadingIcon ? <div className="mt-[3px] shrink-0">{leadingIcon}</div> : null}
-      <div className="group/message-bubble w-full min-w-0 text-conversation text-honk-fg-primary">
+    <div
+      {...stylex.props(
+        styles.assistantSurface,
+        leadingIcon ? styles.assistantSurfaceLeading : styles.assistantSurfaceStacked,
+      )}
+    >
+      {leadingIcon ? <div {...stylex.props(styles.leadingIcon)}>{leadingIcon}</div> : null}
+      <div {...stylex.props(styles.assistantBody)} data-message-bubble="assistant">
         {body}
-        {footer ? <div className="mt-1.5">{footer}</div> : null}
+        {footer ? <div {...stylex.props(styles.assistantFooter)}>{footer}</div> : null}
       </div>
     </div>
   );
@@ -174,11 +250,12 @@ function UserMessageBubbleSurface(props: UserMessageBubbleSurfaceProps) {
     : {};
 
   return (
-    <div className="box-border flex w-full min-w-0 justify-end">
+    <div {...stylex.props(styles.userRow)}>
       <div
-        className={cn(
-          humanMessageBubbleVariants({ editable: props.editable }),
-          readonlyAction && "cursor-default",
+        {...stylex.props(
+          styles.userBubble,
+          props.editable ? styles.userBubbleEditable : null,
+          readonlyAction ? styles.userBubbleReadonlyAction : null,
         )}
         data-message-bubble-surface=""
         data-editable={props.editable ? "true" : undefined}
@@ -186,7 +263,7 @@ function UserMessageBubbleSurface(props: UserMessageBubbleSurfaceProps) {
       >
         {props.media ? (
           <div
-            className="min-w-0"
+            {...stylex.props(styles.media)}
             role="presentation"
             onClick={
               props.editable
@@ -206,16 +283,8 @@ function UserMessageBubbleSurface(props: UserMessageBubbleSurfaceProps) {
             {props.media}
           </div>
         ) : null}
-        <div
-          className={cn(
-            "flex min-w-0 flex-col whitespace-pre-wrap break-words wrap-anywhere select-text",
-            "text-conversation",
-            "text-honk-fg-primary",
-          )}
-        >
-          {props.body}
-        </div>
-        {props.footer ? <div className="mt-1">{props.footer}</div> : null}
+        <div {...stylex.props(styles.userBody)}>{props.body}</div>
+        {props.footer ? <div {...stylex.props(styles.userFooter)}>{props.footer}</div> : null}
       </div>
     </div>
   );

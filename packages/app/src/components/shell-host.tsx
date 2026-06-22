@@ -69,8 +69,10 @@ import {
   type WorkbenchTabSnapshotRuntimeInput,
 } from "~/stores/workbench-tab-store";
 import {
+  arePlanMarkdownTodosComplete,
   buildPlanImplementationPrompt,
   normalizePlanMarkdownForExport,
+  syncPlanMarkdownTodosWithSteps,
 } from "~/plan/proposed-plan";
 import { cn, newCommandId, newMessageId, newThreadId } from "~/lib/utils";
 import { useSettings } from "~/hooks/use-settings";
@@ -141,6 +143,11 @@ import {
   forgetWorkbenchTerminalRunning,
   useWorkbenchTerminalRunning,
 } from "./shell/terminal/use-workbench-terminal-running";
+import {
+  proposedPlanLifecycleKey,
+  type ProposedPlanBuildStatus,
+  useProposedPlanLifecycleStore,
+} from "~/stores/proposed-plan-lifecycle-store";
 import { useWorkspaceEditorFileState } from "~/stores/workspace-editor-store";
 import {
   AlertDialog,
@@ -310,6 +317,7 @@ interface PlanWorkbenchState {
   environmentId: EnvironmentId | null;
   markdownCwd: string | undefined;
   timestampFormat: TimestampFormat;
+  planBuildStatus: ProposedPlanBuildStatus;
   canImplementPlan: boolean;
   isImplementingPlan: boolean;
   onImplementPlan: (() => void) | undefined;
@@ -348,6 +356,7 @@ function SettingsShellHost(props: { children?: ReactNode }) {
     environmentId,
     markdownCwd: cwd ?? undefined,
     timestampFormat,
+    planBuildStatus: "none",
     canImplementPlan: false,
     isImplementingPlan: false,
     onImplementPlan: undefined,
@@ -549,17 +558,51 @@ function ChatShellHost(props: { children?: ReactNode }) {
         ? activeLatestTurn.sourceProposedPlan.threadId
         : activeThread.id
       : null;
+  const buildingPlanKeys = useProposedPlanLifecycleStore((state) => state.buildingPlanKeys);
+  const markLifecyclePlanBuilding = useProposedPlanLifecycleStore(
+    (state) => state.markPlanBuilding,
+  );
+  const clearLifecyclePlanBuilding = useProposedPlanLifecycleStore(
+    (state) => state.clearPlanBuilding,
+  );
+  const activeProposedPlanKey =
+    activeProposedPlan && activeProposedPlanSourceThreadId
+      ? proposedPlanLifecycleKey(activeProposedPlanSourceThreadId, activeProposedPlan.id)
+      : null;
+  const activeProposedPlanTurnRunning =
+    activeProposedPlan !== null &&
+    activeProposedPlanSourceThreadId !== null &&
+    !latestTurnSettled &&
+    activeLatestTurn?.sourceProposedPlan?.threadId === activeProposedPlanSourceThreadId &&
+    activeLatestTurn.sourceProposedPlan.planId === activeProposedPlan.id;
   const activeTurnRunning = hasVisibleActiveOrchestrationTurn(
     activeThread?.latestTurn ?? null,
     activeThread?.session ?? null,
   );
-  const showPlanImplementationActions = hasActionableProposedPlan(activeProposedPlan);
+  const planBuildStatus: ProposedPlanBuildStatus = activeProposedPlanTurnRunning
+    ? "active"
+    : activeProposedPlan !== null &&
+        (activeProposedPlan.implementedAt !== null ||
+          arePlanMarkdownTodosComplete(activeProposedPlan.planMarkdown))
+      ? "complete"
+      : activeProposedPlanKey !== null && buildingPlanKeys.includes(activeProposedPlanKey)
+        ? "active"
+        : "none";
+  const showPlanImplementationActions =
+    planBuildStatus !== "complete" && hasActionableProposedPlan(activeProposedPlan);
   const canImplementPlan =
     showPlanImplementationActions &&
     activeThread !== null &&
     activeProposedPlanSourceThreadId !== null &&
     latestTurnSettled &&
     !activeTurnRunning;
+  useEffect(() => {
+    const sourceProposedPlan = activeLatestTurn?.sourceProposedPlan;
+    if (!latestTurnSettled || !sourceProposedPlan) {
+      return;
+    }
+    clearLifecyclePlanBuilding(sourceProposedPlan.threadId, sourceProposedPlan.planId);
+  }, [activeLatestTurn?.sourceProposedPlan, clearLifecyclePlanBuilding, latestTurnSettled]);
   const [isImplementingPlan, setIsImplementingPlan] = useState(false);
   const startPlanImplementation = async () => {
     if (
@@ -587,6 +630,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
     }
 
     setIsImplementingPlan(true);
+    markLifecyclePlanBuilding(activeProposedPlanSourceThreadId, activeProposedPlan.id);
     setComposerDraftInteractionMode(
       scopeThreadRef(activeThread.environmentId, activeThread.id),
       DEFAULT_INTERACTION_MODE,
@@ -611,8 +655,8 @@ function ChatShellHost(props: { children?: ReactNode }) {
         createdAt,
         api,
       });
-      workbenchTabPersistenceActions.activatePlan(workspaceTarget.workspaceKey);
     } catch (error) {
+      clearLifecyclePlanBuilding(activeProposedPlanSourceThreadId, activeProposedPlan.id);
       toast.error("Could not implement plan.", {
         description: error instanceof Error ? error.message : "An error occurred.",
       });
@@ -660,6 +704,57 @@ function ChatShellHost(props: { children?: ReactNode }) {
       return false;
     }
   };
+  const lastPlanTodoSyncKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const sourceProposedPlan = activeLatestTurn?.sourceProposedPlan;
+    if (
+      !activeProposedPlan ||
+      !activePlan ||
+      !activeProposedPlanSourceThreadId ||
+      !activeThread ||
+      !sourceProposedPlan ||
+      sourceProposedPlan.threadId !== activeProposedPlanSourceThreadId ||
+      sourceProposedPlan.planId !== activeProposedPlan.id
+    ) {
+      return;
+    }
+
+    const nextMarkdown = normalizePlanMarkdownForExport(
+      syncPlanMarkdownTodosWithSteps(activeProposedPlan.planMarkdown, activePlan.steps),
+    );
+    if (nextMarkdown === normalizePlanMarkdownForExport(activeProposedPlan.planMarkdown)) {
+      return;
+    }
+
+    const syncKey = `${activeProposedPlanSourceThreadId}:${activeProposedPlan.id}:${nextMarkdown}`;
+    if (lastPlanTodoSyncKeyRef.current === syncKey) {
+      return;
+    }
+    lastPlanTodoSyncKeyRef.current = syncKey;
+
+    const api = readEnvironmentApi(activeThread.environmentId);
+    if (!api) {
+      return;
+    }
+    void api.orchestration
+      .dispatchCommand({
+        type: "thread.proposed-plan.update",
+        commandId: newCommandId(),
+        threadId: activeProposedPlanSourceThreadId,
+        planId: activeProposedPlan.id,
+        planMarkdown: nextMarkdown,
+        createdAt: new Date().toISOString(),
+      })
+      .catch((error: unknown) => {
+        console.warn("Could not sync plan todo statuses.", error);
+      });
+  }, [
+    activeLatestTurn?.sourceProposedPlan,
+    activePlan,
+    activeProposedPlan,
+    activeProposedPlanSourceThreadId,
+    activeThread,
+  ]);
   const activeThreadPlanMode = activeThread?.interactionMode === "plan";
   const planAvailable = activeThreadPlanMode || activePlan !== null || activeProposedPlan !== null;
   const planLabel: PlanWorkbenchLabel =
@@ -672,8 +767,9 @@ function ChatShellHost(props: { children?: ReactNode }) {
     environmentId: activeThread?.environmentId ?? activeRpcEnvironmentId,
     markdownCwd: activeCwd ?? undefined,
     timestampFormat: settings.timestampFormat,
+    planBuildStatus,
     canImplementPlan,
-    isImplementingPlan,
+    isImplementingPlan: isImplementingPlan || planBuildStatus === "active",
     onImplementPlan: showPlanImplementationActions
       ? () => {
           void startPlanImplementation();
@@ -1029,6 +1125,7 @@ function ChatShellHost(props: { children?: ReactNode }) {
         sections={sidebarModel.sections}
         selectedId={selectedId}
         onSelectAgent={selectSidebarAgent}
+        onClearDraft={sidebarModel.clearDraft}
         onPrefetchAgent={sidebarModel.prefetchAgent}
         onNewAgent={sidebarModel.create}
         onOpenWorkspace={openAddProject}
@@ -1228,6 +1325,15 @@ function ChatWorkbenchShellHost(props: {
   const runningTerminalIds = useWorkbenchTerminalRunning(terminalThreadId, props.environmentId);
   const [pendingCloseTerminalId, setPendingCloseTerminalId] = useState<string | null>(null);
   const [terminalResetKeys, setTerminalResetKeys] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const subscribe = window.desktopBridge?.onBrowserAutomationOpen;
+    if (!subscribe || !props.threadId) return undefined;
+    return subscribe((input) => {
+      if (input.threadId !== props.threadId) return;
+      workbenchTabPersistenceActions.createBrowser(props.workspaceKey, { url: input.url });
+    });
+  }, [props.threadId, props.workspaceKey]);
+
   const workbenchTabRuntime: WorkbenchTabSnapshotRuntimeInput = {
     plan: { available: planTabAvailable, label: props.plan.label },
     terminal: terminalState,
@@ -1347,6 +1453,8 @@ function ChatWorkbenchShellHost(props: {
               workspaceKey={props.workspaceKey}
               tabId={tab.id}
               browserId={tab.browserId}
+              threadId={props.threadId}
+              environmentId={props.environmentId}
               active={active}
             />
           </WorkbenchPanel>
@@ -1378,6 +1486,7 @@ function ChatWorkbenchShellHost(props: {
               label={props.plan.label}
               markdownCwd={props.plan.markdownCwd}
               timestampFormat={props.plan.timestampFormat}
+              planBuildStatus={props.plan.planBuildStatus}
               canImplementPlan={props.plan.canImplementPlan}
               isImplementingPlan={props.plan.isImplementingPlan}
               onImplementPlan={props.plan.onImplementPlan}

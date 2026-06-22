@@ -1,4 +1,4 @@
-import { fauxAssistantMessage, fauxText, fauxThinking } from "@earendil-works/pi-ai";
+import { fauxAssistantMessage, fauxText, fauxThinking } from "@earendil-works/pi-ai/base";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AgentRuntimeEvent } from "@honk/contracts";
 import {

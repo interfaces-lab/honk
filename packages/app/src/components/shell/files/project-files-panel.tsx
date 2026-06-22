@@ -109,13 +109,16 @@ function ProjectFilesPanelContent(props: {
   const queryClient = useQueryClient();
   const runtime = useRightWorkbenchPanelRuntime();
   const isFilesPanelActive = runtime.open && runtime.activeTab === "files";
+  // The stable Files tab is a browser entry point, not an editor tab. Keep it
+  // empty even when a previous file remains in workspace editor history.
+  const stableFilesTabActive = runtime.activeTabId === "files";
   const fileRail = useSecondaryRail(props.workspaceKey, "files");
   const fileRailInitialized = useHasSecondaryRailState(props.workspaceKey, "files");
   const fileRailOpen = isFilesPanelActive && (fileRailInitialized ? fileRail.open : true);
   const editorState = useWorkspaceEditorFileState(props.workspaceKey);
-  const selectedPath = editorState.activePath;
+  const selectedPath = stableFilesTabActive ? null : editorState.activePath;
   const previewPath = useWorkspaceEditorPreviewPath(props.workspaceKey);
-  const visiblePath = previewPath ?? selectedPath;
+  const visiblePath = stableFilesTabActive ? null : (previewPath ?? selectedPath);
   const centerEditorActive =
     editorState.placement === "center" && selectedPath !== null && previewPath === null;
   const visiblePathDirty = visiblePath ? (dirtyByPath[visiblePath] ?? false) : false;
@@ -255,8 +258,8 @@ function ProjectFilesPanelContent(props: {
         fileRailOpen={fileRailOpen}
         fileSearchOpen={fileSearchOpen}
         dirty={panelFileDirty}
-        canGoBack={editorState.canGoBack}
-        canGoForward={editorState.canGoForward}
+        canGoBack={panelFilePath !== null && editorState.canGoBack}
+        canGoForward={panelFilePath !== null && editorState.canGoForward}
         placement={editorState.placement}
         onToggleFileTree={() => {
           shellPanelsActions.setSecondaryRailOpen(props.workspaceKey, "files", !fileRailOpen);

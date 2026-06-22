@@ -1,7 +1,7 @@
 import type { AgentModelPolicy } from "@honk/contracts";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import { clampThinkingLevel } from "@earendil-works/pi-ai";
-import type { Api, Context, Model } from "@earendil-works/pi-ai";
+import { clampThinkingLevel } from "@earendil-works/pi-ai/base";
+import type { Api, Context, Model } from "@earendil-works/pi-ai/base";
 import {
   convertToLlm,
   type CompactionEntry,

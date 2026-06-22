@@ -1,5 +1,5 @@
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import type { AssistantMessage, ToolCall } from "@earendil-works/pi-ai";
+import type { AssistantMessage, ToolCall } from "@earendil-works/pi-ai/base";
 import { RuntimeSessionId, ThreadId } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 

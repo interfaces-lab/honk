@@ -2,6 +2,7 @@ import {
   AgentCredentialConfigureInput,
   AgentPreferences,
   AgentPreferencesPatch,
+  type BrowserAutomationController,
   DesktopExtensionUiRespondInput,
   HonkRuntimeHostEvent,
   HonkRuntimeHostSnapshot,
@@ -28,6 +29,7 @@ import * as Schema from "effect/Schema";
 
 import * as DesktopAppIdentity from "../../app/desktop-app-identity";
 import * as DesktopEnvironment from "../../app/desktop-environment";
+import * as DesktopBrowserAutomation from "../../browser/browser-automation";
 import * as ElectronShell from "../../electron/electron-shell";
 import * as ElectronWindow from "../../electron/electron-window";
 import * as IpcChannels from "../channels";
@@ -40,6 +42,23 @@ let runtimeHost: DesktopRuntimeHost | null = null;
 const encodeHostEvent = Schema.encodeUnknownSync(HonkRuntimeHostEvent);
 const elog = EffectLogger.create({ service: "desktop.runtime.ipc" });
 
+function browserAutomationControllerFor(
+  browserAutomation: DesktopBrowserAutomation.DesktopBrowserAutomationShape,
+): BrowserAutomationController {
+  return {
+    status: (threadId) => Effect.runPromise(browserAutomation.status(threadId)),
+    open: (threadId, input) => Effect.runPromise(browserAutomation.open(threadId, input)),
+    navigate: (threadId, input) => Effect.runPromise(browserAutomation.navigate(threadId, input)),
+    snapshot: (threadId) => Effect.runPromise(browserAutomation.snapshot(threadId)),
+    click: (threadId, input) => Effect.runPromise(browserAutomation.click(threadId, input)),
+    type: (threadId, input) => Effect.runPromise(browserAutomation.type(threadId, input)),
+    press: (threadId, input) => Effect.runPromise(browserAutomation.press(threadId, input)),
+    scroll: (threadId, input) => Effect.runPromise(browserAutomation.scroll(threadId, input)),
+    evaluate: (threadId, input) => Effect.runPromise(browserAutomation.evaluate(threadId, input)),
+    waitFor: (threadId, input) => Effect.runPromise(browserAutomation.waitFor(threadId, input)),
+  };
+}
+
 const getRuntimeHost = Effect.gen(function* () {
   if (runtimeHost) {
     return runtimeHost;
@@ -47,10 +66,12 @@ const getRuntimeHost = Effect.gen(function* () {
 
   const appIdentity = yield* DesktopAppIdentity.DesktopAppIdentity;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
+  const browserAutomation = yield* DesktopBrowserAutomation.DesktopBrowserAutomation;
   const userDataPath = yield* appIdentity.resolveUserDataPath;
   const Runtime = yield* Effect.promise(() => import("@honk/runtime"));
   runtimeHost = new Runtime.DesktopRuntimeHost({
     agentDir: environment.path.join(userDataPath, "pi-agent"),
+    browserAutomation: browserAutomationControllerFor(browserAutomation),
   });
   yield* elog.info("runtime host created");
   return runtimeHost;

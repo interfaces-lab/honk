@@ -32,6 +32,13 @@ import { useTerminalStateStore } from "../terminal-state-store";
 import { openChatIndex, openThread } from "~/app/chat-navigation";
 import { useRouteTarget } from "~/routes/-thread-route-targets";
 import {
+  PROJECT_KEY,
+  SELECTED_PROJECT_KEY,
+  SHELL_LAYOUT_CHANGED_EVENT,
+  readStoredProjectSelection,
+  writeStoredProjectSelection,
+} from "~/lib/project-state";
+import {
   formatWorktreePathForDisplay,
   getOrphanedWorktreePathForThread,
 } from "../git/worktree-cleanup";
@@ -556,6 +563,26 @@ export function useThreadActions() {
       commandId: newCommandId(),
       projectId: target.projectId,
     });
+
+    const currentSelection = readStoredProjectSelection();
+    if (
+      currentSelection?.environmentId === target.environmentId &&
+      currentSelection.projectId === target.projectId
+    ) {
+      if (fallbackProject) {
+        writeStoredProjectSelection({
+          environmentId: fallbackProject.environmentId,
+          projectId: fallbackProject.id,
+          cwd: fallbackProject.cwd,
+        });
+      } else if (typeof window !== "undefined") {
+        window.localStorage.removeItem(SELECTED_PROJECT_KEY);
+        if (window.localStorage.getItem(PROJECT_KEY) === currentSelection.cwd) {
+          window.localStorage.removeItem(PROJECT_KEY);
+        }
+        window.dispatchEvent(new CustomEvent(SHELL_LAYOUT_CHANGED_EVENT));
+      }
+    }
 
     if (!shouldNavigateToFallback) {
       return;

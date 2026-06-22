@@ -12,6 +12,7 @@ import {
   type AgentPreferences,
   type AgentPreferencesPatch,
   type AgentRuntimeEvent,
+  type BrowserAutomationController,
   type DesktopExtensionUiRequest,
   type DesktopExtensionUiRespondInput,
   ModelId,
@@ -41,7 +42,7 @@ import {
   type ThreadAgentRuntimeSendTurnInput,
   type ThreadAgentRuntimeUpdateQueuedFollowUpInput,
 } from "@honk/contracts";
-import { getSupportedThinkingLevels, type OAuthLoginCallbacks } from "@earendil-works/pi-ai";
+import { getSupportedThinkingLevels, type OAuthLoginCallbacks } from "@earendil-works/pi-ai/base";
 import {
   AuthStorage,
   DefaultResourceLoader,
@@ -68,6 +69,11 @@ import {
 } from "./display-timeline-projection";
 import { toWireRuntimeEvent } from "./runtime-event-wire";
 import { registerCursorComposerProvider } from "./cursor-composer-provider";
+import {
+  createHonkPiModelRegistry,
+  isHonkPiSupportedProviderId,
+  registerHonkPiTransports,
+} from "./honk-pi-models";
 
 const MAX_RUNTIME_EVENTS_IN_SNAPSHOT = 500;
 // Live runtime events are retained only to (a) feed the host snapshot and (b) re-project the live
@@ -156,6 +162,7 @@ export interface DesktopRuntimeHostOptions {
   readonly authStorage?: AuthStorage | null;
   readonly extensionFactories?: readonly ExtensionFactory[] | null;
   readonly extensionPaths?: readonly string[] | null;
+  readonly browserAutomation?: BrowserAutomationController | null;
   readonly bindExtensions?:
     | ((runtime: ThreadAgentRuntime, ui: DesktopExtensionUiController) => Promise<void>)
     | null;
@@ -168,6 +175,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
   private readonly modelRegistry: ModelRegistry | null;
   private readonly extensionFactories: readonly ExtensionFactory[];
   private readonly extensionPaths: readonly string[];
+  private readonly browserAutomation: BrowserAutomationController | null;
   private readonly bindRuntimeExtensions:
     | ((runtime: ThreadAgentRuntime, ui: DesktopExtensionUiController) => Promise<void>)
     | null;
@@ -196,12 +204,14 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
         ? AuthStorage.create(join(this.agentDir, "auth.json"))
         : options.authStorage;
     this.modelRegistry = this.authStorage
-      ? ModelRegistry.create(this.authStorage, join(this.agentDir, "models.json"))
+      ? createHonkPiModelRegistry(ModelRegistry, this.authStorage, join(this.agentDir, "models.json"))
       : null;
+    registerHonkPiTransports();
     if (this.modelRegistry) {
       registerCursorComposerProvider(this.modelRegistry, { cwd: this.agentDir });
     }
     this.extensionPaths = options.extensionPaths ?? defaultExtensionPaths(this.agentDir);
+    this.browserAutomation = options.browserAutomation ?? null;
     this.extensionFactories =
       options.extensionFactories ??
       createDesktopAgentExtensionFactories({
@@ -412,6 +422,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
         ...(this.authStorage ? { authStorage: this.authStorage } : {}),
         extensionFactories: this.extensionFactories,
         extensionPaths: this.extensionPaths,
+        browserAutomation: this.browserAutomation,
         policy: input.policy,
       });
       await this.installRuntime(runtime);
@@ -954,19 +965,24 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       return [];
     }
 
-    return this.modelRegistry.getAll().map((model) => {
-      const supportedThinkingLevels = new Set<string>(getSupportedThinkingLevels(model));
-      return {
-        authProviderId: AuthProviderId.make(model.provider),
-        modelId: ModelId.make(`${model.provider}/${model.id}`),
-        provider: model.provider,
-        id: model.id,
-        name: model.name.trim() || model.id,
-        reasoning: model.reasoning,
-        contextWindow: model.contextWindow,
-        thinkingLevels: AGENT_THINKING_LEVELS.filter((level) => supportedThinkingLevels.has(level)),
-      };
-    });
+    return this.modelRegistry
+      .getAll()
+      .filter((model) => isHonkPiSupportedProviderId(model.provider))
+      .map((model) => {
+        const supportedThinkingLevels = new Set<string>(getSupportedThinkingLevels(model));
+        return {
+          authProviderId: AuthProviderId.make(model.provider),
+          modelId: ModelId.make(`${model.provider}/${model.id}`),
+          provider: model.provider,
+          id: model.id,
+          name: model.name.trim() || model.id,
+          reasoning: model.reasoning,
+          contextWindow: model.contextWindow,
+          thinkingLevels: AGENT_THINKING_LEVELS.filter((level) =>
+            supportedThinkingLevels.has(level),
+          ),
+        };
+      });
   }
 
   private getAuthStatuses(): AgentAuthStatus[] {

@@ -943,6 +943,28 @@ function OpenCommandPaletteDialog() {
   if (import.meta.env.DEV) {
     actionItems.push({
       kind: "action",
+      value: "action:dev:component-system",
+      searchTerms: [
+        "component system",
+        "design tokens",
+        "token staircase",
+        "dialog geometry",
+        "radius",
+        "padding",
+        "margin",
+        "dialkit",
+        "dev",
+      ],
+      title: "Open Component System",
+      description: "Inspect real HonkKit components against token geometry (dev)",
+      icon: <IconSettingsSliderHor className="size-4 text-honk-icon-tertiary" />,
+      run: async () => {
+        await navigate({ to: "/dev/honkkit", search: () => ({ component: "component-system" }) });
+      },
+    });
+
+    actionItems.push({
+      kind: "action",
       value: "action:dev:honkkit",
       searchTerms: [
         "honkkit",
@@ -959,7 +981,7 @@ function OpenCommandPaletteDialog() {
       description: "Browse the HonkKit design system with DialKit (dev)",
       icon: <IconSettingsSliderHor className="size-4 text-honk-icon-tertiary" />,
       run: async () => {
-        await navigate({ to: "/dev/honkkit" });
+        await navigate({ to: "/dev/honkkit", search: () => ({}) });
       },
     });
   }

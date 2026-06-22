@@ -106,6 +106,7 @@ export interface AgentSidebarProps {
   sections: SidebarSectionModel[];
   selectedId: string | null;
   onSelectAgent: (id: string) => void;
+  onClearDraft: (id: string) => void;
   onNewAgent?: (cwd: string) => void;
   onOpenWorkspace?: () => void;
   onPrefetchAgent?: (id: string) => void;

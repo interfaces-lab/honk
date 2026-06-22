@@ -1,6 +1,6 @@
 import type { ThreadTokenUsageSnapshot } from "@honk/contracts";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { Usage } from "@earendil-works/pi-ai";
+import type { Usage } from "@earendil-works/pi-ai/base";
 import { describe, expect, it } from "vitest";
 
 import { createContextUsageExtension } from "../src/context-usage-extension";
@@ -13,8 +13,11 @@ interface MockTool {
 }
 
 interface MockSessionEntry {
+  readonly id?: string;
   readonly type: string;
+  readonly firstKeptEntryId?: string;
   readonly message?: unknown;
+  readonly content?: unknown;
   readonly summary?: string;
 }
 
@@ -23,7 +26,9 @@ interface MockExtensionContext {
     | { tokens: number | null; contextWindow: number; percent: number | null }
     | undefined;
   readonly model: { contextWindow: number } | undefined;
-  readonly sessionManager: { getBranch: () => MockSessionEntry[] };
+  readonly sessionManager: {
+    getBranch: () => MockSessionEntry[];
+  };
 }
 
 function makeUsage(input: number, output: number, cacheRead = 0, cacheWrite = 0): Usage {
@@ -49,7 +54,9 @@ function makeContext(input: {
       percent: null,
     }),
     model: { contextWindow: input.contextWindow },
-    sessionManager: { getBranch: () => input.entries ?? [] },
+    sessionManager: {
+      getBranch: () => input.entries ?? [],
+    },
   };
 }
 
@@ -192,6 +199,65 @@ describe("context usage extension", () => {
 
     const snapshot = harness.snapshots.at(-1)!;
     expect(categoryTokens(snapshot, "summarized_conversation")).toBe(500);
+  });
+
+  it("publishes post-compaction context usage without stale pre-compaction usage", () => {
+    const harness = createHarness();
+    const preCompactionCtx = makeContext({ tokens: 180_000, contextWindow: 200_000 });
+
+    harness.emit(
+      "before_agent_start",
+      {
+        systemPrompt: "p".repeat(4_000),
+        systemPromptOptions: { cwd: "/tmp" },
+      },
+      preCompactionCtx,
+    );
+    harness.emit(
+      "turn_end",
+      {
+        turnIndex: 0,
+        message: { role: "assistant", usage: makeUsage(179_000, 1_000) },
+        toolResults: [],
+      },
+      preCompactionCtx,
+    );
+
+    const postCompactionCtx = makeContext({
+      tokens: null,
+      contextWindow: 200_000,
+      entries: [
+        {
+          id: "kept-user",
+          type: "message",
+          message: { role: "user", content: [{ type: "text", text: "u".repeat(400) }] },
+        },
+        {
+          id: "compact-1",
+          type: "compaction",
+          firstKeptEntryId: "kept-user",
+          summary: "m".repeat(800),
+        },
+      ],
+    });
+    harness.emit(
+      "session_compact",
+      {
+        compactionEntry: {
+          id: "compact-1",
+          firstKeptEntryId: "kept-user",
+          summary: "m".repeat(800),
+        },
+        fromExtension: false,
+      },
+      postCompactionCtx,
+    );
+
+    const snapshot = harness.snapshots.at(-1)!;
+    expect(snapshot.usedTokens).toBeLessThan(5_000);
+    expect(snapshot.usedTokens).toBe(1_300);
+    expect(snapshot.lastUsedTokens).toBeUndefined();
+    expect(categoryTokens(snapshot, "summarized_conversation")).toBe(200);
   });
 
   it("seeds usage from restored session entries on session start", () => {

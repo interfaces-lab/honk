@@ -22,19 +22,13 @@ import {
   $isTextNode,
   $nodesOfType,
   $setSelection,
-  COMMAND_PRIORITY_HIGH,
   DecoratorNode,
-  KEY_ARROW_DOWN_COMMAND,
-  KEY_ARROW_UP_COMMAND,
-  KEY_ENTER_COMMAND,
-  KEY_TAB_COMMAND,
   type EditorState,
   type ElementNode,
   type InitialEditorStateType,
   type LexicalEditor,
   type LexicalNode,
   type NodeKey,
-  type RangeSelection,
   type SerializedLexicalNode,
 } from "lexical";
 import {
@@ -42,8 +36,6 @@ import {
   useImperativeHandle,
   useRef,
   type ClipboardEventHandler,
-  type FormEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
   type ReactElement,
   type RefObject,
 } from "react";
@@ -68,6 +60,7 @@ import {
   ComposerMentionChip,
   ComposerSkillChip,
 } from "./chips";
+import { ComposerPromptEditorPlugins } from "./editor-plugins";
 import {
   commandText,
   composerSegmentExpandedText,
@@ -116,7 +109,14 @@ const SURROUND_SYMBOLS: [string, string][] = [
   ["_", "_"],
 ];
 const SURROUND_SYMBOLS_MAP = new Map<string, string>(SURROUND_SYMBOLS);
+const BACKTICK_SURROUND_CLOSE_SYMBOL = SURROUND_SYMBOLS_MAP.get("`") ?? null;
 const EMPTY_DOC: ComposerDocSegment[] = [];
+
+type ComposerPointLike = {
+  key: NodeKey;
+  offset: number;
+  type: "text" | "element";
+};
 
 class ComposerMentionNode extends DecoratorNode<ReactElement> {
   __payload: ComposerMentionPayload;
@@ -579,7 +579,7 @@ function nodeTextLength(node: LexicalNode, mode: "expanded" | "collapsed"): numb
 
 function offsetBeforePointInNode(
   node: LexicalNode,
-  point: RangeSelection["focus"],
+  point: ComposerPointLike,
   mode: "expanded" | "collapsed",
 ): { found: boolean; offset: number } {
   if (point.type === "element" && point.key === node.getKey() && $isElementNode(node)) {
@@ -610,7 +610,7 @@ function offsetBeforePointInNode(
   return { found: false, offset };
 }
 
-function offsetBeforePoint(point: RangeSelection["focus"], mode: "expanded" | "collapsed"): number {
+function offsetBeforePoint(point: ComposerPointLike, mode: "expanded" | "collapsed"): number {
   return offsetBeforePointInNode($getRoot(), point, mode).offset;
 }
 
@@ -716,6 +716,10 @@ function setSelectionRangeAtTextOffsets(
 
 function setSelectionAtTextOffset(offset: number, mode: "expanded" | "collapsed"): void {
   setSelectionRangeAtTextOffsets(offset, offset, mode);
+}
+
+function readCollapsedLengthFromEditorState(): number {
+  return nodeTextLength($getRoot(), "collapsed");
 }
 
 function readSnapshotFromEditorState(): ComposerPromptEditorSnapshot {
@@ -1522,108 +1526,6 @@ const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, Compose
     insertTextRef.current = insertText;
     insertMentionRef.current = insertMention;
 
-    const handleCommandKeyDown = (
-      key: "ArrowDown" | "ArrowUp" | "Enter" | "Escape" | "Tab",
-      event: KeyboardEvent,
-    ): boolean => {
-      const handled = onCommandKeyDownRef.current?.(key, event) ?? false;
-      if (handled) {
-        event.preventDefault();
-        event.stopPropagation();
-        pendingSurroundSelectionRef.current = null;
-      }
-      return handled;
-    };
-
-    useLayoutSyncEffect(() => {
-      const unregisterArrowDown = editor.registerCommand(
-        KEY_ARROW_DOWN_COMMAND,
-        (event) => (event ? handleCommandKeyDown("ArrowDown", event) : false),
-        COMMAND_PRIORITY_HIGH,
-      );
-      const unregisterArrowUp = editor.registerCommand(
-        KEY_ARROW_UP_COMMAND,
-        (event) => (event ? handleCommandKeyDown("ArrowUp", event) : false),
-        COMMAND_PRIORITY_HIGH,
-      );
-      const unregisterEnter = editor.registerCommand(
-        KEY_ENTER_COMMAND,
-        (event) => (event ? handleCommandKeyDown("Enter", event) : false),
-        COMMAND_PRIORITY_HIGH,
-      );
-      const unregisterTab = editor.registerCommand(
-        KEY_TAB_COMMAND,
-        (event) => (event ? handleCommandKeyDown("Tab", event) : false),
-        COMMAND_PRIORITY_HIGH,
-      );
-
-      return () => {
-        unregisterArrowDown();
-        unregisterArrowUp();
-        unregisterEnter();
-        unregisterTab();
-      };
-    }, [editor]);
-
-    const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      if (event.key === "Escape" && handleCommandKeyDown("Escape", event.nativeEvent)) {
-        return;
-      }
-
-      if (
-        event.defaultPrevented ||
-        event.nativeEvent.isComposing ||
-        event.metaKey ||
-        event.ctrlKey
-      ) {
-        pendingSurroundSelectionRef.current = null;
-        return;
-      }
-      const surroundSelection = captureSurroundSelection(editor);
-      pendingSurroundSelectionRef.current = surroundSelection;
-      const close = SURROUND_SYMBOLS_MAP.get(event.key);
-      if (
-        surroundSelection &&
-        close &&
-        applySurroundInput(editor, surroundSelection, event.key, close)
-      ) {
-        event.preventDefault();
-        event.stopPropagation();
-        pendingSurroundSelectionRef.current = null;
-      }
-    };
-
-    const handleBeforeInput = (event: FormEvent<HTMLDivElement>) => {
-      const inputEvent = event.nativeEvent;
-      if (!(inputEvent instanceof InputEvent)) {
-        pendingSurroundSelectionRef.current = null;
-        return;
-      }
-      const pendingSelection = pendingSurroundSelectionRef.current;
-      if (!pendingSelection) {
-        return;
-      }
-      if (inputEvent.inputType === "insertCompositionText") {
-        return;
-      }
-      if (inputEvent.inputType !== "insertText" || typeof inputEvent.data !== "string") {
-        pendingSurroundSelectionRef.current = null;
-        return;
-      }
-      const close = SURROUND_SYMBOLS_MAP.get(inputEvent.data);
-      if (!close) {
-        pendingSurroundSelectionRef.current = null;
-        return;
-      }
-      if (!applySurroundInput(editor, pendingSelection, inputEvent.data, close)) {
-        pendingSurroundSelectionRef.current = null;
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      pendingSurroundSelectionRef.current = null;
-    };
-
     const handlePaste: ClipboardEventHandler<HTMLDivElement> = (event) => {
       onPasteRef.current(event as unknown as Parameters<ClipboardEventHandler<HTMLElement>>[0]);
       if (!event.defaultPrevented) {
@@ -1699,6 +1601,21 @@ const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, Compose
           ignoreSelectionChange={false}
           onChange={emitSnapshot}
         />
+        <ComposerPromptEditorPlugins
+          applySurroundInput={applySurroundInput}
+          backtickSurroundCloseSymbol={BACKTICK_SURROUND_CLOSE_SYMBOL}
+          captureSurroundSelection={captureSurroundSelection}
+          isComposerAtomNode={isComposerAtomNode}
+          offsetBeforePoint={offsetBeforePoint}
+          onCommandKeyDownRef={onCommandKeyDownRef}
+          pendingSurroundSelectionRef={pendingSurroundSelectionRef}
+          pointAroundNode={pointAroundNode}
+          readCollapsedLengthFromEditorState={readCollapsedLengthFromEditorState}
+          readSnapshotFromEditorState={readSnapshotFromEditorState}
+          setSelectionAtTextOffset={setSelectionAtTextOffset}
+          setSelectionRangeAtTextOffsets={setSelectionRangeAtTextOffsets}
+          surroundSymbolsMap={SURROUND_SYMBOLS_MAP}
+        />
         <PlainTextPlugin
           ErrorBoundary={LexicalErrorBoundary}
           contentEditable={
@@ -1710,8 +1627,6 @@ const ComposerPromptEditorInner = forwardRef<ComposerPromptEditorHandle, Compose
               )}
               data-prompt-editor-input="true"
               data-testid="composer-editor"
-              onBeforeInput={handleBeforeInput}
-              onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               placeholder={null}
               spellCheck

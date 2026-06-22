@@ -106,6 +106,10 @@
   max-height: 200px;
 }
 
+[data-honk-composer-shell="thread"][data-expanded=""] [data-prompt-editor-input="true"] {
+  padding: 0;
+}
+
 [data-honk-composer-shell="thread"]:not([data-expanded=""]) [data-prompt-editor-placeholder] {
   padding-left: 0.25rem;
 }
@@ -115,7 +119,7 @@
 }
 
 [data-honk-composer-shell="thread"][data-expanded=""] [data-prompt-editor-placeholder] {
-  padding: 0.5rem 0.75rem 0;
+  padding: 0;
 }
 
 [data-honk-composer-shell="inline-edit"] [data-prompt-editor-placeholder] {
@@ -319,6 +323,8 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
 }
 
 [data-queued-composer-panel-stack] {

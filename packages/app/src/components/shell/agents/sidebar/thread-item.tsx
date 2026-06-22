@@ -1,7 +1,7 @@
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID, scopedThreadKey } from "~/lib/environment-scope";
 import type { ScopedThreadRef } from "@honk/contracts";
 import { SidebarButton, SidebarItem } from "@honk/honkkit/sidebar";
-import { IconArchive1, IconPin, IconUnpin } from "central-icons";
+import { IconArchive1, IconCrossMedium, IconPin, IconUnpin } from "central-icons";
 import {
   type DragEvent,
   type KeyboardEvent,
@@ -106,30 +106,56 @@ function AgentSidebarDraftItem(props: {
   item: DraftSidebarChatItem;
   selected: boolean;
   onSelectAgent: (id: string) => void;
+  onClearDraft: (id: string) => void;
   onPrefetchAgent?: (id: string) => void;
 }) {
   const title = useDraftSidebarTitle(props.item);
   const selectThread = () => {
     props.onSelectAgent(props.item.id);
   };
+  const clearDraft = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    props.onClearDraft(props.item.id);
+  };
 
   return (
-    <SidebarButton
-      variant="item"
+    <SidebarItem
+      render={<div />}
+      selected={props.selected}
       draggable
-      className="[-webkit-user-drag:element]"
-      data-selected={props.selected}
-      data-chat-item=""
+      className="group/sidebar-item data-[selected=true]:focus-within:bg-honk-bg-tertiary [-webkit-user-drag:element]"
       data-agent-sidebar-cell=""
+      data-agent-sidebar-row-shell=""
       onDragStart={(event) => writeSidebarChatDragPayload(event, props.item)}
-      onFocus={() => props.onPrefetchAgent?.(props.item.id)}
-      onPointerEnter={() => props.onPrefetchAgent?.(props.item.id)}
       onClick={selectThread}
+      tabIndex={-1}
     >
       <StatusSlot item={props.item} />
-      <SidebarItemTitle title={title} selected={props.selected} />
-      <SidebarItemTime ago={props.item.ago} selected={props.selected} />
-    </SidebarButton>
+      <SidebarButton
+        variant="inset"
+        data-chat-item=""
+        onFocus={() => props.onPrefetchAgent?.(props.item.id)}
+        onPointerEnter={() => props.onPrefetchAgent?.(props.item.id)}
+      >
+        <SidebarItemTitle title={title} selected={props.selected} />
+      </SidebarButton>
+      <div className="group-focus-within/sidebar-item:hidden [@media(hover:hover)]:group-hover/sidebar-item:hidden">
+        <SidebarItemTime ago={props.item.ago} selected={props.selected} />
+      </div>
+      <div className="hidden shrink-0 items-center group-focus-within/sidebar-item:flex [@media(hover:hover)]:group-hover/sidebar-item:flex">
+        <SidebarItemTime ago={props.item.ago} compact selected={props.selected} />
+        <span className="size-5 shrink-0" aria-hidden />
+        <SidebarIconButton
+          label="Clear draft"
+          onClick={clearDraft}
+          data-agent-sidebar-clear-draft-action=""
+          data-no-drag=""
+        >
+          <IconCrossMedium className="size-4 shrink-0" aria-hidden />
+        </SidebarIconButton>
+      </div>
+    </SidebarItem>
   );
 }
 
@@ -141,6 +167,7 @@ export function AgentSidebarThreadItem(props: {
   cloneThread: CloneThread;
   commitRename: CommitThreadRename;
   onSelectAgent: (id: string) => void;
+  onClearDraft: (id: string) => void;
   onPrefetchAgent?: (id: string) => void;
 }) {
   if (props.item.kind === "draft") {
@@ -149,6 +176,7 @@ export function AgentSidebarThreadItem(props: {
         item={props.item}
         selected={props.selected}
         onSelectAgent={props.onSelectAgent}
+        onClearDraft={props.onClearDraft}
         {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}
       />
     );

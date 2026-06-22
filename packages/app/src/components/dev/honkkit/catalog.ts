@@ -3,6 +3,7 @@
  */
 
 export type HonkKitCategory =
+  | "system"
   | "actions"
   | "typography"
   | "forms"
@@ -27,6 +28,20 @@ export type HonkKitCategoryGroup = {
 };
 
 export const HONKKIT_CATALOG: HonkKitCategoryGroup[] = [
+  {
+    id: "system",
+    label: "System",
+    description: "Token contracts and real-component composition",
+    components: [
+      {
+        id: "component-system",
+        name: "Component System",
+        importPath: "@honk/honkkit/*",
+        description:
+          "Actual HonkKit components composed against the shared token staircase and DialKit geometry controls",
+      },
+    ],
+  },
   {
     id: "actions",
     label: "Actions",

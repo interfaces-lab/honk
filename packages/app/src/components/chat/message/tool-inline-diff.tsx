@@ -85,7 +85,7 @@ export function InlineToolDiff({
               unsafeCSS: WORKBENCH_CODE_UNSAFE_CSS,
               diffStyle: "unified",
               overflow: "wrap",
-              disableFileHeader: renderablePatch.files.length === 1,
+              disableFileHeader: true,
               disableBackground: false,
               disableLineNumbers: false,
               diffIndicators: "none",

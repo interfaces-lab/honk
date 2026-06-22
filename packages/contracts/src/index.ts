@@ -12,6 +12,7 @@ export * from "./git";
 export * from "./orchestration";
 export * from "./runtime";
 export * from "./runtime-events";
+export * from "./browser-automation";
 export * from "./thread-tree";
 export * from "./editor";
 export * from "./project";

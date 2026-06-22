@@ -53,6 +53,7 @@ export function AgentSidebarSection(props: {
   commitRename: CommitThreadRename;
   removeProjectFromSidebar: RemoveProjectFromSidebar;
   onSelectAgent: (id: string) => void;
+  onClearDraft: (id: string) => void;
   onNewAgent?: (cwd: string) => void;
   onPrefetchAgent?: (id: string) => void;
 }) {
@@ -302,6 +303,7 @@ export function AgentSidebarSection(props: {
               cloneThread={props.cloneThread}
               commitRename={props.commitRename}
               onSelectAgent={props.onSelectAgent}
+              onClearDraft={props.onClearDraft}
               {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}
             />
           ))}

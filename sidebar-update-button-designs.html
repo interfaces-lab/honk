@@ -1,0 +1,1985 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Honk Sidebar Update Button Designs</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --honk-font-ui: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, sans-serif;
+        --honk-font-mono: "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+        --honk-ui-font-size-user: 13px;
+        --honk-text-caption: calc(var(--honk-ui-font-size-user) - 3px);
+        --honk-text-detail: calc(var(--honk-ui-font-size-user) - 2px);
+        --honk-text-body: var(--honk-ui-font-size-user);
+        --honk-text-sidebar-label: var(--honk-text-detail);
+        --honk-text-sidebar-subtitle: var(--honk-text-caption);
+        --honk-leading-body: calc(var(--honk-ui-font-size-user) + 5px);
+        --honk-leading-sidebar-label: calc(var(--honk-text-detail) + 4px);
+        --honk-radius-control: 6px;
+        --honk-sidebar-item-height: 28px;
+        --honk-sidebar-item-gap: 6px;
+        --honk-sidebar-gutter-inline: 10px;
+        --honk-base-foreground: #141414;
+        --foreground: var(--honk-base-foreground);
+        --honk-base-sidebar: #f3f3f3;
+        --honk-base-chrome: #f8f8f8;
+        --honk-base-accent: #3685bf;
+        --primary: var(--honk-base-accent);
+        --destructive: oklch(0.647 0.239 23.794);
+        --success: oklch(0.752 0.137 179.603);
+        --warning: oklch(0.82 0.16 88);
+        --honk-fg-primary: var(--foreground);
+        --honk-fg-secondary: color-mix(in srgb, var(--foreground) 74%, transparent);
+        --honk-fg-tertiary: color-mix(in srgb, var(--foreground) 54%, transparent);
+        --honk-fg-quaternary: color-mix(in srgb, var(--foreground) 36%, transparent);
+        --honk-bg-tertiary: color-mix(in srgb, var(--foreground) 8%, transparent);
+        --honk-bg-quaternary: color-mix(in srgb, var(--foreground) 6%, transparent);
+        --honk-bg-quinary: color-mix(in srgb, var(--foreground) 4%, transparent);
+        --honk-bg-elevated: #fcfcfc;
+        --honk-stroke-tertiary: color-mix(in srgb, var(--foreground) 8%, transparent);
+        --honk-stroke-secondary: color-mix(in srgb, var(--foreground) 12%, transparent);
+        --honk-stroke-focused: color-mix(in srgb, var(--primary) 72%, var(--foreground) 28%);
+        --honk-icon-secondary: color-mix(in srgb, var(--foreground) 66%, transparent);
+        --honk-icon-accent-primary: var(--primary);
+        --honk-icon-tertiary: color-mix(in srgb, var(--foreground) 46%, transparent);
+        --honk-icon-quaternary: color-mix(in srgb, var(--foreground) 28%, transparent);
+        --honk-hover: color-mix(in srgb, var(--foreground) 5%, transparent);
+        --muted-foreground: var(--honk-fg-tertiary);
+        --motion-duration-ui: 120ms;
+        --ease-shell: cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --honk-base-foreground: #e4e4e4;
+          --honk-base-sidebar: #181818;
+          --honk-base-chrome: #141414;
+          --honk-base-accent: #599ce7;
+          --honk-bg-elevated: #252526;
+          --warning: oklch(0.86 0.14 88);
+        }
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--honk-base-chrome);
+        color: var(--honk-fg-primary);
+        font: 14px/1.45 var(--honk-font-ui);
+        -webkit-font-smoothing: antialiased;
+      }
+      main {
+        width: min(1280px, calc(100vw - 40px));
+        margin: 0 auto;
+        padding: 40px 0 64px;
+      }
+      header { margin-bottom: 28px; }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+        letter-spacing: -0.03em;
+        text-wrap: balance;
+      }
+      h2 {
+        margin: 30px 0 12px;
+        font-size: 17px;
+        letter-spacing: -0.015em;
+      }
+      p { margin: 0; color: var(--honk-fg-secondary); }
+      code {
+        border-radius: 6px;
+        background: var(--honk-bg-tertiary);
+        box-shadow: 0 0 0 1px var(--honk-stroke-tertiary);
+        padding: 1px 5px;
+        font: 12px/1.4 var(--honk-font-mono);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        overflow: hidden;
+        border-radius: 14px;
+        background: var(--honk-bg-elevated);
+        box-shadow: 0 0 0 1px var(--honk-stroke-tertiary);
+      }
+      .card-head {
+        padding: 12px 14px;
+        background: color-mix(in srgb, var(--honk-bg-quinary) 72%, var(--honk-bg-elevated));
+        box-shadow: inset 0 -1px 0 var(--honk-stroke-tertiary);
+      }
+      .card-title { font-weight: 650; color: var(--honk-fg-primary); }
+      .card-source {
+        margin-top: 3px;
+        color: var(--honk-fg-tertiary);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+      .preview {
+        padding: 16px;
+        background: color-mix(in srgb, var(--honk-base-chrome) 88%, var(--honk-base-sidebar));
+      }
+      .attrs {
+        padding: 0 14px 12px;
+        color: var(--honk-fg-secondary);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      button { color: inherit; font: inherit; background: transparent; border: 0; padding: 0; cursor: pointer; }
+      svg { display: block; color: currentColor; flex-shrink: 0; }
+
+      /* Sidebar mock shell */
+      .sidebar-mock {
+        width: 248px;
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--honk-base-sidebar);
+        box-shadow:
+          0 0 0 1px var(--honk-stroke-tertiary),
+          0 12px 32px color-mix(in srgb, var(--foreground) 8%, transparent);
+        display: flex;
+        flex-direction: column;
+        min-height: 360px;
+      }
+      .sidebar-mock-header {
+        padding: 10px var(--honk-sidebar-gutter-inline) 6px;
+        font-size: var(--honk-text-sidebar-label);
+        line-height: var(--honk-leading-sidebar-label);
+        color: var(--honk-fg-tertiary);
+        font-weight: 500;
+      }
+      .sidebar-mock-body {
+        flex: 1;
+        padding: 0 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+      }
+      .sidebar-item {
+        display: flex;
+        align-items: center;
+        gap: var(--honk-sidebar-item-gap);
+        min-height: var(--honk-sidebar-item-height);
+        padding: 4px 6px;
+        border-radius: var(--honk-radius-control);
+        font-size: var(--honk-text-sidebar-label);
+        line-height: var(--honk-leading-sidebar-label);
+        color: var(--honk-fg-secondary);
+      }
+      .sidebar-item.selected {
+        background: var(--honk-bg-quaternary);
+        color: var(--honk-fg-primary);
+      }
+      .sidebar-item-title {
+        min-width: 0;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .sidebar-item-time {
+        font-size: var(--honk-text-sidebar-subtitle);
+        color: var(--honk-fg-tertiary);
+        flex-shrink: 0;
+      }
+      .status-dot {
+        width: 16px;
+        height: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .status-dot::after {
+        content: "";
+        width: 5.5px;
+        height: 5.5px;
+        border-radius: 999px;
+        background: var(--honk-icon-quaternary);
+      }
+      .status-dot.running::after { background: var(--honk-icon-tertiary); }
+      .status-dot.unread::after { background: var(--honk-icon-accent-primary); }
+      .sidebar-mock-footer {
+        margin-top: auto;
+        padding: 6px var(--honk-sidebar-gutter-inline) 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .settings-row {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        min-height: 28px;
+        padding: 4px 6px;
+      }
+      .settings-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: var(--honk-radius-control);
+        color: color-mix(in srgb, var(--muted-foreground) 60%, transparent);
+        transition: background var(--motion-duration-ui) var(--ease-shell), color var(--motion-duration-ui) var(--ease-shell);
+      }
+      .settings-btn:hover {
+        background: var(--honk-hover);
+        color: var(--honk-fg-primary);
+      }
+
+      /* Shared update button tokens */
+      .icon-cloud,
+      .icon-chevron {
+        width: 16px;
+        height: 16px;
+      }
+
+      /* 1. Baseline — current UpdatePill */
+      .update-baseline {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 8px;
+        border-radius: var(--honk-radius-control);
+        padding: 6px 0;
+        text-align: left;
+        font-size: var(--honk-text-body);
+        line-height: var(--honk-leading-body);
+        font-weight: 500;
+        color: var(--primary);
+        transition: background var(--motion-duration-ui) var(--ease-shell);
+      }
+      .update-baseline:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+
+      /* 2. Filled accent row */
+      .update-filled {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 30px;
+        border-radius: var(--honk-radius-control);
+        padding: 6px 10px;
+        font-size: var(--honk-text-body);
+        line-height: var(--honk-leading-body);
+        font-weight: 600;
+        color: white;
+        background: var(--primary);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 80%, black 20%);
+        transition: filter var(--motion-duration-ui) var(--ease-shell), transform var(--motion-duration-ui) var(--ease-shell);
+      }
+      .update-filled:hover { filter: brightness(1.06); }
+      .update-filled:active { transform: scale(0.985); }
+      .update-filled .version {
+        margin-left: auto;
+        font-size: var(--honk-text-caption);
+        font-weight: 500;
+        opacity: 0.82;
+      }
+
+      /* 3. Sidebar item row */
+      .update-sidebar-item {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        gap: var(--honk-sidebar-item-gap);
+        min-height: var(--honk-sidebar-item-height);
+        padding: 4px 6px;
+        border-radius: var(--honk-radius-control);
+        font-size: var(--honk-text-sidebar-label);
+        line-height: var(--honk-leading-sidebar-label);
+        color: var(--honk-fg-secondary);
+        transition: background var(--motion-duration-ui) var(--ease-shell), color var(--motion-duration-ui) var(--ease-shell);
+      }
+      .update-sidebar-item:hover {
+        background: var(--honk-bg-quaternary);
+        color: var(--honk-fg-primary);
+      }
+      .update-sidebar-item .label {
+        min-width: 0;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 500;
+      }
+      .update-sidebar-item .meta {
+        font-size: var(--honk-text-sidebar-subtitle);
+        color: var(--primary);
+        flex-shrink: 0;
+      }
+      .update-sidebar-item .status-dot::after {
+        background: var(--primary);
+      }
+
+      /* 4. Soft surface card */
+      .update-surface {
+        display: flex;
+        width: 100%;
+        flex-direction: column;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: calc(var(--honk-radius-control) + 2px);
+        background: var(--honk-bg-elevated);
+        box-shadow: 0 0 0 1px var(--honk-stroke-secondary);
+      }
+      .update-surface-top {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .update-surface-copy { min-width: 0; flex: 1; }
+      .update-surface-title {
+        font-size: var(--honk-text-body);
+        line-height: var(--honk-leading-body);
+        font-weight: 600;
+        color: var(--honk-fg-primary);
+      }
+      .update-surface-desc {
+        margin-top: 2px;
+        font-size: var(--honk-text-caption);
+        line-height: calc(var(--honk-text-caption) + 4px);
+        color: var(--honk-fg-tertiary);
+      }
+      .update-surface-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        align-self: flex-start;
+        min-height: 26px;
+        padding: 4px 10px;
+        border-radius: var(--honk-radius-control);
+        font-size: var(--honk-text-detail);
+        font-weight: 600;
+        color: var(--primary);
+        background: color-mix(in srgb, var(--primary) 10%, transparent);
+        transition: background var(--motion-duration-ui) var(--ease-shell);
+      }
+      .update-surface-action:hover {
+        background: color-mix(in srgb, var(--primary) 16%, transparent);
+      }
+
+      /* 5. Compact footer chip */
+      .update-chip-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        min-height: 28px;
+        padding: 2px 6px;
+      }
+      .update-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        max-width: 100%;
+        min-height: 24px;
+        padding: 3px 8px 3px 6px;
+        border-radius: 999px;
+        font-size: var(--honk-text-caption);
+        line-height: calc(var(--honk-text-caption) + 4px);
+        font-weight: 600;
+        color: var(--primary);
+        background: color-mix(in srgb, var(--primary) 12%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent);
+        transition: background var(--motion-duration-ui) var(--ease-shell), box-shadow var(--motion-duration-ui) var(--ease-shell);
+      }
+      .update-chip:hover {
+        background: color-mix(in srgb, var(--primary) 18%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 32%, transparent);
+      }
+      .update-chip-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--primary);
+        flex-shrink: 0;
+      }
+      .update-chip-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* Shared footer row (current shell) */
+      .footer-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        min-height: 28px;
+        padding: 2px 6px;
+      }
+      .footer-row-left {
+        min-width: 0;
+        flex: 1;
+        display: flex;
+        align-items: center;
+      }
+
+      /* 6. Version label (idle) */
+      .version-label {
+        padding: 0 8px;
+        font-size: var(--honk-text-caption);
+        line-height: calc(var(--honk-text-caption) + 4px);
+        font-weight: 500;
+        color: color-mix(in srgb, var(--muted-foreground) 60%, transparent);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* 7. Ghost text link */
+      .update-ghost {
+        padding: 4px 8px;
+        border-radius: var(--honk-radius-control);
+        font-size: var(--honk-text-caption);
+        line-height: calc(var(--honk-text-caption) + 4px);
+        font-weight: 600;
+        color: var(--primary);
+        transition: background var(--motion-duration-ui) var(--ease-shell);
+      }
+      .update-ghost:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+
+      /* 8. Outline chip */
+      .update-outline-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        max-width: 100%;
+        min-height: 24px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        font-size: var(--honk-text-caption);
+        line-height: calc(var(--honk-text-caption) + 4px);
+        font-weight: 600;
+        color: var(--primary);
+        background: transparent;
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 38%, transparent);
+        transition: background var(--motion-duration-ui) var(--ease-shell), box-shadow var(--motion-duration-ui) var(--ease-shell);
+      }
+      .update-outline-chip:hover {
+        background: color-mix(in srgb, var(--primary) 8%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 52%, transparent);
+      }
+
+      /* 9. Solid mini pill */
+      .update-solid-mini {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        max-width: 100%;
+        min-height: 24px;
+        padding: 3px 9px;
+        border-radius: 999px;
+        font-size: var(--honk-text-caption);
+        line-height: calc(var(--honk-text-caption) + 4px);
+        font-weight: 600;
+        color: white;
+        background: var(--primary);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 70%, black 30%);
+        transition: filter var(--motion-duration-ui) var(--ease-shell);
+      }
+      .update-solid-mini:hover { filter: brightness(1.07); }
+
+      /* 10. Icon chip */
+      .update-icon-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        max-width: 100%;
+        min-height: 24px;
+        padding: 3px 8px 3px 6px;
+        border-radius: 999px;
+        font-size: var(--honk-text-caption);
+        line-height: calc(var(--honk-text-caption) + 4px);
+        font-weight: 600;
+        color: var(--primary);
+        background: color-mix(in srgb, var(--primary) 12%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent);
+      }
+      .update-icon-chip svg { width: 14px; height: 14px; }
+
+      /* 11. Progress chip */
+      .update-progress-chip {
+        display: inline-flex;
+        flex-direction: column;
+        gap: 4px;
+        max-width: 100%;
+        min-width: 0;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: var(--honk-text-caption);
+        line-height: calc(var(--honk-text-caption) + 4px);
+        font-weight: 600;
+        color: var(--primary);
+        background: color-mix(in srgb, var(--primary) 10%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent);
+      }
+      .update-progress-track {
+        height: 3px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--primary) 18%, transparent);
+        overflow: hidden;
+      }
+      .update-progress-fill {
+        height: 100%;
+        width: 42%;
+        border-radius: inherit;
+        background: var(--primary);
+      }
+
+      /* 12. Split chip */
+      .update-split-chip {
+        display: inline-flex;
+        align-items: center;
+        max-width: 100%;
+        min-height: 24px;
+        border-radius: 999px;
+        overflow: hidden;
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 24%, transparent);
+        font-size: var(--honk-text-caption);
+        line-height: calc(var(--honk-text-caption) + 4px);
+      }
+      .update-split-chip .action {
+        padding: 3px 8px;
+        font-weight: 650;
+        color: white;
+        background: var(--primary);
+      }
+      .update-split-chip .version {
+        padding: 3px 8px;
+        font-weight: 600;
+        color: var(--primary);
+        background: color-mix(in srgb, var(--primary) 10%, transparent);
+      }
+
+      /* 13. Settings badge dot */
+      .settings-btn.badged { position: relative; }
+      .settings-btn.badged::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--primary);
+        box-shadow: 0 0 0 1.5px var(--honk-base-sidebar);
+      }
+
+      /* 14. Chevron chip */
+      .update-chevron-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        max-width: 100%;
+        min-height: 24px;
+        padding: 3px 6px 3px 8px;
+        border-radius: 999px;
+        font-size: var(--honk-text-caption);
+        line-height: calc(var(--honk-text-caption) + 4px);
+        font-weight: 600;
+        color: var(--primary);
+        background: color-mix(in srgb, var(--primary) 12%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent);
+        transition: background var(--motion-duration-ui) var(--ease-shell);
+      }
+      .update-chevron-chip:hover { background: color-mix(in srgb, var(--primary) 18%, transparent); }
+      .update-chevron-chip svg { width: 12px; height: 12px; opacity: 0.72; }
+
+      /* 15. Version delta */
+      .version-delta {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        max-width: 100%;
+        padding: 4px 8px;
+        border-radius: var(--honk-radius-control);
+        font-family: var(--honk-font-mono);
+        font-size: var(--honk-text-caption);
+        line-height: calc(var(--honk-text-caption) + 4px);
+        font-weight: 500;
+        color: var(--honk-fg-secondary);
+        transition: background var(--motion-duration-ui) var(--ease-shell), color var(--motion-duration-ui) var(--ease-shell);
+      }
+      .version-delta:hover {
+        background: var(--honk-bg-quaternary);
+        color: var(--honk-fg-primary);
+      }
+      .version-delta .arrow { color: var(--honk-fg-quaternary); }
+      .version-delta .next { color: var(--primary); font-weight: 650; }
+
+      h2.section-label {
+        grid-column: 1 / -1;
+        margin: 8px 0 0;
+        font-size: 13px;
+        font-weight: 650;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--honk-fg-tertiary);
+      }
+
+      /* Lifecycle + UX patterns */
+      .update-snooze-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 28px;
+        padding: 2px 6px;
+      }
+      .update-later {
+        flex-shrink: 0;
+        padding: 4px 6px;
+        border-radius: var(--honk-radius-control);
+        font-size: var(--honk-text-caption);
+        line-height: calc(var(--honk-text-caption) + 4px);
+        font-weight: 500;
+        color: var(--honk-fg-tertiary);
+        transition: background var(--motion-duration-ui) var(--ease-shell), color var(--motion-duration-ui) var(--ease-shell);
+      }
+      .update-later:hover {
+        background: var(--honk-hover);
+        color: var(--honk-fg-secondary);
+      }
+      .update-chip.warning {
+        color: color-mix(in srgb, var(--warning) 88%, var(--foreground) 12%);
+        background: color-mix(in srgb, var(--warning) 14%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--warning) 28%, transparent);
+      }
+      .update-chip.warning .update-chip-dot { background: var(--warning); }
+      .update-chip.warning:hover {
+        background: color-mix(in srgb, var(--warning) 20%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--warning) 38%, transparent);
+      }
+      .update-chip.error {
+        color: var(--destructive);
+        background: color-mix(in srgb, var(--destructive) 12%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--destructive) 24%, transparent);
+      }
+      .update-chip.error .update-chip-dot { background: var(--destructive); }
+      .update-chip.pulse .update-chip-dot {
+        animation: update-pulse 1.8s ease-in-out infinite;
+      }
+      @keyframes update-pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.55; transform: scale(0.85); }
+      }
+      .update-passive {
+        padding: 4px 8px;
+        font-size: var(--honk-text-caption);
+        line-height: calc(var(--honk-text-caption) + 4px);
+        font-weight: 500;
+        color: var(--honk-fg-tertiary);
+      }
+      .update-passive strong {
+        font-weight: 600;
+        color: var(--honk-fg-secondary);
+      }
+      .update-spinner {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        border: 1.5px solid color-mix(in srgb, var(--primary) 24%, transparent);
+        border-top-color: var(--primary);
+        animation: spin 0.7s linear infinite;
+        flex-shrink: 0;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* Top banner */
+      .app-chrome-mock {
+        width: 100%;
+        max-width: 520px;
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--honk-base-chrome);
+        box-shadow: 0 0 0 1px var(--honk-stroke-tertiary), 0 12px 32px color-mix(in srgb, var(--foreground) 8%, transparent);
+      }
+      .top-banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 7px 12px;
+        background: color-mix(in srgb, var(--primary) 8%, var(--honk-base-chrome));
+        box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--primary) 16%, transparent);
+        font-size: var(--honk-text-detail);
+        line-height: calc(var(--honk-text-detail) + 4px);
+      }
+      .top-banner-copy { min-width: 0; flex: 1; }
+      .top-banner-title { font-weight: 600; color: var(--honk-fg-primary); }
+      .top-banner-desc { margin-top: 1px; font-size: var(--honk-text-caption); color: var(--honk-fg-tertiary); }
+      .top-banner-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+      .top-banner-btn {
+        min-height: 24px;
+        padding: 3px 9px;
+        border-radius: var(--honk-radius-control);
+        font-size: var(--honk-text-caption);
+        font-weight: 600;
+        transition: background var(--motion-duration-ui) var(--ease-shell), filter var(--motion-duration-ui) var(--ease-shell);
+      }
+      .top-banner-btn.primary {
+        color: white;
+        background: var(--primary);
+      }
+      .top-banner-btn.primary:hover { filter: brightness(1.06); }
+      .top-banner-btn.ghost {
+        color: var(--honk-fg-secondary);
+        background: transparent;
+      }
+      .top-banner-btn.ghost:hover { background: var(--honk-hover); }
+      .top-banner-dismiss {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: var(--honk-radius-control);
+        color: var(--honk-fg-quaternary);
+        flex-shrink: 0;
+      }
+      .top-banner-dismiss:hover { background: var(--honk-hover); color: var(--honk-fg-secondary); }
+      .app-chrome-body {
+        display: flex;
+        min-height: 200px;
+      }
+      .app-chrome-sidebar {
+        width: 180px;
+        background: var(--honk-base-sidebar);
+        box-shadow: inset -1px 0 0 var(--honk-stroke-tertiary);
+      }
+      .app-chrome-main {
+        flex: 1;
+        padding: 16px;
+        color: var(--honk-fg-quaternary);
+        font-size: var(--honk-text-caption);
+      }
+
+      /* What's New popover */
+      .popover-scene {
+        position: relative;
+        padding-bottom: 8px;
+      }
+      .whats-new-popover {
+        position: absolute;
+        left: 6px;
+        bottom: calc(100% + 6px);
+        width: calc(100% - 12px);
+        padding: 10px 12px;
+        border-radius: calc(var(--honk-radius-control) + 4px);
+        background: var(--honk-bg-elevated);
+        box-shadow:
+          0 0 0 1px var(--honk-stroke-secondary),
+          0 12px 28px color-mix(in srgb, var(--foreground) 12%, transparent);
+        z-index: 2;
+      }
+      .whats-new-popover::after {
+        content: "";
+        position: absolute;
+        left: 18px;
+        bottom: -5px;
+        width: 10px;
+        height: 10px;
+        background: var(--honk-bg-elevated);
+        box-shadow: 1px 1px 0 var(--honk-stroke-secondary);
+        transform: rotate(45deg);
+      }
+      .whats-new-kicker {
+        font-size: var(--honk-text-caption);
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--primary);
+      }
+      .whats-new-title {
+        margin-top: 4px;
+        font-size: var(--honk-text-body);
+        line-height: var(--honk-leading-body);
+        font-weight: 650;
+        color: var(--honk-fg-primary);
+      }
+      .whats-new-notes {
+        margin-top: 6px;
+        font-size: var(--honk-text-caption);
+        line-height: calc(var(--honk-text-caption) + 5px);
+        color: var(--honk-fg-secondary);
+      }
+      .whats-new-notes li { margin-left: 14px; }
+      .whats-new-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      .whats-new-btn {
+        min-height: 26px;
+        padding: 4px 10px;
+        border-radius: var(--honk-radius-control);
+        font-size: var(--honk-text-caption);
+        font-weight: 600;
+        transition: background var(--motion-duration-ui) var(--ease-shell), filter var(--motion-duration-ui) var(--ease-shell);
+      }
+      .whats-new-btn.primary { color: white; background: var(--primary); }
+      .whats-new-btn.primary:hover { filter: brightness(1.06); }
+      .whats-new-btn.secondary {
+        color: var(--honk-fg-secondary);
+        background: var(--honk-bg-quaternary);
+      }
+      .whats-new-btn.secondary:hover { background: var(--honk-bg-tertiary); }
+      .whats-new-btn.ghost {
+        color: var(--honk-fg-tertiary);
+        background: transparent;
+      }
+      .whats-new-btn.ghost:hover { background: var(--honk-hover); color: var(--honk-fg-secondary); }
+
+      /* Toast mock */
+      .toast-mock {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 220px;
+        padding: 10px 12px;
+        border-radius: calc(var(--honk-radius-control) + 2px);
+        background: var(--honk-bg-elevated);
+        box-shadow:
+          0 0 0 1px var(--honk-stroke-secondary),
+          0 8px 24px color-mix(in srgb, var(--foreground) 10%, transparent);
+        font-size: var(--honk-text-detail);
+        z-index: 3;
+      }
+      .toast-mock-title { font-weight: 650; color: var(--honk-fg-primary); }
+      .toast-mock-desc {
+        margin-top: 2px;
+        font-size: var(--honk-text-caption);
+        color: var(--honk-fg-tertiary);
+      }
+
+      /* Settings inline banner */
+      .settings-panel-mock {
+        width: 100%;
+        max-width: 360px;
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--honk-bg-elevated);
+        box-shadow: 0 0 0 1px var(--honk-stroke-tertiary);
+      }
+      .settings-panel-head {
+        padding: 12px 14px;
+        font-weight: 650;
+        box-shadow: inset 0 -1px 0 var(--honk-stroke-tertiary);
+      }
+      .settings-inline-banner {
+        margin: 10px 12px 0;
+        padding: 10px 12px;
+        border-radius: calc(var(--honk-radius-control) + 2px);
+        background: color-mix(in srgb, var(--primary) 8%, var(--honk-bg-elevated));
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 18%, transparent);
+      }
+      .settings-inline-banner .title {
+        font-size: var(--honk-text-detail);
+        font-weight: 650;
+        color: var(--honk-fg-primary);
+      }
+      .settings-inline-banner .desc {
+        margin-top: 3px;
+        font-size: var(--honk-text-caption);
+        color: var(--honk-fg-tertiary);
+      }
+      .settings-inline-banner .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .settings-body-fade {
+        padding: 14px;
+        color: var(--honk-fg-quaternary);
+        font-size: var(--honk-text-caption);
+      }
+
+      @media (max-width: 720px) {
+        main { width: min(100% - 24px, 1280px); }
+        .grid { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Sidebar update button designs</h1>
+        <p>Footer treatments and lifecycle patterns for the desktop update CTA. Designs 1–5 explore stacked layouts; 5 is the shipped compact chip row. Designs 6–15 extend the footer row. Designs 16–32 apply UX research: non-intrusive awareness, explicit consent, state persistence, progress feedback, and semver urgency tiers.</p>
+        <p style="margin-top: 10px; font-size: 13px; line-height: 1.5;">
+          <strong style="color: var(--honk-fg-primary); font-weight: 600;">UX principles</strong> (from Electron/desktop update guides):
+          least-disruptive pattern that works; persist dismiss/snooze per version; opt-in before download; show progress during transfer; reserve blocking UI for mandatory/security updates; surface What's New when workflow changes; always offer retry on failure.
+        </p>
+      </header>
+
+      <section class="grid" aria-label="Update button design options">
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">1. Baseline</div>
+            <div class="card-source">Current <code>UpdatePill</code> — text-primary ghost row with cloud icon.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-header">Pinned</div>
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+                <div class="sidebar-item">
+                  <span class="status-dot unread" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Add update pill variants</span>
+                  <span class="sidebar-item-time">1h</span>
+                </div>
+                <div class="sidebar-item">
+                  <span class="status-dot" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Ship desktop build</span>
+                  <span class="sidebar-item-time">3d</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <button type="button" class="update-baseline">
+                  <svg class="icon-cloud" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7.5 18.25H16.5C18.8472 18.25 20.75 16.3472 20.75 14C20.75 11.8244 19.118 10.0833 17 9.80268C16.5907 7.29203 14.3679 5.375 11.6875 5.375C9.47794 5.375 7.57303 6.67969 6.76758 8.55859C4.61035 8.86719 3 10.7109 3 12.9375C3 15.4023 4.97266 17.375 7.4375 17.375H7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 14.25V10.75M12 10.75L10.25 12.5M12 10.75L13.75 12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <span>Update available</span>
+                </button>
+                <div class="settings-row">
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Low visual weight. Reads as a utility action, not a thread row.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">2. Filled accent</div>
+            <div class="card-source">Primary-filled footer CTA with version suffix.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-header">Pinned</div>
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+                <div class="sidebar-item">
+                  <span class="status-dot unread" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Add update pill variants</span>
+                  <span class="sidebar-item-time">1h</span>
+                </div>
+                <div class="sidebar-item">
+                  <span class="status-dot" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Ship desktop build</span>
+                  <span class="sidebar-item-time">3d</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <button type="button" class="update-filled">
+                  <svg class="icon-cloud" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7.5 18.25H16.5C18.8472 18.25 20.75 16.3472 20.75 14C20.75 11.8244 19.118 10.0833 17 9.80268C16.5907 7.29203 14.3679 5.375 11.6875 5.375C9.47794 5.375 7.57303 6.67969 6.76758 8.55859C4.61035 8.86719 3 10.7109 3 12.9375C3 15.4023 4.97266 17.375 7.4375 17.375H7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 14.25V10.75M12 10.75L10.25 12.5M12 10.75L13.75 12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <span>Download update</span>
+                  <span class="version">v0.42.0</span>
+                </button>
+                <div class="settings-row">
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Highest prominence. Best when updates are rare and should not be missed.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">3. Sidebar item row</div>
+            <div class="card-source">Matches thread row geometry — status dot slot + label + meta.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-header">Pinned</div>
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+                <div class="sidebar-item">
+                  <span class="status-dot unread" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Add update pill variants</span>
+                  <span class="sidebar-item-time">1h</span>
+                </div>
+                <div class="sidebar-item">
+                  <span class="status-dot" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Ship desktop build</span>
+                  <span class="sidebar-item-time">3d</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <button type="button" class="update-sidebar-item">
+                  <span class="status-dot" aria-hidden="true"></span>
+                  <span class="label">Update available</span>
+                  <span class="meta">v0.42.0</span>
+                </button>
+                <div class="settings-row">
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Blends into sidebar language. Dot signals “new” without breaking row rhythm.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">4. Soft surface card</div>
+            <div class="card-source">Elevated footer card with title, release note, and nested action.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-header">Pinned</div>
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+                <div class="sidebar-item">
+                  <span class="status-dot unread" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Add update pill variants</span>
+                  <span class="sidebar-item-time">1h</span>
+                </div>
+                <div class="sidebar-item">
+                  <span class="status-dot" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Ship desktop build</span>
+                  <span class="sidebar-item-time">3d</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="update-surface">
+                  <div class="update-surface-top">
+                    <svg class="icon-cloud" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7.5 18.25H16.5C18.8472 18.25 20.75 16.3472 20.75 14C20.75 11.8244 19.118 10.0833 17 9.80268C16.5907 7.29203 14.3679 5.375 11.6875 5.375C9.47794 5.375 7.57303 6.67969 6.76758 8.55859C4.61035 8.86719 3 10.7109 3 12.9375C3 15.4023 4.97266 17.375 7.4375 17.375H7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 14.25V10.75M12 10.75L10.25 12.5M12 10.75L13.75 12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <div class="update-surface-copy">
+                      <div class="update-surface-title">Honk 0.42.0</div>
+                      <div class="update-surface-desc">Sidebar polish, faster thread sync.</div>
+                    </div>
+                  </div>
+                  <button type="button" class="update-surface-action">
+                    <span>Restart to update</span>
+                    <svg class="icon-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9.5 18.25L15.75 12L9.5 5.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                </div>
+                <div class="settings-row">
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Room for release notes. Separates info from the action affordance.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">5. Compact chip</div>
+            <div class="card-source">Pill badge on the settings row — minimal vertical footprint.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-header">Pinned</div>
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+                <div class="sidebar-item">
+                  <span class="status-dot unread" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Add update pill variants</span>
+                  <span class="sidebar-item-time">1h</span>
+                </div>
+                <div class="sidebar-item">
+                  <span class="status-dot" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Ship desktop build</span>
+                  <span class="sidebar-item-time">3d</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="update-chip-row">
+                  <button type="button" class="update-chip">
+                    <span class="update-chip-dot" aria-hidden="true"></span>
+                    <span class="update-chip-label">Update · v0.42.0</span>
+                  </button>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Smallest footer impact. Update shares the settings row instead of owning one. <strong>Shipped.</strong></div>
+        </article>
+
+        <h2 class="section-label">Footer row variants</h2>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">6. Version label</div>
+            <div class="card-source">Idle state — muted current version when up to date.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-header">Pinned</div>
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+                <div class="sidebar-item">
+                  <span class="status-dot unread" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Add update pill variants</span>
+                  <span class="sidebar-item-time">1h</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <span class="version-label">v0.41.2</span>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Current no-update fallback. Zero chrome, just version metadata.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">7. Ghost text</div>
+            <div class="card-source">Primary label only — no pill, no icon.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-header">Pinned</div>
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <button type="button" class="update-ghost">Update available</button>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Lighter than a chip. Reads like a text action, not a badge.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">8. Outline chip</div>
+            <div class="card-source">Hollow pill — stroke only, no fill tint.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-header">Pinned</div>
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <button type="button" class="update-outline-chip">
+                      <span class="update-chip-dot" aria-hidden="true"></span>
+                      <span class="update-chip-label">Update · v0.42.0</span>
+                    </button>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Same footprint as shipped chip, less visual mass on quiet sidebars.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">9. Solid mini pill</div>
+            <div class="card-source">Filled accent chip — high contrast in one line.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-header">Pinned</div>
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <button type="button" class="update-solid-mini">
+                      <span class="update-chip-dot" style="background: white; opacity: 0.9" aria-hidden="true"></span>
+                      <span class="update-chip-label">Restart · v0.42.0</span>
+                    </button>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Hard to miss. Best when download is complete and restart is the only action.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">10. Icon chip</div>
+            <div class="card-source">Cloud download icon inside the soft chip.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-header">Pinned</div>
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <button type="button" class="update-icon-chip">
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7.5 18.25H16.5C18.8472 18.25 20.75 16.3472 20.75 14C20.75 11.8244 19.118 10.0833 17 9.80268C16.5907 7.29203 14.3679 5.375 11.6875 5.375C9.47794 5.375 7.57303 6.67969 6.76758 8.55859C4.61035 8.86719 3 10.7109 3 12.9375C3 15.4023 4.97266 17.375 7.4375 17.375H7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 14.25V10.75M12 10.75L10.25 12.5M12 10.75L13.75 12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      <span class="update-chip-label">Update · v0.42.0</span>
+                    </button>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Icon reinforces “download” without reverting to the full-width baseline row.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">11. Progress chip</div>
+            <div class="card-source">Downloading state with inline progress bar in the chip.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-header">Pinned</div>
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <div class="update-progress-chip" aria-label="Downloading update 42%">
+                      <span>Downloading 42%</span>
+                      <div class="update-progress-track"><div class="update-progress-fill"></div></div>
+                    </div>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings" disabled style="opacity: 0.5">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Shows active work. Taller chip — trade vertical space for clarity during download.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">12. Split chip</div>
+            <div class="card-source">Action and version as two-tone segments in one pill.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-header">Pinned</div>
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <button type="button" class="update-split-chip">
+                      <span class="action">Restart</span>
+                      <span class="version">v0.42.0</span>
+                    </button>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Separates verb from version. Scannable when action changes (Update → Restart).</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">13. Settings badge</div>
+            <div class="card-source">Version left; update signal as dot on the gear icon.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-header">Pinned</div>
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <span class="version-label">v0.41.2</span>
+                  </div>
+                  <button type="button" class="settings-btn badged" aria-label="Settings — update available">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Keeps footer visually quiet. Update discovery moves to settings affordance.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">14. Chevron chip</div>
+            <div class="card-source">Shipped chip shape with trailing chevron affordance.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-header">Pinned</div>
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <button type="button" class="update-chevron-chip">
+                      <span class="update-chip-dot" aria-hidden="true"></span>
+                      <span class="update-chip-label">Update · v0.42.0</span>
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9.5 18.25L15.75 12L9.5 5.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Subtle “tap to act” cue without changing chip footprint.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">15. Version delta</div>
+            <div class="card-source">Mono upgrade hint — current → next version.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-header">Pinned</div>
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <button type="button" class="version-delta">
+                      <span>v0.41.2</span>
+                      <span class="arrow" aria-hidden="true">→</span>
+                      <span class="next">0.42.0</span>
+                    </button>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Developer-native. Shows exactly what changes without a pill or icon.</div>
+        </article>
+
+        <h2 class="section-label">Lifecycle states</h2>
+        <p class="section-desc" style="grid-column: 1 / -1; margin: -4px 0 0; font-size: 13px; line-height: 1.45; color: var(--honk-fg-secondary);">Same footer row, different <code>DesktopUpdateState</code> phases. Label should change with state; disable click during download/install.</p>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">16. Available — opt-in</div>
+            <div class="card-source">User consents before download. Chip says "Download" not "Update".</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="update-snooze-row">
+                  <button type="button" class="update-chip">
+                    <span class="update-chip-dot" aria-hidden="true"></span>
+                    <span class="update-chip-label">Download · v0.42.0</span>
+                  </button>
+                  <button type="button" class="update-later">Later</button>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Respects bandwidth/disk. "Later" snoozes per version (persist in local storage).</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">17. Downloading</div>
+            <div class="card-source">Disabled chip with percent. No accidental double-download.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <div class="update-progress-chip" style="opacity: 0.72" aria-label="Downloading update 68%">
+                      <span>Downloading 68%</span>
+                      <div class="update-progress-track"><div class="update-progress-fill" style="width: 68%"></div></div>
+                    </div>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Progress bar answers "is something happening?" on slow connections.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">18. Ready to restart</div>
+            <div class="card-source">Download complete — verb shifts to Restart (shipped label logic).</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <button type="button" class="update-split-chip">
+                      <span class="action">Restart</span>
+                      <span class="version">v0.42.0</span>
+                    </button>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Highest-intent moment. Confirm if running threads exist (already in app).</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">19. Installing</div>
+            <div class="card-source">Non-interactive spinner chip during quit-and-install.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <div class="update-chip" style="opacity: 0.72; pointer-events: none">
+                      <span class="update-spinner" aria-hidden="true"></span>
+                      <span class="update-chip-label">Installing · v0.42.0</span>
+                    </div>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings" disabled style="opacity: 0.5">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Brief terminal state. User should not be able to trigger another action.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">20. Error / retry</div>
+            <div class="card-source">Destructive tint + "Retry" verb. Never a dead end.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <button type="button" class="update-chip error" title="Download failed. Click to retry.">
+                      <span class="update-chip-dot" aria-hidden="true"></span>
+                      <span class="update-chip-label">Retry · v0.42.0</span>
+                    </button>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Matches shipped retry label. Toast on failure is complementary, not sufficient alone.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">21. Passive ready</div>
+            <div class="card-source">Downloaded but user deferred restart — muted copy, no CTA chrome.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <span class="update-passive"><strong>v0.42.0</strong> installs on quit</span>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">For users who snoozed restart. Tap version or settings to reopen actions.</div>
+        </article>
+
+        <h2 class="section-label">Research-driven placements</h2>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">22. Top banner</div>
+            <div class="card-source">Dismissible strip above content — VS Code / Slack pattern for "ready to install".</div>
+          </div>
+          <div class="preview">
+            <div class="app-chrome-mock">
+              <div class="top-banner">
+                <div class="top-banner-copy">
+                  <div class="top-banner-title">Honk 0.42.0 is ready</div>
+                  <div class="top-banner-desc">Sidebar polish, faster thread sync.</div>
+                </div>
+                <div class="top-banner-actions">
+                  <button type="button" class="top-banner-btn ghost">Later</button>
+                  <button type="button" class="top-banner-btn primary">Restart</button>
+                </div>
+                <button type="button" class="top-banner-dismiss" aria-label="Dismiss">×</button>
+              </div>
+              <div class="app-chrome-body">
+                <div class="app-chrome-sidebar"></div>
+                <div class="app-chrome-main">Main content area</div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">More visible than footer chip without modal steal-focus. Persist dismiss per version.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">23. What's New popover</div>
+            <div class="card-source">Chip opens release notes + explicit actions (Thuki / Capgo pattern).</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer popover-scene">
+                <div class="whats-new-popover" role="dialog" aria-label="What's new in Honk 0.42.0">
+                  <div class="whats-new-kicker">What's new</div>
+                  <div class="whats-new-title">Honk 0.42.0</div>
+                  <ul class="whats-new-notes">
+                    <li>Sidebar status indicators</li>
+                    <li>Faster thread sync on reconnect</li>
+                  </ul>
+                  <div class="whats-new-actions">
+                    <button type="button" class="whats-new-btn primary">Restart to update</button>
+                    <button type="button" class="whats-new-btn secondary">Remind later</button>
+                    <button type="button" class="whats-new-btn ghost">Skip version</button>
+                  </div>
+                </div>
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <button type="button" class="update-chevron-chip" aria-expanded="true">
+                      <span class="update-chip-dot" aria-hidden="true"></span>
+                      <span class="update-chip-label">Update · v0.42.0</span>
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9.5 18.25L15.75 12L9.5 5.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Best when release notes matter. Single-click install is too eager for power users.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">24. Toast + chip</div>
+            <div class="card-source">Sonner toast on download complete (shipped) plus persistent chip for restart.</div>
+          </div>
+          <div class="preview" style="position: relative">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-body">
+                <div class="sidebar-item selected">
+                  <span class="status-dot running" aria-hidden="true"></span>
+                  <span class="sidebar-item-title">Refactor sidebar status</span>
+                  <span class="sidebar-item-time">2m</span>
+                </div>
+              </div>
+              <div class="sidebar-mock-footer">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <button type="button" class="update-chip">
+                      <span class="update-chip-dot" aria-hidden="true"></span>
+                      <span class="update-chip-label">Restart · v0.42.0</span>
+                    </button>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="toast-mock">
+              <div class="toast-mock-title">Update downloaded</div>
+              <div class="toast-mock-desc">Restart the app to install it.</div>
+            </div>
+          </div>
+          <div class="attrs">Toast = momentary awareness; chip = durable action. Don't rely on toast alone.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">25. Settings inline banner</div>
+            <div class="card-source">Full update story lives in Settings; footer stays quiet (gear badge #13).</div>
+          </div>
+          <div class="preview">
+            <div class="settings-panel-mock">
+              <div class="settings-panel-head">Settings</div>
+              <div class="settings-inline-banner">
+                <div class="title">Update available — v0.42.0</div>
+                <div class="desc">Downloaded and ready. Restart to install.</div>
+                <div class="actions">
+                  <button type="button" class="whats-new-btn primary">Restart now</button>
+                  <button type="button" class="whats-new-btn ghost">View release notes</button>
+                </div>
+              </div>
+              <div class="settings-body-fade">Other settings sections…</div>
+            </div>
+          </div>
+          <div class="attrs">Power-user control surface. Pair with subtle footer signal, not replacement.</div>
+        </article>
+
+        <h2 class="section-label">Urgency tiers (semver)</h2>
+        <p class="section-desc" style="grid-column: 1 / -1; margin: -4px 0 0; font-size: 13px; line-height: 1.45; color: var(--honk-fg-secondary);">Escalate prominence by semver diff. Patch = accent chip; minor = warm warning; major = blocking overlay (not shown here). Linux may fall back to external link.</p>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">26. Patch — subtle</div>
+            <div class="card-source">Bugfix / patch release. Current shipped chip weight.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-footer" style="margin-top: 0">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <button type="button" class="update-chip">
+                      <span class="update-chip-dot" aria-hidden="true"></span>
+                      <span class="update-chip-label">Update · v0.41.3</span>
+                    </button>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Default. No workflow interruption expected.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">27. Minor — warm</div>
+            <div class="card-source">Feature release. Warning tint draws attention without blocking.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-footer" style="margin-top: 0">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <button type="button" class="update-chip warning">
+                      <span class="update-chip-dot" aria-hidden="true"></span>
+                      <span class="update-chip-label">Update · v0.42.0</span>
+                    </button>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Consider pairing with What's New popover on first surface.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">28. Major — insistent chip</div>
+            <div class="card-source">Pre-overlay signal: solid mini pill + pulsing dot before full-screen block.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-footer" style="margin-top: 0">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <button type="button" class="update-solid-mini">
+                      <span class="update-chip-dot pulse" style="background: white; opacity: 0.9" aria-hidden="true"></span>
+                      <span class="update-chip-label">Update required · v1.0.0</span>
+                    </button>
+                  </div>
+                  <button type="button" class="settings-btn badged" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Reserve full blocking overlay for below-minimum-version only, not "newer exists".</div>
+        </article>
+
+        <h2 class="section-label">Dismissal &amp; persistence</h2>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">29. Double-click dismiss</div>
+            <div class="card-source">Shipped behavior — double-click chip hides until next version.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-footer" style="margin-top: 0">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <span class="version-label">v0.41.2</span>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Hidden affordance — consider visible "Later" (#16) or tooltip hint. Persist per version in storage.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">30. Skip version</div>
+            <div class="card-source">Explicit "Skip this version" in What's New — never re-prompt until newer.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-footer" style="margin-top: 0">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <span class="version-label">v0.41.2</span>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Footer quiet after skip. Settings or Help still shows "Check for updates".</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">31. Offline graceful</div>
+            <div class="card-source">Check failed silently — show current version only, no error chip.</div>
+          </div>
+          <div class="preview">
+            <div class="sidebar-mock">
+              <div class="sidebar-mock-footer" style="margin-top: 0">
+                <div class="footer-row">
+                  <div class="footer-row-left">
+                    <span class="version-label">v0.41.2</span>
+                  </div>
+                  <button type="button" class="settings-btn" aria-label="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">Updates are nice-to-have. Surface errors only when user initiated check/download.</div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div class="card-title">32. Recommended stack</div>
+            <div class="card-source">Composite pattern synthesizing research + current implementation.</div>
+          </div>
+          <div class="preview" style="position: relative">
+            <div class="app-chrome-mock">
+              <div class="app-chrome-body" style="min-height: 160px">
+                <div class="app-chrome-sidebar" style="width: 248px; padding: 0 0 8px; display: flex; flex-direction: column">
+                  <div style="flex: 1; padding: 8px 6px">
+                    <div class="sidebar-item selected">
+                      <span class="status-dot running" aria-hidden="true"></span>
+                      <span class="sidebar-item-title">Active thread</span>
+                    </div>
+                  </div>
+                  <div class="footer-row" style="padding: 2px 10px">
+                    <div class="footer-row-left">
+                      <button type="button" class="update-chip">
+                        <span class="update-chip-dot" aria-hidden="true"></span>
+                        <span class="update-chip-label">Restart · v0.42.0</span>
+                      </button>
+                    </div>
+                    <button type="button" class="settings-btn badged" aria-label="Settings">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.25C13.7949 15.25 15.25 13.7949 15.25 12C15.25 10.2051 13.7949 8.75 12 8.75C10.2051 8.75 8.75 10.2051 8.75 12C8.75 13.7949 10.2051 15.25 12 15.25Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.75V5.25M12 18.75V20.25M20.25 12H18.75M5.25 12H3.75M17.303 6.697L16.2426 7.75736M7.75736 16.2426L6.697 17.303M17.303 17.303L16.2426 16.2426M7.75736 7.75736L6.697 6.697" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="app-chrome-main">Content</div>
+              </div>
+            </div>
+          </div>
+          <div class="attrs">
+            Footer chip (state-aware labels) + toast on download + confirm on restart with running threads + settings banner for details + semver urgency tint + persist snooze/skip per version. Chevron popover (#23) optional for minor+ with notes.
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

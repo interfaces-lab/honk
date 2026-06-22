@@ -2,6 +2,7 @@ import { Button } from "@honk/honkkit/button";
 import { IconArrowUp, IconCrossSmall, IconEyeOpen } from "central-icons";
 
 import ChatMarkdown from "../../markdown/chat-markdown";
+import { ComposerFollowUpTraySurface } from "../follow-up-tray-surface";
 import type { ComposerInputProps } from "../input-contract";
 import { cn } from "~/lib/utils";
 import { proposedPlanTitle, stripDisplayedPlanMarkdown } from "~/plan/proposed-plan";
@@ -19,16 +20,11 @@ export function PlanFollowUpTray(props: {
   const title = proposedPlanTitle(props.plan.planMarkdown) ?? "Plan";
   const previewMarkdown = stripDisplayedPlanMarkdown(props.plan.planMarkdown).trim();
   const showViewPlan = props.onViewPlan !== undefined && !props.planSurfaceOpen;
-
   return (
-    <div
-      className={cn(
-        "plan-tray pointer-events-auto min-w-0 overflow-hidden rounded-(--honk-composer-plan-tray-radius) bg-honk-bg-elevated font-honk text-honk-chrome text-honk-fg-primary shadow-honk-soft honk-glass-inset-ring",
-        props.compact ? "mx-auto w-full" : "",
-      )}
+    <ComposerFollowUpTraySurface
+      className={cn("plan-tray", props.compact ? "mx-auto w-full" : "")}
       data-testid="plan-tray"
       data-visible="true"
-      style={{ transformOrigin: "bottom left" }}
     >
       <div className="flex min-w-0 items-center gap-2.5 px-3 py-2">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -86,6 +82,6 @@ export function PlanFollowUpTray(props: {
           <span>{props.isBuilding ? "Building..." : "Build"}</span>
         </Button>
       </div>
-    </div>
+    </ComposerFollowUpTraySurface>
   );
 }

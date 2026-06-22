@@ -1359,6 +1359,7 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
           if (threadKey.length === 0) {
             return;
           }
+          let cleared = false;
           set((state) => {
             const hasDraftThread = state.draftThreadsByThreadKey[threadKey] !== undefined;
             const hasLogicalProjectMapping = Object.values(
@@ -1368,8 +1369,12 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
             if (!hasDraftThread && !hasLogicalProjectMapping && !hasComposerDraft) {
               return state;
             }
+            cleared = true;
             return removeDraftThreadReferences(state, threadKey);
           });
+          if (cleared) {
+            composerDebouncedStorage.flush();
+          }
         },
         setPrompt: (threadRef, prompt) => {
           get().updateComposerDraft(threadRef, { prompt });

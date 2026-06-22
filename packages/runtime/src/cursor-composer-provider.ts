@@ -14,7 +14,7 @@ import {
   type TextContent,
   type ToolCall,
   type Usage,
-} from "@earendil-works/pi-ai";
+} from "@earendil-works/pi-ai/base";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import {
   CURSOR_COMPOSER_ACP_MODEL_ID,
@@ -1185,7 +1185,9 @@ function updatePendingPlanFromTodos(turnState: CursorAcpTurnState, params: unkno
     const content = record
       ? (stringField(record, "content") ?? stringField(record, "title"))
       : undefined;
-    return content ? [`- ${content}`] : [];
+    const status = typeof record?.status === "string" ? record.status : "pending";
+    const marker = status === "completed" ? "x" : " ";
+    return content ? [`- [${marker}] ${content}`] : [];
   });
   if (lines.length > 0) {
     turnState.pendingPlanMarkdown = lines.join("\n");

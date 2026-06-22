@@ -230,6 +230,19 @@ describe("buildPastThreadCandidates", () => {
     expect(buildPastThreadCandidates(summaries, { ...baseOptions, limit: 2 })).toHaveLength(2);
   });
 
+  it("honors a custom pool limit for expanded menus", () => {
+    const summaries = Array.from({ length: 30 }, (_, index) =>
+      makeSummary({ id: `thread:${index}`, latestUserMessageAt: isoAtMinute(index) }),
+    );
+
+    const candidates = buildPastThreadCandidates(summaries, {
+      ...baseOptions,
+      limit: Number.POSITIVE_INFINITY,
+      poolLimit: Number.POSITIVE_INFINITY,
+    });
+    expect(candidates).toHaveLength(30);
+  });
+
   it("caps the recency pool at 25 BEFORE query filtering", () => {
     const recent = Array.from({ length: 25 }, (_, index) =>
       makeSummary({

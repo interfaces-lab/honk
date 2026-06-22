@@ -1,13 +1,16 @@
-import { IconChevronRightMedium, IconCloudDownload } from "central-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import type { DesktopUpdateState } from "@honk/contracts";
+import { toast } from "sonner";
 
+import { APP_VERSION } from "~/app/branding";
 import { isElectron } from "~/env";
 import { countRunningThreadsWithServerState } from "~/desktop-active-work";
 import {
   setDesktopUpdateStateQueryData,
   useDesktopUpdateState,
 } from "~/lib/desktop-update-react-query";
+import { cn } from "~/lib/utils";
 import { useStore } from "~/stores/thread-store";
 import {
   getDesktopUpdateButtonTooltip,
@@ -15,8 +18,38 @@ import {
   resolveDesktopUpdateButtonAction,
   shouldConfirmDesktopUpdateInstall,
   shouldShowDesktopUpdateButton,
+  type DesktopUpdateButtonAction,
 } from "../../desktop-update-state";
-import { toast } from "sonner";
+
+function formatSidebarUpdateVersion(version: string): string {
+  return version.startsWith("v") ? version : `v${version}`;
+}
+
+function getSidebarUpdateChipLabel(
+  state: DesktopUpdateState,
+  action: DesktopUpdateButtonAction,
+): string {
+  const targetVersion = formatSidebarUpdateVersion(
+    state.downloadedVersion ?? state.availableVersion ?? state.currentVersion,
+  );
+
+  if (action === "install") {
+    return state.errorContext === "install" && typeof state.message === "string"
+      ? `Retry · ${targetVersion}`
+      : `Restart · ${targetVersion}`;
+  }
+  if (state.status === "installing") {
+    return `Installing · ${targetVersion}`;
+  }
+  if (state.status === "downloading") {
+    const progress =
+      typeof state.downloadPercent === "number"
+        ? ` ${Math.floor(state.downloadPercent)}%`
+        : "";
+    return `Downloading${progress}`;
+  }
+  return `Update · ${targetVersion}`;
+}
 
 export function UpdatePill() {
   const qc = useQueryClient();
@@ -56,7 +89,18 @@ export function UpdatePill() {
     }
   };
 
-  if (!isElectron || !shouldShowDesktopUpdateButton(state) || dismissed) return null;
+  if (!isElectron) return null;
+
+  const currentVersion = formatSidebarUpdateVersion(state?.currentVersion ?? APP_VERSION);
+  const showUpdateAction = Boolean(state && shouldShowDesktopUpdateButton(state) && !dismissed);
+
+  if (!showUpdateAction) {
+    return (
+      <span className="truncate px-2 text-caption font-medium text-muted-foreground/60">
+        {currentVersion}
+      </span>
+    );
+  }
 
   return (
     <button
@@ -65,38 +109,16 @@ export function UpdatePill() {
       disabled={disabled}
       onClick={handle}
       onDoubleClick={() => setDismissed(true)}
-      className="flex w-full select-none items-center justify-start gap-2 rounded-honk-control px-0 py-1.5 text-left text-body font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
-    >
-      {action === "install" ? (
-        <>
-          <IconChevronRightMedium className="size-4 shrink-0" />
-          <span className="truncate">
-            {state?.errorContext === "install" && typeof state.message === "string"
-              ? "Retry update"
-              : "Restart to update"}
-          </span>
-        </>
-      ) : state?.status === "installing" ? (
-        <>
-          <IconCloudDownload className="size-4 shrink-0 animate-pulse" />
-          <span className="truncate">Installing...</span>
-        </>
-      ) : state?.status === "downloading" ? (
-        <>
-          <IconCloudDownload className="size-4 shrink-0 animate-pulse" />
-          <span className="truncate">
-            Downloading
-            {typeof state.downloadPercent === "number"
-              ? ` ${Math.floor(state.downloadPercent)}%`
-              : "..."}
-          </span>
-        </>
-      ) : (
-        <>
-          <IconCloudDownload className="size-4 shrink-0" />
-          <span className="truncate">Update available</span>
-        </>
+      className={cn(
+        "inline-flex max-w-full min-h-6 select-none items-center gap-1.5 rounded-full px-2 py-0.5 text-left",
+        "text-caption font-semibold text-primary",
+        "bg-primary/12 shadow-[0_0_0_1px] shadow-primary/22",
+        "transition-colors hover:bg-primary/18 hover:shadow-primary/32",
+        "disabled:opacity-50",
       )}
+    >
+      <span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+      <span className="truncate">{state ? getSidebarUpdateChipLabel(state, action) : ""}</span>
     </button>
   );
 }

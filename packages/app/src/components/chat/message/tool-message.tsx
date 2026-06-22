@@ -422,7 +422,6 @@ function runtimeToolDisplayToSubagents(
       agentId: run.agentId,
       nickname: run.nickname,
       role: run.role,
-      ...(run.model ? { model: run.model } : {}),
       prompt: run.prompt,
       rawStatus: run.state,
       latestUpdate: runtimeSubagentLatestUpdate(run),
@@ -798,16 +797,23 @@ function SubagentStatusRow({
       : role === "librarian"
         ? "researching"
         : "handling";
-  const displayTitle = subagent.isActive ? `${activeRoleLabel} ${activeVerb}` : title;
+  const displayTitle = subagent.isActive ? activeRoleLabel : title;
   const visibleRoleLabel =
     !subagent.isActive && roleLabel && roleLabel !== title ? roleLabel : undefined;
   const accessibleTitle = visibleRoleLabel
     ? `${visibleRoleLabel} subagent: ${title}`
-    : displayTitle;
+    : subagent.isActive
+      ? `${activeRoleLabel} ${activeVerb}`
+      : displayTitle;
   const statusText = subagent.isActive
-    ? [subagent.nickname, subagent.prompt, subagent.latestUpdate, subagent.statusLabel].find(
-        (value) => value?.trim(),
-      )
+    ? pickActiveSubagentStatusText({
+        activeRoleLabel,
+        activeVerb,
+        nickname: subagent.nickname,
+        prompt: subagent.prompt,
+        latestUpdate: subagent.latestUpdate,
+        statusLabel: subagent.statusLabel,
+      })
     : (subagent.latestUpdate ?? subagent.statusLabel);
   const rowState = subagent.rawStatus ?? (subagent.isActive ? "running" : "completed");
 
@@ -826,8 +832,8 @@ function SubagentStatusRow({
     );
   };
 
-  // Cursor parity: two-line row — indicator + name + model badge, with the latest update
-  // on its own line under the name — instead of one truncated inline run.
+  // Cursor parity: two-line row — indicator + role/name, with the latest update
+  // on its own line under the title — instead of one truncated inline run.
   return (
     <Button
       type="button"
@@ -852,10 +858,26 @@ function SubagentStatusRow({
         <span className="inline-flex w-3 shrink-0 items-center justify-center">
           <SubagentStatusIndicator subagent={subagent} />
         </span>
-        {visibleRoleLabel ? (
+        {subagent.isActive ? (
+          <>
+            <span
+              data-subagent-role=""
+              className="shrink-0 font-medium text-honk-fg-primary"
+              title={subagent.role}
+            >
+              {activeRoleLabel}
+            </span>
+            <span
+              data-subagent-verb=""
+              className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium text-honk-fg-secondary"
+            >
+              {activeVerb}
+            </span>
+          </>
+        ) : visibleRoleLabel ? (
           <span
             data-subagent-role=""
-            className="shrink-0 text-caption font-medium text-honk-fg-secondary"
+            className="shrink-0 font-medium text-honk-fg-secondary"
             title={subagent.role}
           >
             {visibleRoleLabel}
@@ -863,15 +885,13 @@ function SubagentStatusRow({
         ) : null}
         <span
           data-subagent-name=""
-          className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium text-honk-fg-primary"
+          className={cn(
+            "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium text-honk-fg-primary",
+            subagent.isActive && "sr-only",
+          )}
         >
           {displayTitle}
         </span>
-        {subagent.model ? (
-          <span className="shrink-0 text-caption text-honk-fg-tertiary tabular-nums">
-            {subagent.model}
-          </span>
-        ) : null}
         {subagent.usedTokens !== undefined && subagent.usedTokens > 0 ? (
           <span className="shrink-0 text-caption text-honk-fg-tertiary tabular-nums">
             {formatSubagentUsageLabel(subagent)}
@@ -955,6 +975,25 @@ function SubagentInlineActivityRow({ log }: { log: WorkLogSubagentLog }) {
       </span>
     </span>
   );
+}
+
+function pickActiveSubagentStatusText(input: {
+  activeRoleLabel: string;
+  activeVerb: string;
+  nickname: string | undefined;
+  prompt: string | undefined;
+  latestUpdate: string | undefined;
+  statusLabel: string | undefined;
+}): string | undefined {
+  const ignored = new Set(
+    [input.activeRoleLabel, `${input.activeRoleLabel} ${input.activeVerb}`, input.activeVerb, input.statusLabel]
+      .map((value) => value?.trim().toLowerCase() ?? ""),
+  );
+  const candidates = [input.latestUpdate, input.prompt, input.nickname, input.statusLabel];
+  return candidates.find((value) => {
+    const normalized = value?.trim().toLowerCase() ?? "";
+    return normalized.length > 0 && !ignored.has(normalized);
+  });
 }
 
 function SubagentStatusIndicator({ subagent }: { subagent: WorkLogSubagent }) {

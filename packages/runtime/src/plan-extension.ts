@@ -1,5 +1,5 @@
 import { defineTool, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { Type } from "@earendil-works/pi-ai";
+import { Type } from "@earendil-works/pi-ai/base";
 
 export const CREATE_PLAN_TOOL_NAME = "create_plan";
 
@@ -107,6 +107,26 @@ function normalizeTodos(
       },
     ];
   });
+}
+
+function planMarkdownHasTaskList(planMarkdown: string): boolean {
+  return /^\s*[-*+]\s+\[[ xX]\]\s+\S/m.test(planMarkdown);
+}
+
+function todoMarkdownLine(todo: CreatePlanTodoDetails): string {
+  const marker = todo.status === "completed" ? "x" : " ";
+  return `- [${marker}] ${todo.content}`;
+}
+
+function planMarkdownWithTodos(
+  planMarkdown: string,
+  todos: ReadonlyArray<CreatePlanTodoDetails>,
+): string {
+  if (todos.length === 0 || planMarkdownHasTaskList(planMarkdown)) {
+    return planMarkdown;
+  }
+
+  return [planMarkdown.trimEnd(), "", "## Todos", ...todos.map(todoMarkdownLine)].join("\n");
 }
 
 function normalizePhases(
@@ -228,11 +248,13 @@ export const createPlanExtension: ExtensionFactory = (pi) => {
       ],
       parameters: CreatePlanParams,
       async execute(_toolCallId, params) {
-        const planMarkdown = requiredTrimmedString(params.plan, "plan");
+        const rawPlanMarkdown = requiredTrimmedString(params.plan, "plan");
+        const todos = normalizeTodos(params.todos);
+        const planMarkdown = planMarkdownWithTodos(rawPlanMarkdown, todos);
         const details: CreatePlanToolDetails = {
           name: trimmedString(params.name),
           overview: trimmedString(params.overview),
-          todos: normalizeTodos(params.todos),
+          todos,
           plan: planMarkdown,
           isProject: params.isProject ?? params.is_project ?? false,
           phases: normalizePhases(params.phases),

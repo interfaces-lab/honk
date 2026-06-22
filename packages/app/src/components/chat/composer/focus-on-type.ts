@@ -7,7 +7,6 @@ interface ComposerFocusOnTypeOptions {
   promptInputRef: RefObject<ComposerPromptEditorHandle | null>;
   targetWindow?: Window;
   isEditorPanelFocused?: () => boolean;
-  readClipboardText?: () => Promise<string>;
 }
 
 interface ComposerFocusOnTypeGuardInput {
@@ -46,10 +45,6 @@ function canFocusPromptOnType(input: ComposerFocusOnTypeGuardInput): boolean {
   );
 }
 
-function readClipboardTextFromNavigator(): Promise<string> {
-  return navigator.clipboard?.readText() ?? Promise.resolve("");
-}
-
 function focusAndInsertText(promptInput: ComposerPromptEditorHandle, text: string): void {
   if (!text) return;
   promptInput.focus();
@@ -61,14 +56,11 @@ export function useComposerFocusOnType({
   promptInputRef,
   targetWindow,
   isEditorPanelFocused,
-  readClipboardText,
 }: ComposerFocusOnTypeOptions): void {
   useEffect(() => {
     if (!enabled) return;
 
     const resolvedTargetWindow = targetWindow ?? window;
-    const resolvedReadClipboardText = readClipboardText ?? readClipboardTextFromNavigator;
-    let generation = 0;
 
     const canFocus = (event: KeyboardEvent) =>
       canFocusPromptOnType({
@@ -83,19 +75,12 @@ export function useComposerFocusOnType({
         if (!canFocus(event)) return;
         const promptInput = promptInputRef.current;
         if (!promptInput) return;
-        const pasteGeneration = ++generation;
-        event.preventDefault();
+        // Focus only; let the browser dispatch the real paste event so file/image
+        // clipboard payloads stay available to the composer paste handler.
         promptInput.focus();
-        resolvedReadClipboardText()
-          .then((text) => {
-            if (pasteGeneration !== generation || !text) return;
-            promptInputRef.current?.insertText(text);
-          })
-          .catch(() => {});
         return;
       }
 
-      generation++;
       if (!isPrintableKey(event) || !canFocus(event)) return;
       const promptInput = promptInputRef.current;
       if (!promptInput) return;
@@ -107,5 +92,5 @@ export function useComposerFocusOnType({
     return () => {
       resolvedTargetWindow.removeEventListener("keydown", handleKeyDown);
     };
-  }, [enabled, isEditorPanelFocused, promptInputRef, readClipboardText, targetWindow]);
+  }, [enabled, isEditorPanelFocused, promptInputRef, targetWindow]);
 }

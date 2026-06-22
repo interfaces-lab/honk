@@ -8,5 +8,8 @@ export const Route = createFileRoute("/dev/honkkit")({
       throw redirect({ to: "/", replace: true });
     }
   },
+  validateSearch: (search: Record<string, unknown>): { component?: string } => {
+    return typeof search.component === "string" ? { component: search.component } : {};
+  },
   component: HonkKitGalleryPage,
 });

@@ -544,6 +544,9 @@ export function MessagesTimeline({
     height: rowVirtualizer.getTotalSize(),
     position: "relative",
   } satisfies CSSProperties;
+  const scrollContainerStyle = {
+    scrollbarGutter: "stable both-edges",
+  } satisfies CSSProperties;
 
   return (
     <>
@@ -565,7 +568,8 @@ export function MessagesTimeline({
           onTouchStart={recordUserScrollInput}
           onWheel={recordUserScrollInput}
           data-chat-timeline-scroll=""
-          className="h-full min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [overflow-anchor:none] scrollbar-gutter-stable-both-edges scrollbar-thin"
+          className="h-full min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [overflow-anchor:none] scrollbar-thin"
+          style={scrollContainerStyle}
         >
           <div className="mx-auto box-border w-full max-w-agent-chat" style={virtualContentStyle}>
             {virtualItems.map((virtualRow) => {

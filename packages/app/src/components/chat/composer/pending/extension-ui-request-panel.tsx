@@ -1,6 +1,7 @@
 import { type DesktopExtensionUiRequest } from "@honk/contracts";
 import { IconChevronLeftMedium, IconChevronRightMedium } from "central-icons";
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
+import { ComposerFollowUpTraySurface } from "../follow-up-tray-surface";
 import {
   QuestionnaireActions,
   QuestionnaireFreeformRow,
@@ -255,9 +256,9 @@ export function ComposerPendingExtensionUiRequestPanel({
   };
 
   return (
-    <div className="relative z-10 mt-2 mb-2 px-3" onKeyDownCapture={handleKeyDownCapture}>
-      <div className="mx-auto w-full max-w-[580px]">
-        <QuestionnaireSurface>
+    <div className="relative z-10 mt-2 mb-2 w-full min-w-0" onKeyDownCapture={handleKeyDownCapture}>
+      <ComposerFollowUpTraySurface className="mx-auto w-full">
+        <QuestionnaireSurface embedded className="bg-transparent">
           <QuestionnaireHeader
             title={isQuestionRequest ? request.title : requestKindLabel(request.kind)}
             trailing={
@@ -399,7 +400,7 @@ export function ComposerPendingExtensionUiRequestPanel({
             )}
           </div>
         </QuestionnaireSurface>
-      </div>
+      </ComposerFollowUpTraySurface>
     </div>
   );
 }

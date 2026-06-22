@@ -1,20 +1,25 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getModel } from "@earendil-works/pi-ai";
-import { Type } from "@earendil-works/pi-ai";
+import {
+  AuthStorage,
+  createAgentSession,
+  DefaultResourceLoader,
+  ModelRegistry,
+  SessionManager,
+  SettingsManager,
+} from "@earendil-works/pi-coding-agent";
+import { Type, type Model } from "@earendil-works/pi-ai";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { DefaultResourceLoader } from "../src/core/resource-loader.ts";
-import { createAgentSession } from "../src/core/sdk.ts";
-import { SessionManager } from "../src/core/session-manager.ts";
-import { SettingsManager } from "../src/core/settings-manager.ts";
 
-function requireAnthropicModel() {
-  const model = getModel("anthropic", "claude-sonnet-4-5");
+const testModels = ModelRegistry.inMemory(AuthStorage.inMemory());
+
+function requireAnthropicModel(): Model<string> {
+  const model = testModels.find("anthropic", "claude-sonnet-4-5");
   if (!model) {
-    throw new Error("Expected anthropic model");
+    throw new Error("Expected anthropic model claude-sonnet-4-5");
   }
-  return model;
+  return model as Model<string>;
 }
 
 describe("AgentSession dynamic tool registration", () => {

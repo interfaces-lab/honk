@@ -1,4 +1,6 @@
 import {
+  BrowserAutomationRegisterInput,
+  BrowserAutomationUnregisterInput,
   ContextMenuItemSchema,
   DesktopActiveWorkStateSchema,
   DesktopAppBrandingSchema,
@@ -15,6 +17,7 @@ import * as Electron from "electron";
 import * as Net from "node:net";
 
 import * as DesktopBackendManager from "../../backend/desktop-backend-manager";
+import * as DesktopBrowserAutomation from "../../browser/browser-automation";
 import * as DesktopActiveWork from "../../app/desktop-active-work";
 import * as DesktopEnvironment from "../../app/desktop-environment";
 import * as DesktopAppSettings from "../../settings/desktop-app-settings";
@@ -141,6 +144,28 @@ export const getBrowserWebviewPreloadPath = makeSyncIpcMethod({
   handler: Effect.fn("desktop.ipc.window.getBrowserWebviewPreloadPath")(function* () {
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
     return environment.browserWebviewPreloadPath;
+  }),
+});
+
+export const registerBrowserAutomationHost = makeIpcMethod({
+  channel: IpcChannels.REGISTER_BROWSER_AUTOMATION_HOST_CHANNEL,
+  payload: BrowserAutomationRegisterInput,
+  result: Schema.Void,
+  trace: false,
+  handler: Effect.fn("desktop.ipc.window.registerBrowserAutomationHost")(function* (input) {
+    const browserAutomation = yield* DesktopBrowserAutomation.DesktopBrowserAutomation;
+    yield* browserAutomation.register(input);
+  }),
+});
+
+export const unregisterBrowserAutomationHost = makeIpcMethod({
+  channel: IpcChannels.UNREGISTER_BROWSER_AUTOMATION_HOST_CHANNEL,
+  payload: BrowserAutomationUnregisterInput,
+  result: Schema.Void,
+  trace: false,
+  handler: Effect.fn("desktop.ipc.window.unregisterBrowserAutomationHost")(function* (input) {
+    const browserAutomation = yield* DesktopBrowserAutomation.DesktopBrowserAutomation;
+    yield* browserAutomation.unregister(input);
   }),
 });
 

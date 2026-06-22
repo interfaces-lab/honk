@@ -10,6 +10,7 @@ import { useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import {
+  openChatIndex,
   openDraft,
   openThread,
   prefetchDraftNavigation,
@@ -30,6 +31,7 @@ import {
 import { getProjectOrderKey, deriveSidebarProjectStateKey } from "~/stores/project-identity";
 import {
   type ComposerThreadDraftState,
+  DraftId,
   type DraftThreadEnvMode,
   type DraftThreadState,
   useComposerDraftStore,
@@ -540,6 +542,35 @@ export function useAgentSidebarModel(input: {
     void startNewThreadFromContext(context);
   };
 
+  const clearDraft = (id: string) => {
+    const draftId = DraftId.make(id);
+    const draftSession = useComposerDraftStore.getState().getDraftSession(draftId);
+    if (!draftSession) {
+      return;
+    }
+
+    const draftKeys = deriveVisibleSidebarDraftKeys(draftSession);
+    const sendIntentStore = useThreadSendIntentStore.getState();
+    sendIntentStore.clearLocalSendArtifactsForThread(draftKeys.draftThreadKey);
+    if (draftKeys.promotedThreadKey !== null) {
+      sendIntentStore.clearLocalSendArtifactsForThread(draftKeys.promotedThreadKey);
+    }
+    useComposerDraftStore.getState().clearDraftThread(draftId);
+
+    if (id !== input.selectedId) {
+      return;
+    }
+
+    const fallbackThreadItem = sections
+      .flatMap((section) => section.items)
+      .find((item) => item.kind === "thread");
+    if (fallbackThreadItem) {
+      void openThread(router, fallbackThreadItem.threadRef, { replace: true });
+      return;
+    }
+    void openChatIndex(router, { replace: true });
+  };
+
   const select = (id: string) => {
     if (id === input.selectedId) {
       return;
@@ -611,6 +642,7 @@ export function useAgentSidebarModel(input: {
   };
 
   return {
+    clearDraft,
     create,
     prefetchAgent,
     sections,

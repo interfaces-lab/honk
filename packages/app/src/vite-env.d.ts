@@ -17,6 +17,7 @@ declare global {
     capturePage?: (callback: (image: { toDataURL: () => string }) => void) => void;
     clearHistory?: () => void;
     getTitle?: () => string;
+    getWebContentsId?: () => number;
     getURL: () => string;
     goBack: () => void;
     goForward: () => void;

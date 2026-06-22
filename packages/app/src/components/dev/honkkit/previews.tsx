@@ -62,6 +62,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogPanel,
   DialogPopup,
   DialogTitle,
   DialogTrigger,
@@ -170,8 +171,235 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 import { dialSelect, dialText, pickDialSelect } from "./dialkit-helpers";
 import { cn } from "~/lib/utils";
 
+type TokenStyle = CSSProperties & Record<`--${string}`, string | number>;
+
 function PreviewFrame({ children }: { children: ReactNode }) {
   return <div className="flex items-center justify-center">{children}</div>;
+}
+
+function ComponentSystemPreview() {
+  const footerVariants = ["default", "bare"] as const;
+  const params = useDialKit("Component System", {
+    radius: [8, 0, 24, 1],
+    maxWidth: [512, 320, 760, 8],
+    viewportPadding: [16, 0, 64, 4],
+    paddingInline: [24, 12, 48, 2],
+    paddingBlock: [24, 12, 48, 2],
+    footerPaddingBlock: [16, 8, 32, 2],
+    gap: [8, 4, 24, 1],
+    footerVariant: dialSelect(footerVariants, "default"),
+    showCloseButton: true,
+  });
+
+  const dialogStyle: TokenStyle = {
+    "--honk-dialog-radius": `${params.radius}px`,
+    "--honk-dialog-max-width": `${params.maxWidth}px`,
+    "--honk-dialog-padding-inline": `${params.paddingInline}px`,
+    "--honk-dialog-padding-block": `${params.paddingBlock}px`,
+    "--honk-dialog-footer-padding-block": `${params.footerPaddingBlock}px`,
+    "--honk-dialog-header-gap": `${params.gap}px`,
+    "--honk-dialog-footer-gap": `${params.gap}px`,
+  };
+  const viewportStyle: TokenStyle = {
+    "--honk-dialog-viewport-padding": `${params.viewportPadding}px`,
+  };
+  const footerVariant = pickDialSelect(params.footerVariant, footerVariants);
+
+  return (
+    <PreviewFrame>
+      <div className="grid w-[min(920px,calc(100vw-18rem))] gap-4 p-4 text-left">
+        <Card variant="panel">
+          <CardHeader className="border-b border-honk-stroke-tertiary">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <Text size="lg" weight="semibold">
+                  Component System
+                </Text>
+                <Text size="sm" tone="secondary">
+                  Actual HonkKit primitives rendered against shared token geometry.
+                </Text>
+              </div>
+              <Badge variant="success">Dev-only</Badge>
+            </div>
+          </CardHeader>
+          <CardBody className="grid gap-4">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_18rem]">
+              <Card>
+                <CardHeader>
+                  <Text weight="semibold">Action stack</Text>
+                  <Text size="sm" tone="secondary">
+                    Buttons, input, switch, status, and copy use live HonkKit components.
+                  </Text>
+                </CardHeader>
+                <CardBody className="grid gap-4 pt-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Button>Primary Action</Button>
+                    <Button variant="outline">Secondary Action</Button>
+                    <Button variant="ghost">Tertiary</Button>
+                    <Button variant="destructive-outline">Delete Draft</Button>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <Input defaultValue="HonkKit token audit" aria-label="Example project name" />
+                    <div className="flex items-center gap-2 rounded-honk-control border border-honk-stroke-tertiary px-3">
+                      <Switch defaultChecked aria-label="Use tokens" />
+                      <Text size="sm" tone="secondary">
+                        Tokens
+                      </Text>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge>Neutral</Badge>
+                    <Badge variant="success">Ready</Badge>
+                    <Badge variant="warning">Review</Badge>
+                    <Badge variant="destructive">Blocked</Badge>
+                  </div>
+                </CardBody>
+              </Card>
+
+              <Card variant="flat">
+                <CardHeader>
+                  <Text weight="semibold">Dialog geometry</Text>
+                  <Text size="sm" tone="secondary">
+                    DialKit controls write the same CSS variables consumed by the Dialog primitive.
+                  </Text>
+                </CardHeader>
+                <CardBody className="grid gap-2 pt-2">
+                  <TokenReadout name="radius" value={`${params.radius}px`} token="--honk-dialog-radius" />
+                  <TokenReadout
+                    name="padding x"
+                    value={`${params.paddingInline}px`}
+                    token="--honk-dialog-padding-inline"
+                  />
+                  <TokenReadout
+                    name="padding y"
+                    value={`${params.paddingBlock}px`}
+                    token="--honk-dialog-padding-block"
+                  />
+                  <TokenReadout
+                    name="margin"
+                    value={`${params.viewportPadding}px`}
+                    token="--honk-dialog-viewport-padding"
+                  />
+                </CardBody>
+                <CardFooter>
+                  <Dialog>
+                    <DialogTrigger render={<Button variant="outline" className="w-full" />}>
+                      Open Tuned Dialog
+                    </DialogTrigger>
+                    <DialogPopup
+                      showCloseButton={params.showCloseButton}
+                      style={dialogStyle}
+                      viewportStyle={viewportStyle}
+                    >
+                      <DialogHeader>
+                        <DialogTitle>Token-backed dialog</DialogTitle>
+                        <DialogDescription>
+                          Radius, padding, width, gaps, and viewport margin all resolve through
+                          `--honk-dialog-*` variables.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <DialogPanel>
+                        <div className="grid gap-3">
+                          <Alert>
+                            <AlertTitle>Geometry audit</AlertTitle>
+                            <AlertDescription>
+                              Change the DialKit controls and inspect the popup. The primitive stays
+                              token-backed instead of hardcoding a parallel scale.
+                            </AlertDescription>
+                          </Alert>
+                          <Input defaultValue="packages/honkkit/src/dialog.tsx" />
+                        </div>
+                      </DialogPanel>
+                      <DialogFooter variant={footerVariant}>
+                        <Button variant="outline">Cancel</Button>
+                        <Button>Apply Tokens</Button>
+                      </DialogFooter>
+                    </DialogPopup>
+                  </Dialog>
+                </CardFooter>
+              </Card>
+            </div>
+
+            <Card variant="flat">
+              <CardHeader>
+                <Text weight="semibold">Staircase roles</Text>
+                <Text size="sm" tone="secondary">
+                  Vercel-style 100–1000 intent steps mapped to Honk roles, not new overlapping CSS.
+                </Text>
+              </CardHeader>
+              <CardBody className="grid gap-3 pt-2">
+                <TokenStaircase
+                  label="Neutral"
+                  steps={[
+                    "--honk-color-editor",
+                    "--honk-color-chat",
+                    "--honk-bg-quinary",
+                    "--honk-stroke-tertiary",
+                    "--honk-stroke-secondary",
+                    "--honk-stroke-primary",
+                    "--honk-fg-quaternary",
+                    "--honk-fg-tertiary",
+                    "--honk-fg-secondary",
+                    "--honk-fg-primary",
+                  ]}
+                />
+                <TokenStaircase
+                  label="Status"
+                  steps={[
+                    "--honk-bg-green-secondary",
+                    "--honk-bg-yellow-secondary",
+                    "--honk-bg-red-secondary",
+                    "--honk-stroke-green-primary",
+                    "--honk-stroke-yellow-primary",
+                    "--honk-stroke-red-primary",
+                    "--success",
+                    "--warning",
+                    "--destructive",
+                    "--honk-fg-primary",
+                  ]}
+                />
+              </CardBody>
+            </Card>
+          </CardBody>
+        </Card>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+function TokenReadout({ name, value, token }: { name: string; value: string; token: string }) {
+  return (
+    <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-2 rounded-honk-control bg-honk-bg-quinary px-2 py-1.5">
+      <Text size="xs" tone="tertiary">
+        {name}
+      </Text>
+      <Code className="truncate">
+        {token}: {value}
+      </Code>
+    </div>
+  );
+}
+
+function TokenStaircase({ label, steps }: { label: string; steps: string[] }) {
+  return (
+    <div className="grid gap-2">
+      <Text size="sm" weight="medium">
+        {label}
+      </Text>
+      <div className="grid grid-cols-10 overflow-hidden rounded-honk-control border border-honk-stroke-tertiary">
+        {steps.map((token, index) => (
+          <div
+            key={`${token}-${index}`}
+            className="min-h-14 border-l border-honk-stroke-quaternary p-1 first:border-l-0"
+            style={{ background: `var(${token})` }}
+            title={token}
+          >
+            <Code className="text-[9px] mix-blend-difference">{(index + 1) * 100}</Code>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function ButtonPreview() {
@@ -2064,6 +2292,7 @@ export const MULTIKIT_PREVIEWS: Record<string, () => ReactNode> = {
   card: CardPreview,
   chart: ChartPreview,
   checkbox: CheckboxPreview,
+  "component-system": ComponentSystemPreview,
   code: CodePreview,
   collapsible: CollapsiblePreview,
   autocomplete: AutocompletePreview,

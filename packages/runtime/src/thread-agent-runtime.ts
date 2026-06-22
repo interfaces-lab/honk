@@ -14,6 +14,7 @@ import type {
   SourceProposedPlanReference,
   ThreadAgentRuntimeImageAttachment,
   ThreadAgentRuntimeQueuedFollowUp,
+  BrowserAutomationController,
   ThreadId,
   ThreadTokenUsageSnapshot,
   TurnId,
@@ -40,7 +41,7 @@ import {
   SettingsManager,
   createAgentSession,
 } from "@earendil-works/pi-coding-agent";
-import type { Api, ImageContent, Model } from "@earendil-works/pi-ai";
+import type { Api, ImageContent, Model } from "@earendil-works/pi-ai/base";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import {
   authProviderIdFromPiModel,
@@ -54,6 +55,7 @@ import {
   type ContextUsageSnapshotSink,
 } from "./context-usage-extension";
 import { createCodexRuntimePolicyExtension } from "./codex-runtime-policy-extension";
+import { createBrowserAutomationExtension } from "./browser-automation-extension";
 import { createCodexApplyPatchExtension } from "./codex-apply-patch-extension";
 import { createDesktopExtensionUi, type DesktopExtensionUiController } from "./extension-ui";
 import { normalizeAdditionalExtensionPaths } from "./extension-paths";
@@ -80,6 +82,7 @@ import {
 } from "./runtime-canonical-projection";
 import { registerCursorComposerProvider } from "./cursor-composer-provider";
 import { cursorComposerFastEnabled } from "@honk/shared/cursor-composer";
+import { createHonkPiModelRegistry } from "./honk-pi-models";
 
 const DEFAULT_EXCLUDED_TOOL_NAMES: readonly string[] = [];
 const PI_DEFAULT_SYSTEM_PROMPT_IDENTITY =
@@ -112,6 +115,7 @@ export interface ThreadAgentRuntimeOptions {
   readonly extensionFactories?: readonly ExtensionFactory[];
   readonly extensionPaths?: readonly string[];
   readonly resourceLoader?: ResourceLoader;
+  readonly browserAutomation?: BrowserAutomationController | null;
   readonly authStorage?: AuthStorage;
   readonly modelRegistry?: CreateAgentSessionOptions["modelRegistry"];
   readonly sessionManager?: CreateAgentSessionOptions["sessionManager"];
@@ -255,7 +259,7 @@ export class ThreadAgentRuntime {
       options.authStorage ?? AuthStorage.create(join(options.agentDir, "auth.json"));
     const modelRegistry =
       options.modelRegistry ??
-      ModelRegistry.create(authStorage, join(options.agentDir, "models.json"));
+      createHonkPiModelRegistry(ModelRegistry, authStorage, join(options.agentDir, "models.json"));
     registerCursorComposerProvider(modelRegistry, {
       cwd: options.cwd,
       fastEnabled: cursorComposerFastEnabled(options.policy.modelSelection),
@@ -307,6 +311,10 @@ export class ThreadAgentRuntime {
           createToolCallDescriptionExtension(),
           createHonkSystemPromptIdentityExtension(),
           createCodexRuntimePolicyExtension(options.policy),
+          createBrowserAutomationExtension({
+            controller: options.browserAutomation,
+            threadId: options.threadId,
+          }),
           ...(options.extensionFactories ?? []),
           createInteractionModeExtension(interactionModeQueue),
           createContextUsageExtension(contextUsageSink),

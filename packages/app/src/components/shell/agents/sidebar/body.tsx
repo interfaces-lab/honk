@@ -211,6 +211,7 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
       commitRename={commitRename}
       removeProjectFromSidebar={removeProjectFromSidebar}
       onSelectAgent={props.onSelectAgent}
+      onClearDraft={props.onClearDraft}
       {...(props.onNewAgent ? { onNewAgent: props.onNewAgent } : {})}
       {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}
     />

@@ -5,8 +5,8 @@ import {
   fauxToolCall,
   type AssistantMessage,
   type UserMessage,
-} from "@earendil-works/pi-ai";
-import { Type } from "@earendil-works/pi-ai";
+} from "@earendil-works/pi-ai/base";
+import { Type } from "@earendil-works/pi-ai/base";
 import { defineTool, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it } from "vitest";
 import { MessageId, threadEntryIdForMessageId } from "@honk/contracts";

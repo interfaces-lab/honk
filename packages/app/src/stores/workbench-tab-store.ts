@@ -159,8 +159,8 @@ const DEFAULT_WORKBENCH_TABS: readonly WorkbenchManagedTab[] = Object.freeze([
 
 const DEFAULT_WORKBENCH_STATE: WorkbenchTabWorkspaceState = Object.freeze({
   tabs: DEFAULT_WORKBENCH_TABS,
-  activeTabId: FILES_TAB_ID,
-  visitedTabIds: Object.freeze([FILES_TAB_ID]),
+  activeTabId: CHANGES_TAB_ID,
+  visitedTabIds: Object.freeze([CHANGES_TAB_ID]),
 });
 
 function resolveWorkbenchWorkspaceKey(workspaceKey: string | null): string {
@@ -273,7 +273,7 @@ function normalizePersistedWorkspace(
         )
         .filter((tab): tab is WorkbenchManagedTab => tab !== null)
     : [];
-  const activeTabId = typeof value.activeTabId === "string" ? value.activeTabId : FILES_TAB_ID;
+  const activeTabId = typeof value.activeTabId === "string" ? value.activeTabId : CHANGES_TAB_ID;
   const visitedTabIds = Array.isArray(value.visitedTabIds)
     ? value.visitedTabIds.filter((id): id is string => typeof id === "string")
     : [activeTabId];
@@ -314,7 +314,7 @@ function persistWorkbenchTabs(data: Record<string, WorkbenchTabWorkspaceState>):
         !state.tabs.some((tab) => tab.id === state.activeTabId && isPersistableTab(tab)) ||
         state.activeTabId === DEV_TAB_ID ||
         state.activeTabId === PLAN_TAB_ID
-          ? FILES_TAB_ID
+          ? CHANGES_TAB_ID
           : state.activeTabId,
       visitedTabIds: state.visitedTabIds.filter((id) =>
         state.tabs.some((tab) => tab.id === id && isPersistableTab(tab)),

@@ -1518,6 +1518,7 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
     const isNewAgentComposer = layout === "new-agent";
     const composerVariant = variant;
     const showModeControls = !isInlineEditComposer && !isEditingQueuedComposerItem;
+    const allowThreadActionSlashCommands = showModeControls;
 
     const fallbackPromptRef = useRef("");
     const promptRef = externalPromptRef ?? fallbackPromptRef;
@@ -1937,7 +1938,8 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
     } = useComposerCommandMenu({
       activeThreadId,
       agentMode: surfaceAgentMode,
-      allowModeSlashCommands: showModeControls,
+      allowModeSlashCommands: true,
+      allowThreadActionSlashCommands,
       composerTrigger,
       environmentId,
       expandedSections: expandedComposerMenuSections,
@@ -1991,13 +1993,18 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
       promptInputRef: composerEditorRef,
     });
     const activePendingUserInput = pendingUserInputs[0] ?? null;
-    const hasQueuedComposerItems = queuedComposerItems.length > 0;
+    const topQueuedComposerItem = queuedComposerItems[0] ?? null;
+    const hasQueuedComposerItems = topQueuedComposerItem !== null;
     const queuedComposerActionsBusy = isConnecting || isSendBusy;
     const canSubmitQueuedComposerItem =
-      hasQueuedComposerItems &&
+      topQueuedComposerItem !== null &&
+      !isInlineEditComposer &&
       !isEditingQueuedComposerItem &&
+      !submitDisabled &&
       !queuedComposerActionsBusy &&
-      !isTurnRunning;
+      !isComposerApprovalState &&
+      pendingUserInputs.length === 0 &&
+      activePendingProgress === null;
     const hasComposerHeader = isComposerApprovalState || pendingUserInputs.length > 0;
 
     useLayoutSyncEffect(() => {
@@ -2580,6 +2587,22 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
       setComposerHighlightedItemId(nextItem?.id ?? null);
     };
 
+    const sendTopQueuedComposerItemIfComposerEmpty = (): boolean => {
+      if (!canSubmitQueuedComposerItem || topQueuedComposerItem === null) {
+        return false;
+      }
+      const snapshot = readComposerSnapshot();
+      const sendState = deriveComposerSendState({
+        prompt: snapshot.value,
+        imageCount: composerImagesRef.current.length,
+      });
+      if (sendState.hasSendableContent) {
+        return false;
+      }
+      handleSendQueuedComposerItemNow(topQueuedComposerItem.id);
+      return true;
+    };
+
     // ------------------------------------------------------------------
     // Callbacks: command key
     // ------------------------------------------------------------------
@@ -2632,6 +2655,9 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
         if (inactive) {
           return true;
         }
+        if (sendTopQueuedComposerItemIfComposerEmpty()) {
+          return true;
+        }
         onSend();
         return true;
       }
@@ -2648,6 +2674,10 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
 
     const handleComposerSubmit = (event?: { preventDefault: () => void }) => {
       if (inactive) {
+        event?.preventDefault();
+        return;
+      }
+      if (sendTopQueuedComposerItemIfComposerEmpty()) {
         event?.preventDefault();
         return;
       }
@@ -3045,7 +3075,9 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
                     sendWhileStreamingBehavior: settings.agentWindowSendWhileStreamingBehavior,
                     submitActionLabel: isEditingQueuedComposerItem
                       ? "Save queued message"
-                      : undefined,
+                      : canSubmitQueuedComposerItem && !composerSendState.hasSendableContent
+                        ? "Send queued message now"
+                        : undefined,
                   }}
                   onAdvancePendingQuestion={handleAdvanceActivePendingUserInput}
                   onPreviousPendingQuestion={handlePreviousActivePendingUserInputQuestion}

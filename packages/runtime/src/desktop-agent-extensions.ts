@@ -3,7 +3,7 @@ import type {
   ExtensionFactory,
   ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
-import { Type } from "@earendil-works/pi-ai";
+import { Type } from "@earendil-works/pi-ai/base";
 import { createSubagentExtension } from "./subagent-extension";
 import { createPlanExtension } from "./plan-extension";
 import { createDebugLogsExtension } from "./debug-logs-extension";

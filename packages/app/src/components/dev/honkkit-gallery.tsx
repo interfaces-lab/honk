@@ -16,8 +16,21 @@ import { useMountEffect } from "~/hooks/use-mount-effect";
 import { syncAppearanceVibrancy } from "~/lib/appearance-settings";
 import { cn } from "~/lib/utils";
 
+function readInitialComponentId() {
+  const params = new URLSearchParams(window.location.search);
+  const candidate = params.get("component") ?? window.location.hash.slice(1);
+  return candidate && findHonkKitComponent(candidate) ? candidate : DEFAULT_HONKKIT_COMPONENT_ID;
+}
+
+function writeComponentId(componentId: string) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("component", componentId);
+  url.hash = "";
+  window.history.replaceState(null, "", url);
+}
+
 export function HonkKitGalleryPage() {
-  const [selectedId, setSelectedId] = useState(DEFAULT_HONKKIT_COMPONENT_ID);
+  const [selectedId, setSelectedId] = useState(readInitialComponentId);
   const [query, setQuery] = useState("");
 
   useMountEffect(() => {
@@ -25,6 +38,11 @@ export function HonkKitGalleryPage() {
   });
 
   const selected = findHonkKitComponent(selectedId) ?? HONKKIT_COMPONENTS[0]!;
+
+  function selectComponent(componentId: string) {
+    setSelectedId(componentId);
+    writeComponentId(componentId);
+  }
 
   const filteredCatalog = (() => {
     const normalizedQuery = normalizeSearchQuery(query);
@@ -61,14 +79,11 @@ export function HonkKitGalleryPage() {
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
           {filteredCatalog.map((group) => (
             <div key={group.id} className="mb-4 last:mb-0">
-              <Text
-                size="xs"
-                tone="tertiary"
-                weight="medium"
-                className="px-2 py-1 uppercase tracking-wide"
-              >
-                {group.label}
-              </Text>
+              <div className="px-2 py-1 uppercase tracking-wide">
+                <Text size="xs" tone="tertiary" weight="medium">
+                  {group.label}
+                </Text>
+              </div>
               <ul>
                 {group.components.map((entry) => {
                   const isSelected = entry.id === selectedId;
@@ -76,7 +91,7 @@ export function HonkKitGalleryPage() {
                     <li key={entry.id}>
                       <button
                         type="button"
-                        onClick={() => setSelectedId(entry.id)}
+                        onClick={() => selectComponent(entry.id)}
                         className={cn(
                           "w-full rounded-honk-control px-2 py-1.5 text-left text-sm transition-colors",
                           isSelected

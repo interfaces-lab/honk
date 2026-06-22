@@ -1,4 +1,4 @@
-import { getModel } from "@earendil-works/pi-ai";
+import type { Model } from "@earendil-works/pi-ai/base";
 import { AGENT_THINKING_LEVELS } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 import {
@@ -10,19 +10,43 @@ import {
   thinkingLevelForAgentMode,
 } from "../src/auth-model-policy";
 
+const anthropicModel: Model<"anthropic-messages"> = {
+  id: "claude-opus-4-8",
+  name: "Claude Opus 4.8",
+  api: "anthropic-messages",
+  provider: "anthropic",
+  baseUrl: "https://api.anthropic.com",
+  reasoning: true,
+  input: ["text", "image"],
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+  contextWindow: 200_000,
+  maxTokens: 32_000,
+};
+
+const openAiModel: Model<"openai-responses"> = {
+  id: "gpt-5.5",
+  name: "GPT-5.5",
+  api: "openai-responses",
+  provider: "openai",
+  baseUrl: "https://api.openai.com/v1",
+  reasoning: true,
+  input: ["text", "image"],
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+  contextWindow: 400_000,
+  maxTokens: 128_000,
+};
+
 describe("agent mode policy", () => {
   it("derives canonical auth and model ids from Pi models", () => {
-    const model = getModel("anthropic", "claude-sonnet-4-5");
-    if (!model) throw new Error("Expected anthropic model");
+    const model = anthropicModel;
 
     expect(authProviderIdFromPiModel(model)).toBe("anthropic");
-    expect(modelIdFromPiModel(model)).toBe("anthropic/claude-sonnet-4-5");
+    expect(modelIdFromPiModel(model)).toBe("anthropic/claude-opus-4-8");
     expect(accountIdFromProvider(model.provider)).toBe("anthropic:default");
   });
 
   it("clamps thinking and preserves runtime policy defaults", () => {
-    const model = getModel("openai", "gpt-4.1");
-    if (!model) throw new Error("Expected openai model");
+    const model = openAiModel;
     const policy = createModelPolicy({
       model,
       thinkingLevel: "high",
@@ -58,8 +82,7 @@ describe("agent mode policy", () => {
   });
 
   it("reports missing and available auth states without provider-driver identity", () => {
-    const model = getModel("anthropic", "claude-sonnet-4-5");
-    if (!model) throw new Error("Expected anthropic model");
+    const model = anthropicModel;
     const authProviderId = authProviderIdFromPiModel(model);
 
     expect(createAuthStatus({ authProviderId, hasCredential: false }).state).toBe("missing");

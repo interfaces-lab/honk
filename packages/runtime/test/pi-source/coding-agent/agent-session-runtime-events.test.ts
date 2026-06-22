@@ -1,17 +1,22 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fauxAssistantMessage, registerFauxProvider } from "@earendil-works/pi-ai";
-import { afterEach, describe, expect, it } from "vitest";
 import {
+  AuthStorage,
   type CreateAgentSessionRuntimeFactory,
   createAgentSessionFromServices,
   createAgentSessionRuntime,
   createAgentSessionServices,
-} from "../src/core/agent-session-runtime.ts";
-import { AuthStorage } from "../src/core/auth-storage.ts";
-import { SessionManager } from "../src/core/session-manager.ts";
-import type { ExtensionFactory } from "../src/index.ts";
+  type ExtensionFactory,
+  ModelRegistry,
+  SessionManager,
+} from "@earendil-works/pi-coding-agent";
+import { fauxAssistantMessage } from "@earendil-works/pi-ai";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  createRuntimeFauxProvider,
+  registerFauxInModelRegistry,
+} from "../../runtime-test-harness";
 
 type RecordedSessionEvent = {
   readonly type:
@@ -40,7 +45,7 @@ describe("AgentSessionRuntime session lifecycle events", () => {
     );
     mkdirSync(tempDir, { recursive: true });
 
-    const faux = registerFauxProvider();
+    const faux = createRuntimeFauxProvider({});
     faux.setResponses([
       fauxAssistantMessage("one"),
       fauxAssistantMessage("two"),
@@ -48,12 +53,16 @@ describe("AgentSessionRuntime session lifecycle events", () => {
     ]);
 
     const authStorage = AuthStorage.inMemory();
-    authStorage.setRuntimeApiKey(faux.getModel().provider, "faux-key");
+    const model = faux.getModel();
+    authStorage.setRuntimeApiKey(model.provider, "faux-key");
+    const modelRegistry = ModelRegistry.create(authStorage, join(tempDir, "models.json"));
+    registerFauxInModelRegistry(modelRegistry, faux);
 
     const runtimeOptions = {
       agentDir: tempDir,
       authStorage,
-      model: faux.getModel(),
+      model,
+      modelRegistry,
       resourceLoaderOptions: {
         extensionFactories: [extensionFactory],
         noSkills: true,
@@ -75,7 +84,7 @@ describe("AgentSessionRuntime session lifecycle events", () => {
           services,
           sessionManager,
           sessionStartEvent,
-          model: faux.getModel(),
+          model,
         })),
         services,
         diagnostics: services.diagnostics,
@@ -90,7 +99,6 @@ describe("AgentSessionRuntime session lifecycle events", () => {
 
     cleanups.push(async () => {
       await runtimeHost.dispose();
-      faux.unregister();
       if (existsSync(tempDir)) {
         rmSync(tempDir, { recursive: true, force: true });
       }

@@ -62,6 +62,11 @@ import type {
   OrchestrationThreadStreamItem,
 } from "./orchestration";
 import type { HonkRuntimeApi } from "./runtime";
+import type {
+  BrowserAutomationOpenRequest,
+  BrowserAutomationRegisterInput,
+  BrowserAutomationUnregisterInput,
+} from "./browser-automation";
 import { Schema } from "effect";
 
 import { EditorId } from "./editor";
@@ -287,6 +292,9 @@ export const DesktopRendererDiagnosticInputSchema = Schema.Struct({
 export interface DesktopBridge {
   getAppBranding: () => DesktopAppBranding | null;
   getBrowserWebviewPreloadPath?: () => string | null;
+  registerBrowserAutomationHost?: (input: BrowserAutomationRegisterInput) => Promise<void>;
+  unregisterBrowserAutomationHost?: (input: BrowserAutomationUnregisterInput) => Promise<void>;
+  onBrowserAutomationOpen?: (listener: (input: BrowserAutomationOpenRequest) => void) => () => void;
   detectLocalhostPorts?: (ports: readonly number[]) => Promise<readonly number[]>;
   clearBrowserPartitionStorage?: (input: {
     storages: readonly (

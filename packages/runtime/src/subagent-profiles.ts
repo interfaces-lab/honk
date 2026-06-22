@@ -1,5 +1,5 @@
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
-import type { Model } from "@earendil-works/pi-ai";
+import type { Model } from "@earendil-works/pi-ai/base";
 import { type AgentMode, type AgentThinkingLevel } from "@honk/contracts";
 
 // A subagent profile is the resolved specialization a child runs with: which model and thinking

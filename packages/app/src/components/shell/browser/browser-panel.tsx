@@ -4,6 +4,7 @@ import { IconBrowserTabs } from "central-icons";
 import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { normalizePathSeparators } from "@honk/shared/paths";
+import type { EnvironmentId, ThreadId } from "@honk/contracts";
 
 import { useCopyToClipboard } from "~/hooks/use-copy-to-clipboard";
 import { resolveShortcutCommand, type ShortcutEventLike } from "~/keybindings";
@@ -94,6 +95,14 @@ function readWebviewNavigationState(
   }
 }
 
+function readWebviewWebContentsId(webview: HTMLWebViewElement): number | null {
+  try {
+    return webview.getWebContentsId?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function isShortcutEventLike(value: unknown): value is ShortcutEventLike {
   if (typeof value !== "object" || value === null) return false;
   return (
@@ -125,6 +134,8 @@ interface BrowserPanelProps {
   workspaceKey: string;
   tabId?: string | undefined;
   browserId?: string | undefined;
+  threadId?: ThreadId | null | undefined;
+  environmentId?: EnvironmentId | null | undefined;
   active?: boolean | undefined;
 }
 
@@ -143,6 +154,7 @@ export function BrowserPanel(props: BrowserPanelProps) {
   const [localhostScanState, setLocalhostScanState] = useState<"idle" | "scanning" | "complete">(
     "idle",
   );
+  const [browserAutomationAttached, setBrowserAutomationAttached] = useState(false);
   const preloadUrl = useBrowserWebviewPreloadUrl();
   const { copyToClipboard } = useCopyToClipboard();
   const browserCommittedUrl = browserState.committedUrl;
@@ -333,6 +345,66 @@ export function BrowserPanel(props: BrowserPanelProps) {
     webviewRef.current = webview;
     setWebviewElement(webview);
   };
+
+  useEffect(() => {
+    setBrowserAutomationAttached(false);
+    if (!webviewElement || !props.threadId) return undefined;
+    const threadId = props.threadId;
+    const register = window.desktopBridge?.registerBrowserAutomationHost;
+    const unregister = window.desktopBridge?.unregisterBrowserAutomationHost;
+    if (!register || !unregister) return undefined;
+
+    let disposed = false;
+    let registeredWebContentsId: number | null = null;
+
+    const registerWebview = () => {
+      if (disposed) return;
+      const webContentsId = readWebviewWebContentsId(webviewElement);
+      if (!webContentsId) return;
+
+      if (registeredWebContentsId !== null && registeredWebContentsId !== webContentsId) {
+        void unregister({ webContentsId: registeredWebContentsId });
+      }
+      registeredWebContentsId = webContentsId;
+
+      void register({
+        webContentsId,
+        workspaceKey: props.workspaceKey,
+        browserId: props.browserId ?? "default",
+        tabId: props.tabId ?? "browser",
+        threadId,
+        ...(props.environmentId ? { environmentId: props.environmentId } : {}),
+        active: browserActive,
+        visible: browserActive,
+      }).then(() => {
+        if (!disposed) setBrowserAutomationAttached(true);
+      });
+    };
+
+    const retryTimeoutId = window.setTimeout(registerWebview, 0);
+    webviewElement.addEventListener("dom-ready", registerWebview);
+    webviewElement.addEventListener("did-attach", registerWebview);
+    registerWebview();
+
+    return () => {
+      disposed = true;
+      window.clearTimeout(retryTimeoutId);
+      webviewElement.removeEventListener("dom-ready", registerWebview);
+      webviewElement.removeEventListener("did-attach", registerWebview);
+      setBrowserAutomationAttached(false);
+      if (registeredWebContentsId !== null) {
+        void unregister({ webContentsId: registeredWebContentsId });
+      }
+    };
+  }, [
+    browserActive,
+    props.browserId,
+    props.environmentId,
+    props.tabId,
+    props.threadId,
+    props.workspaceKey,
+    webviewElement,
+  ]);
 
   useEffect(() => {
     if (!browserActive) return undefined;
@@ -598,6 +670,12 @@ export function BrowserPanel(props: BrowserPanelProps) {
           src={browserCommittedUrl || "about:blank"}
           webpreferences="contextIsolation=yes, nodeIntegration=no, sandbox=yes"
         />
+
+        {browserAutomationAttached && browserState.committedUrl ? (
+          <div className="pointer-events-none absolute top-2 right-2 z-10 rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary px-2 py-1 text-honk-caption font-medium text-honk-fg-secondary shadow-honk-flat-ring">
+            Agent connected
+          </div>
+        ) : null}
 
         {!browserState.committedUrl ? (
           <div className="pointer-events-auto absolute inset-0 z-10 flex min-h-0 min-w-0 flex-col items-center justify-center px-4 py-8 text-center text-honk-fg-primary">

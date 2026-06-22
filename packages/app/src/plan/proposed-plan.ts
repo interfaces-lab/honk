@@ -23,6 +23,95 @@ export function normalizePlanMarkdownForExport(planMarkdown: string): string {
   return `${planMarkdown.trim()}\n`;
 }
 
+export interface PlanMarkdownTodo {
+  readonly lineIndex: number;
+  readonly content: string;
+  readonly completed: boolean;
+}
+
+const PLAN_MARKDOWN_TODO_PATTERN = /^(\s*[-*+]\s+\[)([ xX])(\]\s+)(.*)$/;
+
+function normalizeTodoContent(content: string): string {
+  return content
+    .replace(/[`*_~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+export function parsePlanMarkdownTodos(planMarkdown: string): PlanMarkdownTodo[] {
+  return planMarkdown.split(/\r?\n/).flatMap((line, lineIndex) => {
+    const match = line.match(PLAN_MARKDOWN_TODO_PATTERN);
+    if (!match) {
+      return [];
+    }
+    const content = match[4]?.trim() ?? "";
+    if (content.length === 0) {
+      return [];
+    }
+    return [
+      {
+        lineIndex,
+        content,
+        completed: match[2]?.toLowerCase() === "x",
+      },
+    ];
+  });
+}
+
+export function arePlanMarkdownTodosComplete(planMarkdown: string): boolean {
+  const todos = parsePlanMarkdownTodos(planMarkdown);
+  return todos.length > 0 && todos.every((todo) => todo.completed);
+}
+
+export function planMarkdownHasTodos(planMarkdown: string): boolean {
+  return parsePlanMarkdownTodos(planMarkdown).length > 0;
+}
+
+export function syncPlanMarkdownTodosWithSteps(
+  planMarkdown: string,
+  steps: ReadonlyArray<{
+    readonly step: string;
+    readonly status: "pending" | "inProgress" | "completed";
+  }>,
+): string {
+  if (steps.length === 0) {
+    return planMarkdown;
+  }
+
+  const statusByContent = new Map<string, "pending" | "inProgress" | "completed">();
+  for (const step of steps) {
+    const key = normalizeTodoContent(step.step);
+    if (key.length > 0) {
+      statusByContent.set(key, step.status);
+    }
+  }
+  if (statusByContent.size === 0) {
+    return planMarkdown;
+  }
+
+  let changed = false;
+  const lines = planMarkdown.split(/\r?\n/).map((line) => {
+    const match = line.match(PLAN_MARKDOWN_TODO_PATTERN);
+    if (!match) {
+      return line;
+    }
+    const content = normalizeTodoContent(match[4] ?? "");
+    const status = statusByContent.get(content);
+    if (!status) {
+      return line;
+    }
+    const nextMarker = status === "completed" ? "x" : " ";
+    if (match[2] === nextMarker) {
+      return line;
+    }
+    changed = true;
+    return `${match[1]}${nextMarker}${match[3]}${match[4] ?? ""}`;
+  });
+
+  return changed ? lines.join("\n") : planMarkdown;
+}
+
 export function ensurePlanMarkdownPath(relativePath: string): string {
   const trimmedPath = relativePath.trim();
   if (trimmedPath.length === 0 || /\.(?:md|markdown)$/i.test(trimmedPath)) {

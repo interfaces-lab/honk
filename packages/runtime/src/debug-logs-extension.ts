@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { defineTool, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { Type } from "@earendil-works/pi-ai";
+import { Type } from "@earendil-works/pi-ai/base";
 
 export const DEBUG_LOGS_TOOL_NAME = "debug_logs";
 

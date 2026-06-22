@@ -42,6 +42,7 @@ import {
   stripDisplayedPlanMarkdown,
 } from "~/plan/proposed-plan";
 import type { ActivePlanState, LatestProposedPlanState } from "~/session-logic";
+import type { ProposedPlanBuildStatus } from "~/stores/proposed-plan-lifecycle-store";
 import { WorkbenchTextButton, workbenchIconButtonVariants } from "@honk/honkkit/workbench-button";
 import { PlanEditor } from "./editor/plan-editor";
 import { planEditorMarkdownMatches } from "./editor/markdown";
@@ -71,6 +72,7 @@ export interface PlanWorkbenchPanelProps {
   label: "Plan" | "Tasks";
   markdownCwd: string | undefined;
   timestampFormat: TimestampFormat;
+  planBuildStatus?: ProposedPlanBuildStatus | undefined;
   canImplementPlan?: boolean | undefined;
   isImplementingPlan?: boolean | undefined;
   onImplementPlan?: (() => void) | undefined;
@@ -84,6 +86,7 @@ export function PlanWorkbenchPanel({
   label,
   markdownCwd,
   canImplementPlan = false,
+  planBuildStatus = "none",
   isImplementingPlan = false,
   onImplementPlan,
   onSaveProposedPlan,
@@ -111,6 +114,8 @@ export function PlanWorkbenchPanel({
 
   const planDirty =
     planMarkdown !== null && !planEditorMarkdownMatches(draftPlanMarkdown, planMarkdown);
+  const buildComplete = planBuildStatus === "complete";
+  const buildActive = planBuildStatus === "active" || isImplementingPlan;
 
   const startEditingPlan = (): void => {
     if (!planMarkdown) {
@@ -170,20 +175,27 @@ export function PlanWorkbenchPanel({
               markdownCwd={markdownCwd}
               planMarkdown={planMarkdown}
             />
-            {onImplementPlan ? (
+            {onImplementPlan || buildComplete ? (
               <WorkbenchTextButton
-                onClick={onImplementPlan}
-                title="Build plan"
+                onClick={buildComplete ? undefined : onImplementPlan}
+                title={buildComplete ? "Plan built" : "Build plan"}
                 tone="primary"
-                disabled={!canImplementPlan || isImplementingPlan}
-                className="breadcrumbs-action-btn plan-build-button bg-(--honk-bg-yellow-primary) text-title leading-(--honk-leading-title) text-(--vscode-editor-background) shadow-none hover:bg-[color-mix(in_srgb,var(--honk-bg-yellow-primary)_80%,var(--honk-bg-yellow-secondary))] disabled:bg-honk-bg-tertiary disabled:text-honk-fg-quaternary/45 [&_svg]:text-(--vscode-editor-background)"
+                disabled={buildComplete || !canImplementPlan || buildActive}
+                className={cn(
+                  "breadcrumbs-action-btn plan-build-button text-title leading-(--honk-leading-title) shadow-none disabled:bg-honk-bg-tertiary disabled:text-honk-fg-quaternary/45",
+                  buildComplete
+                    ? "bg-success text-white hover:bg-success [&_svg]:text-white disabled:bg-success disabled:text-white"
+                    : "bg-(--honk-bg-yellow-primary) text-(--vscode-editor-background) hover:bg-[color-mix(in_srgb,var(--honk-bg-yellow-primary)_80%,var(--honk-bg-yellow-secondary))] [&_svg]:text-(--vscode-editor-background)",
+                )}
               >
-                {isImplementingPlan ? (
+                {buildComplete ? (
+                  <IconCheckmark1 className="size-4 shrink-0" aria-hidden />
+                ) : buildActive ? (
                   <IconLoader className="size-4 shrink-0 animate-spin" aria-hidden />
                 ) : (
                   <IconArrowUp className="size-4 shrink-0" aria-hidden />
                 )}
-                <span>{isImplementingPlan ? "Building" : "Build"}</span>
+                <span>{buildComplete ? "Built" : buildActive ? "Building" : "Build"}</span>
               </WorkbenchTextButton>
             ) : null}
           </div>

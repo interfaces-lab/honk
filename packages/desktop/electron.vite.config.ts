@@ -1,4 +1,5 @@
 import babel from "@rolldown/plugin-babel";
+import stylex from "@stylexjs/unplugin";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
@@ -140,11 +141,13 @@ export default defineConfig({
         routesDirectory: resolve(appSrcDir, "routes"),
         generatedRouteTree: resolve(appSrcDir, "routeTree.gen.ts"),
       }),
+      stylex.vite({ useCSSLayers: true }),
       react(),
       reactCompilerBabelPlugin,
       tailwindcss(),
     ],
     optimizeDeps: {
+      exclude: ["@honk/honkkit"],
       include: [
         "@pierre/diffs",
         "@pierre/diffs/react",

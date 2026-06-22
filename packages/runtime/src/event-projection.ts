@@ -7,7 +7,7 @@ import {
   type TurnId,
 } from "@honk/contracts";
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import type { AssistantMessageEvent, ToolCall } from "@earendil-works/pi-ai";
+import type { AssistantMessageEvent, ToolCall } from "@earendil-works/pi-ai/base";
 import { Schema } from "effect";
 import {
   extractMessageText,

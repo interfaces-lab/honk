@@ -13,10 +13,10 @@
     "@honk/honkkit": "workspace:*",
     "@honk/shared": "workspace:*",
     "@pierre/diffs": "^1.2.11",
-    "@tanstack/react-router": "^1.170.15",
-    "@tanstack/react-start": "^1.168.25",
+    "@tanstack/react-router": "^1.170.16",
+    "@tanstack/react-start": "^1.168.26",
     "@vercel/analytics": "^2.0.1",
-    "central-icons": "npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.265",
+    "central-icons": "npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
     "class-variance-authority": "^0.7.1",
     "effect": "catalog:",
     "geist": "^1.7.2",
@@ -33,7 +33,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
-    "react-grab": "^0.1.44",
+    "react-grab": "^0.1.47",
     "tailwindcss": "^4.3.1",
     "typescript": "catalog:"
   }

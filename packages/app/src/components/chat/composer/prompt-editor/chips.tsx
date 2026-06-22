@@ -24,23 +24,23 @@ function resolvedThemeFromDocument(): "light" | "dark" {
 
 const composerPromptChipVariants = cva(
   cn(
-    "inline-flex min-w-0 max-w-(--honk-composer-chip-max-width) select-none items-center gap-0.5",
+    "inline-flex min-w-0 select-none items-center gap-0.5",
     "bg-transparent px-0 py-0 font-honk font-normal align-middle",
     "-mt-[3px] -ml-px text-(length:--honk-composer-chip-font-size) leading-(--honk-composer-chip-line-height)",
   ),
   {
     variants: {
       kind: {
-        mention: "text-(--honk-composer-mention-text)",
-        command: "rounded-[2px] text-(--honk-composer-command-text)",
+        mention: "max-w-(--honk-composer-chip-max-width) text-(--honk-composer-mention-text)",
+        command:
+          "max-w-(--honk-composer-chip-max-width) rounded-[2px] text-(--honk-composer-command-text)",
         skill: "rounded-[2px] text-(--honk-composer-command-text)",
-        "inline-token": "text-(--honk-composer-mention-text)",
+        "inline-token":
+          "max-w-(--honk-composer-chip-max-width) text-(--honk-composer-mention-text)",
       },
     },
   },
 );
-
-const composerPromptChipIconClass = "size-(--honk-composer-chip-icon-size) shrink-0";
 
 export function ComposerMentionChip({ label, lineEnd, lineStart, path }: ComposerMentionPayload) {
   const theme = resolvedThemeFromDocument();
@@ -56,7 +56,7 @@ export function ComposerMentionChip({ label, lineEnd, lineStart, path }: Compose
       <img
         alt=""
         aria-hidden="true"
-        className={cn(composerPromptChipIconClass, "opacity-90")}
+        className="size-(--honk-composer-chip-icon-size) shrink-0 opacity-90"
         loading="lazy"
         src={getVscodeIconUrlForEntry(path, inferEntryKindFromPath(path), theme)}
       />
@@ -124,11 +124,11 @@ export function ComposerSkillChip({ description, label }: ComposerSkillPayload) 
     >
       <span
         aria-hidden="true"
-        className={cn(composerPromptChipIconClass, "text-(--honk-composer-command-text)")}
+        className="size-(--honk-composer-chip-icon-size) shrink-0 text-(--honk-composer-command-text)"
       >
         <SkillIcon className="size-(--honk-composer-chip-icon-size)" />
       </span>
-      <span className="min-w-0 truncate">{label}</span>
+      <span>{label}</span>
     </span>
   );
 

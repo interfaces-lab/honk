@@ -160,6 +160,10 @@ import {
   workbenchTerminalThreadId,
 } from "~/components/shell/terminal/workbench-terminal";
 import {
+  proposedPlanLifecycleKey,
+  useProposedPlanLifecycleStore,
+} from "~/stores/proposed-plan-lifecycle-store";
+import {
   ComposerInput,
   type ComposerInputHandle,
   type ComposerInteractionModeFocusMode,
@@ -1018,23 +1022,47 @@ export default function ChatView(props: ChatViewProps) {
         ? activeLatestTurn.sourceProposedPlan.threadId
         : activeThread.id
       : null;
-  const [dismissedPendingPlanKeys, setDismissedPendingPlanKeys] = useState<ReadonlySet<string>>(
-    () => new Set(),
+  const dismissedPendingPlanKeys = useProposedPlanLifecycleStore(
+    (state) => state.dismissedPlanKeys,
+  );
+  const buildingPendingPlanKeys = useProposedPlanLifecycleStore(
+    (state) => state.buildingPlanKeys,
+  );
+  const dismissLifecyclePlan = useProposedPlanLifecycleStore((state) => state.dismissPlan);
+  const markLifecyclePlanBuilding = useProposedPlanLifecycleStore(
+    (state) => state.markPlanBuilding,
+  );
+  const clearLifecyclePlanBuilding = useProposedPlanLifecycleStore(
+    (state) => state.clearPlanBuilding,
   );
   const activePendingPlanKey =
     activeProposedPlanSourceThreadId && activeProposedPlan
-      ? `${activeProposedPlanSourceThreadId}:${activeProposedPlan.id}`
+      ? proposedPlanLifecycleKey(activeProposedPlanSourceThreadId, activeProposedPlan.id)
       : null;
   const activePendingPlanDismissed =
-    activePendingPlanKey !== null && dismissedPendingPlanKeys.has(activePendingPlanKey);
-  const activePendingPlan = activePendingPlanDismissed ? null : activeProposedPlan;
-  const activePendingPlanSourceThreadId = activePendingPlanDismissed
+    activePendingPlanKey !== null && dismissedPendingPlanKeys.includes(activePendingPlanKey);
+  const activePendingPlanBuilding =
+    activePendingPlanKey !== null &&
+    (buildingPendingPlanKeys.includes(activePendingPlanKey) ||
+      (!latestTurnSettled &&
+        activeLatestTurn?.sourceProposedPlan?.threadId === activeProposedPlanSourceThreadId &&
+        activeLatestTurn.sourceProposedPlan.planId === activeProposedPlan?.id));
+  const activePendingPlanHidden = activePendingPlanDismissed || activePendingPlanBuilding;
+  const activePendingPlan = activePendingPlanHidden ? null : activeProposedPlan;
+  const activePendingPlanSourceThreadId = activePendingPlanHidden
     ? null
     : activeProposedPlanSourceThreadId;
   const showPlanFollowUpPrompt =
     pendingUserInputs.length === 0 &&
     latestTurnSettled &&
     hasActionableProposedPlan(activePendingPlan);
+  useEffect(() => {
+    const sourceProposedPlan = activeLatestTurn?.sourceProposedPlan;
+    if (!latestTurnSettled || !sourceProposedPlan) {
+      return;
+    }
+    clearLifecyclePlanBuilding(sourceProposedPlan.threadId, sourceProposedPlan.planId);
+  }, [activeLatestTurn?.sourceProposedPlan, clearLifecyclePlanBuilding, latestTurnSettled]);
   const activePendingApproval = pendingApprovals[0] ?? null;
   const {
     beginLocalDispatch,
@@ -2132,7 +2160,7 @@ export default function ChatView(props: ChatViewProps) {
         planMarkdown: planFollowUp.planMarkdown,
       });
       if (followUp.interactionMode === DEFAULT_INTERACTION_MODE) {
-        dismissPendingPlan(planFollowUp.planThreadId, planFollowUp.planId);
+        markLifecyclePlanBuilding(planFollowUp.planThreadId, planFollowUp.planId);
         setComposerDraftInteractionMode(composerDraftTarget, DEFAULT_INTERACTION_MODE);
       }
       if (clearComposerOnSubmit) {
@@ -2775,15 +2803,7 @@ export default function ChatView(props: ChatViewProps) {
   };
 
   const dismissPendingPlan = (agentId: ThreadId, planId: ProposedPlan["id"]) => {
-    const key = `${agentId}:${planId}`;
-    setDismissedPendingPlanKeys((existing) => {
-      if (existing.has(key)) {
-        return existing;
-      }
-      const next = new Set(existing);
-      next.add(key);
-      return next;
-    });
+    dismissLifecyclePlan(agentId, planId);
   };
 
   const onDismissPendingPlan = () => {
@@ -2859,7 +2879,7 @@ export default function ChatView(props: ChatViewProps) {
 
       const queuedItem = await createRuntimeQueuedFollowUp({
         sendContext,
-        interactionMode: existingQueuedItem.interactionMode,
+        interactionMode,
         planFollowUp: existingQueuedItem.planFollowUp,
         clientMessageId: editingQueuedComposerItemId,
         createdAt: existingQueuedItem.createdAt,
@@ -2948,7 +2968,7 @@ export default function ChatView(props: ChatViewProps) {
       return;
     }
 
-    dismissPendingPlan(activePendingPlanSourceThreadId, activePendingPlan.id);
+    markLifecyclePlanBuilding(activePendingPlanSourceThreadId, activePendingPlan.id);
     setComposerDraftInteractionMode(composerDraftTarget, DEFAULT_INTERACTION_MODE);
     void submitComposerSendSnapshot({
       sendContext: {
@@ -3214,13 +3234,6 @@ export default function ChatView(props: ChatViewProps) {
         scopeThreadRef(activeThread.environmentId, threadIdForSend),
         nextInteractionMode,
       );
-      // Optimistically open the plan sidebar when implementing (not refining).
-      // Agent mode here means the agent is executing the plan, which produces
-      // step-tracking activities that the workbench Plan/Tasks tab will display.
-      if (nextInteractionMode === "agent") {
-        workbenchTabPersistenceActions.activatePlan(workspaceTarget.workspaceKey);
-      }
-
       const turnResult = await coordinateTurnSend({
         environmentId,
         threadKey: routeThreadKey,
@@ -3282,6 +3295,7 @@ export default function ChatView(props: ChatViewProps) {
     } finally {
       sendInFlightRef.current = false;
       if (!runtimeSendSucceeded) {
+        clearLifecyclePlanBuilding(planFollowUp.planThreadId, planFollowUp.planId);
         resetLocalDispatch();
       }
     }

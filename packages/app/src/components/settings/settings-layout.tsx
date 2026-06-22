@@ -3,7 +3,7 @@ import { type HTMLAttributes, type ReactNode } from "react";
 
 import { cn } from "../../lib/utils";
 import { Button } from "@honk/honkkit/button";
-import { Text, textVariants } from "@honk/honkkit/text";
+import { Text } from "@honk/honkkit/text";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
 import { settingsPreferenceDomId } from "./settings-preference-index";
 
@@ -21,12 +21,7 @@ export function SettingsSection({
   return (
     <section className="space-y-2">
       <div className="flex min-h-5 items-center justify-between px-1.5">
-        <h2
-          className={cn(
-            textVariants({ size: "sm", tone: "tertiary", weight: "medium" }),
-            "flex items-center gap-1.5",
-          )}
-        >
+        <h2 className="flex items-center gap-1.5 font-honk text-honk-sm font-medium text-honk-fg-tertiary">
           {icon}
           {title}
         </h2>
@@ -75,10 +70,7 @@ export function SettingsItemTitle({
   title?: string;
 }) {
   return (
-    <h3
-      className={cn(textVariants({ size: "lg", tone: "primary", weight: "medium" }), className)}
-      title={title}
-    >
+    <h3 className={cn("font-honk text-honk-lg font-medium text-honk-fg-primary", className)} title={title}>
       {children}
     </h3>
   );
@@ -111,13 +103,15 @@ export function SettingsRow({
               {resetAction}
             </span>
           </div>
-          <Text render={<p />} size="base" tone="tertiary" className="block">
+          <Text as="p" display="block" size="base" tone="tertiary">
             {description}
           </Text>
           {status ? (
-            <Text render={<div />} size="sm" tone="tertiary" className="block pt-1">
-              {status}
-            </Text>
+            <div className="pt-1">
+              <Text as="div" display="block" size="sm" tone="tertiary">
+                {status}
+              </Text>
+            </div>
           ) : null}
         </div>
         {control ? (

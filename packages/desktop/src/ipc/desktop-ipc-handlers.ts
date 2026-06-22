@@ -35,6 +35,7 @@ import {
   getWindowChromeState,
   openExternal,
   pickFolder,
+  registerBrowserAutomationHost,
   setActiveWorkState,
   setBackgroundColor,
   setDisplayZoom,
@@ -42,6 +43,7 @@ import {
   setVibrancy,
   showContextMenu,
   showItemInFolder,
+  unregisterBrowserAutomationHost,
 } from "./methods/window";
 
 export const installDesktopIpcHandlers = Effect.gen(function* () {
@@ -78,6 +80,8 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(setServerExposureMode);
 
   yield* ipc.handle(pickFolder);
+  yield* ipc.handle(registerBrowserAutomationHost);
+  yield* ipc.handle(unregisterBrowserAutomationHost);
   yield* ipc.handle(detectLocalhostPorts);
   yield* ipc.handle(clearBrowserPartitionStorage);
   yield* ipc.handle(setActiveWorkState);

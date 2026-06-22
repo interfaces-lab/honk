@@ -55,6 +55,24 @@ function isCurrentComposerImageDragState(
   );
 }
 
+function imageFilesFromClipboardData(clipboardData: DataTransfer): File[] {
+  if (clipboardData.files.length > 0) {
+    return Array.from(clipboardData.files).filter((file) => file.type.startsWith("image/"));
+  }
+
+  const imageFiles: File[] = [];
+  for (const item of Array.from(clipboardData.items)) {
+    if (item.kind !== "file" || !item.type.startsWith("image/")) {
+      continue;
+    }
+    const file = item.getAsFile();
+    if (file) {
+      imageFiles.push(file);
+    }
+  }
+  return imageFiles;
+}
+
 export function useComposerImageAttachments(input: {
   composerDraftTarget: ScopedThreadRef | DraftId;
   activeThreadId: ThreadId | null;
@@ -139,9 +157,7 @@ export function useComposerImageAttachments(input: {
   };
 
   const onComposerPaste = (event: ClipboardEvent<HTMLElement>) => {
-    const files = Array.from(event.clipboardData.files);
-    if (files.length === 0) return;
-    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    const imageFiles = imageFilesFromClipboardData(event.clipboardData);
     if (imageFiles.length === 0) return;
     event.preventDefault();
     addComposerImages(imageFiles);

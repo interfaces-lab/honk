@@ -446,7 +446,7 @@ describe("RuntimeToolCallMessage command entries", () => {
     expect(html).toContain("Worker");
     expect(html).not.toContain("General Purpose");
     expect(html).toContain("Research");
-    expect(html).toContain("gpt-5.5");
+    expect(html).not.toContain("gpt-5.5");
     expect(html).toContain("Renderer reviewed");
     expect(html).not.toContain("data-task-tool-call");
     expect(html).not.toContain("Inspect the renderer");
@@ -470,8 +470,10 @@ describe("RuntimeToolCallMessage command entries", () => {
       }),
     );
 
-    expect(html).toContain("Worker handling");
-    expect(html).toContain("Research session IDs");
+    expect(html).toContain("Worker");
+    expect(html).toContain("handling");
+    expect(html).toContain("Inspect active subagent display");
+    expect(html).not.toContain("Research session IDs");
     expect(html).toContain('data-slot="chat-loader-matrix"');
     expect(html).not.toContain(">Running<");
   });
@@ -490,8 +492,10 @@ describe("RuntimeToolCallMessage command entries", () => {
       }),
     );
 
-    expect(librarianHtml).toContain("Librarian researching");
-    expect(oracleHtml).toContain("Oracle manifesting");
+    expect(librarianHtml).toContain("Librarian");
+    expect(librarianHtml).toContain("researching");
+    expect(oracleHtml).toContain("Oracle");
+    expect(oracleHtml).toContain("manifesting");
   });
 
   it("renders active runtime subagent logs as a bounded inline activity tree", () => {

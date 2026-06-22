@@ -1,5 +1,8 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type {
+  BrowserAutomationOpenRequest,
+  BrowserAutomationRegisterInput,
+  BrowserAutomationUnregisterInput,
   DesktopAppBranding,
   DesktopBridge,
   DesktopEnvironmentBootstrap,
@@ -27,6 +30,9 @@ const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const GET_APP_BRANDING_CHANNEL = "desktop:get-app-branding";
 const GET_BROWSER_WEBVIEW_PRELOAD_PATH_CHANNEL = "desktop:get-browser-webview-preload-path";
+const REGISTER_BROWSER_AUTOMATION_HOST_CHANNEL = "desktop:register-browser-automation-host";
+const UNREGISTER_BROWSER_AUTOMATION_HOST_CHANNEL = "desktop:unregister-browser-automation-host";
+const BROWSER_AUTOMATION_OPEN_CHANNEL = "desktop:browser-automation-open";
 const DETECT_LOCALHOST_PORTS_CHANNEL = "desktop:detect-localhost-ports";
 const CLEAR_BROWSER_PARTITION_STORAGE_CHANNEL = "desktop:clear-browser-partition-storage";
 const GET_LOCAL_ENVIRONMENT_BOOTSTRAP_CHANNEL = "desktop:get-local-environment-bootstrap";
@@ -118,6 +124,20 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   getBrowserWebviewPreloadPath: () => {
     const result: unknown = ipcRenderer.sendSync(GET_BROWSER_WEBVIEW_PRELOAD_PATH_CHANNEL);
     return typeof result === "string" && result.length > 0 ? result : null;
+  },
+  registerBrowserAutomationHost: (input: BrowserAutomationRegisterInput) =>
+    ipcRenderer.invoke(REGISTER_BROWSER_AUTOMATION_HOST_CHANNEL, input),
+  unregisterBrowserAutomationHost: (input: BrowserAutomationUnregisterInput) =>
+    ipcRenderer.invoke(UNREGISTER_BROWSER_AUTOMATION_HOST_CHANNEL, input),
+  onBrowserAutomationOpen: (listener) => {
+    const wrappedListener = (_event: IpcRendererEvent, input: BrowserAutomationOpenRequest) => {
+      listener(input);
+    };
+
+    ipcRenderer.on(BROWSER_AUTOMATION_OPEN_CHANNEL, wrappedListener);
+    return () => {
+      ipcRenderer.removeListener(BROWSER_AUTOMATION_OPEN_CHANNEL, wrappedListener);
+    };
   },
   detectLocalhostPorts: (ports) => ipcRenderer.invoke(DETECT_LOCALHOST_PORTS_CHANNEL, ports),
   clearBrowserPartitionStorage: (input) =>

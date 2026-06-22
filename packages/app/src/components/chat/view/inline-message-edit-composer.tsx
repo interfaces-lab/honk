@@ -5,6 +5,7 @@ import { Button } from "@honk/honkkit/button";
 import {
   type ComposerImageAttachment,
   type DraftId as ComposerDraftId,
+  useComposerDraftStore,
   useComposerThreadDraft,
 } from "../../../stores/chat-drafts";
 import type { ChatMessage } from "../../../types";
@@ -14,8 +15,6 @@ import {
   type ComposerInputHandle,
   type ComposerInputProps,
 } from "../composer/input";
-
-const ignoreInteractionModeChange = (_mode: ComposerInputProps["interactionMode"]) => {};
 
 export type InlineEditSubmitInput = {
   sendContext: ComposerSubmitContext;
@@ -67,6 +66,9 @@ export function InlineMessageEditComposer({
 }: InlineMessageEditComposerProps) {
   const composerRef = useRef<ComposerInputHandle | null>(null);
   const editDraft = useComposerThreadDraft(composerDraftTarget);
+  const setComposerDraftInteractionMode = useComposerDraftStore(
+    (store) => store.setInteractionMode,
+  );
   const promptRef = useRef(editDraft.prompt || message.text);
   const composerImagesRef = useRef<ComposerImageAttachment[]>(editDraft.images);
   const inlineInteractionMode = editDraft.interactionMode ?? interactionMode;
@@ -84,6 +86,18 @@ export function InlineMessageEditComposer({
 
   const handleCancel = () => {
     onCancelEditUserMessage(message.id);
+  };
+
+  const handleInteractionModeChange: ComposerInputProps["handleInteractionModeChange"] = (
+    mode,
+    focusMode = "end",
+  ) => {
+    setComposerDraftInteractionMode(composerDraftTarget, mode);
+    if (focusMode === "preserve") {
+      composerRef.current?.focus();
+      return;
+    }
+    composerRef.current?.focusAtEnd();
   };
 
   const handleSend: ComposerInputProps["onSend"] = (event) => {
@@ -121,7 +135,7 @@ export function InlineMessageEditComposer({
         composerImagesRef={composerImagesRef}
         footerSecondaryAction={cancelButton}
         onSend={handleSend}
-        handleInteractionModeChange={ignoreInteractionModeChange}
+        handleInteractionModeChange={handleInteractionModeChange}
         submitDisabled={submitDisabled}
       />
     </div>

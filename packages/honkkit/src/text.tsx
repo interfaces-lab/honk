@@ -1,69 +1,201 @@
 "use client";
 
-import { mergeProps } from "@base-ui/react/merge-props";
-import { useRender } from "@base-ui/react/use-render";
-import { cva, type VariantProps } from "class-variance-authority";
+import * as stylex from "@stylexjs/stylex";
+import * as React from "react";
 
-import { cn } from "./utils";
+type TextElement = "span" | "p" | "div" | "label" | "h1" | "h2" | "h3";
+type TextSize = "xs" | "sm" | "base" | "lg" | "xl" | "tab" | "chrome" | "workbench";
+type TextTone =
+  | "primary"
+  | "secondary"
+  | "tertiary"
+  | "quaternary"
+  | "destructive"
+  | "success"
+  | "warning"
+  | "inherit";
+type TextWeight = "regular" | "medium" | "semibold";
+type TextDisplay = "inline" | "block" | "inline-block";
+type TextAlign = "start" | "center" | "end";
 
-const textVariants = cva("font-honk", {
-  defaultVariants: {
-    size: "base",
-    tone: "primary",
-    weight: "regular",
+type TextProps<Element extends TextElement = "span"> = Omit<
+  React.ComponentPropsWithoutRef<Element>,
+  "as" | "className" | "style"
+> & {
+  as?: Element;
+  size?: TextSize;
+  tone?: TextTone;
+  weight?: TextWeight;
+  display?: TextDisplay;
+  align?: TextAlign;
+  truncate?: boolean;
+  tabularNums?: boolean;
+};
+
+const styles = stylex.create({
+  root: {
+    fontFamily: "var(--honk-font-ui)",
   },
-  variants: {
-    size: {
-      xs: "text-honk-xs",
-      sm: "text-honk-sm",
-      base: "text-honk-base",
-      lg: "text-honk-lg",
-      xl: "text-honk-xl",
-      tab: "text-honk-tab",
-      chrome: "text-honk-chrome",
-      workbench: "text-honk-conversation-lg",
-    },
-    tone: {
-      primary: "text-honk-fg-primary",
-      secondary: "text-honk-fg-secondary",
-      tertiary: "text-honk-fg-tertiary",
-      quaternary: "text-honk-fg-quaternary",
-      inherit: "",
-    },
-    weight: {
-      regular: "font-normal",
-      medium: "font-medium",
-      semibold: "font-[590]",
-    },
-    truncate: {
-      true: "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap",
-    },
+  sizeXs: {
+    fontSize: "var(--honk-text-caption)",
+    lineHeight: "var(--honk-leading-caption)",
+  },
+  sizeSm: {
+    fontSize: "var(--honk-text-detail)",
+    lineHeight: "var(--honk-leading-detail)",
+  },
+  sizeBase: {
+    fontSize: "var(--honk-text-body)",
+    lineHeight: "var(--honk-leading-body)",
+  },
+  sizeLg: {
+    fontSize: "var(--honk-text-title)",
+    lineHeight: "var(--honk-leading-title)",
+  },
+  sizeXl: {
+    fontSize: "var(--honk-text-heading)",
+    lineHeight: "var(--honk-leading-heading)",
+  },
+  sizeTab: {
+    fontSize: "var(--honk-text-tab)",
+    lineHeight: "var(--honk-leading-tab)",
+  },
+  sizeChrome: {
+    fontSize: "var(--honk-text-chrome)",
+    lineHeight: "var(--honk-leading-chrome)",
+  },
+  sizeWorkbench: {
+    fontSize: "var(--honk-text-conversation-lg)",
+    lineHeight: "var(--honk-leading-conversation-lg)",
+  },
+  tonePrimary: {
+    color: "var(--honk-fg-primary)",
+  },
+  toneSecondary: {
+    color: "var(--honk-fg-secondary)",
+  },
+  toneTertiary: {
+    color: "var(--honk-fg-tertiary)",
+  },
+  toneQuaternary: {
+    color: "var(--honk-fg-quaternary)",
+  },
+  toneDestructive: {
+    color: "var(--honk-fg-red-primary)",
+  },
+  toneSuccess: {
+    color: "var(--honk-fg-green-primary)",
+  },
+  toneWarning: {
+    color: "var(--honk-tone-yellow)",
+  },
+  weightRegular: {
+    fontWeight: 400,
+  },
+  weightMedium: {
+    fontWeight: 500,
+  },
+  weightSemibold: {
+    fontWeight: 590,
+  },
+  displayInline: {
+    display: "inline",
+  },
+  displayBlock: {
+    display: "block",
+  },
+  displayInlineBlock: {
+    display: "inline-block",
+  },
+  alignStart: {
+    textAlign: "start",
+  },
+  alignCenter: {
+    textAlign: "center",
+  },
+  alignEnd: {
+    textAlign: "end",
+  },
+  truncate: {
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  tabularNums: {
+    fontVariantNumeric: "tabular-nums",
   },
 });
 
-type TextElement = "span" | "p" | "div" | "label" | "h1" | "h2" | "h3";
+const sizeStyles: Record<TextSize, stylex.StyleXStyles> = {
+  base: styles.sizeBase,
+  chrome: styles.sizeChrome,
+  lg: styles.sizeLg,
+  sm: styles.sizeSm,
+  tab: styles.sizeTab,
+  workbench: styles.sizeWorkbench,
+  xl: styles.sizeXl,
+  xs: styles.sizeXs,
+};
 
-type TextProps<Element extends TextElement = "span"> = useRender.ComponentProps<Element> & {
-  as?: Element;
-  size?: VariantProps<typeof textVariants>["size"];
-  tone?: VariantProps<typeof textVariants>["tone"];
-  weight?: VariantProps<typeof textVariants>["weight"];
-  truncate?: VariantProps<typeof textVariants>["truncate"];
+const toneStyles: Record<TextTone, stylex.StyleXStyles | null> = {
+  destructive: styles.toneDestructive,
+  inherit: null,
+  primary: styles.tonePrimary,
+  quaternary: styles.toneQuaternary,
+  secondary: styles.toneSecondary,
+  success: styles.toneSuccess,
+  tertiary: styles.toneTertiary,
+  warning: styles.toneWarning,
+};
+
+const weightStyles: Record<TextWeight, stylex.StyleXStyles> = {
+  medium: styles.weightMedium,
+  regular: styles.weightRegular,
+  semibold: styles.weightSemibold,
+};
+
+const displayStyles: Record<TextDisplay, stylex.StyleXStyles> = {
+  block: styles.displayBlock,
+  inline: styles.displayInline,
+  "inline-block": styles.displayInlineBlock,
+};
+
+const alignStyles: Record<TextAlign, stylex.StyleXStyles> = {
+  center: styles.alignCenter,
+  end: styles.alignEnd,
+  start: styles.alignStart,
 };
 
 function Text<Element extends TextElement = "span">(props: TextProps<Element>) {
-  const { as, className, render, size, tone, truncate, weight, ...textProps } = props;
-  const defaultTagName = (as ?? "span") as Element;
-  const defaultProps = {
-    className: cn(textVariants({ className, size, tone, truncate, weight })),
-    "data-slot": "text",
-  };
+  const {
+    align,
+    as,
+    display,
+    size = "base",
+    tabularNums,
+    tone = "primary",
+    truncate,
+    weight = "regular",
+    ...textProps
+  } = props;
+  const Component = as ?? "span";
 
-  return useRender({
-    defaultTagName,
-    props: mergeProps(defaultProps, textProps),
-    render,
+  return React.createElement(Component, {
+    ...stylex.props(
+      styles.root,
+      sizeStyles[size],
+      toneStyles[tone],
+      weightStyles[weight],
+      display ? displayStyles[display] : null,
+      align ? alignStyles[align] : null,
+      truncate ? styles.truncate : null,
+      tabularNums ? styles.tabularNums : null,
+    ),
+    "data-slot": "text",
+    ...textProps,
   });
 }
 
-export { Text, textVariants };
+export { Text };
+export type { TextAlign, TextDisplay, TextElement, TextProps, TextSize, TextTone, TextWeight };

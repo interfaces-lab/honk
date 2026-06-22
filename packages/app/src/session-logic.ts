@@ -23,6 +23,7 @@ import {
 } from "@honk/contracts";
 
 import type { ChatMessage, ProposedPlan, SessionPhase, Thread, ThreadSession } from "./types";
+import { arePlanMarkdownTodosComplete } from "./plan/proposed-plan";
 import { decodeSubagentAgentStates, decodeSubagentReceiverAgents } from "./session/subagents";
 
 export interface WorkLogSubagent {
@@ -758,9 +759,15 @@ export function findSidebarProposedPlan(input: {
 }
 
 export function hasActionableProposedPlan(
-  proposedPlan: LatestProposedPlanState | Pick<ProposedPlan, "implementedAt"> | null,
+  proposedPlan:
+    | LatestProposedPlanState
+    | (Pick<ProposedPlan, "implementedAt"> & Partial<Pick<ProposedPlan, "planMarkdown">>)
+    | null,
 ): boolean {
-  return proposedPlan !== null && proposedPlan.implementedAt === null;
+  if (proposedPlan === null || proposedPlan.implementedAt !== null) {
+    return false;
+  }
+  return !proposedPlan.planMarkdown || !arePlanMarkdownTodosComplete(proposedPlan.planMarkdown);
 }
 
 export function deriveActiveBackgroundTasksState(
@@ -1252,7 +1259,6 @@ function subagentFromDerivedDetails(details: DerivedSubagentDetails): WorkLogSub
     ...(details.agentId ? { agentId: details.agentId } : {}),
     ...(details.nickname ? { nickname: details.nickname } : {}),
     ...(details.role ? { role: details.role } : {}),
-    ...(details.model ? { model: details.model } : {}),
     ...(details.prompt ? { prompt: details.prompt } : {}),
     ...(details.title ? { title: details.title } : {}),
     ...(details.rawStatus ? { rawStatus: details.rawStatus } : {}),
@@ -1862,7 +1868,6 @@ function applySubagentDetails(
       ...(details.agentId ? { agentId: details.agentId } : {}),
       ...(details.nickname ? { nickname: details.nickname } : {}),
       ...(details.role ? { role: details.role } : {}),
-      ...(details.model ? { model: details.model } : {}),
       ...(details.prompt ? { prompt: details.prompt } : {}),
       ...(details.title ? { title: details.title } : {}),
       ...(details.rawStatus ? { rawStatus: details.rawStatus } : {}),
@@ -3616,7 +3621,6 @@ function extractWorkLogSubagents(
       agentId: agent.agentId,
       nickname: agent.nickname,
       role: agent.role,
-      model: agent.model,
       prompt: agent.prompt,
       title: resolveSubagentTitle(agent.nickname, agent.role),
       statusLabel: "Started",
@@ -3634,7 +3638,6 @@ function extractWorkLogSubagents(
       agentId: state.agentId ?? existing?.agentId,
       nickname: state.nickname ?? existing?.nickname,
       role: state.role ?? existing?.role,
-      model: state.model ?? existing?.model,
       prompt: state.prompt ?? existing?.prompt,
       rawStatus: state.status ?? existing?.rawStatus,
       latestUpdate: state.message ?? existing?.latestUpdate,

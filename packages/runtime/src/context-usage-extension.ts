@@ -1,6 +1,6 @@
 import type { ThreadTokenUsageCategory, ThreadTokenUsageSnapshot } from "@honk/contracts";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import type { Usage } from "@earendil-works/pi-ai";
+import type { Usage } from "@earendil-works/pi-ai/base";
 
 export interface ContextUsageSnapshotSink {
   readonly publish: (snapshot: ThreadTokenUsageSnapshot) => void;
@@ -71,6 +71,110 @@ function estimateTextTokens(text: unknown): number {
   return typeof text === "string" && text.length > 0 ? Math.ceil(text.length / 4) : 0;
 }
 
+function estimateContentTokens(content: unknown): number {
+  if (typeof content === "string") {
+    return estimateTextTokens(content);
+  }
+  if (!Array.isArray(content)) {
+    return 0;
+  }
+
+  let tokens = 0;
+  for (const block of content) {
+    if (typeof block !== "object" || block === null) {
+      continue;
+    }
+    const record = block as { readonly type?: unknown; readonly text?: unknown };
+    if (record.type === "text") {
+      tokens += estimateTextTokens(record.text);
+    } else if (record.type === "image") {
+      tokens += 1_200;
+    }
+  }
+  return tokens;
+}
+
+function estimateMessageTokens(message: unknown): number {
+  if (typeof message !== "object" || message === null) {
+    return 0;
+  }
+  const record = message as {
+    readonly role?: unknown;
+    readonly content?: unknown;
+    readonly command?: unknown;
+    readonly output?: unknown;
+    readonly summary?: unknown;
+  };
+
+  switch (record.role) {
+    case "user":
+    case "custom":
+    case "toolResult":
+      return estimateContentTokens(record.content);
+    case "assistant": {
+      if (!Array.isArray(record.content)) {
+        return estimateTextTokens(record.content);
+      }
+      let tokens = 0;
+      for (const block of record.content) {
+        if (typeof block !== "object" || block === null) {
+          continue;
+        }
+        const content = block as {
+          readonly type?: unknown;
+          readonly text?: unknown;
+          readonly thinking?: unknown;
+          readonly name?: unknown;
+          readonly arguments?: unknown;
+        };
+        if (content.type === "text") {
+          tokens += estimateTextTokens(content.text);
+        } else if (content.type === "thinking") {
+          tokens += estimateTextTokens(content.thinking);
+        } else if (content.type === "toolCall") {
+          let serializedArguments = "";
+          try {
+            serializedArguments = JSON.stringify(content.arguments ?? {}) ?? "";
+          } catch {
+            serializedArguments = "";
+          }
+          tokens += estimateTextTokens(content.name) + estimateTextTokens(serializedArguments);
+        }
+      }
+      return tokens;
+    }
+    case "bashExecution":
+      return estimateTextTokens(`${String(record.command ?? "")}${String(record.output ?? "")}`);
+    case "branchSummary":
+    case "compactionSummary":
+      return estimateTextTokens(record.summary);
+    default:
+      return 0;
+  }
+}
+
+function estimateSessionEntryTokens(entry: unknown): number {
+  if (typeof entry !== "object" || entry === null) {
+    return 0;
+  }
+  const record = entry as {
+    readonly type?: unknown;
+    readonly message?: unknown;
+    readonly content?: unknown;
+    readonly summary?: unknown;
+  };
+  if (record.type === "message") {
+    return estimateMessageTokens(record.message);
+  }
+  if (record.type === "custom_message") {
+    return estimateMessageTokens({ role: "custom", content: record.content });
+  }
+  if (record.type === "branch_summary") {
+    return estimateMessageTokens({ role: "branchSummary", summary: record.summary });
+  }
+  return 0;
+}
+
 function asUsage(value: unknown): Usage | null {
   if (typeof value !== "object" || value === null) {
     return null;
@@ -139,6 +243,70 @@ export function createContextUsageExtension(sink: ContextUsageSnapshotSink): Ext
   return (pi: ExtensionAPI) => {
     const state = createInitialState();
 
+    const staticTokenTotal = () => {
+      let total = 0;
+      for (const tokens of state.staticCategoryTokens.values()) {
+        total += Math.max(0, Math.round(tokens));
+      }
+      return total;
+    };
+
+    const estimateCurrentConversationTokens = (
+      ctx: { readonly sessionManager: { readonly getBranch: () => readonly unknown[] } },
+      compactionEntry: { readonly id?: unknown; readonly firstKeptEntryId?: unknown },
+    ): number => {
+      let branchEntries: readonly unknown[] = [];
+      try {
+        branchEntries = ctx.sessionManager.getBranch();
+      } catch {
+        return 0;
+      }
+
+      const compactionIndex = branchEntries.findIndex((entry) => {
+        if (typeof entry !== "object" || entry === null) {
+          return false;
+        }
+        const candidate = entry as { readonly id?: unknown; readonly type?: unknown };
+        return candidate.type === "compaction" && candidate.id === compactionEntry.id;
+      });
+      const latestCompactionIndex =
+        compactionIndex >= 0
+          ? compactionIndex
+          : branchEntries.findLastIndex((entry) => {
+              if (typeof entry !== "object" || entry === null) {
+                return false;
+              }
+              return (entry as { readonly type?: unknown }).type === "compaction";
+            });
+
+      if (latestCompactionIndex < 0) {
+        let total = 0;
+        for (const entry of branchEntries) {
+          total += estimateSessionEntryTokens(entry);
+        }
+        return total;
+      }
+
+      let tokens = 0;
+      let foundFirstKept = false;
+      for (let index = 0; index < latestCompactionIndex; index += 1) {
+        const entry = branchEntries[index];
+        if (typeof entry === "object" && entry !== null) {
+          const id = (entry as { readonly id?: unknown }).id;
+          if (id === compactionEntry.firstKeptEntryId) {
+            foundFirstKept = true;
+          }
+        }
+        if (foundFirstKept) {
+          tokens += estimateSessionEntryTokens(entry);
+        }
+      }
+      for (let index = latestCompactionIndex + 1; index < branchEntries.length; index += 1) {
+        tokens += estimateSessionEntryTokens(branchEntries[index]);
+      }
+      return tokens;
+    };
+
     const recomputeToolCategories = () => {
       let toolDefinitionTokens = 0;
       let mcpTokens = 0;
@@ -205,10 +373,13 @@ export function createContextUsageExtension(sink: ContextUsageSnapshotSink): Ext
     const publishSnapshot = (ctx: {
       readonly getContextUsage: () => { tokens: number | null; contextWindow: number } | undefined;
       readonly model: { contextWindow: number } | undefined;
-    }) => {
+    }, options?: { readonly estimatedUsedTokens?: number }) => {
       const contextUsage = ctx.getContextUsage();
       const lastUsedTokens = state.lastUsage ? contextTokensForUsage(state.lastUsage) : 0;
-      const usedTokens = asNonNegativeInteger(contextUsage?.tokens) || lastUsedTokens;
+      const usedTokens =
+        asNonNegativeInteger(contextUsage?.tokens) ||
+        asNonNegativeInteger(options?.estimatedUsedTokens) ||
+        lastUsedTokens;
       if (usedTokens <= 0) {
         return;
       }
@@ -243,6 +414,20 @@ export function createContextUsageExtension(sink: ContextUsageSnapshotSink): Ext
       });
     };
 
+    const publishPostCompactionSnapshot = (
+      ctx: {
+        readonly getContextUsage: () => { tokens: number | null; contextWindow: number } | undefined;
+        readonly model: { contextWindow: number } | undefined;
+        readonly sessionManager: { readonly getBranch: () => readonly unknown[] };
+      },
+      compactionEntry: { readonly id?: unknown; readonly firstKeptEntryId?: unknown },
+    ) => {
+      const estimatedUsedTokens =
+        staticTokenTotal() + estimateCurrentConversationTokens(ctx, compactionEntry);
+      state.lastUsage = null;
+      publishSnapshot(ctx, { estimatedUsedTokens });
+    };
+
     pi.on("session_start", (_event, ctx) => {
       state.cumulativeInputTokens = 0;
       state.cumulativeCachedInputTokens = 0;
@@ -251,9 +436,13 @@ export function createContextUsageExtension(sink: ContextUsageSnapshotSink): Ext
       state.lastUsage = null;
       state.staticCategoryTokens.delete("summarized_conversation");
 
+      let latestCompactionEntry: { readonly id?: unknown; readonly firstKeptEntryId?: unknown } | null =
+        null;
       for (const entry of ctx.sessionManager.getBranch()) {
         if (entry.type === "compaction") {
           recordCompactionSummary(entry.summary);
+          latestCompactionEntry = entry;
+          state.lastUsage = null;
           continue;
         }
         if (entry.type !== "message") {
@@ -277,6 +466,8 @@ export function createContextUsageExtension(sink: ContextUsageSnapshotSink): Ext
       recomputeToolCategories();
       if (state.lastUsage) {
         publishSnapshot(ctx);
+      } else if (latestCompactionEntry) {
+        publishPostCompactionSnapshot(ctx, latestCompactionEntry);
       }
     });
 
@@ -309,8 +500,9 @@ export function createContextUsageExtension(sink: ContextUsageSnapshotSink): Ext
       state.toolUses += 1;
     });
 
-    pi.on("session_compact", (event) => {
+    pi.on("session_compact", (event, ctx) => {
       recordCompactionSummary(event.compactionEntry.summary);
+      publishPostCompactionSnapshot(ctx, event.compactionEntry);
     });
 
     pi.on("turn_end", (event, ctx) => {

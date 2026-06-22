@@ -93,7 +93,7 @@ function resolveEventKeys(event: ShortcutEventLike): Set<string> {
 function matchesShortcutModifiers(
   event: ShortcutEventLike,
   shortcut: KeybindingShortcut,
-  platform = navigator.platform,
+  platform: string = navigator.platform,
 ): boolean {
   const useMetaForMod = isMacPlatform(platform);
   const expectedMeta = shortcut.metaKey || (shortcut.modKey && useMetaForMod);
@@ -109,7 +109,7 @@ function matchesShortcutModifiers(
 function matchesShortcut(
   event: ShortcutEventLike,
   shortcut: KeybindingShortcut,
-  platform = navigator.platform,
+  platform: string = navigator.platform,
 ): boolean {
   if (!matchesShortcutModifiers(event, shortcut, platform)) return false;
   return resolveEventKeys(event).has(shortcut.key);
@@ -152,7 +152,7 @@ function matchesWhenClause(
   return evaluateWhenNode(whenAst, context);
 }
 
-function shortcutConflictKey(shortcut: KeybindingShortcut, platform = navigator.platform): string {
+function shortcutConflictKey(shortcut: KeybindingShortcut, platform: string = navigator.platform): string {
   const useMetaForMod = isMacPlatform(platform);
   const metaKey = shortcut.metaKey || (shortcut.modKey && useMetaForMod);
   const ctrlKey = shortcut.ctrlKey || (shortcut.modKey && !useMetaForMod);
@@ -242,7 +242,7 @@ function formatShortcutKeyLabel(key: string): string {
 
 export function formatShortcutLabel(
   shortcut: KeybindingShortcut,
-  platform = navigator.platform,
+  platform: string = navigator.platform,
 ): string {
   const keyLabel = formatShortcutKeyLabel(shortcut.key);
   const useMetaForMod = isMacPlatform(platform);
@@ -403,7 +403,7 @@ export function isOpenFavoriteEditorShortcut(
 
 export function isTerminalClearShortcut(
   event: ShortcutEventLike,
-  platform = navigator.platform,
+  platform: string = navigator.platform,
 ): boolean {
   if (event.type !== undefined && event.type !== "keydown") {
     return false;
@@ -427,7 +427,7 @@ export function isTerminalClearShortcut(
 
 export function terminalDeleteShortcutData(
   event: ShortcutEventLike,
-  platform = navigator.platform,
+  platform: string = navigator.platform,
 ): string | null {
   if (event.type !== undefined && event.type !== "keydown") {
     return null;
@@ -449,7 +449,7 @@ export function terminalDeleteShortcutData(
 
 export function terminalNavigationShortcutData(
   event: ShortcutEventLike,
-  platform = navigator.platform,
+  platform: string = navigator.platform,
 ): string | null {
   if (event.type !== undefined && event.type !== "keydown") {
     return null;

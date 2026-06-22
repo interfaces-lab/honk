@@ -1,6 +1,6 @@
 import { defineTool, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { fauxAssistantMessage, fauxToolCall, type UserMessage } from "@earendil-works/pi-ai";
-import { Type } from "@earendil-works/pi-ai";
+import { fauxAssistantMessage, fauxToolCall, type UserMessage } from "@earendil-works/pi-ai/base";
+import { Type } from "@earendil-works/pi-ai/base";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MessageId, type AgentRuntimeEvent, type RuntimeIngestionRecord } from "@honk/contracts";
 import {
