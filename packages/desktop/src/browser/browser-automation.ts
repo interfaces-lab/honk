@@ -303,9 +303,14 @@ function cdpModifiers(modifiers: readonly ("Alt" | "Control" | "Meta" | "Shift")
   }, 0);
 }
 
+function stringParam(params: Record<string, unknown>, key: string, fallback: string): string {
+  const value = params[key];
+  return typeof value === "string" ? value : fallback;
+}
+
 function consoleTextFromParams(params: Record<string, unknown>): string {
   const args = params["args"];
-  if (!Array.isArray(args)) return String(params["type"] ?? "console");
+  if (!Array.isArray(args)) return stringParam(params, "type", "console");
   return args
     .map((arg) => {
       if (typeof arg !== "object" || arg === null) return String(arg);
@@ -642,7 +647,7 @@ const makeDesktopBrowserAutomation = Effect.fn("browserAutomation.make")(functio
         const onMessage: BrowserControlSession["onMessage"] = (_event, method, params) => {
           if (method === "Runtime.consoleAPICalled") {
             appendLimited(diagnostics.consoleEntries, {
-              level: String(params["type"] ?? "log"),
+              level: stringParam(params, "type", "log"),
               text: consoleTextFromParams(params),
               timestamp: new Date().toISOString(),
             });

@@ -143,8 +143,11 @@ function estimateMessageTokens(message: unknown): number {
       }
       return tokens;
     }
-    case "bashExecution":
-      return estimateTextTokens(`${String(record.command ?? "")}${String(record.output ?? "")}`);
+    case "bashExecution": {
+      const command = typeof record.command === "string" ? record.command : "";
+      const output = typeof record.output === "string" ? record.output : "";
+      return estimateTextTokens(`${command}${output}`);
+    }
     case "branchSummary":
     case "compactionSummary":
       return estimateTextTokens(record.summary);
