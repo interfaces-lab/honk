@@ -279,9 +279,11 @@ describe("ThreadAgentRuntime tools", () => {
         expectRecord(event.data).toolName === CREATE_PLAN_TOOL_NAME,
     );
     const result = expectRecord(expectRecord(completedEvent?.data).result);
+    const expectedPlanMarkdown =
+      "# Plan\n\n1. Add schemas\n2. Remove casts\n\n## Todos\n- [x] Add schemas\n- [ ] Remove casts";
     const details = expectRecord(result.details);
     expect(details.name).toBe("Refactor parser");
-    expect(details.planMarkdown).toBe("# Plan\n\n1. Add schemas\n2. Remove casts");
+    expect(details.planMarkdown).toBe(expectedPlanMarkdown);
     expect(result.terminate).toBe(true);
 
     const planEvent = events.find((event) => event.type === "turn.proposed.completed");
@@ -291,7 +293,7 @@ describe("ThreadAgentRuntime tools", () => {
       turnId,
       data: {
         planId: `plan:${harness.runtime.threadId}:${turnId}`,
-        planMarkdown: "# Plan\n\n1. Add schemas\n2. Remove casts",
+        planMarkdown: expectedPlanMarkdown,
       },
     });
     expect(events.filter((event) => event.type === "turn.proposed.completed")).toHaveLength(1);
@@ -306,7 +308,7 @@ describe("ThreadAgentRuntime tools", () => {
         proposedPlan: {
           id: `plan:${harness.runtime.threadId}:${turnId}`,
           turnId,
-          planMarkdown: "# Plan\n\n1. Add schemas\n2. Remove casts",
+          planMarkdown: expectedPlanMarkdown,
           implementedAt: null,
           implementationThreadId: null,
           createdAt: planEvent?.createdAt,

@@ -31,7 +31,7 @@ const MODE_EXPECTATIONS = [
   {
     mode: "debug",
     heading: "Honk Interaction Mode: Debug",
-    expectedGuidance: ["Diagnose the issue first"],
+    expectedGuidance: ["Systematically diagnose and fix bugs using runtime evidence."],
   },
 ] as const;
 
@@ -110,8 +110,8 @@ describe("ThreadAgentRuntime interaction modes", () => {
     },
     {
       mode: "debug" as const,
-      includedTools: ["read", "bash"],
-      excludedTools: ["edit", "write", "create_plan", "subagent"],
+      includedTools: ["read", "bash", "edit", "write"],
+      excludedTools: ["create_plan", "subagent"],
     },
   ])(
     "applies Cursor-style $mode tool profile for the turn",
