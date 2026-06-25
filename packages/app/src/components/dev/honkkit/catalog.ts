@@ -34,6 +34,12 @@ export const HONKKIT_CATALOG: HonkKitCategoryGroup[] = [
     description: "Token contracts and real-component composition",
     components: [
       {
+        id: "honk-colors",
+        name: "Honk Colors",
+        importPath: "@honk/brand/colors",
+        description: "Brand palette cards for Honk accent and neutral colors",
+      },
+      {
         id: "component-system",
         name: "Component System",
         importPath: "@honk/honkkit/*",
@@ -377,6 +383,12 @@ export const HONKKIT_CATALOG: HonkKitCategoryGroup[] = [
         name: "Toast",
         importPath: "@honk/honkkit/toast",
         description: "Toast chrome and action slots",
+      },
+      {
+        id: "subagent-status",
+        name: "Subagent Status",
+        importPath: "@honk/app/components/chat/message/tool-message",
+        description: "Background subagent naming, task, and activity rows",
       },
       {
         id: "tool-call",

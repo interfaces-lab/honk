@@ -1,7 +1,7 @@
 import type { AgentModelPolicy } from "@honk/contracts";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import { clampThinkingLevel } from "@earendil-works/pi-ai/base";
-import type { Api, Context, Model } from "@earendil-works/pi-ai/base";
+import { clampThinkingLevel } from "@earendil-works/pi-ai";
+import type { Api, Context, Model } from "@earendil-works/pi-ai";
 import {
   convertToLlm,
   type CompactionEntry,
@@ -92,10 +92,21 @@ type TextSignature = {
   readonly phase?: "commentary" | "final_answer";
 };
 
-export function createCodexRuntimePolicyExtension(policy: AgentModelPolicy): ExtensionFactory {
+export function createCodexRuntimePolicyExtension(
+  policy: AgentModelPolicy,
+  getInteractionMode: () => AgentModelPolicy["interactionMode"] = () => policy.interactionMode,
+): ExtensionFactory {
   return (pi) => {
     pi.on("before_agent_start", (event) => {
       if (!isCodexAgentMode(policy.agentMode) || !isOpenAIPolicyModel(policy.modelSelection)) {
+        return undefined;
+      }
+      const interactionMode = getInteractionMode();
+      if (
+        interactionMode === "ask" ||
+        interactionMode === "plan" ||
+        interactionMode === "multitask"
+      ) {
         return undefined;
       }
       return {

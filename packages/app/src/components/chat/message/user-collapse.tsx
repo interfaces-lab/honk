@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Button } from "@honk/honkkit/button";
 import { cn } from "~/lib/utils";
+import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 
 const COLLAPSED_MAX_PX = 72;
 
@@ -8,11 +9,13 @@ function measureOverflow(el: HTMLElement): boolean {
   return el.scrollHeight > COLLAPSED_MAX_PX + 1;
 }
 
-export function HumanMessageCollapsible({ children }: { children: ReactNode }) {
+export function UserMessageCollapsible({ children }: { children: ReactNode }) {
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const [overflows, setOverflows] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  const measureElement = (el: HTMLDivElement | null) => {
+  useLayoutSyncEffect(() => {
+    const el = contentRef.current;
     if (!el) {
       return;
     }
@@ -29,7 +32,7 @@ export function HumanMessageCollapsible({ children }: { children: ReactNode }) {
     return () => {
       observer.disconnect();
     };
-  };
+  }, []);
 
   const collapsed = overflows && !expanded;
 
@@ -41,11 +44,11 @@ export function HumanMessageCollapsible({ children }: { children: ReactNode }) {
             "relative max-h-[72px] overflow-hidden after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-8 after:bg-[linear-gradient(to_bottom,transparent_0%,var(--honk-message-bubble-background)_72%,var(--honk-message-bubble-background)_100%)] after:content-['']",
         )}
       >
-        <div ref={measureElement}>{children}</div>
+        <div ref={contentRef}>{children}</div>
       </div>
       {overflows ? (
         <Button
-          data-human-message-collapse-toggle=""
+          data-user-message-collapse-toggle=""
           size="xs"
           variant="link"
           className={cn(

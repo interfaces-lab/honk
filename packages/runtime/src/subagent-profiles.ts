@@ -1,5 +1,5 @@
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
-import type { Model } from "@earendil-works/pi-ai/base";
+import type { Model } from "@earendil-works/pi-ai";
 import { type AgentMode, type AgentThinkingLevel } from "@honk/contracts";
 
 // A subagent profile is the resolved specialization a child runs with: which model and thinking
@@ -67,7 +67,7 @@ const LIBRARIAN_PROMPT = `You are a reconnaissance subagent. Quickly map the rel
 const ORACLE_PROMPT = `You are a deep-reasoning advisory subagent. Analyze the problem thoroughly: root-cause the issue, weigh design trade-offs, and recommend a concrete approach. Read and search to ground every claim in the actual code; do not modify files. Think carefully before answering, show the key reasoning that supports your recommendation, then end with a clear, actionable conclusion.`;
 
 // Inspection tools for the recon/analysis specialists.
-const READONLY_TOOLS = ["read", "grep", "find", "ls", "bash"] as const;
+const READONLY_TOOLS = ["read", "grep", "find", "ls"] as const;
 
 const BUILTIN_SUBAGENT_PROFILES: Record<SubagentAgentName, ResolvedSubagentProfile> = {
   [DEFAULT_SUBAGENT_AGENT_NAME]: {
@@ -83,7 +83,7 @@ const BUILTIN_SUBAGENT_PROFILES: Record<SubagentAgentName, ResolvedSubagentProfi
   librarian: {
     name: "librarian",
     systemPrompt: LIBRARIAN_PROMPT,
-    model: null,
+    model: "openai-codex/gpt-5.5",
     thinkingLevel: "medium",
     tools: [...READONLY_TOOLS],
     agentMode: "rush",

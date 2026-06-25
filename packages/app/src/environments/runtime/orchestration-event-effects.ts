@@ -3,7 +3,6 @@ import type { OrchestrationEvent, ThreadId } from "@honk/contracts";
 export interface OrchestrationBatchEffects {
   promoteDraftThreadIds: ThreadId[];
   clearDeletedThreadIds: ThreadId[];
-  removeTerminalStateThreadIds: ThreadId[];
   gitRefreshThreadIds: ThreadId[];
 }
 
@@ -27,7 +26,6 @@ export function deriveOrchestrationBatchEffects(
     {
       clearPromotedDraft: boolean;
       clearDeletedThread: boolean;
-      removeTerminalState: boolean;
     }
   >();
   const gitRefreshThreadIds = new Set<ThreadId>();
@@ -38,7 +36,6 @@ export function deriveOrchestrationBatchEffects(
         threadLifecycleEffects.set(event.payload.threadId, {
           clearPromotedDraft: true,
           clearDeletedThread: false,
-          removeTerminalState: false,
         });
         break;
       }
@@ -47,7 +44,6 @@ export function deriveOrchestrationBatchEffects(
         threadLifecycleEffects.set(event.payload.threadId, {
           clearPromotedDraft: false,
           clearDeletedThread: true,
-          removeTerminalState: true,
         });
         break;
       }
@@ -56,7 +52,6 @@ export function deriveOrchestrationBatchEffects(
         threadLifecycleEffects.set(event.payload.threadId, {
           clearPromotedDraft: false,
           clearDeletedThread: false,
-          removeTerminalState: true,
         });
         break;
       }
@@ -65,7 +60,6 @@ export function deriveOrchestrationBatchEffects(
         threadLifecycleEffects.set(event.payload.threadId, {
           clearPromotedDraft: false,
           clearDeletedThread: false,
-          removeTerminalState: false,
         });
         break;
       }
@@ -90,7 +84,6 @@ export function deriveOrchestrationBatchEffects(
 
   const promoteDraftThreadIds: ThreadId[] = [];
   const clearDeletedThreadIds: ThreadId[] = [];
-  const removeTerminalStateThreadIds: ThreadId[] = [];
   for (const [threadId, effect] of threadLifecycleEffects) {
     if (effect.clearPromotedDraft) {
       promoteDraftThreadIds.push(threadId);
@@ -98,15 +91,11 @@ export function deriveOrchestrationBatchEffects(
     if (effect.clearDeletedThread) {
       clearDeletedThreadIds.push(threadId);
     }
-    if (effect.removeTerminalState) {
-      removeTerminalStateThreadIds.push(threadId);
-    }
   }
 
   return {
     promoteDraftThreadIds,
     clearDeletedThreadIds,
-    removeTerminalStateThreadIds,
     gitRefreshThreadIds: [...gitRefreshThreadIds],
   };
 }

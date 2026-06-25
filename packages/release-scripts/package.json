@@ -8,7 +8,7 @@
     "./lib/workspace-catalog": "./src/lib/workspace-catalog.ts"
   },
   "scripts": {
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "node ../../scripts/tsc-rc.mjs --noEmit",
     "test": "node src/release-smoke.ts"
   },
   "dependencies": {

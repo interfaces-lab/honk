@@ -1,10 +1,8 @@
-import { Button } from "@honk/honkkit/button";
+import * as stylex from "@stylexjs/stylex";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
-import { cva } from "class-variance-authority";
 import { IconBuildingBlocks, type CentralIconBaseProps } from "central-icons";
 import { type ComponentType } from "react";
 
-import { cn } from "~/lib/utils";
 import {
   basenameOfPath,
   getVscodeIconUrlForEntry,
@@ -19,50 +17,108 @@ import type {
 } from "./types";
 
 function resolvedThemeFromDocument(): "light" | "dark" {
+  if (typeof document === "undefined") {
+    return "dark";
+  }
   return document.documentElement.classList.contains("dark") ? "dark" : "light";
 }
 
-const composerPromptChipVariants = cva(
-  cn(
-    "inline-flex min-w-0 select-none items-center gap-0.5",
-    "bg-transparent px-0 py-0 font-honk font-normal align-middle",
-    "-mt-[3px] -ml-px text-(length:--honk-composer-chip-font-size) leading-(--honk-composer-chip-line-height)",
-  ),
-  {
-    variants: {
-      kind: {
-        mention: "max-w-(--honk-composer-chip-max-width) text-(--honk-composer-mention-text)",
-        command:
-          "max-w-(--honk-composer-chip-max-width) rounded-[2px] text-(--honk-composer-command-text)",
-        skill: "rounded-[2px] text-(--honk-composer-command-text)",
-        "inline-token":
-          "max-w-(--honk-composer-chip-max-width) text-(--honk-composer-mention-text)",
-      },
-    },
+const styles = stylex.create({
+  chip: {
+    alignItems: "center",
+    borderRadius: "6px",
+    display: "inline-flex",
+    fontFamily: "var(--honk-font-ui)",
+    fontSize: "var(--honk-composer-chip-font-size)",
+    fontWeight: 400,
+    gap: "4px",
+    lineHeight: "var(--honk-composer-chip-line-height)",
+    marginLeft: "-1px",
+    marginTop: "-3px",
+    minWidth: 0,
+    paddingBlock: "1px",
+    paddingLeft: "4px",
+    paddingRight: "4px",
+    userSelect: "none",
+    verticalAlign: "middle",
   },
-);
+  bounded: {
+    maxWidth: "var(--honk-composer-chip-max-width)",
+  },
+  mention: {
+    backgroundColor: "var(--honk-composer-mention-background)",
+    color: "var(--honk-composer-mention-text)",
+  },
+  command: {
+    backgroundColor: "var(--honk-composer-command-background)",
+    color: "var(--honk-composer-command-text)",
+  },
+  fileIcon: {
+    display: "block",
+    flexShrink: 0,
+    height: "var(--honk-composer-chip-icon-size)",
+    opacity: 0.9,
+    width: "var(--honk-composer-chip-icon-size)",
+  },
+  iconSlot: {
+    alignItems: "center",
+    color: "inherit",
+    display: "inline-flex",
+    flexShrink: 0,
+    height: "var(--honk-composer-chip-icon-size)",
+    justifyContent: "center",
+    width: "var(--honk-composer-chip-icon-size)",
+  },
+  label: {
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  lineRange: {
+    color: "var(--honk-composer-mention-line-range-text)",
+    flexShrink: 0,
+    fontSize: "var(--honk-composer-chip-line-range-font-size)",
+  },
+  commandLabel: {
+    color: "inherit",
+    minWidth: 0,
+    overflow: "hidden",
+    textAlign: "left",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+});
+
+function chipProps(kind: "command" | "mention", bounded = true) {
+  return stylex.props(
+    styles.chip,
+    bounded ? styles.bounded : null,
+    kind === "command" ? styles.command : styles.mention,
+  );
+}
 
 export function ComposerMentionChip({ label, lineEnd, lineStart, path }: ComposerMentionPayload) {
   const theme = resolvedThemeFromDocument();
   const displayedLabel = label ?? basenameOfPath(path);
   const chip = (
     <span
-      className={composerPromptChipVariants({ kind: "mention" })}
+      {...chipProps("mention")}
       contentEditable={false}
       data-read-only-mention=""
       data-type="mentionNode"
       spellCheck={false}
     >
       <img
+        {...stylex.props(styles.fileIcon)}
         alt=""
         aria-hidden="true"
-        className="size-(--honk-composer-chip-icon-size) shrink-0 opacity-90"
         loading="lazy"
         src={getVscodeIconUrlForEntry(path, inferEntryKindFromPath(path), theme)}
       />
-      <span className="min-w-0 truncate">{displayedLabel}</span>
+      <span {...stylex.props(styles.label)}>{displayedLabel}</span>
       {lineStart !== null && lineEnd !== null ? (
-        <span className="shrink-0 text-(length:--honk-composer-chip-line-range-font-size) text-(--honk-composer-mention-line-range-text)">
+        <span {...stylex.props(styles.lineRange)}>
           {lineStart === lineEnd ? `:${lineStart}` : `:${lineStart}-${lineEnd}`}
         </span>
       ) : null}
@@ -83,19 +139,12 @@ export function ComposerCommandChip({ content, name }: ComposerCommandPayload) {
   const label = commandText({ name });
   const chip = (
     <span
-      className={composerPromptChipVariants({ kind: "command" })}
+      {...chipProps("command")}
       contentEditable={false}
       data-type="commandNode"
       spellCheck={false}
     >
-      <Button
-        type="button"
-        variant="ghost"
-        tabIndex={-1}
-        className="h-auto min-w-0 justify-start truncate border-0 bg-transparent p-0 text-left text-inherit shadow-none transition-none before:hidden hover:bg-transparent hover:underline data-pressed:bg-transparent"
-      >
-        {label}
-      </Button>
+      <span {...stylex.props(styles.commandLabel)}>{label}</span>
     </span>
   );
 
@@ -117,16 +166,13 @@ export const SkillIcon: ComponentType<CentralIconBaseProps> = IconBuildingBlocks
 export function ComposerSkillChip({ description, label }: ComposerSkillPayload) {
   const chip = (
     <span
-      className={composerPromptChipVariants({ kind: "skill" })}
+      {...chipProps("command", false)}
       contentEditable={false}
       data-composer-skill-chip="true"
       spellCheck={false}
     >
-      <span
-        aria-hidden="true"
-        className="size-(--honk-composer-chip-icon-size) shrink-0 text-(--honk-composer-command-text)"
-      >
-        <SkillIcon className="size-(--honk-composer-chip-icon-size)" />
+      <span {...stylex.props(styles.iconSlot)} aria-hidden="true">
+        <SkillIcon ariaHidden size="var(--honk-composer-chip-icon-size)" />
       </span>
       <span>{label}</span>
     </span>
@@ -147,12 +193,12 @@ export function ComposerSkillChip({ description, label }: ComposerSkillPayload) 
 export function ComposerInlineTokenChip({ label, sourceUri }: ComposerInlineTokenPayload) {
   const chip = (
     <span
-      className={composerPromptChipVariants({ kind: "inline-token" })}
+      {...chipProps("mention")}
       contentEditable={false}
       data-composer-inline-token-chip="true"
       spellCheck={false}
     >
-      <span className="min-w-0 truncate">{label || sourceUri}</span>
+      <span {...stylex.props(styles.label)}>{label || sourceUri}</span>
     </span>
   );
 

@@ -83,6 +83,7 @@ import { cn } from "~/lib/utils";
 import { isDesktopRuntimeApiAvailable, readHonkRuntimeApi } from "~/lib/honk-runtime-api";
 import { runtimeSkillsQueryOptions } from "~/lib/runtime-skills";
 import { useAgentRuntimeStore } from "~/stores/agent-runtime-store";
+import { useLocalFeatureFlagsStore } from "~/stores/local-feature-flags";
 import {
   AGENT_MODE_LABELS,
   AGENT_MODE_OPTIONS,
@@ -835,6 +836,7 @@ const SUBAGENT_PROFILE_CARDS = [
     label: "General Purpose",
     description:
       "Default delegated worker for broad implementation, research, and follow-up tasks.",
+    model: "Inherits parent",
     mode: "Smart",
     thinking: "Inherits parent",
     tools: "Inherits parent",
@@ -844,6 +846,7 @@ const SUBAGENT_PROFILE_CARDS = [
     name: "librarian",
     label: "Librarian",
     description: "Read-only reconnaissance for quickly mapping files, symbols, and code paths.",
+    model: "GPT-5.5",
     mode: "Rush",
     thinking: "Medium",
     tools: "read, grep, find, ls, bash",
@@ -854,6 +857,7 @@ const SUBAGENT_PROFILE_CARDS = [
     label: "Oracle",
     description:
       "Read-only deep analysis for root cause, design trade-offs, and recommended approaches.",
+    model: "Inherits parent",
     mode: "Deep",
     thinking: "XHigh",
     tools: "read, grep, find, ls, bash",
@@ -917,7 +921,15 @@ function SubagentProfileCard({ profile }: { profile: (typeof SUBAGENT_PROFILE_CA
               {profile.description}
             </Text>
           </p>
-          <div className="mt-3 grid gap-x-3 gap-y-2 sm:grid-cols-3">
+          <div className="mt-3 grid gap-x-3 gap-y-2 sm:grid-cols-4">
+            <div className="min-w-0">
+              <Text as="div" size="sm" tone="tertiary">
+                Model
+              </Text>
+              <Text as="div" size="sm" tone="primary" weight="medium">
+                {profile.model}
+              </Text>
+            </div>
             <div className="min-w-0">
               <Text as="div" size="sm" tone="tertiary">
                 Mode
@@ -1009,6 +1021,7 @@ const AGENT_INTERACTION_MODE_LABELS: Partial<Record<AgentInteractionMode, string
   ask: "Ask",
   plan: "Plan",
   debug: "Debug",
+  multitask: "Multitask",
 };
 
 const AGENT_INTERACTION_MODE_OPTIONS = AGENT_INTERACTION_MODES.map((value) => ({
@@ -1450,6 +1463,12 @@ export function AgentRuntimeSettingsSectionsView({
   const preferences = snapshot.preferences;
   const authStatuses = snapshot.authStatuses;
   const authFlows = snapshot.credentialAuthFlows;
+  const multitaskModeEnabled = useLocalFeatureFlagsStore(
+    (state) => state.multitaskModeEnabled,
+  );
+  const interactionModeOptions = multitaskModeEnabled
+    ? AGENT_INTERACTION_MODE_OPTIONS
+    : AGENT_INTERACTION_MODE_OPTIONS.filter((option) => option.value !== "multitask");
   const modelAvailability = deriveAgentModeAvailability(authStatuses);
   const [isSaving, setIsSaving] = useState(false);
   const [pendingCredentialKind, setPendingCredentialKind] = useState<AgentCredentialKind | null>(
@@ -1666,7 +1685,7 @@ export function AgentRuntimeSettingsSectionsView({
             <Select
               value={preferences.interactionMode}
               onValueChange={(value) => {
-                const option = AGENT_INTERACTION_MODE_OPTIONS.find(
+                const option = interactionModeOptions.find(
                   (entry) => entry.value === value,
                 );
                 if (option) {
@@ -1687,7 +1706,7 @@ export function AgentRuntimeSettingsSectionsView({
                 </SelectValue>
               </SelectTrigger>
               <SelectPopup align="end" alignItemWithTrigger={false}>
-                {AGENT_INTERACTION_MODE_OPTIONS.map((option) => (
+                {interactionModeOptions.map((option) => (
                   <SelectItem key={option.value} hideIndicator value={option.value}>
                     {option.label}
                   </SelectItem>

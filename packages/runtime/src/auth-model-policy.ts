@@ -9,9 +9,9 @@ import {
   type AgentModelPolicy,
   type AgentThinkingLevel,
 } from "@honk/contracts";
-import type { Model } from "@earendil-works/pi-ai/base";
+import type { Model } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import { clampThinkingLevel } from "@earendil-works/pi-ai/base";
+import { clampThinkingLevel } from "@earendil-works/pi-ai";
 
 export const DEFAULT_AGENT_INTERACTION_MODE: AgentInteractionMode = "agent";
 export const DEFAULT_AGENT_MODE: AgentMode = "deep";

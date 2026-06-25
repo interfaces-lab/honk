@@ -1,10 +1,155 @@
-import { Fragment, type ReactNode } from "react";
-import { Code, Pre } from "@honk/honkkit/code";
-import { Link } from "@honk/honkkit/link";
+import * as stylex from "@stylexjs/stylex";
+import {
+  IconBuildingBlocks,
+  IconChainLink2,
+  IconCode,
+  type CentralIconBaseProps,
+} from "central-icons";
+import { Fragment, type ComponentType, type ReactNode } from "react";
+
+import {
+  basenameOfPath,
+  getVscodeIconUrlForEntry,
+  inferEntryKindFromPath,
+} from "../shared/vscode-entry-icons";
 
 type RichTextRecord = Record<string, unknown>;
+type AtomChipKind = "command" | "inline-token" | "link" | "mention" | "skill";
 
-export function ReadonlyRichTextMessage({
+const styles = stylex.create({
+  root: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "var(--honk-spacing-1)",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflowWrap: "anywhere",
+    wordBreak: "break-word",
+  },
+  fallback: {
+    maxWidth: "100%",
+    minWidth: 0,
+    overflowWrap: "anywhere",
+  },
+  paragraph: {
+    margin: 0,
+  },
+  heading: {
+    fontWeight: 600,
+    margin: 0,
+  },
+  unorderedList: {
+    listStyleType: "disc",
+    margin: 0,
+    paddingInlineStart: "1.25rem",
+  },
+  orderedList: {
+    listStyleType: "decimal",
+    margin: 0,
+    paddingInlineStart: "1.25rem",
+  },
+  blockquote: {
+    borderLeftColor: "var(--honk-stroke-secondary)",
+    borderLeftStyle: "solid",
+    borderLeftWidth: 1,
+    margin: 0,
+    paddingInlineStart: "var(--honk-spacing-2)",
+  },
+  pre: {
+    backgroundColor: "var(--honk-bg-tertiary)",
+    borderWidth: 0,
+    fontFamily: "var(--honk-font-mono)",
+    fontSize: "var(--honk-text-detail)",
+    lineHeight: "var(--honk-leading-detail)",
+    margin: 0,
+    maxHeight: "none",
+    overflowX: "auto",
+    paddingBlock: "var(--honk-spacing-1)",
+    paddingInline: "var(--honk-spacing-2)",
+    whiteSpace: "pre-wrap",
+  },
+  code: {
+    backgroundColor: "var(--honk-bg-tertiary)",
+    borderRadius: "var(--honk-radius-control)",
+    fontFamily: "var(--honk-font-mono)",
+    fontSize: "var(--honk-text-detail)",
+    paddingBlock: 0,
+    paddingInline: "var(--honk-spacing-1)",
+  },
+  underline: {
+    textDecorationLine: "underline",
+    textUnderlineOffset: "2px",
+  },
+  link: {
+    backgroundColor: "transparent",
+    color: "var(--honk-markdown-link-foreground, var(--primary))",
+    cursor: "pointer",
+    textDecorationLine: {
+      default: "none",
+      ":hover": "underline",
+    },
+    textUnderlineOffset: "2px",
+  },
+  chip: {
+    alignItems: "center",
+    borderRadius: "6px",
+    boxSizing: "border-box",
+    display: "inline-flex",
+    fontFamily: "var(--honk-font-ui)",
+    fontSize: "var(--honk-composer-chip-font-size)",
+    fontWeight: 400,
+    gap: "4px",
+    lineHeight: "var(--honk-composer-chip-line-height)",
+    maxWidth: "var(--honk-composer-chip-max-width)",
+    minWidth: 0,
+    paddingBlock: "1px",
+    paddingLeft: "4px",
+    paddingRight: "4px",
+    textDecoration: "none",
+    userSelect: "none",
+    verticalAlign: "middle",
+    whiteSpace: "nowrap",
+  },
+  chipMention: {
+    backgroundColor: "var(--honk-composer-mention-background)",
+    color: "var(--honk-composer-mention-text)",
+  },
+  chipCommand: {
+    backgroundColor: "var(--honk-composer-command-background)",
+    color: "var(--honk-composer-command-text)",
+  },
+  chipLink: {
+    backgroundColor: "color-mix(in srgb, var(--primary) 10%, transparent)",
+    color: "var(--honk-markdown-link-foreground, var(--primary))",
+  },
+  chipLabel: {
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  chipDetail: {
+    color: "var(--honk-composer-mention-line-range-text)",
+    flexShrink: 0,
+    fontSize: "var(--honk-composer-chip-line-range-font-size)",
+  },
+  chipIcon: {
+    alignItems: "center",
+    display: "inline-flex",
+    flexShrink: 0,
+    height: "var(--honk-composer-chip-icon-size)",
+    justifyContent: "center",
+    width: "var(--honk-composer-chip-icon-size)",
+  },
+  chipFileIcon: {
+    display: "block",
+    flexShrink: 0,
+    height: "var(--honk-composer-chip-icon-size)",
+    opacity: 0.9,
+    width: "var(--honk-composer-chip-icon-size)",
+  },
+});
+
+export function UserRichTextMessage({
   fallbackText,
   richText,
 }: {
@@ -14,22 +159,93 @@ export function ReadonlyRichTextMessage({
   const body = renderRichTextBody(richText);
   if (!body) {
     return fallbackText.length > 0 ? (
-      <div className="max-w-full min-w-0 break-words wrap-anywhere">{fallbackText}</div>
+      <div {...stylex.props(styles.fallback)}>{fallbackText}</div>
     ) : null;
   }
 
   return (
-    <div
-      data-rich-text-message=""
-      className="flex max-w-full min-w-0 flex-col gap-1 break-words wrap-anywhere"
-    >
+    <div {...stylex.props(styles.root)} data-rich-text-message="">
       {body}
     </div>
   );
 }
 
 export function hasRenderableRichText(richText: unknown): boolean {
-  return renderRichTextBody(richText) !== null;
+  return richTextNeedsStructuredRendering(richText) && renderRichTextBody(richText) !== null;
+}
+
+function richTextNeedsStructuredRendering(richText: unknown): boolean {
+  const doc = asRecord(richText);
+  if (!doc) {
+    return false;
+  }
+  if (doc.type === "doc") {
+    return asArray(doc.content).some(tiptapNodeNeedsStructuredRendering);
+  }
+  const root = asRecord(doc.root);
+  if (root) {
+    return asArray(root.children).some(lexicalNodeNeedsStructuredRendering);
+  }
+  return false;
+}
+
+function tiptapNodeNeedsStructuredRendering(node: unknown): boolean {
+  const record = asRecord(node);
+  if (!record) {
+    return false;
+  }
+
+  switch (record.type) {
+    case "paragraph":
+      return asArray(record.content).some(tiptapNodeNeedsStructuredRendering);
+    case "text":
+      return asArray(record.marks).length > 0;
+    case "hardBreak":
+      return false;
+    case "mentionNode":
+    case "commandNode":
+    case "skillNode":
+    case "inlineTokenNode":
+      return true;
+    case "heading":
+    case "bulletList":
+    case "orderedList":
+    case "blockquote":
+    case "codeBlock":
+      return true;
+    default:
+      return asArray(record.content).some(tiptapNodeNeedsStructuredRendering);
+  }
+}
+
+function lexicalNodeNeedsStructuredRendering(node: unknown): boolean {
+  const record = asRecord(node);
+  if (!record) {
+    return false;
+  }
+
+  switch (record.type) {
+    case "root":
+    case "paragraph":
+      return asArray(record.children).some(lexicalNodeNeedsStructuredRendering);
+    case "text":
+      return (numberField(record, "format") ?? 0) !== 0 || stringField(record, "style") !== null;
+    case "linebreak":
+      return false;
+    case "mentionNode":
+    case "commandNode":
+    case "skillNode":
+    case "inlineTokenNode":
+      return true;
+    case "heading":
+    case "list":
+    case "quote":
+    case "code":
+    case "link":
+      return true;
+    default:
+      return asArray(record.children).some(lexicalNodeNeedsStructuredRendering);
+  }
 }
 
 function renderRichTextBody(richText: unknown): ReactNode | null {
@@ -62,25 +278,25 @@ function renderTiptapNode(node: unknown, index: number): ReactNode {
   switch (record.type) {
     case "paragraph":
       return (
-        <p key={key} className="m-0">
+        <p key={key} {...stylex.props(styles.paragraph)}>
           {children || <br />}
         </p>
       );
     case "heading":
       return (
-        <div key={key} className="m-0 font-semibold">
+        <div key={key} {...stylex.props(styles.heading)}>
           {children}
         </div>
       );
     case "bulletList":
       return (
-        <ul key={key} className="m-0 list-disc pl-5">
+        <ul key={key} {...stylex.props(styles.unorderedList)}>
           {children}
         </ul>
       );
     case "orderedList":
       return (
-        <ol key={key} className="m-0 list-decimal pl-5">
+        <ol key={key} {...stylex.props(styles.orderedList)}>
           {children}
         </ol>
       );
@@ -88,18 +304,15 @@ function renderTiptapNode(node: unknown, index: number): ReactNode {
       return <li key={key}>{children}</li>;
     case "blockquote":
       return (
-        <blockquote key={key} className="m-0 border-l border-honk-stroke-secondary pl-2">
+        <blockquote key={key} {...stylex.props(styles.blockquote)}>
           {children}
         </blockquote>
       );
     case "codeBlock":
       return (
-        <Pre
-          key={key}
-          className="m-0 max-h-none overflow-x-auto whitespace-pre-wrap border-0 bg-honk-bg-tertiary px-2 py-1 text-detail"
-        >
+        <pre key={key} {...stylex.props(styles.pre)}>
           {plainTextFromTiptap(record)}
-        </Pre>
+        </pre>
       );
     case "hardBreak":
       return <br key={key} />;
@@ -113,8 +326,7 @@ function renderTiptapNode(node: unknown, index: number): ReactNode {
     case "commandNode":
     case "skillNode":
     case "inlineTokenNode": {
-      const text = tiptapAtomText(record);
-      return text ? <span key={key}>{text}</span> : null;
+      return renderTiptapAtom(record, key);
     }
     default: {
       const text = stringField(record, "text");
@@ -137,23 +349,23 @@ function renderLexicalNode(node: unknown, index: number): ReactNode {
   switch (record.type) {
     case "paragraph":
       return (
-        <p key={key} className="m-0">
+        <p key={key} {...stylex.props(styles.paragraph)}>
           {children || <br />}
         </p>
       );
     case "heading":
       return (
-        <div key={key} className="m-0 font-semibold">
+        <div key={key} {...stylex.props(styles.heading)}>
           {children}
         </div>
       );
     case "list":
       return stringField(record, "listType") === "number" ? (
-        <ol key={key} className="m-0 list-decimal pl-5">
+        <ol key={key} {...stylex.props(styles.orderedList)}>
           {children}
         </ol>
       ) : (
-        <ul key={key} className="m-0 list-disc pl-5">
+        <ul key={key} {...stylex.props(styles.unorderedList)}>
           {children}
         </ul>
       );
@@ -161,27 +373,24 @@ function renderLexicalNode(node: unknown, index: number): ReactNode {
       return <li key={key}>{children}</li>;
     case "quote":
       return (
-        <blockquote key={key} className="m-0 border-l border-honk-stroke-secondary pl-2">
+        <blockquote key={key} {...stylex.props(styles.blockquote)}>
           {children}
         </blockquote>
       );
     case "code":
       return (
-        <Pre
-          key={key}
-          className="m-0 max-h-none overflow-x-auto whitespace-pre-wrap border-0 bg-honk-bg-tertiary px-2 py-1 text-detail"
-        >
+        <pre key={key} {...stylex.props(styles.pre)}>
           {lexicalPlainText(record)}
-        </Pre>
+        </pre>
       );
     case "linebreak":
       return <br key={key} />;
     case "link": {
       const url = safeHref(stringField(record, "url"));
       return url ? (
-        <Link key={key} href={url} target="_blank" rel="noreferrer" tone="inherit">
+        <a key={key} {...stylex.props(styles.link)} href={url} target="_blank" rel="noreferrer">
           {children}
-        </Link>
+        </a>
       ) : (
         <Fragment key={key}>{children}</Fragment>
       );
@@ -198,8 +407,7 @@ function renderLexicalNode(node: unknown, index: number): ReactNode {
     case "commandNode":
     case "skillNode":
     case "inlineTokenNode": {
-      const text = lexicalAtomText(record);
-      return text ? <span key={key}>{text}</span> : null;
+      return renderLexicalAtom(record, key);
     }
     default: {
       const text = stringField(record, "text");
@@ -222,13 +430,13 @@ function applyTiptapMarks(text: string, marks: unknown[]): ReactNode {
       case "strike":
         return <s>{node}</s>;
       case "code":
-        return <Code className="rounded-honk-control px-1 py-0 text-detail">{node}</Code>;
+        return <code {...stylex.props(styles.code)}>{node}</code>;
       case "link": {
         const href = safeHref(stringField(asRecord(record.attrs), "href"));
         return href ? (
-          <Link href={href} target="_blank" rel="noreferrer" tone="inherit">
+          <a {...stylex.props(styles.link)} href={href} target="_blank" rel="noreferrer">
             {node}
-          </Link>
+          </a>
         ) : (
           node
         );
@@ -244,11 +452,251 @@ function applyLexicalFormat(text: string, format: number): ReactNode {
   if ((format & 1) !== 0) node = <strong>{node}</strong>;
   if ((format & 2) !== 0) node = <em>{node}</em>;
   if ((format & 4) !== 0) node = <s>{node}</s>;
-  if ((format & 8) !== 0) node = <span className="underline underline-offset-2">{node}</span>;
+  if ((format & 8) !== 0) node = <span {...stylex.props(styles.underline)}>{node}</span>;
   if ((format & 16) !== 0) {
-    node = <Code className="rounded-honk-control px-1 py-0 text-detail">{node}</Code>;
+    node = <code {...stylex.props(styles.code)}>{node}</code>;
   }
   return node;
+}
+
+function renderTiptapAtom(record: RichTextRecord, key: string): ReactNode {
+  const attrs = asRecord(record.attrs);
+  switch (record.type) {
+    case "mentionNode": {
+      const href = safeHref(
+        stringField(attrs, "href") ?? stringField(attrs, "url") ?? stringField(attrs, "path"),
+      );
+      if (href) {
+        return (
+          <AtomChip
+            key={key}
+            dataType="mentionNode"
+            href={href}
+            icon={IconChainLink2}
+            kind="link"
+            label={stringField(attrs, "label") ?? href}
+            title={href}
+          />
+        );
+      }
+
+      const path = stringField(attrs, "path");
+      return (
+        <AtomChip
+          key={key}
+          dataType="mentionNode"
+          detail={lineRangeFromRecord(attrs)}
+          kind="mention"
+          label={stringField(attrs, "label") ?? (path ? basenameOfPath(path) : "@")}
+          path={path}
+          title={path}
+        />
+      );
+    }
+    case "commandNode": {
+      const name = stringField(attrs, "name");
+      return (
+        <AtomChip
+          key={key}
+          dataType="commandNode"
+          kind="command"
+          label={name ? `/${name}` : "/"}
+          title={stringField(attrs, "content")}
+        />
+      );
+    }
+    case "skillNode": {
+      const name = stringField(attrs, "skillName") ?? stringField(attrs, "name");
+      return (
+        <AtomChip
+          key={key}
+          dataType="skillNode"
+          icon={IconBuildingBlocks}
+          kind="skill"
+          label={stringField(attrs, "label") ?? (name ? `$${name}` : "$")}
+          title={stringField(attrs, "description") ?? stringField(attrs, "path")}
+        />
+      );
+    }
+    case "inlineTokenNode":
+      return (
+        <AtomChip
+          key={key}
+          dataType="inlineTokenNode"
+          icon={IconCode}
+          kind="inline-token"
+          label={stringField(attrs, "label") ?? stringField(attrs, "sourceUri") ?? "token"}
+          title={stringField(attrs, "sourceUri") ?? stringField(attrs, "markdown")}
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+function renderLexicalAtom(record: RichTextRecord, key: string): ReactNode {
+  switch (record.type) {
+    case "mentionNode": {
+      const href = safeHref(
+        stringField(record, "href") ?? stringField(record, "url") ?? stringField(record, "path"),
+      );
+      if (href) {
+        return (
+          <AtomChip
+            key={key}
+            dataType="mentionNode"
+            href={href}
+            icon={IconChainLink2}
+            kind="link"
+            label={stringField(record, "label") ?? href}
+            title={href}
+          />
+        );
+      }
+
+      const path = stringField(record, "path");
+      return (
+        <AtomChip
+          key={key}
+          dataType="mentionNode"
+          detail={lineRangeFromRecord(record)}
+          kind="mention"
+          label={stringField(record, "label") ?? (path ? basenameOfPath(path) : "@")}
+          path={path}
+          title={path}
+        />
+      );
+    }
+    case "commandNode": {
+      const name = stringField(record, "name");
+      return (
+        <AtomChip
+          key={key}
+          dataType="commandNode"
+          kind="command"
+          label={name ? `/${name}` : "/"}
+          title={stringField(record, "content")}
+        />
+      );
+    }
+    case "skillNode": {
+      const name = stringField(record, "name");
+      return (
+        <AtomChip
+          key={key}
+          dataType="skillNode"
+          icon={IconBuildingBlocks}
+          kind="skill"
+          label={stringField(record, "label") ?? (name ? `$${name}` : "$")}
+          title={stringField(record, "description") ?? stringField(record, "path")}
+        />
+      );
+    }
+    case "inlineTokenNode":
+      return (
+        <AtomChip
+          key={key}
+          dataType="inlineTokenNode"
+          icon={IconCode}
+          kind="inline-token"
+          label={stringField(record, "label") ?? stringField(record, "sourceUri") ?? "token"}
+          title={stringField(record, "sourceUri") ?? stringField(record, "markdown")}
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+function AtomChip({
+  dataType,
+  detail,
+  href,
+  icon: Icon,
+  kind,
+  label,
+  path,
+  title,
+}: {
+  dataType: string;
+  detail?: string | null;
+  href?: string | null;
+  icon?: ComponentType<CentralIconBaseProps> | null;
+  kind: AtomChipKind;
+  label: string;
+  path?: string | null;
+  title?: string | null;
+}) {
+  const chipProps = {
+    ...stylex.props(
+      styles.chip,
+      kind === "command" || kind === "skill" ? styles.chipCommand : null,
+      kind === "link" ? styles.chipLink : null,
+      kind !== "command" && kind !== "skill" && kind !== "link" ? styles.chipMention : null,
+    ),
+    contentEditable: false,
+    "data-rich-text-atom-chip": kind,
+    "data-type": dataType,
+    spellCheck: false,
+    title: title ?? undefined,
+  };
+  const content = (
+    <>
+      <AtomChipIcon Icon={Icon} path={path} />
+      <span {...stylex.props(styles.chipLabel)}>{label}</span>
+      {detail ? <span {...stylex.props(styles.chipDetail)}>{detail}</span> : null}
+    </>
+  );
+
+  return href ? (
+    <a {...chipProps} href={href} rel="noreferrer" target="_blank">
+      {content}
+    </a>
+  ) : (
+    <span {...chipProps}>{content}</span>
+  );
+}
+
+function AtomChipIcon({
+  Icon,
+  path,
+}: {
+  Icon: ComponentType<CentralIconBaseProps> | null | undefined;
+  path: string | null | undefined;
+}) {
+  if (path) {
+    return (
+      <img
+        {...stylex.props(styles.chipFileIcon)}
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        src={getVscodeIconUrlForEntry(path, inferEntryKindFromPath(path), resolvedTheme())}
+      />
+    );
+  }
+
+  if (!Icon) {
+    return null;
+  }
+
+  return (
+    <span {...stylex.props(styles.chipIcon)} aria-hidden="true">
+      <Icon ariaHidden size="var(--honk-composer-chip-icon-size)" />
+    </span>
+  );
+}
+
+function lineRangeFromRecord(record: RichTextRecord | null): string | null {
+  if (!record) {
+    return null;
+  }
+  const lineStart = numberField(record, "lineStart");
+  const lineEnd = numberField(record, "lineEnd");
+  if (lineStart === null || lineEnd === null) {
+    return null;
+  }
+  return lineStart === lineEnd ? `:${lineStart}` : `:${lineStart}-${lineEnd}`;
 }
 
 function tiptapAtomText(record: RichTextRecord): string | null {
@@ -390,6 +838,13 @@ function safeHref(value: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+function resolvedTheme(): "dark" | "light" {
+  if (typeof document === "undefined") {
+    return "dark";
+  }
+  return document.documentElement.classList.contains("dark") ? "dark" : "light";
 }
 
 function asRecord(value: unknown): RichTextRecord | null {

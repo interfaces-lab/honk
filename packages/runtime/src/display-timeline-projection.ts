@@ -141,11 +141,14 @@ export function projectRuntimeDisplayTimeline(
     }
   }
 
-  return {
+  const projection = {
     threadId: input.threadId,
     runtimeSessionId: input.runtimeSessionId,
     items: mergeRuntimeDisplayTimelineItems([], items),
   };
+  return hasInterruptedTurnEvent(input.runtimeEvents ?? [])
+    ? pruneInactiveTimelineItems(projection, input.sessionTree, { pruneInactiveTurnItems: true })
+    : projection;
 }
 
 function activeSessionTreeEntryIds(
@@ -170,8 +173,7 @@ export function projectRuntimeDisplayTimelineEvent(
       }),
     input.sessionTree,
     {
-      pruneInactiveTurnItems:
-        input.event.type === "message.completed" && input.event.messageRole === "user",
+      pruneInactiveTurnItems: shouldPruneInactiveTurnItemsForEvent(input.event),
     },
   );
   const eventProjection = projectRuntimeDisplayTimeline({
@@ -193,6 +195,17 @@ export function projectRuntimeDisplayTimelineEvent(
     runtimeSessionId: previousTimeline.runtimeSessionId,
     items: mergeRuntimeDisplayTimelineItems(previousTimeline.items, eventItems),
   };
+}
+
+function shouldPruneInactiveTurnItemsForEvent(event: AgentRuntimeEvent): boolean {
+  return (
+    event.type === "turn.interrupted" ||
+    (event.type === "message.completed" && event.messageRole === "user")
+  );
+}
+
+function hasInterruptedTurnEvent(events: ReadonlyArray<AgentRuntimeEvent>): boolean {
+  return events.some((event) => event.type === "turn.interrupted");
 }
 
 function pruneInactiveTimelineItems(

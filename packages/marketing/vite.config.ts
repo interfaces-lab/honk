@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import stylex from "@stylexjs/unplugin";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
@@ -14,6 +15,7 @@ const latestReleaseDownloadBase = "https://github.com/interfaces-lab/honk/releas
 export default defineConfig({
   plugins: [
     tailwindcss(),
+    stylex.vite({ useCSSLayers: true }),
     tanstackStart(),
     nitro({
       routeRules: {
@@ -29,6 +31,9 @@ export default defineConfig({
     }),
     react(),
   ],
+  optimizeDeps: {
+    exclude: ["@honk/honkkit"],
+  },
   resolve: {
     alias: {
       "~": path.resolve(marketingDir, "../app/src"),

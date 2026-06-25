@@ -5,11 +5,9 @@ import {
   type ModelSelection,
   type ProjectScript,
   type ResolvedKeybindingsConfig,
-  type ScopedThreadRef,
   type ThreadId,
 } from "@honk/contracts";
 import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
-import { projectScriptCwd } from "@honk/shared/project-scripts";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { retainThreadDetailSubscription } from "../../../environments/runtime/service";
@@ -29,19 +27,14 @@ import {
   collectUserMessageBlobPreviewUrls,
   revokeUserMessagePreviewUrls,
 } from "../message/preview-url-lifecycle";
-import {
-  MAX_HIDDEN_MOUNTED_TERMINAL_THREADS,
-  reconcileMountedTerminalThreadIds,
-  type PullRequestDialogState,
-} from "./thread-lifecycle";
-import { type ThreadTerminalLaunchContext } from "../../../terminal-state-store";
-import { type TerminalLaunchContext } from "./persistent-thread-terminal-drawer";
+import { type PullRequestDialogState } from "./thread-lifecycle";
 import {
   acknowledgedThreadSendIntents,
   threadSendIntentMessages,
 } from "./thread-timeline-projector";
 import { readHonkRuntimeApi } from "../../../lib/honk-runtime-api";
 import { hydrateRuntimeThread } from "../../../lib/runtime-turn-dispatch";
+import { readLocalFeatureFlags } from "~/stores/local-feature-flags";
 
 const RUNTIME_HYDRATION_IDLE_TIMEOUT_MS = 1200;
 const RUNTIME_THREAD_FOCUS_RELEASE_DELAY_MS = 100;
@@ -66,36 +59,6 @@ type WindowWithRuntimeThreadFocusRegistry = Window & {
  * route kinds resets the effect cleanly. The components return `null` and only
  * exist to scope effects under a keyed identity.
  */
-
-export function MountedTerminalThreadsSync({
-  activeThreadKey,
-  existingOpenTerminalThreadKeys,
-  setMountedTerminalThreadKeys,
-  terminalOpen,
-}: {
-  activeThreadKey: string | null;
-  existingOpenTerminalThreadKeys: readonly string[];
-  setMountedTerminalThreadKeys: Dispatch<SetStateAction<string[]>>;
-  terminalOpen: boolean;
-}) {
-  useMountEffect(() => {
-    setMountedTerminalThreadKeys((currentThreadIds) => {
-      const nextThreadIds = reconcileMountedTerminalThreadIds({
-        currentThreadIds,
-        openThreadIds: existingOpenTerminalThreadKeys,
-        activeThreadId: activeThreadKey,
-        activeThreadTerminalOpen: Boolean(activeThreadKey && terminalOpen),
-        maxHiddenThreadCount: MAX_HIDDEN_MOUNTED_TERMINAL_THREADS,
-      });
-      return currentThreadIds.length === nextThreadIds.length &&
-        currentThreadIds.every((nextThreadId, index) => nextThreadId === nextThreadIds[index])
-        ? currentThreadIds
-        : nextThreadIds;
-    });
-  });
-
-  return null;
-}
 
 export function RetainServerThreadDetailSync({
   environmentId,
@@ -313,14 +276,12 @@ export function ActiveThreadUiResetSync({
 export function ActiveThreadComposerFocusSync({
   activeThreadId,
   focusComposer,
-  terminalOpen,
 }: {
   activeThreadId: ThreadId | null;
   focusComposer: () => void;
-  terminalOpen: boolean;
 }) {
   useMountEffect(() => {
-    if (!activeThreadId || terminalOpen) return;
+    if (!activeThreadId) return;
     const frame = window.requestAnimationFrame(() => {
       focusComposer();
     });
@@ -393,197 +354,16 @@ export function ThreadMediaResetSync({
   return null;
 }
 
-export function TerminalLaunchActiveThreadSync({
-  activeThreadId,
-  routeThreadRef,
-  setTerminalLaunchContext,
-  storeClearTerminalLaunchContext,
-}: {
-  activeThreadId: ThreadId | null;
-  routeThreadRef: ScopedThreadRef;
-  setTerminalLaunchContext: Dispatch<SetStateAction<TerminalLaunchContext | null>>;
-  storeClearTerminalLaunchContext: (threadRef: ScopedThreadRef) => void;
-}) {
-  useMountEffect(() => {
-    if (!activeThreadId) {
-      setTerminalLaunchContext(null);
-      storeClearTerminalLaunchContext(routeThreadRef);
-      return;
-    }
-    setTerminalLaunchContext((current) => {
-      if (!current) return current;
-      if (current.threadId === activeThreadId) return current;
-      return null;
-    });
-  });
-
-  return null;
-}
-
-export function TerminalLaunchLocalSettledSync({
-  activeProjectCwd,
-  activeThreadId,
-  activeThreadRef,
-  activeThreadWorktreePath,
-  setTerminalLaunchContext,
-  storeClearTerminalLaunchContext,
-}: {
-  activeProjectCwd: string | null;
-  activeThreadId: ThreadId | null;
-  activeThreadRef: ScopedThreadRef | null;
-  activeThreadWorktreePath: string | null;
-  setTerminalLaunchContext: Dispatch<SetStateAction<TerminalLaunchContext | null>>;
-  storeClearTerminalLaunchContext: (threadRef: ScopedThreadRef) => void;
-}) {
-  useMountEffect(() => {
-    if (!activeThreadId || !activeProjectCwd) {
-      return;
-    }
-    setTerminalLaunchContext((current) => {
-      if (!current || current.threadId !== activeThreadId) {
-        return current;
-      }
-      const settledCwd = projectScriptCwd({
-        project: { cwd: activeProjectCwd },
-        worktreePath: activeThreadWorktreePath,
-      });
-      if (settledCwd === current.cwd && activeThreadWorktreePath === current.worktreePath) {
-        if (activeThreadRef) {
-          storeClearTerminalLaunchContext(activeThreadRef);
-        }
-        return null;
-      }
-      return current;
-    });
-  });
-
-  return null;
-}
-
-export function TerminalLaunchStoredSettledSync({
-  activeProjectCwd,
-  activeThreadId,
-  activeThreadRef,
-  activeThreadWorktreePath,
-  storeClearTerminalLaunchContext,
-  storeServerTerminalLaunchContext,
-}: {
-  activeProjectCwd: string | null;
-  activeThreadId: ThreadId | null;
-  activeThreadRef: ScopedThreadRef | null;
-  activeThreadWorktreePath: string | null;
-  storeClearTerminalLaunchContext: (threadRef: ScopedThreadRef) => void;
-  storeServerTerminalLaunchContext: ThreadTerminalLaunchContext | null;
-}) {
-  useMountEffect(() => {
-    if (!activeThreadId || !activeProjectCwd || !storeServerTerminalLaunchContext) {
-      return;
-    }
-    const settledCwd = projectScriptCwd({
-      project: { cwd: activeProjectCwd },
-      worktreePath: activeThreadWorktreePath,
-    });
-    if (
-      settledCwd === storeServerTerminalLaunchContext.cwd &&
-      activeThreadWorktreePath === storeServerTerminalLaunchContext.worktreePath
-    ) {
-      if (activeThreadRef) {
-        storeClearTerminalLaunchContext(activeThreadRef);
-      }
-    }
-  });
-
-  return null;
-}
-
-export function TerminalLaunchClosedSync({
-  activeThreadId,
-  activeThreadRef,
-  setTerminalLaunchContext,
-  storeClearTerminalLaunchContext,
-  terminalOpen,
-}: {
-  activeThreadId: ThreadId | null;
-  activeThreadRef: ScopedThreadRef | null;
-  setTerminalLaunchContext: Dispatch<SetStateAction<TerminalLaunchContext | null>>;
-  storeClearTerminalLaunchContext: (threadRef: ScopedThreadRef) => void;
-  terminalOpen: boolean;
-}) {
-  useMountEffect(() => {
-    if (terminalOpen) {
-      return;
-    }
-    if (activeThreadRef) {
-      storeClearTerminalLaunchContext(activeThreadRef);
-    }
-    setTerminalLaunchContext((current) => (current?.threadId === activeThreadId ? null : current));
-  });
-
-  return null;
-}
-
-export function TerminalOpenFocusSync({
-  activeThreadKey,
-  focusComposer,
-  setTerminalFocusRequestId,
-  terminalOpen,
-  terminalOpenByThreadRef,
-}: {
-  activeThreadKey: string | null;
-  focusComposer: () => void;
-  setTerminalFocusRequestId: Dispatch<SetStateAction<number>>;
-  terminalOpen: boolean;
-  terminalOpenByThreadRef: RefObject<Record<string, boolean>>;
-}) {
-  useMountEffect(() => {
-    if (!activeThreadKey) return;
-    const previous = terminalOpenByThreadRef.current[activeThreadKey] ?? false;
-    const current = terminalOpen;
-
-    if (!previous && current) {
-      terminalOpenByThreadRef.current[activeThreadKey] = current;
-      setTerminalFocusRequestId((value) => value + 1);
-      return;
-    } else if (previous && !current) {
-      terminalOpenByThreadRef.current[activeThreadKey] = current;
-      const frame = window.requestAnimationFrame(() => {
-        focusComposer();
-      });
-      return () => {
-        window.cancelAnimationFrame(frame);
-      };
-    }
-
-    terminalOpenByThreadRef.current[activeThreadKey] = current;
-  });
-
-  return null;
-}
-
 export function ChatViewKeyboardShortcutsSync({
   activeProjectScripts,
   activeThreadId,
-  closeTerminal,
-  createNewTerminal,
   keybindings,
   runProjectScript,
-  setTerminalOpen,
-  splitTerminal,
-  terminalActiveTerminalId,
-  terminalOpen,
-  toggleTerminalVisibility,
 }: {
   activeProjectScripts: readonly ProjectScript[] | null;
   activeThreadId: ThreadId | null;
-  closeTerminal: (terminalId: string) => void;
-  createNewTerminal: () => void;
   keybindings: ResolvedKeybindingsConfig;
   runProjectScript: (script: ProjectScript) => void | Promise<void>;
-  setTerminalOpen: (open: boolean) => void;
-  splitTerminal: () => void;
-  terminalActiveTerminalId: string;
-  terminalOpen: boolean;
-  toggleTerminalVisibility: () => void;
 }) {
   useMountEffect(() => {
     const handler = (event: globalThis.KeyboardEvent) => {
@@ -593,7 +373,7 @@ export function ChatViewKeyboardShortcutsSync({
       const shortcutContext = {
         composerFocus: hasFocusedComposerInteractionModeTarget(),
         terminalFocus: isTerminalFocused(),
-        terminalOpen,
+        terminalOpen: false,
       };
 
       const command = resolveShortcutCommand(event, keybindings, {
@@ -610,44 +390,15 @@ export function ChatViewKeyboardShortcutsSync({
 
       const interactionModeCommand = interactionModeFromKeybindingCommand(command);
       if (interactionModeCommand) {
+        if (
+          interactionModeCommand === "multitask" &&
+          !readLocalFeatureFlags().multitaskModeEnabled
+        ) {
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
         setFocusedComposerInteractionMode(interactionModeCommand, { focusMode: "preserve" });
-        return;
-      }
-
-      if (command === "terminal.toggle") {
-        event.preventDefault();
-        event.stopPropagation();
-        toggleTerminalVisibility();
-        return;
-      }
-
-      if (command === "terminal.split") {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!terminalOpen) {
-          setTerminalOpen(true);
-        }
-        splitTerminal();
-        return;
-      }
-
-      if (command === "terminal.close") {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!terminalOpen) return;
-        closeTerminal(terminalActiveTerminalId);
-        return;
-      }
-
-      if (command === "terminal.new") {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!terminalOpen) {
-          setTerminalOpen(true);
-        }
-        createNewTerminal();
         return;
       }
 

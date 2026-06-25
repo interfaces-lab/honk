@@ -23,7 +23,7 @@ import {
   type FauxModelDefinition,
   type FauxResponseStep,
   type Model,
-} from "@earendil-works/pi-ai/base";
+} from "@earendil-works/pi-ai";
 import { ThreadAgentRuntime, type SendMessageOptions } from "../src/thread-agent-runtime";
 
 export const EMPTY_SEND_MESSAGE_OPTIONS = {
@@ -101,6 +101,8 @@ export async function createRuntimeHarness(
     readonly tempDir?: string;
     readonly threadId?: ThreadId;
     readonly removeTempDirOnCleanup?: boolean;
+    readonly provider?: string;
+    readonly api?: string;
     readonly models?: readonly FauxModelDefinition[];
     readonly customTools?: readonly ToolDefinition[];
     readonly tools?: readonly string[];
@@ -115,7 +117,11 @@ export async function createRuntimeHarness(
     join(tmpdir(), `honk-runtime-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(tempDir, { recursive: true });
 
-  const faux = createRuntimeFauxProvider(options.models ? { models: [...options.models] } : {});
+  const faux = createRuntimeFauxProvider({
+    ...(options.models ? { models: [...options.models] } : {}),
+    ...(options.provider ? { provider: options.provider } : {}),
+    ...(options.api ? { api: options.api } : {}),
+  });
   faux.setResponses([]);
   const model = faux.getModel();
   if (!model) throw new Error("Expected faux model");
@@ -184,10 +190,12 @@ export function registerFauxInModelRegistry(
 }
 
 export function createRuntimeFauxProvider(options: {
+  readonly provider?: string;
+  readonly api?: string;
   readonly models?: readonly FauxModelDefinition[];
 }): RuntimeFauxProvider {
-  const api = "faux";
-  const provider = "faux";
+  const api = options.api ?? "faux";
+  const provider = options.provider ?? "faux";
   const definitions = options.models?.length ? options.models : [{ id: "faux-1" }];
   const models = definitions.map((definition) => ({
     id: definition.id,

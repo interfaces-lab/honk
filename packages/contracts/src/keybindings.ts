@@ -32,14 +32,11 @@ export const COMPOSER_MODE_KEYBINDING_COMMANDS = [
   "composer.mode.ask",
   "composer.mode.plan",
   "composer.mode.debug",
+  "composer.mode.multitask",
 ] as const;
 export type ComposerModeKeybindingCommand = (typeof COMPOSER_MODE_KEYBINDING_COMMANDS)[number];
 
 const STATIC_KEYBINDING_COMMANDS = [
-  "terminal.toggle",
-  "terminal.split",
-  "terminal.new",
-  "terminal.close",
   "threadTree.toggle",
   "commandPalette.toggle",
   "composer.cycleInteractionMode",

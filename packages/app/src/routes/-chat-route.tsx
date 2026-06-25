@@ -16,7 +16,6 @@ import {
 } from "~/lib/chat-thread-actions";
 import { isTerminalFocused } from "~/lib/terminal-focus";
 import { resolveShortcutCommand } from "~/keybindings";
-import { selectThreadTerminalState, useTerminalStateStore } from "~/terminal-state-store";
 import { useThreadSelectionStore } from "~/stores/thread-selection-store";
 import { readSettings } from "~/hooks/use-settings";
 import { useServerKeybindings } from "~/rpc/server-state";
@@ -46,20 +45,12 @@ function ChatRouteGlobalShortcuts() {
     const onWindowKeyDown = (event: KeyboardEvent) => {
       const values = shortcutValuesRef.current;
       if (event.defaultPrevented) return;
-      const routeTarget = routeTargetRef.current;
-      const terminalOpen =
-        routeTarget?.kind === "server"
-          ? selectThreadTerminalState(
-              useTerminalStateStore.getState().terminalStateByThreadKey,
-              routeTarget.threadRef,
-            ).terminalOpen
-          : false;
       const threadSelection = useThreadSelectionStore.getState();
       const selectedThreadKeysSize = threadSelection.selectedThreadKeys.size;
       const command = resolveShortcutCommand(event, values.keybindings, {
         context: {
           terminalFocus: isTerminalFocused(),
-          terminalOpen,
+          terminalOpen: false,
           threadSelectionActive: selectedThreadKeysSize > 0,
         },
       });

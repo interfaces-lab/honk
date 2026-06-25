@@ -1219,6 +1219,83 @@ describe("runtime display timeline projection", () => {
     ]);
   });
 
+  it("prunes interrupted live turn items when the session tree leaf rolls back", () => {
+    const activeTree = sessionTree([
+      {
+        id: RuntimeItemId.make("runtime:first-user-entry"),
+        threadEntryId: ThreadEntryId.make("thread-entry:first-user"),
+        parentId: null,
+        parentThreadEntryId: null,
+        kind: "message",
+        role: "user",
+        clientMessageId: MessageId.make("client:first-turn"),
+        turnId,
+        text: "First prompt",
+        createdAt,
+        rawEntry: { type: "message" },
+      },
+      {
+        id: RuntimeItemId.make("runtime:first-assistant-entry"),
+        threadEntryId: ThreadEntryId.make("thread-entry:first-assistant"),
+        parentId: RuntimeItemId.make("runtime:first-user-entry"),
+        parentThreadEntryId: ThreadEntryId.make("thread-entry:first-user"),
+        kind: "message",
+        role: "assistant",
+        turnId,
+        text: "First turn summary.",
+        createdAt: "2026-06-05T20:30:01.000Z",
+        rawEntry: { type: "message" },
+      },
+    ]);
+    const interruptedTool = runtimeEvent({
+      id: "runtime-event:interrupted-tool-started",
+      type: "tool.started",
+      summary: "Started command",
+      turnId: secondTurnId,
+      createdAt: "2026-06-05T20:30:02.000Z",
+      data: {
+        toolCallId: "toolu-interrupted",
+        toolName: "bash",
+        args: { command: "sleep 30" },
+      },
+    });
+    const interrupted = runtimeEvent({
+      id: "runtime-event:turn-interrupted",
+      type: "turn.interrupted",
+      summary: "Turn interrupted",
+      turnId: secondTurnId,
+      createdAt: "2026-06-05T20:30:03.000Z",
+      data: {},
+    });
+
+    const fullProjection = projectRuntimeDisplayTimeline({
+      threadId,
+      runtimeSessionId,
+      sessionTree: activeTree,
+      runtimeEvents: [interruptedTool, interrupted],
+    });
+    const liveProjection = projectRuntimeDisplayTimeline({
+      threadId,
+      runtimeSessionId,
+      sessionTree: activeTree,
+      runtimeEvents: [interruptedTool],
+    });
+    const incrementalProjection = projectRuntimeDisplayTimelineEvent({
+      previousTimeline: liveProjection,
+      threadId,
+      runtimeSessionId,
+      sessionTree: activeTree,
+      event: interrupted,
+    });
+
+    expect(liveProjection.items.map((item) => item.id)).toContain("tool:toolu-interrupted");
+    expect(fullProjection.items.map((item) => item.id)).toEqual([
+      "message:client:first-turn",
+      "message:runtime:first-assistant-entry",
+    ]);
+    expect(incrementalProjection).toEqual(fullProjection);
+  });
+
   it("merges the synthetic prompt user event with Pi's user lifecycle for the same turn", () => {
     const clientMessageId = MessageId.make("client:first-hi");
     const events = [

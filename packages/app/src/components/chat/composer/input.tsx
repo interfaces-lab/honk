@@ -32,6 +32,7 @@ import { Switch } from "@honk/honkkit/switch";
 import { workbenchChromeTextControlVariants } from "@honk/honkkit/workbench-chrome-row";
 import {
   IconArrowUp,
+  IconAgentNetwork,
   IconBug,
   IconBubbleQuestion,
   IconCheckmark1,
@@ -121,6 +122,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { runtimeSkillsQueryOptions } from "~/lib/runtime-skills";
 import { projectSearchEntriesQueryOptions } from "~/lib/project-react-query";
 import { useAgentRuntimeStore } from "~/stores/agent-runtime-store";
+import { useLocalFeatureFlagsStore } from "~/stores/local-feature-flags";
 import {
   AGENT_MODE_LABELS,
   AGENT_MODE_THINKING_LEVELS,
@@ -143,12 +145,12 @@ export type {
 } from "./input-contract";
 
 const composerEditorClass = cva(
-  "block w-full min-w-0 overflow-y-auto whitespace-pre-wrap wrap-break-word bg-transparent text-honk-fg-secondary outline-hidden",
+  "block w-full min-w-0 overflow-y-auto whitespace-pre-wrap wrap-break-word bg-transparent text-honk-fg-primary outline-hidden",
   {
     variants: {
       mode: {
         "new-agent": "min-h-0 px-0 py-0",
-        "thread-multiline": "min-w-0 px-3 pt-2",
+        "thread-multiline": "min-w-0",
         "thread-pill": "flex-1 pl-1",
         "inline-edit": "min-h-5 max-h-60 px-3 py-2",
       },
@@ -256,6 +258,8 @@ const interactionModeChipClass = cva(
         plan: "bg-(--composer-mode-plan-background) text-(--composer-mode-plan-text) hover:bg-[color-mix(in_srgb,var(--composer-mode-plan-background)_82%,var(--vscode-list-hoverBackground))]",
         debug:
           "bg-(--composer-mode-debug-background) text-(--composer-mode-debug-text) hover:bg-[color-mix(in_srgb,var(--composer-mode-debug-background)_78%,var(--vscode-list-hoverBackground))]",
+        multitask:
+          "bg-(--composer-mode-multitask-background) text-(--composer-mode-multitask-text) hover:bg-[color-mix(in_srgb,var(--composer-mode-multitask-background)_78%,var(--vscode-list-hoverBackground))]",
       },
     },
   },
@@ -284,6 +288,12 @@ function getInteractionModeChipConfig(mode: ActiveComposerInteractionMode): {
         label: "Debug",
         title: "Debug mode - click to return to Build",
         Icon: IconBug,
+      };
+    case "multitask":
+      return {
+        label: "Multitask",
+        title: "Multitask mode - click to return to Build",
+        Icon: IconAgentNetwork,
       };
   }
 }
@@ -1066,7 +1076,13 @@ function ComposerCommandMenuPointerDismissSync({
 }
 
 function parseInteractionMode(value: string | null | undefined): AgentInteractionMode | null {
-  if (value === "agent" || value === "ask" || value === "plan" || value === "debug") {
+  if (
+    value === "agent" ||
+    value === "ask" ||
+    value === "plan" ||
+    value === "debug" ||
+    value === "multitask"
+  ) {
     return value;
   }
   return null;
@@ -1517,6 +1533,11 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
     const isInlineEditComposer = layout === "inline-edit";
     const isNewAgentComposer = layout === "new-agent";
     const composerVariant = variant;
+    const multitaskModeEnabled = useLocalFeatureFlagsStore(
+      (state) => state.multitaskModeEnabled,
+    );
+    const effectiveInteractionMode =
+      interactionMode === "multitask" && !multitaskModeEnabled ? "agent" : interactionMode;
     const showModeControls = !isInlineEditComposer && !isEditingQueuedComposerItem;
     const allowThreadActionSlashCommands = showModeControls;
 
@@ -1808,7 +1829,7 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
       prompt: string,
     ): ActiveComposerInteractionMode | null => {
       const usage = syncModeSuggestionUsageForPrompt(prompt);
-      return suggestedComposerInteractionMode({ interactionMode, prompt, usage });
+      return suggestedComposerInteractionMode({ interactionMode: effectiveInteractionMode, prompt, usage });
     };
 
     const consumeInteractionModeSuggestion = (): ActiveComposerInteractionMode | null => {
@@ -1826,7 +1847,8 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
     const cycleInteractionMode = (focusMode: ComposerInteractionModeFocusMode = "preserve") => {
       const suggestedMode = consumeInteractionModeSuggestion();
       handleInteractionModeChange(
-        suggestedMode ?? nextComposerInteractionMode(interactionMode),
+        suggestedMode ??
+          nextComposerInteractionMode(effectiveInteractionMode, { multitaskModeEnabled }),
         focusMode,
       );
     };
@@ -1940,6 +1962,7 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
       agentMode: surfaceAgentMode,
       allowModeSlashCommands: true,
       allowThreadActionSlashCommands,
+      multitaskModeEnabled,
       composerTrigger,
       environmentId,
       expandedSections: expandedComposerMenuSections,
@@ -2627,6 +2650,9 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
       }
       const interactionModeCommand = interactionModeFromKeybindingCommand(command);
       if (interactionModeCommand) {
+        if (interactionModeCommand === "multitask" && !multitaskModeEnabled) {
+          return false;
+        }
         handleInteractionModeChange(interactionModeCommand, "preserve");
         return true;
       }
@@ -2781,14 +2807,14 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
       hasQueuedComposerItems && !isComposerApprovalState && pendingUserInputs.length === 0;
     const showQueuedComposerPanel = showQueuedComposerItems && !isInlineEditComposer;
     const activeComposerInteractionMode: ActiveComposerInteractionMode | null =
-      showModeControls && interactionMode !== "agent" ? interactionMode : null;
+      showModeControls && effectiveInteractionMode !== "agent" ? effectiveInteractionMode : null;
     const activeModeSuggestionUsage =
       modeSuggestionUsageRef.current.prompt === livePrompt
         ? modeSuggestionUsageRef.current
         : createComposerModeSuggestionUsage(livePrompt);
     const activeInteractionModeSuggestion = showModeControls
       ? suggestedComposerInteractionMode({
-          interactionMode,
+          interactionMode: effectiveInteractionMode,
           prompt: livePrompt,
           usage: activeModeSuggestionUsage,
         })
@@ -2976,7 +3002,7 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
                   "relative min-w-0 cursor-text select-text",
                   composerEditorMode === "inline-edit" && "min-h-5",
                   composerEditorMode === "thread-pill" && "min-w-0 flex-1",
-                  composerEditorMode === "thread-multiline" && "min-h-5 min-w-0 px-3 pt-2",
+                  composerEditorMode === "thread-multiline" && "min-h-5 min-w-0",
                   composerEditorMode === "new-agent" && "flex min-h-0 min-w-0 flex-1 flex-col",
                 )}
                 onClick={handleComposerContainerClick}
@@ -3018,12 +3044,14 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
                             ? "Editing queued message..."
                             : isInlineEditComposer
                               ? "Edit message"
-                              : interactionMode === "ask"
+                              : effectiveInteractionMode === "ask"
                                 ? "Ask questions without making changes..."
-                                : interactionMode === "plan"
+                                : effectiveInteractionMode === "plan"
                                   ? "Create a plan..."
-                                  : interactionMode === "debug"
+                                  : effectiveInteractionMode === "debug"
                                     ? "Inspect failures and gather diagnostics..."
+                                    : effectiveInteractionMode === "multitask"
+                                      ? "Coordinate background subagents..."
                                     : phase === "disconnected"
                                       ? "Ask for follow-up changes or attach images"
                                       : composerVariant === "compact"

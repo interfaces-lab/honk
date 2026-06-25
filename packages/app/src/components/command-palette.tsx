@@ -6,6 +6,7 @@ import { normalizePathSeparators } from "@honk/shared/paths";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
   IconCode,
+  IconAgentNetwork,
   IconChevronLeftMedium,
   IconChevronRightMedium,
   IconAgent,
@@ -51,7 +52,7 @@ import {
 } from "../stores/thread-store";
 import { selectThreadWorkspaceSurfaceByRef } from "../stores/thread-selectors";
 import { useComposerDraftStore } from "../stores/chat-drafts";
-import { selectThreadTerminalState, useTerminalStateStore } from "../terminal-state-store";
+import { useLocalFeatureFlagsStore } from "../stores/local-feature-flags";
 import { workbenchTabPersistenceActions } from "../stores/workbench-tab-store";
 import { openThread } from "~/app/chat-navigation";
 import { useChatRouteTarget } from "~/app/chat-route-state";
@@ -183,7 +184,7 @@ function shortcutLabelParts(label: string): ShortcutLabelPart[] {
 function CommandPaletteResults(props: CommandPaletteResultsProps) {
   if (props.groups.length === 0) {
     return (
-      <div className="py-8 text-center font-honk text-body text-muted-foreground">
+      <div className="py-12 text-center font-honk text-sm font-normal text-muted-foreground">
         {props.isActionsOnly
           ? "No matching actions."
           : "No matching commands, projects, or threads."}
@@ -232,21 +233,22 @@ function CommandPaletteResultRow(props: {
         props.onExecuteItem(props.item);
       }}
     >
-      {props.item.icon}
       {props.item.description ? (
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-body text-honk-fg-primary">{props.item.title}</span>
-          <span className="truncate text-detail text-honk-fg-tertiary">
+          <span className="truncate text-sm font-normal text-honk-fg-primary">
+            {props.item.title}
+          </span>
+          <span className="truncate text-xs font-normal text-honk-fg-tertiary">
             {props.item.description}
           </span>
         </span>
       ) : (
-        <span className="flex min-w-0 items-center gap-1.5 truncate text-body text-honk-fg-primary">
+        <span className="flex min-w-0 items-center gap-1.5 truncate text-sm font-normal text-honk-fg-primary">
           <span className="truncate">{props.item.title}</span>
         </span>
       )}
       {props.item.timestamp ? (
-        <span className="min-w-12 shrink-0 text-right text-caption tabular-nums text-honk-fg-tertiary">
+        <span className="min-w-12 shrink-0 text-right text-xs font-normal tabular-nums text-honk-fg-tertiary">
           {props.item.timestamp}
         </span>
       ) : null}
@@ -258,7 +260,7 @@ function CommandPaletteResultRow(props: {
         </CommandShortcut>
       ) : null}
       {props.item.kind === "submenu" ? (
-        <IconChevronRightMedium className="ml-auto size-4 shrink-0 text-honk-icon-tertiary" />
+        <IconChevronRightMedium className="ml-auto size-4.5 shrink-0 text-honk-icon-tertiary" />
       ) : null}
     </CommandItem>
   );
@@ -274,30 +276,20 @@ export function CommandPalette({ children }: { children: ReactNode }) {
   const composerHandleRef = useRef<ComposerInputHandle | null>(null);
   const keybindingsRef = useRef(keybindings);
   const routerRef = useRef(router);
-  const routeTargetRef = useRef(routeTarget);
   const toggleOpenRef = useRef(toggleOpen);
   const activeKeybindings =
     keybindings.length > 0 ? keybindings : COMMAND_PALETTE_FALLBACK_KEYBINDINGS;
   keybindingsRef.current = activeKeybindings;
   routerRef.current = router;
-  routeTargetRef.current = routeTarget;
   toggleOpenRef.current = toggleOpen;
 
   useMountEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented) return;
-      const routeTarget = routeTargetRef.current;
-      const terminalOpen =
-        routeTarget?.kind === "server"
-          ? selectThreadTerminalState(
-              useTerminalStateStore.getState().terminalStateByThreadKey,
-              routeTarget.threadRef,
-            ).terminalOpen
-          : false;
       const command = resolveShortcutCommand(event, keybindingsRef.current, {
         context: {
           terminalFocus: isTerminalFocused(),
-          terminalOpen,
+          terminalOpen: false,
         },
       });
       if (command !== "commandPalette.toggle") {
@@ -396,6 +388,12 @@ function OpenCommandPaletteDialog() {
   const availableEditors = useServerAvailableEditors();
   const serverConfig = useServerConfig();
   const observability = useServerObservability();
+  const multitaskModeEnabled = useLocalFeatureFlagsStore(
+    (state) => state.multitaskModeEnabled,
+  );
+  const toggleMultitaskModeEnabled = useLocalFeatureFlagsStore(
+    (state) => state.toggleMultitaskModeEnabled,
+  );
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const storeActiveEnvironmentId = useStore((state) => state.activeEnvironmentId);
 
@@ -848,6 +846,21 @@ function OpenCommandPaletteDialog() {
     },
   );
 
+  if (multitaskModeEnabled) {
+    actionItems.push({
+      kind: "action",
+      value: "action:composer-mode-multitask",
+      searchTerms: ["multitask mode", "background subagents", "composer mode"],
+      title: "Multitask Mode",
+      description: "Coordinate background subagents",
+      icon: <IconAgentNetwork className="size-4 text-honk-icon-tertiary" />,
+      shortcutCommand: keybindingCommandForInteractionMode("multitask"),
+      run: async () => {
+        setFocusedComposerInteractionMode("multitask", { focusMode: "preserve" });
+      },
+    });
+  }
+
   if (currentProjectCwd) {
     actionItems.push({
       kind: "action",
@@ -903,6 +916,30 @@ function OpenCommandPaletteDialog() {
     icon: <IconCode className="size-4 text-honk-icon-tertiary" />,
     run: async () => {
       workbenchTabPersistenceActions.activateDev(workspaceTarget.workspaceKey);
+    },
+  });
+
+  actionItems.push({
+    kind: "action",
+    value: "action:toggle-multitask-mode-feature",
+    searchTerms: [
+      "toggle multitask mode",
+      "multitask feature flag",
+      "background subagents",
+      "dev feature flag",
+    ],
+    title: multitaskModeEnabled ? "Disable Multitask Mode" : "Enable Multitask Mode",
+    description: "Local dev feature flag for background subagent coordination",
+    icon: <IconAgentNetwork className="size-4 text-honk-icon-tertiary" />,
+    run: async () => {
+      const enabled = toggleMultitaskModeEnabled();
+      toastManager.add({
+        type: "info",
+        title: enabled ? "Multitask Mode enabled" : "Multitask Mode disabled",
+        description: enabled
+          ? "The composer can now enter Multitask mode."
+          : "Multitask mode is hidden and sends as Agent mode.",
+      });
     },
   });
 
@@ -1078,7 +1115,7 @@ function OpenCommandPaletteDialog() {
             onKeyDown={handleKeyDown}
           />
         </div>
-        <CommandPanel className="max-h-[min(28rem,70vh)]">
+        <CommandPanel>
           <CommandPaletteResults
             groups={displayedGroups}
             isActionsOnly={isActionsOnly}

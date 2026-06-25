@@ -1,7 +1,10 @@
 import { EventId, TurnId, type OrchestrationThreadActivity } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
-import { deriveWorkLogEntries } from "./session-logic";
+import {
+  deriveWorkLogEntries,
+  deriveWorkLogSubagentsFromOrderedActivities,
+} from "./session-logic";
 
 const createdAt = "2026-06-05T20:00:00.000Z";
 const turnId = TurnId.make("turn:streaming-command");
@@ -269,5 +272,108 @@ describe("deriveWorkLogEntries", () => {
       }),
     );
     expect(entries[0]?.artifacts?.[0]).not.toHaveProperty("command");
+  });
+});
+
+describe("deriveWorkLogSubagentsFromOrderedActivities", () => {
+  it("keeps reasoning summaries at their own chronological position", () => {
+    const subagentThreadId = "thread:child";
+    const activities: OrchestrationThreadActivity[] = [
+      {
+        id: EventId.make("event:subagent-reasoning-started"),
+        kind: "subagent.item.started",
+        tone: "info",
+        summary: "Started reasoning",
+        turnId,
+        sequence: 1,
+        createdAt: "2026-06-05T20:00:01.000Z",
+        payload: {
+          subagentThreadId,
+          itemId: "reasoning:item",
+          itemType: "reasoning",
+          status: "running",
+          title: "Reasoning",
+        },
+      },
+      {
+        id: EventId.make("event:subagent-command-completed"),
+        kind: "subagent.item.completed",
+        tone: "info",
+        summary: "Ran command",
+        turnId,
+        sequence: 2,
+        createdAt: "2026-06-05T20:00:02.000Z",
+        payload: {
+          subagentThreadId,
+          itemId: "command:item",
+          itemType: "command_execution",
+          status: "completed",
+          title: "Ran command",
+          detail: "command output",
+          data: {
+            args: { command: "pnpm typecheck" },
+            result: { stdout: "command output" },
+          },
+        },
+      },
+      {
+        id: EventId.make("event:subagent-reasoning-summary"),
+        kind: "subagent.content.delta",
+        tone: "info",
+        summary: "Reasoning summary",
+        turnId,
+        sequence: 3,
+        createdAt: "2026-06-05T20:00:03.000Z",
+        payload: {
+          subagentThreadId,
+          itemId: "reasoning:item",
+          streamKind: "reasoning_summary_text",
+          summaryIndex: 0,
+          delta: "summary after the command",
+        },
+      },
+      {
+        id: EventId.make("event:subagent-reasoning-completed"),
+        kind: "subagent.item.completed",
+        tone: "info",
+        summary: "Completed reasoning",
+        turnId,
+        sequence: 4,
+        createdAt: "2026-06-05T20:00:04.000Z",
+        payload: {
+          subagentThreadId,
+          itemId: "reasoning:item",
+          itemType: "reasoning",
+          status: "completed",
+          title: "Reasoning",
+          detail: "summary after the command",
+        },
+      },
+    ];
+
+    const subagent = deriveWorkLogSubagentsFromOrderedActivities(activities, {
+      includeTranscript: true,
+    }).get(subagentThreadId);
+
+    const transcriptItems = subagent?.transcriptItems;
+    expect(transcriptItems).toEqual([
+      expect.objectContaining({
+        id: "reasoning:item",
+        itemId: "reasoning:item",
+      }),
+      expect.objectContaining({
+        id: "command:item",
+        itemId: "command:item",
+        kind: "command",
+      }),
+      expect.objectContaining({
+        itemId: "reasoning:item",
+        kind: "reasoning",
+        text: "summary after the command",
+        loading: false,
+        createdAt: "2026-06-05T20:00:03.000Z",
+      }),
+    ]);
+    expect(transcriptItems?.[0]?.text).toBeUndefined();
   });
 });

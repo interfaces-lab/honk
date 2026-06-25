@@ -1,10 +1,17 @@
 import { splitPromptIntoComposerSegments, type ComposerPromptSegment } from "./prompt-segments";
 
 export type ComposerTriggerKind = "path" | "slash-command";
-export type ComposerSlashCommand = "agent" | "ask" | "plan" | "debug" | "compact" | "goal";
+export type ComposerSlashCommand =
+  | "agent"
+  | "ask"
+  | "plan"
+  | "debug"
+  | "multitask"
+  | "compact"
+  | "goal";
 export type ComposerModeSlashCommand = Extract<
   ComposerSlashCommand,
-  "agent" | "ask" | "plan" | "debug"
+  "agent" | "ask" | "plan" | "debug" | "multitask"
 >;
 
 export interface ParsedStandaloneComposerSlashCommand {
@@ -282,6 +289,8 @@ function normalizeStandaloneComposerSlashCommand(command: string): ComposerSlash
       return "plan";
     case "debug":
       return "debug";
+    case "multitask":
+      return "multitask";
     case "compact":
       return "compact";
     case "goal":
@@ -294,7 +303,13 @@ function normalizeStandaloneComposerSlashCommand(command: string): ComposerSlash
 export function isComposerModeSlashCommand(
   command: ComposerSlashCommand,
 ): command is ComposerModeSlashCommand {
-  return command === "agent" || command === "ask" || command === "plan" || command === "debug";
+  return (
+    command === "agent" ||
+    command === "ask" ||
+    command === "plan" ||
+    command === "debug" ||
+    command === "multitask"
+  );
 }
 
 export function parseStandaloneComposerSlashCommand(

@@ -116,8 +116,6 @@ const styles = stylex.create({
     maxWidth: "100%",
     minWidth: 0,
     overflow: "hidden",
-    paddingBlock: "var(--honk-spacing-2)",
-    paddingInline: "var(--honk-spacing-2-5)",
     position: "relative",
     width: "100%",
     ":hover [data-message-actions]": {
@@ -136,11 +134,19 @@ const styles = stylex.create({
   media: {
     minWidth: 0,
   },
+  userContent: {
+    boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+    fontSize: "var(--conversation-text-font-size)",
+    gap: "var(--honk-spacing-1-5)",
+    minWidth: 0,
+    width: "100%",
+  },
   userBody: {
     color: "var(--honk-fg-primary)",
     display: "flex",
     flexDirection: "column",
-    fontSize: "var(--conversation-text-font-size)",
     lineHeight: "var(--conversation-text-leading)",
     minWidth: 0,
     overflowWrap: "anywhere",
@@ -233,6 +239,7 @@ export function ReadonlyActionChatMessageBubble({
 
 function UserMessageBubbleSurface(props: UserMessageBubbleSurfaceProps) {
   const readonlyAction = !props.editable && props.readonlyAction === true;
+  const userContentProps = stylex.props(styles.userContent);
   const editableProps = props.editable
     ? {
         role: "button" as const,
@@ -257,34 +264,41 @@ function UserMessageBubbleSurface(props: UserMessageBubbleSurfaceProps) {
           props.editable ? styles.userBubbleEditable : null,
           readonlyAction ? styles.userBubbleReadonlyAction : null,
         )}
+        data-message-bubble="user"
         data-message-bubble-surface=""
         data-editable={props.editable ? "true" : undefined}
         {...editableProps}
       >
-        {props.media ? (
-          <div
-            {...stylex.props(styles.media)}
-            role="presentation"
-            onClick={
-              props.editable
-                ? (event) => {
-                    event.stopPropagation();
-                  }
-                : undefined
-            }
-            onKeyDown={
-              props.editable
-                ? (event) => {
-                    event.stopPropagation();
-                  }
-                : undefined
-            }
-          >
-            {props.media}
-          </div>
-        ) : null}
-        <div {...stylex.props(styles.userBody)}>{props.body}</div>
-        {props.footer ? <div {...stylex.props(styles.userFooter)}>{props.footer}</div> : null}
+        <div
+          {...userContentProps}
+          className={`${userContentProps.className ?? ""} px-2.5 py-2`}
+          data-user-message-content=""
+        >
+          {props.media ? (
+            <div
+              {...stylex.props(styles.media)}
+              role="presentation"
+              onClick={
+                props.editable
+                  ? (event) => {
+                      event.stopPropagation();
+                    }
+                  : undefined
+              }
+              onKeyDown={
+                props.editable
+                  ? (event) => {
+                      event.stopPropagation();
+                    }
+                  : undefined
+              }
+            >
+              {props.media}
+            </div>
+          ) : null}
+          <div {...stylex.props(styles.userBody)}>{props.body}</div>
+          {props.footer ? <div {...stylex.props(styles.userFooter)}>{props.footer}</div> : null}
+        </div>
       </div>
     </div>
   );

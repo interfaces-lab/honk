@@ -1,6 +1,6 @@
 {
   "name": "@honk/contracts",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "private": true,
   "files": [
     "dist"
@@ -24,7 +24,7 @@
   "scripts": {
     "dev": "tsdown src/index.ts --format esm,cjs --dts --watch --clean",
     "build": "tsdown src/index.ts --format esm,cjs --dts --clean",
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "node ../../scripts/tsc-rc.mjs --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

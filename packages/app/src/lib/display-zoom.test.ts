@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   BASE_UI_FONT_PX,
+  TARGET_UI_TEXT_LINE_HEIGHT_PX,
   uiFontSizeToElectronZoomLevel,
+  uiFontSizeToNormalizedLineHeight,
   uiFontSizeToZoomFactor,
 } from "./display-zoom";
 
@@ -36,5 +38,22 @@ describe("uiFontSizeToElectronZoomLevel", () => {
 
   it("returns negative levels below base", () => {
     expect(uiFontSizeToElectronZoomLevel(11)).toBeLessThan(0);
+  });
+});
+
+describe("uiFontSizeToNormalizedLineHeight", () => {
+  it("keeps the base font near the target visual line height", () => {
+    expect(uiFontSizeToNormalizedLineHeight(BASE_UI_FONT_PX) * BASE_UI_FONT_PX).toBeCloseTo(
+      TARGET_UI_TEXT_LINE_HEIGHT_PX,
+      5,
+    );
+  });
+
+  it("accounts for display zoom from the font-size preference", () => {
+    const zoomFactor = uiFontSizeToZoomFactor(16);
+
+    expect(
+      uiFontSizeToNormalizedLineHeight(16) * BASE_UI_FONT_PX * zoomFactor,
+    ).toBeCloseTo(TARGET_UI_TEXT_LINE_HEIGHT_PX, 5);
   });
 });

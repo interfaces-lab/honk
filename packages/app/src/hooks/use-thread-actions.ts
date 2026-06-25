@@ -28,7 +28,6 @@ import {
   selectThreadsForEnvironment,
   useStore,
 } from "../stores/thread-store";
-import { useTerminalStateStore } from "../terminal-state-store";
 import { openChatIndex, openThread } from "~/app/chat-navigation";
 import { useRouteTarget } from "~/routes/-thread-route-targets";
 import {
@@ -268,7 +267,6 @@ export function useThreadActions() {
   const clearProjectDraftThreadById = useComposerDraftStore(
     (store) => store.clearProjectDraftThreadById,
   );
-  const clearTerminalState = useTerminalStateStore((state) => state.clearTerminalState);
   const markLocalRuntimeThread = useAgentRuntimeStore((store) => store.markLocalRuntimeThread);
   const clearLocalRuntimeThread = useAgentRuntimeStore((store) => store.clearLocalRuntimeThread);
   const router = useRouter();
@@ -685,8 +683,6 @@ export function useThreadActions() {
         threadRef,
       );
     }
-    clearTerminalState(threadRef);
-
     if (shouldNavigateToFallback) {
       if (fallbackThreadId) {
         const fallbackThread = selectThreadByRef(

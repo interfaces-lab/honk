@@ -24,4 +24,26 @@ describe("resolveSubagentProfile", () => {
     expect(profile.model).toBe("provider/model");
     expect(profile.tools).toEqual(["read", "grep"]);
   });
+
+  it("keeps reconnaissance specialists on true read-only tools", () => {
+    expect(resolveSubagentProfile({ name: "librarian" }).tools).toEqual([
+      "read",
+      "grep",
+      "find",
+      "ls",
+    ]);
+    expect(resolveSubagentProfile({ name: "oracle" }).tools).toEqual([
+      "read",
+      "grep",
+      "find",
+      "ls",
+    ]);
+  });
+
+  it("runs the librarian on GPT-5.5 medium by default", () => {
+    expect(resolveSubagentProfile({ name: "librarian" })).toMatchObject({
+      model: "openai-codex/gpt-5.5",
+      thinkingLevel: "medium",
+    });
+  });
 });

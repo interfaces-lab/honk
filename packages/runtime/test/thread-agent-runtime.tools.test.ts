@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { defineTool } from "@earendil-works/pi-coding-agent";
-import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai/base";
-import { Type } from "@earendil-works/pi-ai/base";
+import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
+import { Type } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AgentRuntimeEvent, RuntimeIngestionRecord } from "@honk/contracts";
 import { createDesktopAgentExtensionFactories } from "../src/desktop-agent-extensions";
@@ -352,12 +352,12 @@ describe("ThreadAgentRuntime tools", () => {
     const details = expectRecord(result.details);
     const runs = details.runs;
     const activities = details.activities;
-    const runningRunSnapshots = events
+    const pendingRunSnapshots = events
       .flatMap(subagentRunRecordsFromToolUpdate)
-      .filter((run) => run.state === "running");
+      .filter((run) => run.state === "queued" || run.state === "running");
 
-    expect(runningRunSnapshots.length).toBeGreaterThan(0);
-    expect(runningRunSnapshots.every((run) => run.finalText === null)).toBe(true);
+    expect(pendingRunSnapshots.length).toBeGreaterThan(0);
+    expect(pendingRunSnapshots.every((run) => run.finalText === null)).toBe(true);
     expect(Array.isArray(runs) ? runs[0] : undefined).toMatchObject({
       subagentThreadId: expect.stringContaining(":subagent:"),
       agentId: expect.stringContaining(":subagent:"),

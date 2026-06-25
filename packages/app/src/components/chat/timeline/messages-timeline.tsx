@@ -171,7 +171,8 @@ export function MessagesTimeline({
       return next;
     });
   };
-  const stickyUserRowIndices = rows.flatMap((row, index) => (isUserMessageRow(row) ? [index] : []));
+  const userRowIndices = rows.flatMap((row, index) => (isUserMessageRow(row) ? [index] : []));
+  const stickyUserRowIndices = userRowIndices;
   const scrollElementRef = useRef<HTMLDivElement | null>(null);
   const scrollFollowRef = useRef<TimelineScrollFollowState>({ pinned: true, atBottom: true });
   const lastUserScrollInputAtRef = useRef(0);
@@ -189,7 +190,7 @@ export function MessagesTimeline({
   const virtualizerBottomPadding = Math.max(0, Math.ceil(bottomClearancePx));
   disableAutoScrollRef.current = disableAutoScroll;
   isStreamingRef.current = isStreaming;
-  const lastHumanRowIndex = stickyUserRowIndices.at(-1) ?? null;
+  const lastHumanRowIndex = userRowIndices.at(-1) ?? null;
   const estimateRowHeight = (index: number) =>
     estimateVirtualTimelineRowSize(rows[index], expandedWorkGroupIds);
   const cachedVirtualizerSnapshot = timelineVirtualizerSnapshots.get(timelineCacheKey) ?? null;

@@ -24,17 +24,18 @@ import {
   ReadonlyActionChatMessageBubble,
 } from "./message-surface";
 import { UserMessageTurnError } from "./user-message-turn-error";
-import { HumanMessageCollapsible } from "./human-collapse";
+import { UserMessageCollapsible } from "./user-collapse";
 import {
   GIT_AGENT_ACTIONS,
   resolveGitAgentActionFromPrompt,
   type GitAgentAction,
 } from "~/lib/git-agent-actions";
-import { hasRenderableRichText, ReadonlyRichTextMessage } from "./rich-text-message";
+import { hasRenderableRichText, UserRichTextMessage } from "./rich-text-message";
 
 const TERMINAL_CONTEXT_HEADER_PATTERN = /^(.*?)\s+line(?:s)?\s+(\d+)(?:-(\d+))?$/i;
+const USER_MESSAGE_BODY_CLASS = "max-w-full min-w-0 break-words wrap-anywhere";
 
-interface HumanMessageProps {
+interface UserMessageProps {
   message: ChatMessage;
   editAvailable: boolean;
   isEditing: boolean;
@@ -45,7 +46,7 @@ interface HumanMessageProps {
   onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
 }
 
-export function HumanMessage({
+export function UserMessage({
   message,
   editAvailable,
   isEditing,
@@ -54,7 +55,7 @@ export function HumanMessage({
   editComposer,
   onImageExpand,
   onBeginEditUserMessage,
-}: HumanMessageProps) {
+}: UserMessageProps) {
   const userImages = message.attachments ?? [];
   const displayedUserMessage = deriveDisplayedUserMessageState(message.text);
   const terminalContexts = displayedUserMessage.contexts;
@@ -70,7 +71,7 @@ export function HumanMessage({
     userImages.length > 0 ? (
       <div className="mb-2 flex max-w-full flex-wrap gap-2">
         {userImages.map((image) => (
-          <HumanMessageImageAttachment
+          <UserMessageImageAttachment
             key={image.id}
             image={image}
             images={userImages}
@@ -86,7 +87,7 @@ export function HumanMessage({
       label={GIT_AGENT_ACTIONS[gitAgentAction].label}
     />
   ) : shouldRenderRichText ? (
-    <ReadonlyRichTextMessage
+    <UserRichTextMessage
       fallbackText={displayedUserMessage.visibleText}
       richText={message.richText}
     />
@@ -95,8 +96,8 @@ export function HumanMessage({
   ) : null;
 
   const body =
-    bodyInner && !isGitAgentActionMessage ? (
-      <HumanMessageCollapsible>{bodyInner}</HumanMessageCollapsible>
+    bodyInner && shouldUseUserMessageCollapse(displayedUserMessage.visibleText) ? (
+      <UserMessageCollapsible>{bodyInner}</UserMessageCollapsible>
     ) : (
       bodyInner
     );
@@ -136,7 +137,16 @@ export function HumanMessage({
   );
 }
 
-function HumanMessageImageAttachment(props: {
+function shouldUseUserMessageCollapse(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) {
+    return false;
+  }
+  const lineCount = trimmed.split(/\r?\n/).length;
+  return lineCount > 4 || trimmed.length > 360;
+}
+
+function UserMessageImageAttachment(props: {
   image: NonNullable<ChatMessage["attachments"]>[number];
   images: NonNullable<ChatMessage["attachments"]>;
   onImageExpand: (preview: ExpandedImagePreview) => void;
@@ -144,7 +154,7 @@ function HumanMessageImageAttachment(props: {
   const previewSrc = useAuthenticatedImagePreviewSrc(props.image.previewUrl);
 
   return (
-    <div className="size-14 shrink-0 overflow-hidden rounded-honk-control border border-honk-stroke-secondary bg-(--honk-message-bubble-background)">
+    <div className="size-14 shrink-0 overflow-hidden rounded-honk-control border border-honk-stroke-secondary bg-honk-bubble">
       {previewSrc ? (
         <Button
           type="button"
@@ -237,10 +247,6 @@ function formatInlineTerminalContextLabel(header: string): string {
   });
 }
 
-function findTextFrom(text: string, search: string, fromIndex: number): number {
-  return text.indexOf(search, fromIndex);
-}
-
 function textContainsInlineTerminalContextLabels(
   text: string,
   contexts: ReadonlyArray<{
@@ -251,7 +257,7 @@ function textContainsInlineTerminalContextLabels(
 
   for (const context of contexts) {
     const label = formatInlineTerminalContextLabel(context.header);
-    const matchIndex = findTextFrom(text, label, searchStartIndex);
+    const matchIndex = text.indexOf(label, searchStartIndex);
     if (matchIndex === -1) {
       return false;
     }
@@ -275,7 +281,7 @@ function UserMessageBody(props: { text: string; terminalContexts: ParsedTerminal
 
       for (const context of props.terminalContexts) {
         const label = formatInlineTerminalContextLabel(context.header);
-        const matchIndex = findTextFrom(props.text, label, cursor);
+        const matchIndex = props.text.indexOf(label, cursor);
         if (matchIndex === -1) {
           inlineNodes.length = 0;
           break;
@@ -305,7 +311,7 @@ function UserMessageBody(props: { text: string; terminalContexts: ParsedTerminal
           );
         }
 
-        return <div className="max-w-full min-w-0 break-words wrap-anywhere">{inlineNodes}</div>;
+        return <div className={USER_MESSAGE_BODY_CLASS}>{inlineNodes}</div>;
       }
     }
 
@@ -329,12 +335,12 @@ function UserMessageBody(props: { text: string; terminalContexts: ParsedTerminal
       return null;
     }
 
-    return <div className="max-w-full min-w-0 break-words wrap-anywhere">{inlineNodes}</div>;
+    return <div className={USER_MESSAGE_BODY_CLASS}>{inlineNodes}</div>;
   }
 
   if (props.text.length === 0) {
     return null;
   }
 
-  return <div className="max-w-full min-w-0 break-words wrap-anywhere">{props.text}</div>;
+  return <div className={USER_MESSAGE_BODY_CLASS}>{props.text}</div>;
 }

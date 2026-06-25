@@ -23,7 +23,6 @@ import {
   DEFAULT_PROJECTLESS_CWD,
 } from "@honk/contracts";
 import {
-  parseScopedThreadKey,
   scopedThreadKey,
   scopeProjectRef,
   scopeThreadRef,
@@ -87,7 +86,6 @@ import {
 import {
   selectProjectsAcrossEnvironments,
   selectThreadExistsByRef,
-  selectThreadKeysAcrossEnvironments,
   useStore,
 } from "../../../stores/thread-store";
 import {
@@ -102,6 +100,7 @@ import {
   selectRuntimeThreadActivity,
   useAgentRuntimeStore,
 } from "../../../stores/agent-runtime-store";
+import { useLocalFeatureFlagsStore } from "~/stores/local-feature-flags";
 import {
   normalizePlanMarkdownForExport,
   resolvePlanFollowUpSubmission,
@@ -109,7 +108,6 @@ import {
 import {
   DEFAULT_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
-  MAX_TERMINALS_PER_GROUP,
   type ChatMessage,
   type ProposedPlan,
   type Project,
@@ -119,8 +117,7 @@ import {
 } from "../../../types";
 import { useTheme } from "../../../hooks/use-theme";
 import { buildTemporaryWorktreeBranchName } from "@honk/shared/git";
-import { shortcutLabelForCommand } from "../../../keybindings";
-import { cn, randomUUID } from "~/lib/utils";
+import { cn } from "~/lib/utils";
 import { toastManager } from "~/app/toast";
 import ProjectScriptsControl, { type NewProjectScriptInput } from "../../project-scripts-control";
 import {
@@ -147,7 +144,6 @@ import {
 } from "../../../stores/chat-drafts";
 import { type QueuedComposerItem } from "../../../stores/chat-send-queue";
 import { ComposerPendingExtensionUiRequestPanel } from "../composer/pending/extension-ui-request-panel";
-import { selectThreadTerminalState, useTerminalStateStore } from "../../../terminal-state-store";
 import {
   readTerminalSessions,
   useActiveTab,
@@ -173,10 +169,6 @@ import { ExpandedImageDialog } from "../message/expanded-image-dialog";
 import { PullRequestThreadDialog } from "../../pull-request-thread-dialog";
 import { MessagesTimeline, type MessagesTimelineController } from "../timeline/messages-timeline";
 import { ChatHeader, type ChatHeaderTooltipDetails } from "./chat-header";
-import {
-  PersistentThreadTerminalDrawer,
-  type TerminalLaunchContext,
-} from "./persistent-thread-terminal-drawer";
 import {
   InlineMessageEditComposer,
   type InlineEditSubmitInput,
@@ -237,14 +229,8 @@ import {
   ActiveThreadUiResetSync,
   ChatViewKeyboardShortcutsSync,
   MarkSettledServerThreadVisitedSync,
-  MountedTerminalThreadsSync,
   RetainServerThreadDetailSync,
   RuntimeThreadHydrationSync,
-  TerminalLaunchActiveThreadSync,
-  TerminalLaunchClosedSync,
-  TerminalLaunchLocalSettledSync,
-  TerminalLaunchStoredSettledSync,
-  TerminalOpenFocusSync,
   ThreadMediaResetSync,
   ThreadSendIntentsServerAckSync,
 } from "./chat-view-lifecycle-sync";
@@ -269,7 +255,6 @@ const EMPTY_ACTIVITIES: OrchestrationThreadActivity[] = [];
 const EMPTY_PENDING_APPROVALS: PendingApproval[] = [];
 const EMPTY_THREAD_MESSAGES: ChatMessage[] = [];
 const EMPTY_TIMELINE_PROPOSED_PLANS: Thread["proposedPlans"] = [];
-const EMPTY_THREAD_KEYS: readonly string[] = [];
 const DOCKED_COMPOSER_TIMELINE_RESERVE_PX = 96;
 
 function MissingActiveThreadFallback(props: {
@@ -599,6 +584,9 @@ export default function ChatView(props: ChatViewProps) {
     routeKind === "server" ? store.threadLastVisitedAtById[routeThreadKey] : undefined,
   );
   const settings = useSettings();
+  const multitaskModeEnabled = useLocalFeatureFlagsStore(
+    (state) => state.multitaskModeEnabled,
+  );
   const workspaceProjects = useStore(useShallow(selectProjectsAcrossEnvironments));
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const {
@@ -721,12 +709,8 @@ export default function ChatView(props: ChatViewProps) {
   };
   const [isConnecting, _setIsConnecting] = useState(false);
   const [respondingRequestIds, setRespondingRequestIds] = useState<ApprovalRequestId[]>([]);
-  const [terminalFocusRequestId, setTerminalFocusRequestId] = useState(0);
   const [pullRequestDialogState, setPullRequestDialogState] =
     useState<PullRequestDialogState | null>(null);
-  const [terminalLaunchContext, setTerminalLaunchContext] = useState<TerminalLaunchContext | null>(
-    null,
-  );
   const [compactingThreadId, setCompactingThreadId] = useState<ThreadId | null>(null);
   const [lastInvokedScriptByProjectId, setLastInvokedScriptByProjectId] = useLocalStorage(
     LAST_INVOKED_SCRIPT_BY_PROJECT_KEY,
@@ -736,7 +720,6 @@ export default function ChatView(props: ChatViewProps) {
   const messagesTimelineControllerRef = useRef<MessagesTimelineController | null>(null);
   const isAtBottomRef = useRef(true);
   const sendInFlightRef = useRef(false);
-  const terminalOpenByThreadRef = useRef<Record<string, boolean>>({});
 
   const fallbackDraftProject = draftThread
     ? findWorkspaceProjectForSource(workspaceProjects, draftThread)
@@ -756,8 +739,12 @@ export default function ChatView(props: ChatViewProps) {
   const isServerThread =
     routeKind === "server" && serverThread !== undefined && !composerUsesLocalDraftThread;
   const activeThread = isServerThread ? serverThread : localDraftThread;
-  const interactionMode =
+  const rawInteractionMode =
     composerInteractionMode ?? activeThread?.interactionMode ?? DEFAULT_INTERACTION_MODE;
+  const interactionMode =
+    rawInteractionMode === "multitask" && !multitaskModeEnabled
+      ? DEFAULT_INTERACTION_MODE
+      : rawInteractionMode;
   const isLocalDraftThread = !isServerThread && localDraftThread !== undefined;
   const activeThreadId = activeThread?.id ?? null;
   // Scoped to this view's thread so tray activity elsewhere never re-renders it.
@@ -769,55 +756,6 @@ export default function ChatView(props: ChatViewProps) {
     isLocalDraftThread,
     pendingLocalSendCount: threadSendIntents.length,
     promotedTo: draftThread?.promotedTo,
-  });
-  const terminalState = useTerminalStateStore((state) =>
-    selectThreadTerminalState(
-      state.terminalStateByThreadKey,
-      isNewThreadHero ? null : routeThreadRef,
-    ),
-  );
-  const openTerminalThreadKeys = useTerminalStateStore(
-    useShallow((state) => {
-      if (isNewThreadHero) {
-        return EMPTY_THREAD_KEYS;
-      }
-      return Object.entries(state.terminalStateByThreadKey).flatMap(
-        ([nextThreadKey, nextTerminalState]) =>
-          nextTerminalState.terminalOpen ? [nextThreadKey] : [],
-      );
-    }),
-  );
-  const storeSetTerminalOpen = useTerminalStateStore((s) => s.setTerminalOpen);
-  const storeSplitTerminal = useTerminalStateStore((s) => s.splitTerminal);
-  const storeNewTerminal = useTerminalStateStore((s) => s.newTerminal);
-  const storeCloseTerminal = useTerminalStateStore((s) => s.closeTerminal);
-  const serverThreadKeys = useStore(
-    useShallow((store) =>
-      isNewThreadHero ? EMPTY_THREAD_KEYS : selectThreadKeysAcrossEnvironments(store),
-    ),
-  );
-  const storeServerTerminalLaunchContext = useTerminalStateStore((s) =>
-    isNewThreadHero
-      ? null
-      : (s.terminalLaunchContextByThreadKey[scopedThreadKey(routeThreadRef)] ?? null),
-  );
-  const storeClearTerminalLaunchContext = useTerminalStateStore(
-    (s) => s.clearTerminalLaunchContext,
-  );
-  const draftThreadKeys = useComposerDraftStore(
-    useShallow((store) => {
-      if (isNewThreadHero) {
-        return EMPTY_THREAD_KEYS;
-      }
-      return Object.values(store.draftThreadsByThreadKey).map((draftThread) =>
-        scopedThreadKey(scopeThreadRef(draftThread.environmentId, draftThread.threadId)),
-      );
-    }),
-  );
-  const [mountedTerminalThreadKeys, setMountedTerminalThreadKeys] = useState<string[]>([]);
-  const mountedTerminalThreadRefs = mountedTerminalThreadKeys.flatMap((mountedThreadKey) => {
-    const mountedThreadRef = parseScopedThreadKey(mountedThreadKey);
-    return mountedThreadRef ? [{ key: mountedThreadKey, threadRef: mountedThreadRef }] : [];
   });
   const runtimeThreadId = isNewThreadHero ? null : activeThreadId;
   const activeRuntimeEvents = useAgentRuntimeStore((state) =>
@@ -840,10 +778,6 @@ export default function ChatView(props: ChatViewProps) {
     ? scopeThreadRef(activeThread.environmentId, activeThread.id)
     : null;
   const activeThreadKey = activeThreadRef ? scopedThreadKey(activeThreadRef) : null;
-  const existingOpenTerminalThreadKeys = (() => {
-    const existingThreadKeys = new Set<string>([...serverThreadKeys, ...draftThreadKeys]);
-    return openTerminalThreadKeys.filter((nextThreadKey) => existingThreadKeys.has(nextThreadKey));
-  })();
   const activeLatestTurn = activeThread?.latestTurn ?? null;
   const latestTurnSettled = isLatestTurnSettled(activeLatestTurn, activeThread?.session ?? null);
   const activeProject = activeThread
@@ -1329,41 +1263,6 @@ export default function ChatView(props: ChatViewProps) {
     cwd: composerStatusGitCwd,
   });
   const activeProjectRoot = activeThreadWorktreePath ?? activeProjectCwd ?? undefined;
-  const activeTerminalLaunchContext =
-    terminalLaunchContext?.threadId === activeThreadId
-      ? terminalLaunchContext
-      : (storeServerTerminalLaunchContext ?? null);
-  const terminalShortcutLabelOptions = {
-    context: {
-      terminalFocus: true,
-      terminalOpen: Boolean(terminalState.terminalOpen),
-    },
-  };
-  const splitTerminalShortcutLabel = shortcutLabelForCommand(
-    keybindings,
-    "terminal.split",
-    terminalShortcutLabelOptions,
-  );
-  const newTerminalShortcutLabel = shortcutLabelForCommand(
-    keybindings,
-    "terminal.new",
-    terminalShortcutLabelOptions,
-  );
-  const closeTerminalShortcutLabel = shortcutLabelForCommand(
-    keybindings,
-    "terminal.close",
-    terminalShortcutLabelOptions,
-  );
-  const activeTerminalGroup =
-    terminalState.terminalGroups.find(
-      (group) => group.id === terminalState.activeTerminalGroupId,
-    ) ??
-    terminalState.terminalGroups.find((group) =>
-      group.terminalIds.includes(terminalState.activeTerminalId),
-    ) ??
-    null;
-  const hasReachedSplitLimit =
-    (activeTerminalGroup?.terminalIds.length ?? 0) >= MAX_TERMINALS_PER_GROUP;
   const focusComposer = (mode: ComposerInteractionModeFocusMode = "end") => {
     if (mode === "preserve") {
       composerRef.current?.focus();
@@ -1375,53 +1274,6 @@ export default function ChatView(props: ChatViewProps) {
     window.requestAnimationFrame(() => {
       focusComposer(mode);
     });
-  };
-  const setTerminalOpen = (open: boolean) => {
-    if (!activeThreadRef) return;
-    storeSetTerminalOpen(activeThreadRef, open);
-  };
-  const toggleTerminalVisibility = () => {
-    if (!activeThreadRef) return;
-    setTerminalOpen(!terminalState.terminalOpen);
-  };
-  const splitTerminal = () => {
-    if (!activeThreadRef || hasReachedSplitLimit) return;
-    const terminalId = `terminal-${randomUUID()}`;
-    storeSplitTerminal(activeThreadRef, terminalId);
-    setTerminalFocusRequestId((value) => value + 1);
-  };
-  const createNewTerminal = () => {
-    if (!activeThreadRef) return;
-    const terminalId = `terminal-${randomUUID()}`;
-    storeNewTerminal(activeThreadRef, terminalId);
-    setTerminalFocusRequestId((value) => value + 1);
-  };
-  const closeTerminal = (terminalId: string) => {
-    const api = readEnvironmentApi(environmentId);
-    if (!activeThreadId || !api) return;
-    const isFinalTerminal = terminalState.terminalIds.length <= 1;
-    const fallbackExitWrite = () =>
-      api.terminal
-        .write({ threadId: activeThreadId, terminalId, data: "exit\n" })
-        .catch(() => undefined);
-    if ("close" in api.terminal && typeof api.terminal.close === "function") {
-      void (async () => {
-        if (isFinalTerminal) {
-          await api.terminal.clear({ threadId: activeThreadId, terminalId }).catch(() => undefined);
-        }
-        await api.terminal.close({
-          threadId: activeThreadId,
-          terminalId,
-          deleteHistory: true,
-        });
-      })().catch(() => fallbackExitWrite());
-    } else {
-      void fallbackExitWrite();
-    }
-    if (activeThreadRef) {
-      storeCloseTerminal(activeThreadRef, terminalId);
-    }
-    setTerminalFocusRequestId((value) => value + 1);
   };
   const runProjectScript = async (
     script: ProjectScript,
@@ -2183,6 +2035,10 @@ export default function ChatView(props: ChatViewProps) {
       if (!isComposerModeSlashCommand(standaloneSlashCommand.command)) {
         return;
       }
+      if (standaloneSlashCommand.command === "multitask" && !multitaskModeEnabled) {
+        setThreadError(activeThread.id, "Enable Multitask Mode from the dev command panel first.");
+        return;
+      }
       handleInteractionModeChange(standaloneSlashCommand.command);
       if (clearComposerOnSubmit) {
         composerRef.current?.clearComposer();
@@ -2899,7 +2755,9 @@ export default function ChatView(props: ChatViewProps) {
     }
 
     const shouldSendActiveRunFollowUp =
-      isTurnRunning && !isCompactingActive && sendWhileStreamingBehavior === "send";
+      isTurnRunning &&
+      !isCompactingActive &&
+      (sendWhileStreamingBehavior === "send" || interactionMode === "multitask");
     if (shouldSendActiveRunFollowUp) {
       await submitActiveRunFollowUp({
         sendContext,
@@ -2914,8 +2772,9 @@ export default function ChatView(props: ChatViewProps) {
     const shouldQueueDuringActiveTurn =
       isTurnRunning &&
       (isCompactingActive ||
-        sendWhileStreamingBehavior === "queue" ||
-        sendWhileStreamingBehavior === "stop-and-send");
+        (interactionMode !== "multitask" &&
+          (sendWhileStreamingBehavior === "queue" ||
+            sendWhileStreamingBehavior === "stop-and-send")));
     if (shouldQueueDuringActiveTurn) {
       const { hasSendableContent } = currentComposerSendState;
       if (!hasSendableContent) {
@@ -3343,7 +3202,7 @@ export default function ChatView(props: ChatViewProps) {
         resolvedTheme={resolvedTheme}
         settings={settings}
         keybindings={keybindings}
-        terminalOpen={Boolean(terminalState.terminalOpen)}
+        terminalOpen={false}
         gitCwd={gitCwd}
         onInterrupt={handleComposerInterrupt}
         setThreadError={setThreadError}
@@ -3354,14 +3213,7 @@ export default function ChatView(props: ChatViewProps) {
     );
   };
   const activeTimelineCacheKey = activeThread?.id ?? "";
-  const existingOpenTerminalThreadKeysKey = existingOpenTerminalThreadKeys.join("\0");
   const serverMessagesAcknowledgementKey = committedMessageIdsKey(activeThread?.messages);
-  const storeServerTerminalLaunchContextKey = storeServerTerminalLaunchContext
-    ? [
-        storeServerTerminalLaunchContext.cwd,
-        storeServerTerminalLaunchContext.worktreePath ?? "",
-      ].join("\0")
-    : "";
   const activeProjectScriptsKey = projectScriptsKey(workspaceProject?.scripts ?? null);
   const keybindingsKey = keybindingsConfigKey(keybindings);
   const serverThreadLifecycleSync =
@@ -3417,79 +3269,10 @@ export default function ChatView(props: ChatViewProps) {
         threadSendIntents={threadSendIntents}
         threadKey={routeThreadKey}
       />
-      {isActiveSurface ? (
-        <>
-          <TerminalLaunchActiveThreadSync
-            key={[activeThreadId ?? "", routeThreadKey].join("\0")}
-            activeThreadId={activeThreadId}
-            routeThreadRef={routeThreadRef}
-            setTerminalLaunchContext={setTerminalLaunchContext}
-            storeClearTerminalLaunchContext={storeClearTerminalLaunchContext}
-          />
-          <TerminalLaunchLocalSettledSync
-            key={[
-              activeProjectCwd ?? "",
-              activeThreadId ?? "",
-              activeThreadKey ?? "",
-              activeThreadWorktreePath ?? "",
-            ].join("\0")}
-            activeProjectCwd={activeProjectCwd}
-            activeThreadId={activeThreadId}
-            activeThreadRef={activeThreadRef}
-            activeThreadWorktreePath={activeThreadWorktreePath}
-            setTerminalLaunchContext={setTerminalLaunchContext}
-            storeClearTerminalLaunchContext={storeClearTerminalLaunchContext}
-          />
-          <TerminalLaunchStoredSettledSync
-            key={[
-              activeProjectCwd ?? "",
-              activeThreadId ?? "",
-              activeThreadKey ?? "",
-              activeThreadWorktreePath ?? "",
-              storeServerTerminalLaunchContextKey,
-            ].join("\0")}
-            activeProjectCwd={activeProjectCwd}
-            activeThreadId={activeThreadId}
-            activeThreadRef={activeThreadRef}
-            activeThreadWorktreePath={activeThreadWorktreePath}
-            storeClearTerminalLaunchContext={storeClearTerminalLaunchContext}
-            storeServerTerminalLaunchContext={storeServerTerminalLaunchContext}
-          />
-          <TerminalLaunchClosedSync
-            key={[activeThreadId ?? "", activeThreadKey ?? "", terminalState.terminalOpen].join(
-              "\0",
-            )}
-            activeThreadId={activeThreadId}
-            activeThreadRef={activeThreadRef}
-            setTerminalLaunchContext={setTerminalLaunchContext}
-            storeClearTerminalLaunchContext={storeClearTerminalLaunchContext}
-            terminalOpen={Boolean(terminalState.terminalOpen)}
-          />
-          <TerminalOpenFocusSync
-            key={[activeThreadKey ?? "", terminalState.terminalOpen].join("\0")}
-            activeThreadKey={activeThreadKey}
-            focusComposer={focusComposer}
-            setTerminalFocusRequestId={setTerminalFocusRequestId}
-            terminalOpen={Boolean(terminalState.terminalOpen)}
-            terminalOpenByThreadRef={terminalOpenByThreadRef}
-          />
-        </>
-      ) : null}
     </>
   );
   const chatViewLifecycleSync = (
     <>
-      <MountedTerminalThreadsSync
-        key={[
-          activeThreadKey ?? "",
-          existingOpenTerminalThreadKeysKey,
-          terminalState.terminalOpen,
-        ].join("\0")}
-        activeThreadKey={activeThreadKey}
-        existingOpenTerminalThreadKeys={existingOpenTerminalThreadKeys}
-        setMountedTerminalThreadKeys={setMountedTerminalThreadKeys}
-        terminalOpen={Boolean(terminalState.terminalOpen)}
-      />
       {activeThreadLifecycleSync}
       <ActiveThreadUiResetSync
         key={activeThread?.id ?? ""}
@@ -3500,10 +3283,9 @@ export default function ChatView(props: ChatViewProps) {
       />
       {isActiveSurface && autoFocusComposer ? (
         <ActiveThreadComposerFocusSync
-          key={[activeThread?.id ?? "", terminalState.terminalOpen].join("\0")}
+          key={activeThread?.id ?? ""}
           activeThreadId={activeThread?.id ?? null}
           focusComposer={focusComposer}
-          terminalOpen={Boolean(terminalState.terminalOpen)}
         />
       ) : null}
       <ThreadMediaResetSync
@@ -3513,24 +3295,11 @@ export default function ChatView(props: ChatViewProps) {
       />
       {isActiveSurface ? (
         <ChatViewKeyboardShortcutsSync
-          key={[
-            activeProjectScriptsKey,
-            activeThreadId ?? "",
-            keybindingsKey,
-            terminalState.activeTerminalId,
-            terminalState.terminalOpen,
-          ].join("\0")}
+          key={[activeProjectScriptsKey, activeThreadId ?? "", keybindingsKey].join("\0")}
           activeProjectScripts={workspaceProject?.scripts ?? null}
           activeThreadId={activeThreadId}
-          closeTerminal={closeTerminal}
-          createNewTerminal={createNewTerminal}
           keybindings={keybindings}
           runProjectScript={runProjectScript}
-          setTerminalOpen={setTerminalOpen}
-          splitTerminal={splitTerminal}
-          terminalActiveTerminalId={terminalState.activeTerminalId}
-          terminalOpen={Boolean(terminalState.terminalOpen)}
-          toggleTerminalVisibility={toggleTerminalVisibility}
         />
       ) : null}
     </>
@@ -3727,7 +3496,7 @@ export default function ChatView(props: ChatViewProps) {
               resolvedTheme={resolvedTheme}
               settings={settings}
               keybindings={keybindings}
-              terminalOpen={terminalState.terminalOpen}
+              terminalOpen={false}
               gitCwd={gitCwd}
               branchName={composerBranchName}
               executionModeLabel={composerExecutionModeLabel}
@@ -3781,22 +3550,6 @@ export default function ChatView(props: ChatViewProps) {
         {/* end chat column */}
       </div>
       {/* end horizontal flex container */}
-
-      {mountedTerminalThreadRefs.map(({ key: mountedThreadKey, threadRef: mountedThreadRef }) => (
-        <PersistentThreadTerminalDrawer
-          key={mountedThreadKey}
-          threadRef={mountedThreadRef}
-          threadId={mountedThreadRef.threadId}
-          visible={mountedThreadKey === activeThreadKey && terminalState.terminalOpen}
-          launchContext={
-            mountedThreadKey === activeThreadKey ? (activeTerminalLaunchContext ?? null) : null
-          }
-          focusRequestId={mountedThreadKey === activeThreadKey ? terminalFocusRequestId : 0}
-          splitShortcutLabel={splitTerminalShortcutLabel ?? undefined}
-          newShortcutLabel={newTerminalShortcutLabel ?? undefined}
-          closeShortcutLabel={closeTerminalShortcutLabel ?? undefined}
-        />
-      ))}
 
       {expandedImage && (
         <ExpandedImageDialog

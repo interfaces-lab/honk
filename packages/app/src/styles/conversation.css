@@ -23,12 +23,27 @@
 
   --honk-composer-editor-font-size: var(--honk-ui-font-size-user, 13px);
   --honk-composer-editor-line-height: calc(var(--honk-ui-font-size-user, 13px) + 5px);
+  --honk-prompt-input-container-background: var(--honk-bg-quaternary);
+  --honk-prompt-input-container-border: var(--honk-stroke-tertiary);
+  --honk-prompt-input-container-border-hover: var(--honk-stroke-secondary);
+  --honk-prompt-input-container-shadow: none;
+  --honk-prompt-input-editor-min-height: var(--honk-spacing-9);
+  --honk-prompt-input-editor-max-height: 200px;
+  --honk-prompt-input-editor-padding: var(--honk-spacing-2) var(--honk-spacing-3);
+  --honk-prompt-input-toolbar-padding: var(--honk-spacing-2) var(--honk-spacing-2-5)
+    var(--honk-spacing-2-5);
+  --honk-prompt-input-section-gap: var(--honk-spacing-1-5);
+  --honk-prompt-input-radius-compact: var(--honk-radius-full);
+  --honk-prompt-input-radius-expanded: var(--honk-radius-xl);
+  --honk-prompt-input-radius-compact-expanded: var(--honk-radius-3xl);
   --honk-composer-editor-min-height: calc(var(--honk-ui-font-size-user, 13px) + 5px);
-  --honk-composer-radius-compact: var(--honk-radius-full);
-  --honk-composer-radius-expanded: 12px;
+  --honk-composer-radius-compact: var(--honk-prompt-input-radius-compact);
+  --honk-composer-radius-expanded: var(--honk-prompt-input-radius-expanded);
   --honk-composer-plan-tray-radius: var(--honk-composer-radius-expanded);
   --honk-composer-toolbar-padding-x: 10px;
   --honk-composer-toolbar-padding-y: 8px;
+  --honk-composer-thread-editor-padding-x: 12px;
+  --honk-composer-thread-editor-padding-y: 8px;
   --honk-new-agent-composer-max-width: 640px;
   --honk-new-agent-composer-min-height: 58px;
   --honk-new-agent-composer-radius: var(--honk-composer-radius-expanded);
@@ -38,14 +53,16 @@
   --honk-composer-chip-font-size: var(--honk-composer-editor-font-size);
   --honk-composer-chip-line-height: var(--honk-composer-editor-line-height);
   --honk-composer-chip-line-range-font-size: calc(var(--honk-composer-editor-font-size) - 1px);
-  --honk-composer-chip-icon-size: 14px;
-  --honk-composer-mention-text: var(--success);
+  --honk-composer-chip-icon-size: 12px;
+  --honk-composer-mention-text: var(--honk-fg-cyan-primary);
+  --honk-composer-mention-background: var(--honk-bg-cyan-secondary);
   --honk-composer-mention-line-range-text: color-mix(
     in srgb,
     var(--honk-composer-mention-text) 52%,
     transparent
   );
-  --honk-composer-command-text: var(--warning);
+  --honk-composer-command-text: var(--honk-fg-yellow-primary);
+  --honk-composer-command-background: var(--honk-bg-yellow-secondary);
   --honk-composer-blur: var(--honk-glass-blur-bubble);
   --honk-composer-queue-panel-radius: var(--honk-composer-radius-expanded);
   --honk-composer-queue-panel-shadow: var(--honk-shadow-soft);
@@ -94,6 +111,7 @@
 
 [data-honk-composer-shell="thread"] [data-prompt-editor-input="true"],
 [data-honk-composer-shell="thread"] [data-prompt-editor-placeholder] {
+  box-sizing: border-box;
   font-size: var(--honk-composer-editor-font-size);
   line-height: var(--honk-composer-editor-line-height);
   min-height: var(--honk-composer-editor-min-height);
@@ -107,7 +125,8 @@
 }
 
 [data-honk-composer-shell="thread"][data-expanded=""] [data-prompt-editor-input="true"] {
-  padding: 0;
+  padding: var(--honk-composer-thread-editor-padding-y)
+    var(--honk-composer-thread-editor-padding-x) 0;
 }
 
 [data-honk-composer-shell="thread"]:not([data-expanded=""]) [data-prompt-editor-placeholder] {
@@ -119,7 +138,8 @@
 }
 
 [data-honk-composer-shell="thread"][data-expanded=""] [data-prompt-editor-placeholder] {
-  padding: 0;
+  padding: var(--honk-composer-thread-editor-padding-y)
+    var(--honk-composer-thread-editor-padding-x) 0;
 }
 
 [data-honk-composer-shell="inline-edit"] [data-prompt-editor-placeholder] {
@@ -139,7 +159,7 @@
   left: 0;
   right: 0;
   overflow: hidden;
-  color: var(--honk-fg-quaternary);
+  color: var(--honk-fg-secondary);
   opacity: 0.5;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -217,16 +237,16 @@
 
 [data-honk-composer-surface][data-layout="new-agent"] [data-prompt-editor-input="true"],
 [data-honk-composer-surface][data-layout="new-agent"] [data-prompt-editor-placeholder] {
-  min-height: 36px;
-  max-height: 200px;
-  padding: 8px 12px;
+  min-height: var(--honk-prompt-input-editor-min-height);
+  max-height: var(--honk-prompt-input-editor-max-height);
+  padding: var(--honk-prompt-input-editor-padding);
   font-size: var(--honk-composer-editor-font-size);
   line-height: 1.5;
   color: var(--honk-fg-primary);
 }
 
 [data-honk-composer-surface][data-layout="new-agent"] [data-prompt-editor-placeholder] {
-  color: var(--honk-fg-quaternary);
+  color: var(--honk-fg-secondary);
   opacity: 0.62;
 }
 
@@ -333,15 +353,11 @@
   pointer-events: none;
 }
 
-:is([data-message-bubble-surface], [data-honk-composer-surface]:not([data-honk-composer-header])) {
+[data-honk-composer-surface]:not([data-honk-composer-header]) {
   box-shadow: var(--honk-shadow-card);
 }
 
-html.dark
-  :is(
-    [data-message-bubble-surface],
-    [data-honk-composer-surface]:not([data-honk-composer-header])
-  ) {
+html.dark [data-honk-composer-surface]:not([data-honk-composer-header]) {
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.35);
 }
 
@@ -406,16 +422,20 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"]
   background-color: var(--honk-composer-surface-background);
 }
 
+[data-sticky="true"] [data-honk-composer-surface][data-layout="inline-edit"] {
+  background-color: var(--honk-message-bubble-background);
+}
+
 [data-honk-composer-header] {
   background-color: var(--honk-composer-surface-background);
 }
 
 [data-honk-composer-surface][data-layout="new-agent"]::after {
-  box-shadow: inset 0 0 0 1px var(--honk-stroke-tertiary);
+  box-shadow: inset 0 0 0 1px var(--honk-prompt-input-container-border);
 }
 
 [data-honk-composer-surface][data-layout="new-agent"]:is(:hover, :focus-within)::after {
-  box-shadow: inset 0 0 0 1px var(--honk-stroke-secondary);
+  box-shadow: inset 0 0 0 1px var(--honk-prompt-input-container-border-hover);
 }
 
 [data-queued-composer-panel] {
@@ -590,6 +610,36 @@ html.dark body[data-honk-glass-mode="true"] [data-testid="command-palette"] {
   box-sizing: border-box;
   max-width: 100%;
   padding-inline: var(--conversation-text-inset);
+}
+
+/*
+ * StyleX-backed HonkKit buttons carry default size/typography/color classes.
+ * Conversation tool rows intentionally inherit the compact timeline text tier;
+ * keep the button reset scoped to timeline controls so interrupted/collapsed
+ * work previews do not expand to default control metrics.
+ */
+[data-chat-timeline-scroll] button[data-tool-call-line],
+[data-chat-timeline-scroll] button[data-work-group-header],
+[data-chat-timeline-scroll] button[data-subagent-row] {
+  height: auto;
+  min-height: 0;
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: inherit;
+  color: inherit;
+}
+
+[data-chat-timeline-scroll] button[data-tool-call-line] {
+  padding-block: 0;
+}
+
+[data-chat-timeline-scroll] button[data-work-group-header] {
+  padding-block: 0;
+  padding-inline: var(--conversation-text-inset);
+}
+
+[data-chat-timeline-scroll] button[data-subagent-row] {
+  padding: 0;
 }
 
 [data-chat-timeline-scroll] [data-tool-call-line-body] {

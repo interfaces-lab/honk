@@ -12,6 +12,7 @@ import type {
   RuntimeSessionId,
   SessionTreeProjection,
   SourceProposedPlanReference,
+  SubagentToolDetails,
   ThreadAgentRuntimeImageAttachment,
   ThreadAgentRuntimeQueuedFollowUp,
   BrowserAutomationController,
@@ -41,7 +42,7 @@ import {
   SettingsManager,
   createAgentSession,
 } from "@earendil-works/pi-coding-agent";
-import type { Api, ImageContent, Model } from "@earendil-works/pi-ai/base";
+import type { Api, ImageContent, Model } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import {
   authProviderIdFromPiModel,
@@ -71,6 +72,7 @@ import {
 import {
   CLIENT_MESSAGE_ID_SIDECAR_TYPE,
   TURN_ID_SIDECAR_TYPE,
+  HIDDEN_PROMPT_SIDECAR_TYPE,
   collectClientMessageIdSidecars,
   collectTurnIdSidecars,
 } from "./session-tree-projection";
@@ -83,12 +85,21 @@ import {
 import { registerCursorComposerProvider } from "./cursor-composer-provider";
 import { cursorComposerFastEnabled } from "@honk/shared/cursor-composer";
 import { createHonkPiModelRegistry } from "./honk-pi-models";
+import {
+  BACKGROUND_SUBAGENT_COMPLETION_DEBOUNCE_MS,
+  buildBackgroundSubagentCompletionMessage,
+  registerBackgroundSubagentController,
+  type BackgroundSubagentController,
+  type BackgroundSubagentRegistration,
+} from "./background-subagents";
 
 const DEFAULT_EXCLUDED_TOOL_NAMES: readonly string[] = [];
 const PI_DEFAULT_SYSTEM_PROMPT_IDENTITY =
   "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.";
 const HONK_SYSTEM_PROMPT_IDENTITY =
   "You are Honk, an AI coding assistant. You help users by reading files, executing commands, editing code, and writing new files.";
+const HONK_ASK_SYSTEM_PROMPT_IDENTITY =
+  "You are Honk, an AI coding assistant. You help users understand their codebase by reading and searching. In Ask mode, you do not modify files or run mutating commands.";
 
 export interface ThreadAgentRuntimeIdentity {
   readonly agentRuntime: "pi";
@@ -135,6 +146,8 @@ export interface SendMessageOptions {
   readonly createdAt?: string;
   readonly awaitPiQueueAcceptance?: boolean;
   readonly runtimeUserTurnStart?: PendingRuntimeUserTurnStart;
+  readonly visibility?: "visible" | "hidden";
+  readonly syntheticReason?: "background-subagent-completion";
 }
 
 export type AgentRuntimeEventListener = (event: AgentRuntimeEvent) => void;
@@ -159,6 +172,13 @@ interface PendingPromptClientMessage {
   readonly runtimeUserTurnStart?: PendingRuntimeUserTurnStart;
 }
 
+interface PendingHiddenPromptMessage {
+  readonly text: string;
+  readonly turnId: TurnId;
+  readonly entryIdsBeforePrompt: ReadonlySet<string>;
+  readonly reason: "background-subagent-completion";
+}
+
 type RuntimeUserTurnStartPayload = Extract<
   RuntimeIngestionRecord,
   { kind: "user.turn-start" }
@@ -174,8 +194,12 @@ type ForkSessionEntryOptions = Parameters<ExtensionCommandContextActions["fork"]
 
 interface InteractionModeQueue {
   readonly enqueue: (mode: AgentInteractionMode) => PendingInteractionMode;
+  readonly peek: () => AgentInteractionMode;
+  readonly active: () => AgentInteractionMode;
+  readonly activate: (mode: AgentInteractionMode) => void;
   readonly consume: () => AgentInteractionMode;
   readonly remove: (pending: PendingInteractionMode) => void;
+  readonly reset: () => void;
 }
 
 interface BindableContextUsageSink extends ContextUsageSnapshotSink {
@@ -202,14 +226,18 @@ function createBindableContextUsageSink(): BindableContextUsageSink {
   };
 }
 
-export class ThreadAgentRuntime {
+export class ThreadAgentRuntime implements BackgroundSubagentController {
   private readonly listeners = new Set<AgentRuntimeEventListener>();
   private readonly unsubscribeSessionEvents: () => void;
+  private unregisterBackgroundSubagentController: (() => void) | null = null;
   private readonly clientMessageIdByEntryId = new Map<string, MessageId>();
   private readonly turnIdByEntryId = new Map<string, TurnId>();
   private readonly pendingMessageTurnIds: TurnId[] = [];
   private readonly pendingPromptClientMessages: PendingPromptClientMessage[] = [];
+  private readonly pendingHiddenPromptMessages: PendingHiddenPromptMessage[] = [];
   private readonly queuedComposerFollowUps: ThreadAgentRuntimeQueuedFollowUp[] = [];
+  private readonly backgroundSubagents = new Map<string, BackgroundSubagentRegistration>();
+  private readonly pendingBackgroundNotifications: string[] = [];
   private readonly queueListeners = new Set<RuntimeQueueListener>();
   private readonly ingestionRecordListeners = new Set<RuntimeIngestionRecordListener>();
   private readonly emittedRuntimeUserTurnStartTurnIds = new Set<string>();
@@ -220,13 +248,18 @@ export class ThreadAgentRuntime {
   private activeTurnId: TurnId | undefined;
   private activePromptTurnId: TurnId | undefined;
   private activeRunFirstTurnId: TurnId | undefined;
+  private dispatchingBackgroundNotification = false;
+  private backgroundNotificationSubmitTimer: ReturnType<typeof setTimeout> | null = null;
   private nextPiTurnStartsFollowUpPrompt = false;
   private readonly sourceProposedPlanByTurnId = new Map<
     TurnId,
     SourceProposedPlanReference | null
   >();
+  private readonly interactionModeByTurnId = new Map<TurnId, AgentInteractionMode>();
   private readonly proposedPlanTurnIds = new Set<TurnId>();
   private readonly deferredEvents: AgentRuntimeEvent[] = [];
+  private queuedToolProfileRestore: (() => void) | null = null;
+  private defaultToolNames: string[] = [];
 
   private constructor(
     readonly threadId: ThreadId,
@@ -236,6 +269,7 @@ export class ThreadAgentRuntime {
     private readonly interactionModeQueue: InteractionModeQueue,
     contextUsageSink?: BindableContextUsageSink,
   ) {
+    this.defaultToolNames = sessionResult.session.getActiveToolNames();
     contextUsageSink?.bind((snapshot) => {
       this.emitOrDefer(
         this.createEvent(
@@ -249,6 +283,7 @@ export class ThreadAgentRuntime {
     this.unsubscribeSessionEvents = sessionResult.session.subscribe((event) => {
       this.handlePiSessionEvent(event);
     });
+    this.registerBackgroundSubagentControllerForCurrentSession();
   }
 
   static async create(options: ThreadAgentRuntimeOptions): Promise<ThreadAgentRuntime> {
@@ -309,8 +344,8 @@ export class ThreadAgentRuntime {
         extensionFactories: [
           createCodexApplyPatchExtension(options.policy),
           createToolCallDescriptionExtension(),
-          createHonkSystemPromptIdentityExtension(),
-          createCodexRuntimePolicyExtension(options.policy),
+          createHonkSystemPromptIdentityExtension(interactionModeQueue),
+          createCodexRuntimePolicyExtension(options.policy, () => interactionModeQueue.peek()),
           createBrowserAutomationExtension({
             controller: options.browserAutomation,
             threadId: options.threadId,
@@ -441,6 +476,56 @@ export class ThreadAgentRuntime {
   getQueuedFollowUps(): readonly ThreadAgentRuntimeQueuedFollowUp[] {
     return this.queuedComposerFollowUps.map((item) => ({ ...item, images: [...item.images] }));
   }
+
+  canRunBackgroundSubagent = (): boolean => {
+    return this.interactionModeQueue.active() === "multitask";
+  };
+
+  activeBackgroundSubagentTurnId = (): TurnId | null => {
+    return this.activeTurnId ?? this.activePromptTurnId ?? this.activeRunFirstTurnId ?? null;
+  };
+
+  registerBackgroundSubagent = (registration: BackgroundSubagentRegistration): void => {
+    this.backgroundSubagents.set(registration.toolCallId, registration);
+    void registration.completion
+      .then((completion) => {
+        this.emitBackgroundSubagentToolEvent("tool.completed", registration, completion.details, {
+          isError: completion.isError,
+        });
+        if (completion.notificationText) {
+          this.pendingBackgroundNotifications.push(completion.notificationText);
+        }
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "Background subagent failed.";
+        this.emitBackgroundSubagentToolEvent(
+          "tool.completed",
+          registration,
+          registration.currentDetails(),
+          { isError: true },
+        );
+        this.pendingBackgroundNotifications.push(
+          formatBackgroundSubagentErrorNotification(registration.toolCallId, message),
+        );
+      })
+      .finally(() => {
+        this.backgroundSubagents.delete(registration.toolCallId);
+        this.schedulePendingBackgroundNotificationsIfIdle();
+      });
+  };
+
+  emitBackgroundSubagentUpdate = (toolCallId: string): void => {
+    const registration = this.backgroundSubagents.get(toolCallId);
+    if (!registration) {
+      return;
+    }
+    this.emitBackgroundSubagentToolEvent(
+      "tool.updated",
+      registration,
+      registration.currentLiveDetails(),
+      { isError: false },
+    );
+  };
 
   enqueueFollowUp(item: ThreadAgentRuntimeQueuedFollowUp): void {
     const existingIndex = this.queuedComposerFollowUps.findIndex(
@@ -656,6 +741,7 @@ export class ThreadAgentRuntime {
     this.pruneEntryMapsToCurrentSession();
     this.clientMessageIdByEntryId.clear();
     this.hydrateClientMessageIdSidecars();
+    this.registerBackgroundSubagentControllerForCurrentSession();
     this.emit(this.createEvent("session.started", summary));
     this.emit(this.createEvent("tree.updated", "Session tree updated"));
   }
@@ -739,6 +825,7 @@ export class ThreadAgentRuntime {
 
   async sendMessage(text: string, options: SendMessageOptions): Promise<TurnId> {
     const queueIntoActiveRun = this.session.isStreaming && options.streamingBehavior !== null;
+    const visibility = options.visibility ?? "visible";
     if (!queueIntoActiveRun && options.parentEntryId !== undefined) {
       this.prepareParentBranch(options.parentEntryId);
     } else if (!queueIntoActiveRun && options.replacesClientMessageId !== null) {
@@ -758,7 +845,7 @@ export class ThreadAgentRuntime {
     );
     const { clientMessageId, images } = options;
     const pendingClientMessage =
-      clientMessageId === null
+      clientMessageId === null || visibility === "hidden"
         ? null
         : {
             text,
@@ -776,13 +863,24 @@ export class ThreadAgentRuntime {
     if (pendingClientMessage) {
       this.pendingPromptClientMessages.push(pendingClientMessage);
     }
+    const pendingHiddenMessage: PendingHiddenPromptMessage | null =
+      visibility === "hidden"
+        ? {
+            text,
+            turnId,
+            entryIdsBeforePrompt,
+            reason: options.syntheticReason ?? "background-subagent-completion",
+          }
+        : null;
+    if (pendingHiddenMessage) {
+      this.pendingHiddenPromptMessages.push(pendingHiddenMessage);
+    }
     this.sourceProposedPlanByTurnId.set(turnId, options.sourceProposedPlan);
-    if (!queueIntoActiveRun) {
+    this.interactionModeByTurnId.set(turnId, options.interactionMode);
+    if (!queueIntoActiveRun && visibility === "visible") {
       this.emit(this.createPromptUserMessageEvent(text, turnId, clientMessageId, options.createdAt));
     }
-    const interactionMode = queueIntoActiveRun
-      ? null
-      : this.interactionModeQueue.enqueue(options.interactionMode);
+    const interactionMode = this.interactionModeQueue.enqueue(options.interactionMode);
     const baselineActiveToolNames = this.session.getActiveToolNames();
     const modeToolProfileApplied = applyInteractionModeToolProfile(
       this.session,
@@ -810,6 +908,7 @@ export class ThreadAgentRuntime {
       });
       if (options.awaitPiQueueAcceptance && queueIntoActiveRun) {
         await promptPromise;
+        this.interactionModeQueue.remove(interactionMode);
         if (modeToolProfileApplied) {
           this.session.setActiveToolsByName(baselineActiveToolNames);
           this.refreshToolCallDescriptionSupport();
@@ -825,6 +924,8 @@ export class ThreadAgentRuntime {
             text,
             entryIdsBeforePrompt,
             clientMessageId,
+            visibility,
+            hiddenReason: pendingHiddenMessage?.reason ?? null,
             fallbackTurnId: turnId,
             messageTurnIds: this.pendingMessageTurnIds.splice(0),
           });
@@ -858,10 +959,9 @@ export class ThreadAgentRuntime {
         .finally(() => {
           if (!queueIntoActiveRun) {
             this.removePendingPromptClientMessage(pendingClientMessage);
-            if (interactionMode) {
-              this.interactionModeQueue.remove(interactionMode);
-            }
+            this.removePendingHiddenPromptMessage(pendingHiddenMessage);
           }
+          this.interactionModeQueue.remove(interactionMode);
           if (modeToolProfileApplied) {
             this.session.setActiveToolsByName(baselineActiveToolNames);
             this.refreshToolCallDescriptionSupport();
@@ -873,9 +973,8 @@ export class ThreadAgentRuntime {
       return turnId;
     } catch (error) {
       this.removePendingPromptClientMessage(pendingClientMessage);
-      if (interactionMode) {
-        this.interactionModeQueue.remove(interactionMode);
-      }
+      this.removePendingHiddenPromptMessage(pendingHiddenMessage);
+      this.interactionModeQueue.remove(interactionMode);
       if (modeToolProfileApplied) {
         this.session.setActiveToolsByName(baselineActiveToolNames);
         this.refreshToolCallDescriptionSupport();
@@ -904,6 +1003,9 @@ export class ThreadAgentRuntime {
   }
 
   async compactContext(customInstructions?: string): Promise<void> {
+    if (this.backgroundSubagents.size > 0) {
+      throw new Error("Cannot compact context while background subagents are running.");
+    }
     await this.session.compact(customInstructions);
     this.emit(this.createEvent("tree.updated", "Session tree updated"));
   }
@@ -947,9 +1049,104 @@ export class ThreadAgentRuntime {
   }
 
   dispose(): void {
+    for (const registration of this.backgroundSubagents.values()) {
+      registration.abort();
+    }
+    if (this.backgroundNotificationSubmitTimer !== null) {
+      clearTimeout(this.backgroundNotificationSubmitTimer);
+      this.backgroundNotificationSubmitTimer = null;
+    }
+    this.backgroundSubagents.clear();
+    this.unregisterBackgroundSubagentController?.();
+    this.unregisterBackgroundSubagentController = null;
     this.unsubscribeSessionEvents();
     this.session.dispose();
     this.listeners.clear();
+  }
+
+  private registerBackgroundSubagentControllerForCurrentSession(): void {
+    this.unregisterBackgroundSubagentController?.();
+    this.unregisterBackgroundSubagentController = registerBackgroundSubagentController(
+      this.session.sessionManager.getSessionId(),
+      this,
+    );
+  }
+
+  private emitBackgroundSubagentToolEvent(
+    type: "tool.updated" | "tool.completed",
+    registration: BackgroundSubagentRegistration,
+    details: SubagentToolDetails,
+    input: { readonly isError: boolean },
+  ): void {
+    const summary = registration.summarize(details);
+    const result = {
+      content: [{ type: "text" as const, text: summary }],
+      details,
+    };
+    this.emit(
+      this.createEvent(type, summary, registration.turnId ?? undefined, {
+        toolCallId: registration.toolCallId,
+        toolName: "subagent",
+        ...(type === "tool.updated" ? { partialResult: result } : { result }),
+        isError: input.isError,
+      }),
+    );
+  }
+
+  private schedulePendingBackgroundNotificationsIfIdle(): void {
+    if (
+      this.dispatchingBackgroundNotification ||
+      this.pendingBackgroundNotifications.length === 0 ||
+      this.isBusy() ||
+      this.queuedComposerFollowUps.length > 0 ||
+      this.backgroundNotificationSubmitTimer !== null
+    ) {
+      return;
+    }
+    this.backgroundNotificationSubmitTimer = setTimeout(() => {
+      this.backgroundNotificationSubmitTimer = null;
+      this.submitPendingBackgroundNotificationsIfIdle();
+    }, BACKGROUND_SUBAGENT_COMPLETION_DEBOUNCE_MS);
+  }
+
+  private submitPendingBackgroundNotificationsIfIdle(): void {
+    if (
+      this.dispatchingBackgroundNotification ||
+      this.pendingBackgroundNotifications.length === 0 ||
+      this.isBusy() ||
+      this.queuedComposerFollowUps.length > 0
+    ) {
+      return;
+    }
+    const notifications = this.pendingBackgroundNotifications.splice(0);
+    this.dispatchingBackgroundNotification = true;
+    void this.sendMessage(buildBackgroundSubagentCompletionMessage(notifications), {
+      clientMessageId: null,
+      replacesClientMessageId: null,
+      interactionMode: "multitask",
+      sourceProposedPlan: null,
+      images: [],
+      expandPromptTemplates: null,
+      source: "extension",
+      streamingBehavior: null,
+      visibility: "hidden",
+      syntheticReason: "background-subagent-completion",
+    })
+      .catch((error: unknown) => {
+        this.pendingBackgroundNotifications.unshift(...notifications);
+        this.emit(
+          this.createEvent(
+            "runtime.error",
+            error instanceof Error
+              ? error.message
+              : "Failed to submit background subagent completion.",
+          ),
+        );
+      })
+      .finally(() => {
+        this.dispatchingBackgroundNotification = false;
+        this.schedulePendingBackgroundNotificationsIfIdle();
+      });
   }
 
   private nextEventSequence(): number {
@@ -964,14 +1161,29 @@ export class ThreadAgentRuntime {
     let turnId: TurnId | undefined;
     let suppressTerminalAgentEnd = false;
     try {
-      this.bindPendingPromptClientMessages();
       turnId = this.preparePiEventTurnId(event);
+      if (event.type === "message_start" && event.message.role === "user") {
+        const pending = this.pendingPromptClientMessageForPiUserEvent(event, turnId);
+        const mode =
+          pending?.interactionMode ??
+          (turnId ? this.interactionModeByTurnId.get(turnId) : undefined);
+        if (mode) {
+          this.interactionModeQueue.activate(mode);
+        }
+        const restore = this.queuedToolProfileRestore;
+        if (restore) {
+          this.queuedToolProfileRestore = null;
+          restore();
+        }
+      }
+      this.bindPendingPromptClientMessages();
+      const suppressHiddenUserPromptEvent = this.isHiddenPromptUserEvent(event, turnId);
       suppressTerminalAgentEnd =
         event.type === "agent_end" &&
         !event.willRetry &&
         !isAbortedPiAgentEnd(event) &&
         this.submitNextQueuedComposerFollowUpWithPiFollowUp(event);
-      if (!suppressTerminalAgentEnd) {
+      if (!suppressTerminalAgentEnd && !suppressHiddenUserPromptEvent) {
         const runtimeEvent = this.projectRuntimePiSessionEvent(event, turnId);
         this.emit(runtimeEvent);
         this.emitRuntimeUserTurnStartRecord(event, runtimeEvent, turnId);
@@ -983,6 +1195,7 @@ export class ThreadAgentRuntime {
       try {
         if (!suppressTerminalAgentEnd) {
           this.finishPiEventTurn(event, turnId);
+          this.schedulePendingBackgroundNotificationsIfIdle();
         }
       } catch (error) {
         warnRuntimeBridgeError(`finishing Pi session event ${event.type}`, error);
@@ -1046,7 +1259,10 @@ export class ThreadAgentRuntime {
   }
 
   private isThreadTreeActionBlocked(): boolean {
-    return isRuntimeCanonicalTurnActive(this.getCanonicalThread().turnState);
+    return (
+      this.backgroundSubagents.size > 0 ||
+      isRuntimeCanonicalTurnActive(this.getCanonicalThread().turnState)
+    );
   }
 
   private entryIdForClientMessageId(clientMessageId: MessageId): string | null {
@@ -1193,6 +1409,12 @@ export class ThreadAgentRuntime {
       this.pendingFirstTurnIds.splice(0);
       this.pendingFollowUpTurnIds.splice(0);
       this.nextPiTurnStartsFollowUpPrompt = false;
+      const restore = this.queuedToolProfileRestore;
+      if (restore) {
+        this.queuedToolProfileRestore = null;
+        restore();
+      }
+      this.interactionModeQueue.reset();
       this.activeTurnId = undefined;
       this.activePromptTurnId = undefined;
       this.activeRunFirstTurnId = undefined;
@@ -1216,6 +1438,8 @@ export class ThreadAgentRuntime {
   private capturePromptEntries(input: {
     readonly text: string;
     readonly clientMessageId: MessageId | null;
+    readonly visibility: "visible" | "hidden";
+    readonly hiddenReason: PendingHiddenPromptMessage["reason"] | null;
     readonly entryIdsBeforePrompt: ReadonlySet<string>;
     readonly fallbackTurnId: TurnId;
     readonly messageTurnIds: readonly TurnId[];
@@ -1238,6 +1462,13 @@ export class ThreadAgentRuntime {
         text: input.text,
         clientMessageId: input.clientMessageId,
         turnId: input.fallbackTurnId,
+        entryIdsBeforePrompt: input.entryIdsBeforePrompt,
+      });
+    }
+    if (input.visibility === "hidden" && input.hiddenReason) {
+      this.attachHiddenPromptEntry({
+        text: input.text,
+        reason: input.hiddenReason,
         entryIdsBeforePrompt: input.entryIdsBeforePrompt,
       });
     }
@@ -1299,6 +1530,26 @@ export class ThreadAgentRuntime {
     return true;
   }
 
+  private attachHiddenPromptEntry(input: {
+    readonly text: string;
+    readonly reason: PendingHiddenPromptMessage["reason"];
+    readonly entryIdsBeforePrompt: ReadonlySet<string>;
+  }): boolean {
+    const matchingEntry = this.session.sessionManager.getEntries().find((entry) => {
+      return (
+        !input.entryIdsBeforePrompt.has(entry.id) &&
+        entry.type === "message" &&
+        entry.message.role === "user" &&
+        extractMessageText(entry.message) === input.text
+      );
+    });
+    if (!matchingEntry) {
+      return false;
+    }
+    this.persistHiddenPromptSidecar({ entryId: matchingEntry.id, reason: input.reason });
+    return true;
+  }
+
   private captureQueuedPromptEntriesForTurn(turnId: TurnId): void {
     const pending = this.pendingPromptClientMessages.find(
       (message) => String(message.turnId) === String(turnId),
@@ -1339,8 +1590,14 @@ export class ThreadAgentRuntime {
     } = {},
   ): void {
     this.sourceProposedPlanByTurnId.delete(turnId);
+    this.interactionModeByTurnId.delete(turnId);
     this.proposedPlanTurnIds.delete(turnId);
     this.emittedRuntimeUserTurnStartTurnIds.delete(String(turnId));
+    for (let index = this.pendingHiddenPromptMessages.length - 1; index >= 0; index -= 1) {
+      if (this.pendingHiddenPromptMessages[index]?.turnId === turnId) {
+        this.pendingHiddenPromptMessages.splice(index, 1);
+      }
+    }
     const pendingTurnIndex = this.pendingFirstTurnIds.findIndex(
       (pendingTurnId) => pendingTurnId === turnId,
     );
@@ -1389,8 +1646,26 @@ export class ThreadAgentRuntime {
     }
     const pending = this.registerQueuedComposerFollowUpTurn(item);
     this.nextPiTurnStartsFollowUpPrompt = true;
+    const existingRestore = this.queuedToolProfileRestore;
+    if (existingRestore) {
+      this.queuedToolProfileRestore = null;
+      existingRestore();
+    }
+    const baselineActiveToolNames = this.session.getActiveToolNames();
+    const toolProfile = interactionModeToolProfile(item.interactionMode) ?? this.defaultToolNames;
+    this.session.setActiveToolsByName([...toolProfile]);
+    this.refreshToolCallDescriptionSupport();
+    this.queuedToolProfileRestore = () => {
+      this.session.setActiveToolsByName(baselineActiveToolNames);
+      this.refreshToolCallDescriptionSupport();
+    };
     void this.session.followUp(item.input, toPiImageContent(item.images)).catch((error: unknown) => {
       this.nextPiTurnStartsFollowUpPrompt = false;
+      const restore = this.queuedToolProfileRestore;
+      if (restore) {
+        this.queuedToolProfileRestore = null;
+        restore();
+      }
       this.removePendingPromptClientMessage(pending);
       this.clearTurnTracking(pending.turnId);
       this.restoreQueuedFollowUp(item);
@@ -1417,6 +1692,7 @@ export class ThreadAgentRuntime {
       this.activeRunFirstTurnId = turnId;
     }
     this.sourceProposedPlanByTurnId.set(turnId, item.sourceProposedPlan);
+    this.interactionModeByTurnId.set(turnId, item.interactionMode);
     const pending = {
       text: item.input,
       clientMessageId: item.clientMessageId,
@@ -1572,6 +1848,38 @@ export class ThreadAgentRuntime {
     }
   }
 
+  private persistHiddenPromptSidecar(input: {
+    readonly entryId: string;
+    readonly reason: PendingHiddenPromptMessage["reason"];
+  }): void {
+    const sidecarAlreadyExists = this.session.sessionManager.getEntries().some((entry) => {
+      if (entry.type !== "custom" || entry.customType !== HIDDEN_PROMPT_SIDECAR_TYPE) {
+        return false;
+      }
+      const data = entry.data;
+      return (
+        typeof data === "object" &&
+        data !== null &&
+        "entryId" in data &&
+        data.entryId === input.entryId
+      );
+    });
+    if (sidecarAlreadyExists) {
+      return;
+    }
+
+    const leafIdBeforeSidecar = this.session.sessionManager.getLeafId();
+    this.session.sessionManager.appendCustomEntry(HIDDEN_PROMPT_SIDECAR_TYPE, {
+      entryId: input.entryId,
+      reason: input.reason,
+    });
+    if (leafIdBeforeSidecar) {
+      this.session.sessionManager.branch(leafIdBeforeSidecar);
+    } else {
+      this.session.sessionManager.resetLeaf();
+    }
+  }
+
   private removePendingPromptClientMessage(input: PendingPromptClientMessage | null): void {
     if (!input) {
       return;
@@ -1579,6 +1887,16 @@ export class ThreadAgentRuntime {
     const index = this.pendingPromptClientMessages.indexOf(input);
     if (index >= 0) {
       this.pendingPromptClientMessages.splice(index, 1);
+    }
+  }
+
+  private removePendingHiddenPromptMessage(input: PendingHiddenPromptMessage | null): void {
+    if (!input) {
+      return;
+    }
+    const index = this.pendingHiddenPromptMessages.indexOf(input);
+    if (index >= 0) {
+      this.pendingHiddenPromptMessages.splice(index, 1);
     }
   }
 
@@ -1683,6 +2001,23 @@ export class ThreadAgentRuntime {
       this.pendingPromptClientMessages.find(
         (pending) => String(pending.turnId) === String(turnId) && pending.text === text,
       ) ?? null
+    );
+  }
+
+  private isHiddenPromptUserEvent(
+    event: AgentSessionEvent,
+    turnId: TurnId | undefined,
+  ): boolean {
+    if (
+      turnId === undefined ||
+      !("message" in event) ||
+      event.message.role !== "user"
+    ) {
+      return false;
+    }
+    const text = extractMessageText(event.message);
+    return this.pendingHiddenPromptMessages.some(
+      (pending) => String(pending.turnId) === String(turnId) && pending.text === text,
     );
   }
 
@@ -1831,6 +2166,21 @@ function formatUnknownError(error: unknown): string {
   return String(error);
 }
 
+function formatBackgroundSubagentErrorNotification(toolCallId: string, message: string): string {
+  return [
+    "<agent_notification>",
+    "kind: subagent",
+    `agent_id: ${toolCallId}`,
+    "status: error",
+    "title: Background subagent",
+    "response:",
+    "<response>",
+    message,
+    "</response>",
+    "</agent_notification>",
+  ].join("\n");
+}
+
 function mergeExcludedToolNames(excludeTools: readonly string[] | undefined): string[] {
   return [...new Set([...DEFAULT_EXCLUDED_TOOL_NAMES, ...(excludeTools ?? [])])];
 }
@@ -1882,14 +2232,22 @@ export function encodeThreadIdForPath(threadId: ThreadId): string {
   return Buffer.from(threadId, "utf8").toString("base64url");
 }
 
-function rewriteDefaultPiSystemPromptForHonk(base: string): string {
-  return base.replace(PI_DEFAULT_SYSTEM_PROMPT_IDENTITY, HONK_SYSTEM_PROMPT_IDENTITY);
+function rewriteDefaultPiSystemPromptForHonk(
+  base: string,
+  interactionMode: AgentInteractionMode,
+): string {
+  const identity =
+    interactionMode === "ask" ? HONK_ASK_SYSTEM_PROMPT_IDENTITY : HONK_SYSTEM_PROMPT_IDENTITY;
+  return base.replace(PI_DEFAULT_SYSTEM_PROMPT_IDENTITY, identity);
 }
 
-function createHonkSystemPromptIdentityExtension(): ExtensionFactory {
+function createHonkSystemPromptIdentityExtension(queue: InteractionModeQueue): ExtensionFactory {
   return (pi) => {
     pi.on("before_agent_start", (event) => {
-      const systemPrompt = rewriteDefaultPiSystemPromptForHonk(event.systemPrompt);
+      const systemPrompt = rewriteDefaultPiSystemPromptForHonk(
+        event.systemPrompt,
+        queue.peek(),
+      );
       return systemPrompt === event.systemPrompt ? undefined : { systemPrompt };
     });
   };
@@ -1944,6 +2302,7 @@ function looksLikeProposedPlanMarkdown(text: string): boolean {
 
 function createInteractionModeQueue(): InteractionModeQueue {
   let sequence = 0;
+  let activeMode: AgentInteractionMode = "agent";
   const pendingModes: PendingInteractionMode[] = [];
 
   return {
@@ -1956,12 +2315,23 @@ function createInteractionModeQueue(): InteractionModeQueue {
       pendingModes.push(pending);
       return pending;
     },
+    peek() {
+      return pendingModes[0]?.mode ?? activeMode;
+    },
+    active() {
+      return activeMode;
+    },
+    activate(mode) {
+      activeMode = mode;
+    },
     consume() {
       const pending = pendingModes.shift();
       if (!pending) {
+        activeMode = "agent";
         return "agent";
       }
       pending.consumed = true;
+      activeMode = pending.mode;
       return pending.mode;
     },
     remove(pending) {
@@ -1972,6 +2342,13 @@ function createInteractionModeQueue(): InteractionModeQueue {
       if (index !== -1) {
         pendingModes.splice(index, 1);
       }
+    },
+    reset() {
+      activeMode = "agent";
+      for (const pending of pendingModes) {
+        pending.consumed = true;
+      }
+      pendingModes.splice(0);
     },
   };
 }
@@ -1996,6 +2373,28 @@ function createInteractionModeExtension(queue: InteractionModeQueue): ExtensionF
         systemPrompt: `${event.systemPrompt}\n\n${guidance}`,
       };
     });
+
+    pi.on("tool_call", (event) => {
+      const mode = queue.active();
+      const profile = interactionModeToolProfile(mode);
+      if (!profile || profile.includes(event.toolName)) {
+        return undefined;
+      }
+      const reason =
+        mode === "ask"
+          ? gM
+          : mode === "plan"
+            ? "You are in plan mode and cannot run tools outside the planning profile. Switch to Build mode if edits are required."
+            : "You are in debug mode and cannot run tools outside the debugging profile.";
+      return {
+        block: true,
+        reason,
+      };
+    });
+
+    pi.on("agent_end", () => {
+      queue.reset();
+    });
   };
 }
 
@@ -2011,6 +2410,8 @@ interface InteractionModeToolSession {
 }
 
 const READ_ONLY_MODE_TOOLS = ["read", "grep", "find", "ls", "ask_question"] as const;
+const gM =
+  "You are in ask mode and cannot run non read-only tools. Ask the user to switch to agent mode if edits are required.";
 const DEBUG_MODE_TOOLS = [
   "read",
   "grep",
@@ -2053,6 +2454,7 @@ function interactionModeToolProfile(mode: AgentInteractionMode): readonly string
     case "plan":
       return PLAN_MODE_TOOLS;
     case "agent":
+    case "multitask":
       return null;
   }
 }
@@ -2061,12 +2463,36 @@ function interactionModeGuidance(mode: AgentInteractionMode): string | undefined
   switch (mode) {
     case "agent":
       return undefined;
+    case "multitask":
+      return [
+        "## Honk Interaction Mode: Multitask",
+        "Act as a coordinator for work that can proceed in parallel. Prefer delegation over doing all work yourself.",
+        "For any non-trivial task involving codebase discovery, implementation, verification, review, or UI iteration, your first action should be one or more subagent tool calls with runInBackground: true.",
+        "Use the subagent tool's tasks array when there are multiple independent workstreams; otherwise start a single focused background Worker.",
+        "Do not perform broad local exploration or implementation before starting at least one background subagent. Use your own tools only for tiny single-step work, preparing subagent prompts, explicit user-facing coordination, or synthesizing/verification after notifications.",
+        "After starting background subagents, return control to the user instead of waiting or polling for results. Say briefly what you delegated.",
+        "When you receive <agent_notification> completion messages, synthesize completed work into the visible answer and decide whether more coordination is needed.",
+        "Do not spawn duplicate background workers for the same task. Keep each worker prompt focused and include enough context for the child to work without this conversation.",
+        "If you choose not to start a background subagent, the task must be obviously trivial and you should proceed normally.",
+      ].join("\n");
     case "ask":
       return [
         "## Honk Interaction Mode: Ask",
-        "Answer the user directly. Do not change files, run mutating shell commands, create commits, or perform long-running actions.",
+        "Explore the codebase and answer the user's question without making changes.",
+        "",
+        "=== CRITICAL: READ-ONLY MODE - NO FILE MODIFICATIONS ===",
+        "You are STRICTLY PROHIBITED from:",
+        "- Creating new files, editing existing files, deleting files, renaming files, or moving files.",
+        "- Applying patches, writing commits, changing configuration, installing packages, or updating lockfiles.",
+        "- Running shell commands or browser automation that modify files, processes, network state, credentials, or external systems.",
+        "- Using subagents, MCP mutation tools, edit/write/apply_patch tools, or any tool outside the read-only profile.",
+        "",
         "Only read-only tools are enabled in this mode: read, grep, find, ls, and ask_question.",
-        "Use read-only inspection only when it is needed to answer accurately.",
+        "Answer directly when the existing context is enough; inspect with read-only tools only when needed for accuracy.",
+        "Do not be eager to implement. If the user asks how something works, explain it rather than changing it.",
+        "Cite important code references with line ranges in the form startLine:endLine:filepath.",
+        "Use ask_question only when blocked on a user decision or missing requirement, not for trivia you can infer or inspect.",
+        "If edits are required, tell the user to switch to Build or Plan mode instead of attempting the change.",
       ].join("\n");
     case "plan":
       return [
@@ -2092,8 +2518,6 @@ function interactionModeGuidance(mode: AgentInteractionMode): string | undefined
         "Prefer narrow diagnostic commands and explain the evidence before editing.",
         "When the cause is clear, make the smallest fix and verify it. If temporary instrumentation was added, remove it before finishing.",
       ].join("\n");
-    default:
-      return undefined;
   }
 }
 

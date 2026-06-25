@@ -1,6 +1,6 @@
 import type { ThreadTokenUsageCategory, ThreadTokenUsageSnapshot } from "@honk/contracts";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import type { Usage } from "@earendil-works/pi-ai/base";
+import type { Usage } from "@earendil-works/pi-ai";
 
 export interface ContextUsageSnapshotSink {
   readonly publish: (snapshot: ThreadTokenUsageSnapshot) => void;

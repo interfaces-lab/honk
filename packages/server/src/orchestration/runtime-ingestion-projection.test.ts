@@ -215,6 +215,22 @@ function turnStartRequested(input: {
   });
 }
 
+function turnInterruptRequested(input: {
+  readonly sequence: number;
+  readonly turnId: TurnId;
+  readonly createdAt: string;
+}): OrchestrationEvent {
+  return decodeOrchestrationEvent({
+    ...eventBase(input.sequence, input.createdAt),
+    type: "thread.turn-interrupt-requested",
+    payload: {
+      threadId,
+      turnId: input.turnId,
+      createdAt: input.createdAt,
+    },
+  });
+}
+
 function runtimeActivity(input: {
   readonly sequence: number;
   readonly id: string;
@@ -486,6 +502,86 @@ describe("runtime ingestion projection chain", () => {
         assistantMessageId,
         state: "completed",
         requestedAt,
+        completedAt,
+      },
+    ]);
+    expect(rows.threads).toEqual([{ latestTurnId: assistantTurnId, leafId: assistantEntryId }]);
+  });
+
+  it("binds an interrupted runtime turn to its pending user message and restores the leaf", async () => {
+    const firstTurnId = TurnId.make(`${threadId}:turn:34`);
+    const secondUserMessageId = MessageId.make("message:ingest-user-interrupted");
+    const secondUserEntryId = threadEntryIdForMessageId(secondUserMessageId);
+    const rows = await projectEvents([
+      threadCreated(1),
+      userMessageSent({
+        sequence: 2,
+        messageId: userMessageId,
+        parentEntryId: null,
+        text: "cancel this",
+        createdAt: requestedAt,
+      }),
+      turnStartRequested({
+        sequence: 3,
+        messageId: userMessageId,
+        text: "cancel this",
+        createdAt: requestedAt,
+      }),
+      assistantMessageSent({
+        sequence: 4,
+        messageId: assistantMessageId,
+        parentEntryId: userEntryId,
+        turnId: firstTurnId,
+        createdAt: "2026-06-18T12:00:02.000Z",
+        text: "before cancel",
+      }),
+      userMessageSent({
+        sequence: 5,
+        messageId: secondUserMessageId,
+        parentEntryId: assistantEntryId,
+        text: "cancel this follow-up",
+        createdAt: "2026-06-18T12:00:03.000Z",
+      }),
+      turnStartRequested({
+        sequence: 6,
+        messageId: secondUserMessageId,
+        text: "cancel this follow-up",
+        createdAt: "2026-06-18T12:00:03.000Z",
+      }),
+      turnInterruptRequested({
+        sequence: 7,
+        turnId: assistantTurnId,
+        createdAt: completedAt,
+      }),
+    ]);
+
+    expect(rows.messages).toEqual([
+      { messageId: userMessageId, role: "user", turnId: firstTurnId },
+      { messageId: assistantMessageId, role: "assistant", turnId: firstTurnId },
+      { messageId: secondUserMessageId, role: "user", turnId: assistantTurnId },
+    ]);
+    expect(rows.entries).toEqual([
+      { entryId: userEntryId, parentEntryId: null, turnId: firstTurnId },
+      { entryId: assistantEntryId, parentEntryId: userEntryId, turnId: firstTurnId },
+      { entryId: secondUserEntryId, parentEntryId: assistantEntryId, turnId: assistantTurnId },
+    ]);
+    expect(rows.turns).toEqual([
+      {
+        turnId: firstTurnId,
+        pendingMessageId: userMessageId,
+        userEntryId,
+        assistantMessageId,
+        state: "completed",
+        requestedAt,
+        completedAt: "2026-06-18T12:00:02.000Z",
+      },
+      {
+        turnId: assistantTurnId,
+        pendingMessageId: secondUserMessageId,
+        userEntryId: secondUserEntryId,
+        assistantMessageId: null,
+        state: "interrupted",
+        requestedAt: "2026-06-18T12:00:03.000Z",
         completedAt,
       },
     ]);

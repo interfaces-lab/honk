@@ -15,7 +15,7 @@ import {
   ToolCallMessage,
 } from "../message/tool-message";
 import { ProposedPlanMessage } from "../message/proposed-plan-message";
-import { AssistantTranscriptRow, HumanTranscriptRow } from "../message/transcript-rows";
+import { AssistantTranscriptRow, UserTranscriptRow } from "../message/transcript-rows";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
 import ChatMarkdown from "../markdown/chat-markdown";
 import {
@@ -294,7 +294,7 @@ function MessageStepRenderer({
 }) {
   if (step.message.role === "user") {
     return (
-      <HumanTranscriptRow
+      <UserTranscriptRow
         message={step.message}
         editAvailable={step.editAvailable}
         isEditing={isEditingUserMessage}

@@ -1,6 +1,6 @@
 {
   "name": "@honk/desktop",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "private": true,
   "type": "module",
   "main": "./out/main/index.js",
@@ -14,14 +14,14 @@
     "package:linux": "electron-builder --linux --config electron-builder.config.ts",
     "package:win": "electron-builder --win --config electron-builder.config.ts",
     "start": "node scripts/start-electron.mjs",
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "node ../../scripts/tsc-rc.mjs --noEmit",
     "test": "vitest run --passWithNoTests",
     "smoke-test": "node scripts/smoke-test.mjs"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "^0.79.10",
-    "@earendil-works/pi-ai": "^0.79.10",
-    "@earendil-works/pi-coding-agent": "^0.79.10",
+    "@earendil-works/pi-agent-core": "^0.80.2",
+    "@earendil-works/pi-ai": "^0.80.2",
+    "@earendil-works/pi-coding-agent": "^0.80.2",
     "@effect/platform-bun": "catalog:",
     "@effect/platform-node": "catalog:",
     "@effect/sql-sqlite-bun": "catalog:",

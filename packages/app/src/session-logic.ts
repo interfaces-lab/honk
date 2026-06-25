@@ -1186,7 +1186,7 @@ function deriveSubagentDetailsBySubagentThreadId(
 
   for (const [subagentThreadId, ctx] of transcriptBySubagentThreadId) {
     const existing = detailsBySubagentThreadId.get(subagentThreadId);
-    const items = ctx.itemsOrdered.slice(-TRANSCRIPT_ITEMS_CAP);
+    const items = orderedSubagentTranscriptItems(ctx.itemsOrdered).slice(-TRANSCRIPT_ITEMS_CAP);
     if (existing) {
       detailsBySubagentThreadId.set(subagentThreadId, { ...existing, transcriptItems: items });
     } else {
@@ -1421,6 +1421,13 @@ function reduceTranscriptItemLifecycle(
 
   const isCompletedStatus =
     completed || status === "completed" || status === "failed" || status === "succeeded";
+  const hasReasoningSummary =
+    itemType === "reasoning" && hasReasoningSummaryTranscriptItem(ctx, itemId);
+  const lifecycleText = hasReasoningSummary ? undefined : text;
+
+  if (hasReasoningSummary) {
+    updateReasoningSummaryTranscriptItems(ctx, itemId, isCompletedStatus, status);
+  }
 
   if (existing) {
     const merged: SubagentTranscriptItem = {
@@ -1433,16 +1440,10 @@ function reduceTranscriptItemLifecycle(
       ...(rawCommand ? { rawCommand } : {}),
       ...(output ? { output } : {}),
       ...(changedFiles ? { changedFiles } : {}),
-      ...(text ? { text } : {}),
+      ...(lifecycleText ? { text: lifecycleText } : {}),
       loading: !isCompletedStatus,
     };
-    ctx.itemsById.set(itemId, merged);
-    const idx = ctx.itemsOrdered.findIndex((row) => row.itemId === itemId);
-    if (idx >= 0) {
-      ctx.itemsOrdered[idx] = merged;
-    } else {
-      ctx.itemsOrdered.push(merged);
-    }
+    upsertTranscriptItem(ctx, merged);
     return;
   }
 
@@ -1456,15 +1457,14 @@ function reduceTranscriptItemLifecycle(
     ...(rawCommand ? { rawCommand } : {}),
     ...(output ? { output } : {}),
     ...(changedFiles ? { changedFiles } : {}),
-    ...(text ? { text } : {}),
+    ...(lifecycleText ? { text: lifecycleText } : {}),
     ...(itemType ? { itemType } : {}),
     ...(status ? { status } : {}),
     loading: !isCompletedStatus,
     createdAt: activity.createdAt,
     sequence: ctx.nextSequence++,
   };
-  ctx.itemsById.set(itemId, item);
-  ctx.itemsOrdered.push(item);
+  upsertTranscriptItem(ctx, item);
 }
 
 function extractSubagentTranscriptDetail(
@@ -1559,7 +1559,14 @@ function reduceTranscriptDelta(
     return;
   }
 
-  const existing = ctx.itemsById.get(itemId);
+  const relatedLifecycleItem =
+    streamKind === "reasoning_summary_text" ? ctx.itemsById.get(itemId) : undefined;
+  if (streamKind === "reasoning_summary_text") {
+    suppressReasoningLifecycleSummaryText(ctx, itemId);
+  }
+
+  const transcriptItemId = transcriptDeltaItemId(itemId, streamKind, contentIndex, summaryIndex);
+  const existing = ctx.itemsById.get(transcriptItemId);
   if (existing) {
     const nextKind =
       streamKind === "command_output" ? "command" : streamKindToTranscriptKind(streamKind);
@@ -1570,19 +1577,13 @@ function reduceTranscriptDelta(
         : { text: capTranscriptText(merged), kind: nextKind }),
       ...(streamKind ? { streamKind } : {}),
     };
-    ctx.itemsById.set(itemId, next);
-    const idx = ctx.itemsOrdered.findIndex((row) => row.itemId === itemId);
-    if (idx >= 0) {
-      ctx.itemsOrdered[idx] = next;
-    } else {
-      ctx.itemsOrdered.push(next);
-    }
+    upsertTranscriptItem(ctx, next);
     return;
   }
 
   const syntheticKind = streamKindToTranscriptKind(streamKind);
   const synthetic: SubagentTranscriptItem = {
-    id: itemId,
+    id: transcriptItemId,
     itemId,
     kind: syntheticKind,
     ...(streamKind === "command_output"
@@ -1591,13 +1592,103 @@ function reduceTranscriptDelta(
           ...(syntheticKind === "message" ? { role: "assistant" as const } : {}),
           text: capTranscriptText(merged),
         }),
-    loading: true,
+    loading: relatedLifecycleItem?.loading ?? true,
     createdAt: activity.createdAt,
     sequence: ctx.nextSequence++,
     ...(streamKind ? { streamKind } : {}),
   };
-  ctx.itemsById.set(itemId, synthetic);
-  ctx.itemsOrdered.push(synthetic);
+  upsertTranscriptItem(ctx, synthetic);
+}
+
+function upsertTranscriptItem(
+  ctx: MutableTranscriptContext,
+  item: SubagentTranscriptItem,
+): void {
+  ctx.itemsById.set(item.id, item);
+  const idx = ctx.itemsOrdered.findIndex((row) => row.id === item.id);
+  if (idx >= 0) {
+    ctx.itemsOrdered[idx] = item;
+  } else {
+    ctx.itemsOrdered.push(item);
+  }
+}
+
+function hasReasoningSummaryTranscriptItem(
+  ctx: MutableTranscriptContext,
+  itemId: string,
+): boolean {
+  return ctx.itemsOrdered.some(
+    (item) => item.itemId === itemId && item.streamKind === "reasoning_summary_text",
+  );
+}
+
+function updateReasoningSummaryTranscriptItems(
+  ctx: MutableTranscriptContext,
+  itemId: string,
+  isCompletedStatus: boolean,
+  status: string | undefined,
+): void {
+  for (const item of ctx.itemsOrdered) {
+    if (item.itemId !== itemId || item.streamKind !== "reasoning_summary_text") {
+      continue;
+    }
+    const next: SubagentTranscriptItem = {
+      ...item,
+      ...(status ? { status } : {}),
+      loading: !isCompletedStatus,
+    };
+    upsertTranscriptItem(ctx, next);
+  }
+}
+
+function suppressReasoningLifecycleSummaryText(
+  ctx: MutableTranscriptContext,
+  itemId: string,
+): void {
+  const item = ctx.itemsById.get(itemId);
+  if (!item || item.itemType !== "reasoning" || item.streamKind || !item.text) {
+    return;
+  }
+  const next = { ...item };
+  delete next.text;
+  upsertTranscriptItem(ctx, next);
+}
+
+function transcriptDeltaItemId(
+  itemId: string,
+  streamKind: string,
+  contentIndex: number | null,
+  summaryIndex: number | null,
+): string {
+  if (streamKind !== "reasoning_summary_text") {
+    return itemId;
+  }
+  return [itemId, streamKind, contentIndex ?? "", summaryIndex ?? ""].join("\u001f");
+}
+
+function orderedSubagentTranscriptItems(
+  items: ReadonlyArray<SubagentTranscriptItem>,
+): ReadonlyArray<SubagentTranscriptItem> {
+  for (let index = 1; index < items.length; index += 1) {
+    const previous = items[index - 1];
+    const current = items[index];
+    if (previous && current && compareSubagentTranscriptItems(previous, current) > 0) {
+      return [...items].sort(compareSubagentTranscriptItems);
+    }
+  }
+  return items;
+}
+
+function compareSubagentTranscriptItems(
+  left: SubagentTranscriptItem,
+  right: SubagentTranscriptItem,
+): number {
+  const createdAtOrder = left.createdAt.localeCompare(right.createdAt);
+  if (createdAtOrder !== 0) {
+    return createdAtOrder;
+  }
+  const sequenceOrder = left.sequence - right.sequence;
+  return sequenceOrder === 0 ? left.id.localeCompare(right.id) : sequenceOrder;
 }
 
 function isUserVisibleStreamKind(streamKind: string): boolean {
@@ -3701,6 +3792,9 @@ function resolveSubagentTitle(
 
 function resolveSubagentStatusLabel(status: string | undefined): string | undefined {
   switch (status) {
+    case "queued":
+    case "pending":
+      return "Queued";
     case "pendingInit":
     case "pending_init":
     case "starting":

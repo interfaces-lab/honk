@@ -5,7 +5,11 @@ import {
   applyAppearanceBaseColors,
   getAppearanceThemeMode,
 } from "./appearance-colors";
-import { BASE_UI_FONT_PX, uiFontSizeToZoomFactor } from "./display-zoom";
+import {
+  BASE_UI_FONT_PX,
+  uiFontSizeToNormalizedLineHeight,
+  uiFontSizeToZoomFactor,
+} from "./display-zoom";
 
 export const STORAGE_REDUCE_TRANSPARENCY = "honk:reduce-transparency";
 export const STORAGE_TINT_HUE = "honk:accent-hue";
@@ -108,8 +112,10 @@ function readStoredUiFontSizePx() {
 export function syncAppearanceDisplayZoom() {
   const uiFontSizePx = readStoredUiFontSizePx();
   const zoomFactor = uiFontSizeToZoomFactor(uiFontSizePx);
+  const normalizedLineHeight = uiFontSizeToNormalizedLineHeight(uiFontSizePx);
   const root = document.documentElement;
   root.style.setProperty("--honk-display-zoom-factor", String(zoomFactor));
+  root.style.setProperty("--honk-leading-conversation-normalized", String(normalizedLineHeight));
 
   if (!isElectron) {
     return;

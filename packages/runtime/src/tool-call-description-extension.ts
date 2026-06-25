@@ -1,4 +1,4 @@
-import type { Model } from "@earendil-works/pi-ai/base";
+import type { Model } from "@earendil-works/pi-ai";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 

@@ -1,4 +1,4 @@
-import { fauxAssistantMessage } from "@earendil-works/pi-ai/base";
+import { fauxAssistantMessage } from "@earendil-works/pi-ai";
 import { MessageId, threadEntryIdForMessageId } from "@honk/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 

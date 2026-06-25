@@ -5,6 +5,18 @@
   "type": "module",
   "exports": {
     "./styles.css": "./src/styles.css",
+    "./naming": {
+      "types": "./src/naming.ts",
+      "import": "./src/naming.ts"
+    },
+    "./theme": {
+      "types": "./src/theme/index.ts",
+      "import": "./src/theme/index.ts"
+    },
+    "./theme/tokens.stylex": {
+      "types": "./src/theme/tokens.stylex.ts",
+      "import": "./src/theme/tokens.stylex.ts"
+    },
     "./alert": {
       "types": "./src/alert.tsx",
       "import": "./src/alert.tsx"
@@ -215,7 +227,7 @@
     }
   },
   "scripts": {
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "node ../../scripts/tsc-rc.mjs --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {

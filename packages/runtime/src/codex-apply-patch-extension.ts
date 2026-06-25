@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import type { AgentModelPolicy } from "@honk/contracts";
 import { defineTool, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { Type } from "@earendil-works/pi-ai/base";
+import { Type } from "@earendil-works/pi-ai";
 
 export const CODEX_APPLY_PATCH_TOOL_NAME = "apply_patch";
 

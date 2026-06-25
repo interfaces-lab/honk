@@ -5,8 +5,8 @@ import {
   fauxToolCall,
   type AssistantMessage,
   type UserMessage,
-} from "@earendil-works/pi-ai/base";
-import { Type } from "@earendil-works/pi-ai/base";
+} from "@earendil-works/pi-ai";
+import { Type } from "@earendil-works/pi-ai";
 import { defineTool, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it } from "vitest";
 import { MessageId, threadEntryIdForMessageId } from "@honk/contracts";
@@ -102,6 +102,63 @@ describe("Pi session tree contract", () => {
         (node) => node.threadEntryId === threadEntryIdForMessageId(firstClientMessageId),
       ),
     ).toEqual(expect.objectContaining({ childCount: 1 }));
+  });
+
+  it("hides synthetic background prompts while projecting the parent synthesis", async () => {
+    const harness = await createRuntimeHarness();
+    harnesses.push(harness);
+    harness.setResponses([
+      fauxAssistantMessage("visible response"),
+      fauxAssistantMessage("background synthesis"),
+    ]);
+
+    await waitForEvent(harness.runtime, "tree.updated", () =>
+      harness.runtime.sendMessage("visible prompt", EMPTY_SEND_MESSAGE_OPTIONS),
+    );
+    const visibleParent = harness.runtime
+      .getSessionTree()
+      .entries.find((entry) => entry.role === "assistant" && entry.text === "visible response");
+    expect(visibleParent).toBeDefined();
+
+    const hiddenNotification = [
+      "<system_reminder>",
+      "Use this background completion to update coordination state.",
+      "</system_reminder>",
+      "<agent_notification>",
+      "kind: subagent",
+      "status: success",
+      "response:",
+      "<response>child finished</response>",
+      "</agent_notification>",
+    ].join("\n");
+    await waitForEvent(harness.runtime, "tree.updated", () =>
+      harness.runtime.sendMessage(hiddenNotification, {
+        ...EMPTY_SEND_MESSAGE_OPTIONS,
+        interactionMode: "multitask",
+        visibility: "hidden",
+        syntheticReason: "background-subagent-completion",
+      }),
+    );
+
+    const tree = harness.runtime.getSessionTree();
+    expect(tree.entries.some((entry) => entry.text === hiddenNotification)).toBe(false);
+    expect(
+      tree.entries.filter((entry) => entry.role === "user").map((entry) => entry.text),
+    ).toEqual(["visible prompt"]);
+
+    const synthesis = tree.entries.find(
+      (entry) => entry.role === "assistant" && entry.text === "background synthesis",
+    );
+    expect(synthesis).toBeDefined();
+    expect(synthesis?.parentId).toBe(visibleParent?.id);
+    expect(
+      harness.runtime.session.messages
+        .filter((message): message is UserMessage => message.role === "user")
+        .map((message) => message.content),
+    ).toEqual([
+      [{ type: "text", text: "visible prompt" }],
+      [{ type: "text", text: hiddenNotification }],
+    ]);
   });
 
   it("does not project provider error messages as assistant session tree text", () => {

@@ -742,6 +742,45 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             return;
           }
 
+          case "thread.turn-interrupt-requested": {
+            const existingRow = yield* projectionThreadRepository.getById({
+              threadId: event.payload.threadId,
+            });
+            if (Option.isNone(existingRow)) {
+              return;
+            }
+            const interruptedTurnId = event.payload.turnId ?? existingRow.value.latestTurnId;
+            if (interruptedTurnId === null) {
+              return;
+            }
+            const projectedTurn = yield* projectionTurnRepository.getByTurnId({
+              threadId: event.payload.threadId,
+              turnId: interruptedTurnId,
+            });
+            const userEntryId = Option.isSome(projectedTurn)
+              ? projectedTurn.value.userEntryId
+              : null;
+            const userEntry = userEntryId
+              ? yield* projectionThreadEntryRepository.getByEntryId({ entryId: userEntryId })
+              : Option.none();
+            const projectedEntries = yield* projectionThreadEntryRepository.listByThreadId({
+              threadId: event.payload.threadId,
+            });
+            yield* projectionThreadRepository.upsert({
+              ...existingRow.value,
+              latestTurnId: interruptedTurnId,
+              leafId: Option.isSome(userEntry)
+                ? repairProjectionLeaf({
+                    entries: projectedEntries,
+                    leafId: userEntry.value.parentEntryId,
+                  })
+                : existingRow.value.leafId,
+              updatedAt: event.occurredAt,
+            });
+            yield* refreshThreadShellSummary(event.payload.threadId);
+            return;
+          }
+
           case "thread.tree-leaf-moved": {
             const existingRow = yield* projectionThreadRepository.getById({
               threadId: event.payload.threadId,
@@ -1477,29 +1516,86 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
               threadId: event.payload.threadId,
               turnId: interruptedTurnId,
             });
+            const pendingTurnStart =
+              Option.isSome(existingTurn) && existingTurn.value.userEntryId !== null
+                ? Option.none()
+                : yield* getLatestPendingTurnStartBefore({
+                    threadId: event.payload.threadId,
+                    completedAt: event.payload.createdAt,
+                  });
             if (Option.isSome(existingTurn)) {
               yield* projectionTurnRepository.upsertByTurnId({
                 ...existingTurn.value,
+                pendingMessageId:
+                  existingTurn.value.pendingMessageId ??
+                  (Option.isSome(pendingTurnStart) ? pendingTurnStart.value.messageId : null),
+                userEntryId:
+                  existingTurn.value.userEntryId ??
+                  (Option.isSome(pendingTurnStart) ? pendingTurnStart.value.userEntryId : null),
+                sourceProposedPlanThreadId:
+                  existingTurn.value.sourceProposedPlanThreadId ??
+                  (Option.isSome(pendingTurnStart)
+                    ? pendingTurnStart.value.sourceProposedPlanThreadId
+                    : null),
+                sourceProposedPlanId:
+                  existingTurn.value.sourceProposedPlanId ??
+                  (Option.isSome(pendingTurnStart)
+                    ? pendingTurnStart.value.sourceProposedPlanId
+                    : null),
                 state: "interrupted",
                 completedAt: existingTurn.value.completedAt ?? event.payload.createdAt,
-                startedAt: existingTurn.value.startedAt ?? event.payload.createdAt,
-                requestedAt: existingTurn.value.requestedAt ?? event.payload.createdAt,
+                startedAt:
+                  existingTurn.value.startedAt ??
+                  (Option.isSome(pendingTurnStart)
+                    ? pendingTurnStart.value.requestedAt
+                    : event.payload.createdAt),
+                requestedAt:
+                  existingTurn.value.requestedAt ??
+                  (Option.isSome(pendingTurnStart)
+                    ? pendingTurnStart.value.requestedAt
+                    : event.payload.createdAt),
               });
-              return;
+            } else {
+              yield* projectionTurnRepository.upsertByTurnId({
+                turnId: interruptedTurnId,
+                threadId: event.payload.threadId,
+                pendingMessageId: Option.isSome(pendingTurnStart)
+                  ? pendingTurnStart.value.messageId
+                  : null,
+                userEntryId: Option.isSome(pendingTurnStart)
+                  ? pendingTurnStart.value.userEntryId
+                  : null,
+                sourceProposedPlanThreadId: Option.isSome(pendingTurnStart)
+                  ? pendingTurnStart.value.sourceProposedPlanThreadId
+                  : null,
+                sourceProposedPlanId: Option.isSome(pendingTurnStart)
+                  ? pendingTurnStart.value.sourceProposedPlanId
+                  : null,
+                assistantMessageId: null,
+                state: "interrupted",
+                requestedAt: Option.isSome(pendingTurnStart)
+                  ? pendingTurnStart.value.requestedAt
+                  : event.payload.createdAt,
+                startedAt: Option.isSome(pendingTurnStart)
+                  ? pendingTurnStart.value.requestedAt
+                  : event.payload.createdAt,
+                completedAt: event.payload.createdAt,
+              });
             }
-            yield* projectionTurnRepository.upsertByTurnId({
-              turnId: interruptedTurnId,
-              threadId: event.payload.threadId,
-              pendingMessageId: null,
-              userEntryId: null,
-              sourceProposedPlanThreadId: null,
-              sourceProposedPlanId: null,
-              assistantMessageId: null,
-              state: "interrupted",
-              requestedAt: event.payload.createdAt,
-              startedAt: event.payload.createdAt,
-              completedAt: event.payload.createdAt,
-            });
+            if (Option.isSome(pendingTurnStart)) {
+              yield* projectionTurnRepository.deletePendingTurnStart({
+                threadId: event.payload.threadId,
+                messageId: pendingTurnStart.value.messageId,
+              });
+              yield* bindProjectedRowsToAssistantTurn({
+                threadId: event.payload.threadId,
+                turnId: interruptedTurnId,
+                pendingMessageId: pendingTurnStart.value.messageId,
+                userEntryId: pendingTurnStart.value.userEntryId,
+                activityStartAt: pendingTurnStart.value.requestedAt,
+                completedAt: event.payload.createdAt,
+              });
+            }
             return;
           }
 
@@ -1705,6 +1801,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
           "thread.approval-response-requested",
           "thread.user-input-response-requested",
           "thread.message-sent",
+          "thread.turn-interrupt-requested",
           "thread.tree-leaf-moved",
           "thread.session-set",
           "thread.session-stop-requested",

@@ -1,80 +1,371 @@
 "use client";
 
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
-import { cva, type VariantProps } from "class-variance-authority";
-import type * as React from "react";
+import * as stylex from "@stylexjs/stylex";
+import * as React from "react";
 
-import { cn, controlTransitionVariants, interactiveControlCursorVariants } from "./utils";
+import {
+  colorVars,
+  motionVars,
+  radiusVars,
+  sizeVars,
+  spacingVars,
+  typographyVars,
+} from "./theme/tokens.stylex";
+import { mergeProps } from "./utils";
+import { themeProps } from "./utils/themeProps";
 
-const buttonVariants = cva(
-  cn(
-    "relative inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-honk-control border font-honk outline-none transition-colors before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--honk-radius-control)-1px)] pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 [&_svg:not([class*='opacity-'])]:opacity-80 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-    interactiveControlCursorVariants(),
-    controlTransitionVariants(),
-  ),
-  {
-    defaultVariants: {
-      size: "default",
-      typography: "body",
-      variant: "default",
-    },
-    variants: {
-      typography: {
-        body: "text-body font-medium",
-        caption: "text-caption font-normal",
-        detail: "text-detail font-normal",
-        inherit: "font-normal",
-        sidebar: "text-sidebar-label font-normal",
-        title: "text-title font-medium",
-      },
-      size: {
-        default: "h-6 px-2.5",
-        icon: "size-5 [&_svg:not([class*='size-'])]:size-4",
-        "icon-lg": "size-6",
-        "icon-sm": "size-4",
-        "icon-xl": "size-7 [&_svg:not([class*='size-'])]:size-4",
-        "icon-xs":
-          "size-3.5 rounded-sm before:rounded-[calc(var(--radius-sm)-1px)] not-in-data-[slot=input-group]:[&_svg:not([class*='size-'])]:size-3.5",
-        lg: "h-7 px-3",
-        sm: "h-5 gap-1 px-2",
-        xl: "h-8 px-3.5 text-title [&_svg:not([class*='size-'])]:size-4",
-        xs: "h-4 gap-1 rounded-sm px-1.5 text-detail before:rounded-[calc(var(--radius-sm)-1px)] [&_svg:not([class*='size-'])]:size-3.5",
-      },
-      variant: {
-        /** Filled accent (workbench primary control). */
-        default:
-          "border-transparent bg-primary text-primary-foreground shadow-none hover:bg-primary/90 data-pressed:bg-primary/90",
-        destructive:
-          "border-destructive bg-destructive text-white shadow-destructive/16 shadow-xs [:disabled,:active,[data-pressed]]:shadow-none [:hover,[data-pressed]]:bg-destructive/90",
-        "destructive-outline":
-          "border-input bg-popover text-destructive-foreground shadow-xs/5 dark:bg-input/32 [:disabled,:active,[data-pressed]]:shadow-none [:hover,[data-pressed]]:border-destructive/32 [:hover,[data-pressed]]:bg-destructive/4",
-        /** Transparent hit target (workbench tertiary / ghost control). */
-        ghost:
-          "border-transparent bg-transparent text-honk-fg-secondary shadow-none hover:bg-honk-bg-quaternary hover:text-honk-fg-primary data-pressed:bg-honk-bg-tertiary",
-        link: "border-transparent underline-offset-4 [:hover,[data-pressed]]:underline",
-        /** Secondary bordered surface (workbench outline control). */
-        outline:
-          "border-honk-stroke-tertiary bg-honk-bg-quinary text-honk-fg-secondary shadow-none hover:border-honk-stroke-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary data-pressed:bg-honk-bg-tertiary",
-        secondary:
-          "border-transparent bg-secondary text-secondary-foreground [:active,[data-pressed]]:bg-secondary/80 [:hover,[data-pressed]]:bg-honk-hover",
-      },
-    },
-  },
-);
+type ButtonVariant =
+  | "default"
+  | "destructive"
+  | "destructive-outline"
+  | "ghost"
+  | "link"
+  | "outline"
+  | "secondary";
+type ButtonSize =
+  | "default"
+  | "icon"
+  | "icon-lg"
+  | "icon-sm"
+  | "icon-xl"
+  | "icon-xs"
+  | "lg"
+  | "sm"
+  | "xl"
+  | "xs";
+type ButtonTypography = "body" | "caption" | "detail" | "inherit" | "sidebar" | "title";
 
 interface ButtonProps extends ButtonPrimitive.Props {
-  variant?: VariantProps<typeof buttonVariants>["variant"];
-  size?: VariantProps<typeof buttonVariants>["size"];
-  typography?: VariantProps<typeof buttonVariants>["typography"];
+  icon?: React.ReactNode;
+  endContent?: React.ReactNode;
+  isIconOnly?: boolean;
+  label?: string;
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  typography?: ButtonTypography;
+  xstyle?: stylex.StyleXStyles;
 }
 
-const iconButtonSizes = new Set<ButtonProps["size"]>([
-  "icon",
-  "icon-lg",
-  "icon-sm",
-  "icon-xl",
-  "icon-xs",
-]);
+type IconElementProps = {
+  "aria-hidden"?: boolean | "false" | "true" | undefined;
+  className?: string | undefined;
+  focusable?: boolean | "false" | "true" | undefined;
+  size?: number | string | undefined;
+  style?: React.CSSProperties | undefined;
+};
+
+const primaryHover = "color-mix(in oklab, var(--primary) 90%, transparent)";
+const destructiveHover = "color-mix(in oklab, var(--destructive) 90%, transparent)";
+const destructiveWash = "color-mix(in oklab, var(--destructive) 4%, transparent)";
+const destructiveBorder = "color-mix(in oklab, var(--destructive) 32%, transparent)";
+const secondaryPressed = "color-mix(in oklab, var(--secondary) 80%, transparent)";
+
+const styles = stylex.create({
+  root: {
+    alignItems: "center",
+    borderColor: "transparent",
+    borderRadius: radiusVars["--honk-kit-radius-control"],
+    borderStyle: "solid",
+    borderWidth: 1,
+    boxSizing: "border-box",
+    cursor: "var(--honk-button-cursor, pointer)",
+    display: "inline-flex",
+    flexShrink: 0,
+    fontFamily: typographyVars["--honk-kit-font-ui"],
+    gap: spacingVars["--honk-kit-spacing-1-5"],
+    justifyContent: "center",
+    outline: {
+      default: "none",
+      ":focus-visible": `var(--honk-focus-ring-width, 1px) solid var(--honk-focus-ring-color, ${colorVars["--honk-kit-color-ring"]})`,
+    },
+    outlineOffset: {
+      default: 0,
+      ":focus-visible": "var(--honk-focus-ring-offset, 2px)",
+    },
+    position: "relative",
+    transitionDuration: {
+      default: motionVars["--honk-kit-motion-duration-ui"],
+      "@media (prefers-reduced-motion: reduce)": "0s",
+    },
+    transitionProperty: "color, background-color, border-color, box-shadow, opacity",
+    transitionTimingFunction: motionVars["--honk-kit-motion-ease-shell"],
+    userSelect: "none",
+    whiteSpace: "nowrap",
+    "::before": {
+      borderRadius: "calc(var(--honk-radius-control) - 1px)",
+      content: "''",
+      inset: 0,
+      pointerEvents: "none",
+      position: "absolute",
+    },
+    ":disabled": {
+      cursor: "default",
+      opacity: 0.4,
+      pointerEvents: "none",
+    },
+  },
+  contentWrapper: {
+    display: "contents",
+  },
+  iconWrapper: {
+    alignItems: "center",
+    display: "inline-flex",
+    flexShrink: 0,
+    justifyContent: "center",
+  },
+  labelText: {
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  endContentWrapper: {
+    alignItems: "center",
+    color: "inherit",
+    display: "inline-flex",
+  },
+});
+
+const typographyStyles = stylex.create({
+  body: {
+    fontSize: typographyVars["--honk-kit-text-body"],
+    fontWeight: 500,
+    lineHeight: typographyVars["--honk-kit-leading-body"],
+  },
+  caption: {
+    fontSize: typographyVars["--honk-kit-text-caption"],
+    fontWeight: 400,
+    lineHeight: typographyVars["--honk-kit-leading-caption"],
+  },
+  detail: {
+    fontSize: typographyVars["--honk-kit-text-detail"],
+    fontWeight: 400,
+    lineHeight: typographyVars["--honk-kit-leading-detail"],
+  },
+  inherit: {
+    fontWeight: 400,
+  },
+  sidebar: {
+    fontSize: typographyVars["--honk-kit-text-sidebar-label"],
+    fontWeight: 400,
+    lineHeight: typographyVars["--honk-kit-leading-sidebar-label"],
+  },
+  title: {
+    fontSize: typographyVars["--honk-kit-text-title"],
+    fontWeight: 500,
+    lineHeight: typographyVars["--honk-kit-leading-title"],
+  },
+});
+
+const sizeStyles = stylex.create({
+  default: {
+    height: sizeVars["--honk-kit-size-button"],
+    paddingInline: spacingVars["--honk-kit-spacing-2-5"],
+  },
+  icon: {
+    height: "20px",
+    padding: 0,
+    width: "20px",
+  },
+  iconLg: {
+    height: sizeVars["--honk-kit-size-button"],
+    padding: 0,
+    width: sizeVars["--honk-kit-size-button"],
+  },
+  iconSm: {
+    height: "16px",
+    padding: 0,
+    width: "16px",
+  },
+  iconXl: {
+    height: "28px",
+    padding: 0,
+    width: "28px",
+  },
+  iconXs: {
+    borderRadius: radiusVars["--honk-kit-radius-sm"],
+    height: "14px",
+    padding: 0,
+    width: "14px",
+    "::before": {
+      borderRadius: "calc(var(--radius-sm) - 1px)",
+    },
+  },
+  lg: {
+    height: sizeVars["--honk-kit-size-button-lg"],
+    paddingInline: spacingVars["--honk-kit-spacing-3"],
+  },
+  sm: {
+    gap: spacingVars["--honk-kit-spacing-1"],
+    height: sizeVars["--honk-kit-size-button-sm"],
+    paddingInline: spacingVars["--honk-kit-spacing-2"],
+  },
+  xl: {
+    fontSize: typographyVars["--honk-kit-text-title"],
+    height: sizeVars["--honk-kit-size-button-xl"],
+    lineHeight: typographyVars["--honk-kit-leading-title"],
+    paddingInline: spacingVars["--honk-kit-spacing-3-5"],
+  },
+  xs: {
+    borderRadius: radiusVars["--honk-kit-radius-sm"],
+    fontSize: typographyVars["--honk-kit-text-detail"],
+    gap: spacingVars["--honk-kit-spacing-1"],
+    height: sizeVars["--honk-kit-size-button-xs"],
+    lineHeight: typographyVars["--honk-kit-leading-detail"],
+    paddingInline: spacingVars["--honk-kit-spacing-1-5"],
+    "::before": {
+      borderRadius: "calc(var(--radius-sm) - 1px)",
+    },
+  },
+});
+
+const iconSizeStyles = stylex.create({
+  default: {
+    fontSize: sizeVars["--honk-kit-size-icon-default"],
+    height: sizeVars["--honk-kit-size-icon-default"],
+    width: sizeVars["--honk-kit-size-icon-default"],
+  },
+  sm: {
+    fontSize: sizeVars["--honk-kit-size-icon-sm"],
+    height: sizeVars["--honk-kit-size-icon-sm"],
+    width: sizeVars["--honk-kit-size-icon-sm"],
+  },
+});
+
+const variantStyles = stylex.create({
+  default: {
+    backgroundColor: {
+      default: colorVars["--honk-kit-color-primary"],
+      ":hover": primaryHover,
+      ":active": primaryHover,
+    },
+    borderColor: "transparent",
+    boxShadow: "none",
+    color: colorVars["--honk-kit-color-primary-foreground"],
+  },
+  destructive: {
+    backgroundColor: {
+      default: colorVars["--honk-kit-color-destructive"],
+      ":hover": destructiveHover,
+      ":active": destructiveHover,
+    },
+    borderColor: colorVars["--honk-kit-color-destructive"],
+    boxShadow: `0 1px 2px color-mix(in oklab, var(--destructive) 16%, transparent)`,
+    color: colorVars["--honk-kit-color-white"],
+  },
+  destructiveOutline: {
+    backgroundColor: {
+      default: colorVars["--honk-kit-color-popover"],
+      ":hover": destructiveWash,
+      ":active": destructiveWash,
+    },
+    borderColor: {
+      default: colorVars["--honk-kit-color-input"],
+      ":hover": destructiveBorder,
+      ":active": destructiveBorder,
+    },
+    boxShadow: "0 1px 2px color-mix(in oklab, black 5%, transparent)",
+    color: colorVars["--honk-kit-color-destructive-foreground"],
+  },
+  ghost: {
+    backgroundColor: {
+      default: "transparent",
+      ":hover": colorVars["--honk-kit-color-bg-quaternary"],
+      ":active": colorVars["--honk-kit-color-bg-tertiary"],
+    },
+    borderColor: "transparent",
+    boxShadow: "none",
+    color: {
+      default: colorVars["--honk-kit-color-fg-secondary"],
+      ":hover": colorVars["--honk-kit-color-fg-primary"],
+    },
+  },
+  link: {
+    backgroundColor: "transparent",
+    borderColor: "transparent",
+    boxShadow: "none",
+    color: "inherit",
+    textDecorationLine: {
+      default: "none",
+      ":hover": "underline",
+      ":active": "underline",
+    },
+    textUnderlineOffset: 4,
+  },
+  outline: {
+    backgroundColor: {
+      default: colorVars["--honk-kit-color-bg-quinary"],
+      ":hover": colorVars["--honk-kit-color-bg-quaternary"],
+      ":active": colorVars["--honk-kit-color-bg-tertiary"],
+    },
+    borderColor: {
+      default: colorVars["--honk-kit-color-stroke-tertiary"],
+      ":hover": colorVars["--honk-kit-color-stroke-secondary"],
+    },
+    boxShadow: "none",
+    color: {
+      default: colorVars["--honk-kit-color-fg-secondary"],
+      ":hover": colorVars["--honk-kit-color-fg-primary"],
+    },
+  },
+  secondary: {
+    backgroundColor: {
+      default: colorVars["--honk-kit-color-secondary"],
+      ":hover": colorVars["--honk-kit-color-hover"],
+      ":active": secondaryPressed,
+    },
+    borderColor: "transparent",
+    boxShadow: "none",
+    color: colorVars["--honk-kit-color-secondary-foreground"],
+  },
+});
+
+const sizeStyleByProp: Record<ButtonSize, stylex.StyleXStyles> = {
+  default: sizeStyles.default,
+  icon: sizeStyles.icon,
+  "icon-lg": sizeStyles.iconLg,
+  "icon-sm": sizeStyles.iconSm,
+  "icon-xl": sizeStyles.iconXl,
+  "icon-xs": sizeStyles.iconXs,
+  lg: sizeStyles.lg,
+  sm: sizeStyles.sm,
+  xl: sizeStyles.xl,
+  xs: sizeStyles.xs,
+};
+
+const variantStyleByProp: Record<ButtonVariant, stylex.StyleXStyles> = {
+  default: variantStyles.default,
+  destructive: variantStyles.destructive,
+  "destructive-outline": variantStyles.destructiveOutline,
+  ghost: variantStyles.ghost,
+  link: variantStyles.link,
+  outline: variantStyles.outline,
+  secondary: variantStyles.secondary,
+};
+
+const typographyStyleByProp: Record<ButtonTypography, stylex.StyleXStyles> = {
+  body: typographyStyles.body,
+  caption: typographyStyles.caption,
+  detail: typographyStyles.detail,
+  inherit: typographyStyles.inherit,
+  sidebar: typographyStyles.sidebar,
+  title: typographyStyles.title,
+};
+
+const iconSizeStyleByButtonSize: Record<ButtonSize, stylex.StyleXStyles> = {
+  default: iconSizeStyles.default,
+  icon: iconSizeStyles.default,
+  "icon-lg": iconSizeStyles.default,
+  "icon-sm": iconSizeStyles.default,
+  "icon-xl": iconSizeStyles.default,
+  "icon-xs": iconSizeStyles.sm,
+  lg: iconSizeStyles.default,
+  sm: iconSizeStyles.default,
+  xl: iconSizeStyles.default,
+  xs: iconSizeStyles.sm,
+};
+
+const iconButtonSizes = new Set<ButtonSize>(["icon", "icon-lg", "icon-sm", "icon-xl", "icon-xs"]);
 
 const warnedIconButtons = new Set<string>();
 
@@ -88,7 +379,7 @@ function warnIfMissingIconButtonName({
   ariaLabel?: ButtonProps["aria-label"];
   ariaLabelledBy?: ButtonProps["aria-labelledby"];
   className?: ButtonProps["className"];
-  size?: ButtonProps["size"];
+  size: ButtonSize;
   title?: ButtonProps["title"];
 }) {
   if (!iconButtonSizes.has(size)) return;
@@ -103,7 +394,104 @@ function warnIfMissingIconButtonName({
   );
 }
 
-function Button({ className, variant, size, typography, render, type, ...props }: ButtonProps) {
+function hasSizeClass(className: string | undefined): boolean {
+  return /(?:^|\s)(?:size|h|w)-/.test(className ?? "");
+}
+
+function normalizeIconElement(icon: React.ReactNode): React.ReactNode {
+  if (!React.isValidElement<IconElementProps>(icon)) {
+    return icon;
+  }
+
+  const iconProps: Partial<IconElementProps> = {
+    "aria-hidden": icon.props["aria-hidden"] ?? true,
+    focusable: icon.props.focusable ?? false,
+  };
+
+  if (
+    !hasSizeClass(icon.props.className) &&
+    icon.props.size == null &&
+    icon.props.style?.width == null &&
+    icon.props.style?.height == null
+  ) {
+    iconProps.style = {
+      ...icon.props.style,
+      height: "100%",
+      width: "100%",
+    };
+  }
+
+  return React.cloneElement(icon, iconProps);
+}
+
+function ButtonIconSlot({ children, size }: { children: React.ReactNode; size: ButtonSize }) {
+  return (
+    <span {...stylex.props(styles.iconWrapper, iconSizeStyleByButtonSize[size])}>
+      {normalizeIconElement(children)}
+    </span>
+  );
+}
+
+// Legacy children are rendered verbatim, matching the pre-stylex CVA button: the
+// root `inline-flex` + `gap` + `alignItems:center` lays out icon + text, and icon
+// sizing is driven by the caller's `[&_svg]:size-*` utilities or explicit icon
+// classes. Wrapping arbitrary component children (e.g. Truncate/MiddleTruncate)
+// in an icon slot misclassifies text as icons, force-sizes them to 100%/100%, and
+// drops the gap/padding that the root flex provides.
+function renderLegacyChildren(children: React.ReactNode): React.ReactNode {
+  return children;
+}
+
+function renderButtonContent({
+  children,
+  endContent,
+  icon,
+  isIconOnly,
+  label,
+  size,
+}: {
+  children: React.ReactNode;
+  endContent: React.ReactNode;
+  icon: React.ReactNode;
+  isIconOnly: boolean;
+  label: string | undefined;
+  size: ButtonSize;
+}): React.ReactNode {
+  const content = children ?? label;
+
+  if (icon == null && endContent == null && !isIconOnly && label == null) {
+    return renderLegacyChildren(children);
+  }
+
+  return (
+    <span {...stylex.props(styles.contentWrapper)}>
+      {icon != null ? <ButtonIconSlot size={size}>{icon}</ButtonIconSlot> : null}
+      {!isIconOnly && content != null ? (
+        <span {...stylex.props(styles.labelText)}>{content}</span>
+      ) : null}
+      {!isIconOnly && endContent != null ? (
+        <span {...stylex.props(styles.endContentWrapper)}>{endContent}</span>
+      ) : null}
+    </span>
+  );
+}
+
+function Button({
+  children,
+  className,
+  endContent,
+  icon,
+  isIconOnly = false,
+  label,
+  render,
+  size = "default",
+  style,
+  type,
+  typography = "body",
+  variant = "default",
+  xstyle,
+  ...props
+}: ButtonProps) {
   warnIfMissingIconButtonName({
     ariaLabel: props["aria-label"],
     ariaLabelledBy: props["aria-labelledby"],
@@ -114,23 +502,49 @@ function Button({ className, variant, size, typography, render, type, ...props }
 
   const typeValue: React.ButtonHTMLAttributes<HTMLButtonElement>["type"] =
     type ?? (render ? undefined : "button");
-  const baseClassName = buttonVariants({ size, typography, variant });
-  const resolvedClassName: ButtonPrimitive.Props["className"] =
+  const mergedProps = mergeProps(
+    themeProps("button", { variant, size, typography }),
+    stylex.props(
+      styles.root,
+      typographyStyleByProp[typography],
+      sizeStyleByProp[size],
+      variantStyleByProp[variant],
+      xstyle,
+    ),
+    typeof className === "function" ? undefined : className,
+    typeof style === "function" ? undefined : style,
+  );
+  const mergedClassName =
+    typeof mergedProps.className === "string" ? mergedProps.className : undefined;
+  const classNameProp: ButtonPrimitive.Props["className"] =
     typeof className === "function"
-      ? (state) => cn(baseClassName, className(state))
-      : cn(baseClassName, className);
+      ? (state) => [mergedClassName, className(state)].filter(Boolean).join(" ") || undefined
+      : mergedClassName;
+  const mergedStyle = mergedProps.style;
+  const styleProp: ButtonPrimitive.Props["style"] =
+    typeof style === "function"
+      ? (state) => {
+          const resolvedStyle = style(state);
+          return mergedStyle && resolvedStyle
+            ? { ...mergedStyle, ...resolvedStyle }
+            : (resolvedStyle ?? mergedStyle);
+        }
+      : mergedStyle;
 
   return (
     <ButtonPrimitive
-      className={resolvedClassName}
-      data-size={size ?? "default"}
+      {...mergedProps}
+      className={classNameProp}
       data-slot="button"
-      data-variant={variant ?? "default"}
       render={render}
+      style={styleProp}
       type={typeValue}
       {...props}
-    />
+    >
+      {renderButtonContent({ children, endContent, icon, isIconOnly, label, size })}
+    </ButtonPrimitive>
   );
 }
 
-export { Button, buttonVariants };
+export { Button };
+export type { ButtonProps, ButtonSize, ButtonTypography, ButtonVariant };

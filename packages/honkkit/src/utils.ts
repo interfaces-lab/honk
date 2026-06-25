@@ -1,6 +1,8 @@
 import { cva, type CxOptions, cx } from "class-variance-authority";
 import { extendTailwindMerge } from "tailwind-merge";
 
+export { mergeProps } from "./utils/mergeProps";
+
 const twMerge = extendTailwindMerge({
   extend: {
     classGroups: {

@@ -8,6 +8,13 @@ export const COMPOSER_INTERACTION_MODE_CYCLE = [
   "ask",
   "debug",
 ] as const satisfies readonly AgentInteractionMode[];
+export const COMPOSER_INTERACTION_MODE_CYCLE_WITH_MULTITASK = [
+  "agent",
+  "multitask",
+  "plan",
+  "ask",
+  "debug",
+] as const satisfies readonly AgentInteractionMode[];
 
 export interface ComposerModeSuggestionUsage {
   readonly prompt: string;
@@ -21,10 +28,22 @@ const DEBUG_MODE_KEYWORDS =
 const PLAN_MODE_KEYWORDS =
   /\b(plan|planning|approach|architecture|architect|break down|design|proposal|roadmap|spec|strategy|steps?|todos?|migrate|migration|refactor|redesign|implement|build|create|add|integrate)\b/i;
 
-export function nextComposerInteractionMode(mode: AgentInteractionMode): AgentInteractionMode {
-  const index = COMPOSER_INTERACTION_MODE_CYCLE.indexOf(mode);
-  const nextIndex = index < 0 ? 0 : (index + 1) % COMPOSER_INTERACTION_MODE_CYCLE.length;
-  return COMPOSER_INTERACTION_MODE_CYCLE[nextIndex] ?? DEFAULT_INTERACTION_MODE;
+export function composerInteractionModeCycle(input?: {
+  readonly multitaskModeEnabled?: boolean;
+}): readonly AgentInteractionMode[] {
+  return input?.multitaskModeEnabled
+    ? COMPOSER_INTERACTION_MODE_CYCLE_WITH_MULTITASK
+    : COMPOSER_INTERACTION_MODE_CYCLE;
+}
+
+export function nextComposerInteractionMode(
+  mode: AgentInteractionMode,
+  input?: { readonly multitaskModeEnabled?: boolean },
+): AgentInteractionMode {
+  const cycle = composerInteractionModeCycle(input);
+  const index = cycle.indexOf(mode);
+  const nextIndex = index < 0 ? 0 : (index + 1) % cycle.length;
+  return cycle[nextIndex] ?? DEFAULT_INTERACTION_MODE;
 }
 
 export function createComposerModeSuggestionUsage(prompt: string): ComposerModeSuggestionUsage {
@@ -82,6 +101,7 @@ export function markComposerModeSuggestionUsed(
       return { ...usage, debugModeSuggestionUsed: true };
     case "agent":
     case "ask":
+    case "multitask":
       return usage;
   }
 }

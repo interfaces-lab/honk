@@ -21,6 +21,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { getThreadFromEnvironmentState } from "../thread-derivation";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "../types";
+import { applyLocalThreadTurnStartRequested } from "./local-orchestration-events";
 import { selectSubagentProjection, useSubagentActivityStore } from "./subagent-activity-store";
 import { useSubagentTrayStore } from "./subagent-tray-store";
 import { runtimeSubagentActivitiesForToolEvent } from "./thread-sync";
@@ -1090,6 +1091,84 @@ describe("Pi runtime thread sync", () => {
       [gitActionAssistantRuntimeThreadEntryId, gitActionUserRuntimeThreadEntryId],
     ]);
     expect(thread.leafId).toBe(gitActionAssistantRuntimeThreadEntryId);
+  });
+
+  it("keeps runtime-projected branches when stale server detail lags ingestion", () => {
+    useStore
+      .getState()
+      .syncServerThreadDetail(serverThreadDetailWithExistingTranscript(), environmentId);
+    useStore
+      .getState()
+      .applyRuntimeSessionTreeProjection(gitActionRuntimeSessionTree(), environmentId);
+
+    useStore
+      .getState()
+      .syncServerThreadDetail(serverThreadDetailWithExistingTranscript(), environmentId);
+
+    const { thread } = currentThread();
+    expect(thread.messages.map((message) => [message.role, message.text])).toEqual([
+      ["user", "hello!"],
+      ["assistant", "Hello. How can I help?"],
+      ["user", gitActionPrompt],
+      ["assistant", "Committed and pushed."],
+    ]);
+    expect(thread.entries.map((entry) => [entry.id, entry.parentEntryId])).toEqual([
+      [existingUserThreadEntryId, null],
+      [existingAssistantThreadEntryId, existingUserThreadEntryId],
+      [gitActionUserRuntimeThreadEntryId, existingAssistantThreadEntryId],
+      [gitActionAssistantRuntimeThreadEntryId, gitActionUserRuntimeThreadEntryId],
+    ]);
+    expect(thread.leafId).toBe(gitActionAssistantRuntimeThreadEntryId);
+  });
+
+  it("moves an interrupted runtime turn leaf back to the interrupted user's parent", () => {
+    useStore
+      .getState()
+      .syncServerThreadDetail(serverThreadDetailWithExistingTranscript(), environmentId);
+    const interruptedMessageId = MessageId.make("message:interrupted-runtime-user");
+    const interruptedEntryId = threadEntryIdForMessageId(interruptedMessageId);
+    applyLocalThreadTurnStartRequested({
+      environmentId,
+      threadId,
+      message: {
+        messageId: interruptedMessageId,
+        text: "cancel me",
+        attachments: [],
+      },
+      modelSelection: {
+        instanceId: "codex",
+        model: "gpt-5.5",
+      },
+      titleSeed: "cancel me",
+      runtimeMode: DEFAULT_RUNTIME_MODE,
+      interactionMode: DEFAULT_INTERACTION_MODE,
+      createdAt: gitActionUserCreatedAt,
+    });
+    expect(currentThread().thread.leafId).toBe(interruptedEntryId);
+
+    useStore.getState().applyAgentRuntimeEvent(
+      {
+        ...turnStartedEvent,
+        id: EventId.make("runtime-event:turn.started-interrupted"),
+        turnId: gitActionTurnId,
+      },
+      environmentId,
+    );
+    useStore.getState().applyAgentRuntimeEvent(
+      {
+        ...turnInterruptedEvent,
+        id: EventId.make("runtime-event:turn.interrupted-interrupted"),
+        turnId: gitActionTurnId,
+      },
+      environmentId,
+    );
+
+    const { thread } = currentThread();
+    expect(thread.entries.find((entry) => entry.id === interruptedEntryId)?.turnId).toBe(
+      gitActionTurnId,
+    );
+    expect(thread.latestTurn?.state).toBe("interrupted");
+    expect(thread.leafId).toBe(existingAssistantThreadEntryId);
   });
 
   it("does not duplicate an optimistic runtime user message with the same client message id", () => {

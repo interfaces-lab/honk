@@ -14,7 +14,7 @@ import {
   type TextContent,
   type ToolCall,
   type Usage,
-} from "@earendil-works/pi-ai/base";
+} from "@earendil-works/pi-ai";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import {
   CURSOR_COMPOSER_ACP_MODEL_ID,

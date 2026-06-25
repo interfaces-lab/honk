@@ -5,7 +5,7 @@ import {
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import { Type } from "@earendil-works/pi-ai/base";
+import { Type, type Model } from "@earendil-works/pi-ai";
 import {
   AGENT_THINKING_LEVELS,
   ThreadId,
@@ -35,14 +35,22 @@ import {
   type SubagentProfileOverrides,
 } from "./subagent-profiles";
 import { normalizeAdditionalExtensionPaths } from "./extension-paths";
+import { backgroundSubagentControllerForSession } from "./background-subagents";
+import {
+  DEFAULT_SUBAGENT_BUDGET_LIMITS,
+  createSubagentBudgetController,
+  disposeLoadedSubagentRuntimes,
+  evictIdleSubagentRuntimes,
+  truncateSubagentOutputForParent,
+  type LoadedSubagentRuntime,
+  type SubagentBudgetController,
+} from "./subagent-budget";
 
-const MAX_PARALLEL_TASKS = 8;
-const MAX_CONCURRENCY = 4;
 const MAX_TASK_DESCRIPTION_LENGTH = 80;
 // Absolute cap on subagent nesting depth. The top-level agent is depth 0; its children are depth 1.
 // A child only receives the `subagent` tool when its profile authorizes fanout AND its depth is below
 // this cap, so recursive fan-out is bounded. A profile may tighten (never widen) this.
-const DEFAULT_MAX_SUBAGENT_DEPTH = 2;
+const DEFAULT_MAX_SUBAGENT_DEPTH = 1;
 // Pi forwards every child SSE chunk. Publishing parent progress on each one re-copies the combined
 // activities array (across all concurrent children) and re-broadcasts it per chunk — the O(n^2)
 // source. Throttle to ~10 Hz (trailing edge, flushed on completion) so the live tray stays responsive
@@ -194,6 +202,12 @@ const SubagentParams = Type.Object({
     }),
   ),
   context: Type.Optional(Type.String({ description: "Shared context given to every task." })),
+  runInBackground: Type.Optional(
+    Type.Boolean({
+      description:
+        "Start the subagent work in the background and return immediately. Only use in Honk Multitask mode.",
+    }),
+  ),
   tasks: Type.Optional(Type.Array(TaskItem, { description: "Parallel subagent tasks." })),
   chain: Type.Optional(Type.Array(ChainItem, { description: "Sequential subagent tasks." })),
   cwd: Type.Optional(Type.String({ description: "Working directory for single mode." })),
@@ -376,6 +390,7 @@ function createMutableRun(input: {
   readonly task: SubagentTask;
   readonly role: string;
   readonly model: string | null;
+  readonly state?: SubagentRunState;
 }): MutableSubagentRun {
   const subagentThreadId = `${input.parentThreadId}:subagent:${input.toolCallId}:${crypto.randomUUID()}`;
   const title = taskDisplayName(input.task);
@@ -388,7 +403,7 @@ function createMutableRun(input: {
     prompt: input.task.prompt,
     parentThreadId: input.parentThreadId,
     parentItemId: input.toolCallId,
-    state: "running",
+    state: input.state ?? "running",
     finalText: null,
     errorMessage: null,
     lastAssistantText: "",
@@ -636,26 +651,30 @@ function captureChildEvent(
   }
 }
 
-async function runSubagentTask(input: {
+interface PreparedSubagentTask {
+  readonly task: SubagentTask;
+  readonly profile: ResolvedSubagentProfile;
+  readonly childModel: Model<string> | undefined;
+  readonly childThinkingLevel: ThinkingLevel;
+  readonly run: MutableSubagentRun;
+}
+
+function prepareSubagentTask(input: {
   readonly state: SubagentExecutionState;
   readonly parentThreadId: string;
   readonly toolCallId: string;
   readonly task: SubagentTask;
-  readonly agentDir: string;
-  readonly extensionPaths: readonly string[];
   readonly ctx: ExtensionContext;
-  readonly signal: AbortSignal | undefined;
   readonly thinkingLevel: ThinkingLevel;
   readonly profile: ResolvedSubagentProfile;
-  readonly depth: number;
-  readonly maxSubagentDepth: number;
   readonly notify: (() => void) | undefined;
-}): Promise<MutableSubagentRun> {
+}): PreparedSubagentTask {
   const profile = input.profile;
   // Resolve the child's model from the profile/override id when it exists in the registry; otherwise
   // inherit the parent's current model. Thinking level falls back to the parent's the same way.
   const childModel =
-    resolveSubagentModel(input.ctx.modelRegistry, profile.model) ?? input.ctx.model;
+    resolveSubagentModel(input.ctx.modelRegistry, profile.model) ??
+    (input.ctx.model as Model<string> | undefined);
   const childThinkingLevel: ThinkingLevel = profile.thinkingLevel ?? input.thinkingLevel;
 
   const run = createMutableRun({
@@ -664,11 +683,12 @@ async function runSubagentTask(input: {
     task: input.task,
     role: profile.name,
     model: childModel?.id ?? null,
+    state: "queued",
   });
   const title = taskDisplayName(input.task);
   input.state.runs.push(run);
-  pushActivity(input.state, run, "subagent.thread.started", `Started ${title}`, {
-    state: "running",
+  pushActivity(input.state, run, "subagent.thread.started", `Queued ${title}`, {
+    state: "queued",
   });
   pushActivity(input.state, run, "subagent.item.completed", "Subagent task", {
     itemType: "user_message",
@@ -678,6 +698,63 @@ async function runSubagentTask(input: {
     detail: input.task.prompt,
   });
   input.notify?.();
+  return { task: input.task, profile, childModel, childThinkingLevel, run };
+}
+
+function markPreparedSubagentRunning(input: {
+  readonly state: SubagentExecutionState;
+  readonly prepared: PreparedSubagentTask;
+  readonly notify: (() => void) | undefined;
+}): void {
+  const { prepared } = input;
+  prepared.run.state = "running";
+  pushActivity(
+    input.state,
+    prepared.run,
+    "subagent.thread.state.changed",
+    `Started ${taskDisplayName(prepared.task)}`,
+    { state: "running" },
+  );
+  input.notify?.();
+}
+
+function markPreparedSubagentNotStarted(input: {
+  readonly state: SubagentExecutionState;
+  readonly prepared: PreparedSubagentTask;
+  readonly signal: AbortSignal | undefined;
+  readonly error: unknown;
+  readonly notify: (() => void) | undefined;
+}): MutableSubagentRun {
+  const run = input.prepared.run;
+  run.state = input.signal?.aborted ? "aborted" : "failed";
+  run.errorMessage =
+    input.error instanceof Error
+      ? input.error.message
+      : run.state === "aborted"
+        ? "Subagent aborted."
+        : "Subagent failed before it started.";
+  pushActivity(input.state, run, "subagent.thread.state.changed", run.errorMessage, {
+    state: run.state,
+    detail: run.errorMessage,
+  });
+  input.notify?.();
+  return run;
+}
+
+async function runSubagentTask(input: {
+  readonly state: SubagentExecutionState;
+  readonly prepared: PreparedSubagentTask;
+  readonly agentDir: string;
+  readonly extensionPaths: readonly string[];
+  readonly ctx: ExtensionContext;
+  readonly signal: AbortSignal | undefined;
+  readonly depth: number;
+  readonly maxSubagentDepth: number;
+  readonly loadedChildren: Map<string, LoadedSubagentRuntime>;
+  readonly notify: (() => void) | undefined;
+}): Promise<MutableSubagentRun> {
+  const { childModel, childThinkingLevel, profile, run, task } = input.prepared;
+  const title = taskDisplayName(task);
 
   // A child may itself fan out only when its resolved tools include "subagent" and it is still below
   // the (possibly profile-tightened) depth cap. Otherwise it gets no fanout extension at all.
@@ -699,7 +776,7 @@ async function runSubagentTask(input: {
       : [];
 
   const resourceLoader = new DefaultResourceLoader({
-    cwd: input.task.cwd ?? input.ctx.cwd,
+    cwd: task.cwd ?? input.ctx.cwd,
     agentDir: input.agentDir,
     additionalExtensionPaths: profile.resourceAccess.extensions
       ? normalizeAdditionalExtensionPaths(input.extensionPaths, input.ctx.cwd)
@@ -724,7 +801,7 @@ async function runSubagentTask(input: {
     : { type: "pi-managed" };
   const runtime = await ThreadAgentRuntime.create({
     threadId: ThreadId.make(run.subagentThreadId),
-    cwd: input.task.cwd ?? input.ctx.cwd,
+    cwd: task.cwd ?? input.ctx.cwd,
     agentDir: input.agentDir,
     ...(childModel ? { model: childModel } : {}),
     thinkingLevel: childThinkingLevel,
@@ -743,6 +820,12 @@ async function runSubagentTask(input: {
       excludedToolNames: [],
     },
   });
+  input.loadedChildren.set(run.subagentThreadId, {
+    active: true,
+    disposed: false,
+    lastUsedAt: Date.now(),
+    dispose: () => runtime.dispose(),
+  });
 
   const unsubscribe = runtime.subscribe((event) => {
     captureChildEvent(input.state, run, event);
@@ -758,9 +841,9 @@ async function runSubagentTask(input: {
     if (input.signal?.aborted) {
       throw new Error("Subagent aborted.");
     }
-    const childMessage = input.task.context
-      ? `Context:\n${input.task.context}\n\nTask:\n${input.task.prompt}`
-      : input.task.prompt;
+    const childMessage = task.context
+      ? `Context:\n${task.context}\n\nTask:\n${task.prompt}`
+      : task.prompt;
     await runtime.sendMessage(childMessage, {
       clientMessageId: null,
       replacesClientMessageId: null,
@@ -787,35 +870,60 @@ async function runSubagentTask(input: {
   } finally {
     input.signal?.removeEventListener("abort", abortChild);
     unsubscribe();
-    runtime.dispose();
+    const loaded = input.loadedChildren.get(run.subagentThreadId);
+    if (loaded) {
+      loaded.active = false;
+      loaded.lastUsedAt = Date.now();
+    }
+    evictIdleSubagentRuntimes({
+      loadedChildren: input.loadedChildren,
+      maxLoadedIdleChildren: DEFAULT_SUBAGENT_BUDGET_LIMITS.maxLoadedIdleChildren,
+    });
     input.notify?.();
   }
 
   return run;
 }
 
-async function mapWithConcurrency<TIn, TOut>(
-  items: readonly TIn[],
-  concurrency: number,
-  fn: (item: TIn, index: number) => Promise<TOut>,
-): Promise<TOut[]> {
-  const results: TOut[] = Array.from({ length: items.length });
-  let nextIndex = 0;
-  const workerCount = Math.min(Math.max(concurrency, 1), items.length);
-  const workers = Array.from({ length: workerCount }, async () => {
-    while (true) {
-      const index = nextIndex;
-      nextIndex += 1;
-      if (index >= items.length) {
-        return;
+async function runSubagentTasksWithBudget(input: {
+  readonly preparedTasks: readonly PreparedSubagentTask[];
+  readonly parentSessionId: string;
+  readonly toolCallId: string;
+  readonly budget: SubagentBudgetController;
+  readonly signal: AbortSignal | undefined;
+  readonly runTask: (prepared: PreparedSubagentTask, index: number) => Promise<MutableSubagentRun>;
+  readonly onNotStarted: (
+    prepared: PreparedSubagentTask,
+    error: unknown,
+    index: number,
+  ) => MutableSubagentRun;
+  readonly onStarted: (prepared: PreparedSubagentTask, index: number) => void;
+}): Promise<MutableSubagentRun[]> {
+  const results: MutableSubagentRun[] = Array.from({ length: input.preparedTasks.length });
+
+  await Promise.all(
+    input.preparedTasks.map(async (prepared, index) => {
+      let lease: Awaited<ReturnType<SubagentBudgetController["acquireSlot"]>> | null = null;
+      try {
+        lease = await input.budget.acquireSlot({
+          parentSessionId: input.parentSessionId,
+          toolCallId: input.toolCallId,
+          profileName: prepared.profile.name,
+          signal: input.signal,
+        });
+        input.onStarted(prepared, index);
+        results[index] = await input.runTask(prepared, index);
+      } catch (error) {
+        if (prepared.run.state === "queued" || prepared.run.state === "running") {
+          results[index] = input.onNotStarted(prepared, error, index);
+          return;
+        }
+        throw error;
+      } finally {
+        lease?.release();
       }
-      const item = items[index];
-      if (item !== undefined) {
-        results[index] = await fn(item, index);
-      }
-    }
-  });
-  await Promise.all(workers);
+    }),
+  );
   return results;
 }
 
@@ -826,11 +934,73 @@ function resultTextForRun(run: MutableSubagentRun): string {
   return run.finalText ?? "(no output)";
 }
 
+function subagentToolOverride(tools: readonly string[]): readonly string[] {
+  return tools.filter((tool) => tool !== "subagent");
+}
+
+function backgroundStartedText(details: SubagentToolDetails): string {
+  if (details.mode === "chain") {
+    return "Started background subagent chain.";
+  }
+  return details.runs.length === 1
+    ? "Started 1 background subagent."
+    : `Started ${details.runs.length} background subagents.`;
+}
+
+function safeNotificationText(text: string): string {
+  return text.replaceAll("</response>", "</ response>").replaceAll("</agent_notification>", "</ agent_notification>");
+}
+
+function backgroundNotificationForDetails(details: SubagentToolDetails): string | null {
+  if (details.runs.length === 0) {
+    return null;
+  }
+  const text = details.runs
+    .map((run) => {
+      const status =
+        run.state === "completed" ? "success" : run.state === "aborted" ? "aborted" : "error";
+      const response = safeNotificationText(
+        truncateSubagentOutputForParent({
+          text: run.finalText ?? run.errorMessage ?? run.state,
+          maxBytes: DEFAULT_SUBAGENT_BUDGET_LIMITS.maxParentVisibleOutputBytesPerRun,
+        }),
+      );
+      return [
+        "<agent_notification>",
+        "kind: subagent",
+        `agent_id: ${run.subagentThreadId}`,
+        `status: ${status}`,
+        `title: ${run.nickname}`,
+        "response:",
+        "<response>",
+        response,
+        "</response>",
+        "</agent_notification>",
+      ].join("\n");
+    })
+    .join("\n\n");
+  return truncateSubagentOutputForParent({
+    text,
+    maxBytes: DEFAULT_SUBAGENT_BUDGET_LIMITS.maxParentVisibleOutputBytesPerToolCall,
+  });
+}
+
+function subagentDetailsHasError(details: SubagentToolDetails): boolean {
+  return details.runs.some((run) => run.state === "failed" || run.state === "aborted");
+}
+
 export function createSubagentExtension(options: SubagentExtensionOptions): ExtensionFactory {
   const depth = options.depth ?? 0;
   const maxSubagentDepth = options.maxSubagentDepth ?? DEFAULT_MAX_SUBAGENT_DEPTH;
   const extensionPaths = options.extensionPaths ?? [];
+  const budget = createSubagentBudgetController(DEFAULT_SUBAGENT_BUDGET_LIMITS);
+  const loadedChildren = new Map<string, LoadedSubagentRuntime>();
   return (pi) => {
+    if (typeof pi.on === "function") {
+      pi.on("session_shutdown", () => {
+        disposeLoadedSubagentRuntimes(loadedChildren);
+      });
+    }
     // Recursion guard: an agent at or beyond the depth cap never receives the subagent tool, so it
     // cannot fan out further no matter what its prompt asks. Children only reach this code when their
     // profile authorized fanout (see runSubagentTask), so the cap is the only remaining gate here.
@@ -842,10 +1012,11 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
         name: "subagent",
         label: "Subagent",
         description:
-          "Delegate a focused task to a separate subagent running in its own context. Omit agent for the default Worker, use librarian for fast codebase research, or oracle for deep analysis and debugging. Include a concise visible description for the GUI while it runs. Supports single prompt, parallel tasks, and chain steps where {previous} carries the prior step output.",
+          "Delegate a focused task to a separate subagent running in its own context. In Honk Multitask mode, this is the primary way to start background implementation, research, review, or verification work. Omit agent for the default Worker, use librarian for fast codebase research, or oracle for deep analysis and debugging. Include a concise visible description for the GUI while it runs. Supports single prompt, parallel tasks, and chain steps where {previous} carries the prior step output.",
         promptSnippet:
-          "Use subagent for independent research or analysis work; give it complete context, a precise expected output, and a concise present-participle description shown while it runs.",
+          "Use subagent for independent implementation, research, review, or verification work; in Honk Multitask mode set runInBackground: true before doing broad local work. Give it complete context, a precise expected output, and a concise present-participle description shown while it runs.",
         promptGuidelines: [
+          "In Honk Multitask mode, use this tool early with runInBackground: true for non-trivial work instead of doing all exploration and edits yourself.",
           "Omit agent for normal Worker/default tasks; include a short visible description such as 'working through type errors'.",
           "Use agent: 'librarian' for fast codebase reconnaissance and file/symbol mapping; pair it with a description such as 'researching session IDs'.",
           "Use agent: 'oracle' for Oracle-style deep reasoning, debugging, architecture analysis, and tradeoff review; pair it with a description such as 'manifesting a migration plan'.",
@@ -853,6 +1024,7 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
           "Give each subagent all required context: goal, relevant files, constraints, and expected output. The child cannot see this conversation unless you pass context.",
           "Use parallel tasks only when the tasks are independent.",
           "Use chain when each step depends on the previous step's output via {previous}.",
+          "In Honk Multitask mode, set runInBackground: true so independent work continues while the parent returns control.",
           "Do not delegate trivial work you can do with one local read or search.",
         ],
         parameters: SubagentParams,
@@ -867,7 +1039,9 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
           const sharedOverrides: SubagentProfileOverrides = {
             ...(params.model ? { model: params.model } : {}),
             ...(thinkingOverride ? { thinkingLevel: thinkingOverride } : {}),
-            ...(params.tools && params.tools.length > 0 ? { tools: params.tools } : {}),
+            ...(params.tools && params.tools.length > 0
+              ? { tools: subagentToolOverride(params.tools) }
+              : {}),
           };
           // Resolve a built-in profile per task, then apply per-call overrides. Per-task agent/model
           // values win over the shared defaults. Unknown agent types throw before any child starts.
@@ -877,16 +1051,27 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
               overrides: { ...sharedOverrides, ...(taskModel ? { model: taskModel } : {}) },
             });
           const state = createExecutionState(mode);
+          const runInBackground = params.runInBackground === true;
+          let backgroundController = runInBackground
+            ? backgroundSubagentControllerForSession(ctx.sessionManager.getSessionId())
+            : null;
+          let backgroundRegistered = false;
+          let canPublishToolUpdates = true;
           // Compute + publish the combined details at most ~10 Hz (trailing edge). runSubagentTask
           // calls `notify()` on every child event; the throttle reads the current `state` only when
           // it actually fires, so the expensive `toolDetails` copy no longer runs per child chunk.
-          const publisher = onUpdate
+          const publisher = onUpdate || backgroundController
             ? createTrailingThrottle(() => {
                 const details = capLiveSubagentActivities(toolDetails(state));
-                onUpdate({
-                  content: [{ type: "text", text: summarizeSubagentDetails(details) }],
-                  details,
-                });
+                if (onUpdate && canPublishToolUpdates) {
+                  onUpdate({
+                    content: [{ type: "text", text: summarizeSubagentDetails(details) }],
+                    details,
+                  });
+                }
+                if (backgroundRegistered) {
+                  backgroundController?.emitBackgroundSubagentUpdate(toolCallId);
+                }
               }, SUBAGENT_PUBLISH_INTERVAL_MS)
             : null;
           const notify = publisher ? () => publisher.schedule() : undefined;
@@ -904,17 +1089,51 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
             };
           }
 
-          if (hasTasks && params.tasks && params.tasks.length > MAX_PARALLEL_TASKS) {
+          const requestedTaskCount = hasChain
+            ? (params.chain?.length ?? 0)
+            : hasTasks
+              ? (params.tasks?.length ?? 0)
+              : hasSingle
+                ? 1
+                : 0;
+          if (!budget.canAcceptTaskCount(requestedTaskCount)) {
             const details = toolDetails(state);
             return {
               content: [
                 {
                   type: "text",
-                  text: `Too many parallel subagent tasks. Max is ${MAX_PARALLEL_TASKS}.`,
+                  text: `Too many subagent tasks. Max is ${DEFAULT_SUBAGENT_BUDGET_LIMITS.maxTasksPerToolCall}.`,
                 },
               ],
               details,
             };
+          }
+
+          if (runInBackground) {
+            if (!backgroundController || !backgroundController.canRunBackgroundSubagent()) {
+              const details = toolDetails(state);
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: "Background subagents are only available in Honk Multitask mode.",
+                  },
+                ],
+                details,
+              };
+            }
+            if (!backgroundController.activeBackgroundSubagentTurnId()) {
+              const details = toolDetails(state);
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: "Cannot start background subagents before a parent turn is active.",
+                  },
+                ],
+                details,
+              };
+            }
           }
 
           if (params.agent !== undefined) {
@@ -927,87 +1146,158 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
             resolveProfileForTask(task.agent, task.model),
           );
           const singleProfile = params.prompt ? resolveProfileForTask(undefined, undefined) : null;
+          const parentSessionId = ctx.sessionManager.getSessionId();
 
-          if (params.chain && params.chain.length > 0) {
-            let previousOutput = "";
-            for (let index = 0; index < params.chain.length; index += 1) {
-              const step = params.chain[index];
-              if (!step) {
-                continue;
+          const executePreparedTasks = async (
+            preparedTasks: readonly PreparedSubagentTask[],
+            runSignal: AbortSignal | undefined,
+          ): Promise<MutableSubagentRun[]> => {
+            return runSubagentTasksWithBudget({
+              preparedTasks,
+              parentSessionId,
+              toolCallId,
+              budget,
+              signal: runSignal,
+              runTask: (prepared) =>
+                runSubagentTask({
+                  state,
+                  prepared,
+                  agentDir,
+                  extensionPaths,
+                  ctx,
+                  signal: runSignal,
+                  depth,
+                  maxSubagentDepth,
+                  loadedChildren,
+                  notify,
+                }),
+              onStarted: (prepared) => {
+                markPreparedSubagentRunning({ state, prepared, notify });
+              },
+              onNotStarted: (prepared, error) =>
+                markPreparedSubagentNotStarted({
+                  state,
+                  prepared,
+                  signal: runSignal,
+                  error,
+                  notify,
+                }),
+            });
+          };
+
+          const executeRuns = async (runSignal: AbortSignal | undefined): Promise<void> => {
+            if (params.chain && params.chain.length > 0) {
+              let previousOutput = "";
+              for (let index = 0; index < params.chain.length; index += 1) {
+                const step = params.chain[index];
+                if (!step) {
+                  continue;
+                }
+                const prepared = prepareSubagentTask({
+                  state,
+                  parentThreadId: parentSessionId,
+                  toolCallId,
+                  task: {
+                    prompt: step.prompt.replaceAll("{previous}", previousOutput),
+                    description: step.description ?? null,
+                    cwd: step.cwd ?? null,
+                    step: index + 1,
+                    context: step.context ?? params.context ?? null,
+                  },
+                  ctx,
+                  thinkingLevel: pi.getThinkingLevel(),
+                  profile: chainProfiles?.[index] ?? resolveProfileForTask(step.agent, step.model),
+                  notify,
+                });
+                const [run] = await executePreparedTasks([prepared], runSignal);
+                if (!run) {
+                  break;
+                }
+                previousOutput = resultTextForRun(run);
+                if (run.state !== "completed") {
+                  break;
+                }
               }
-              const run = await runSubagentTask({
+            } else if (params.tasks && params.tasks.length > 0) {
+              const preparedTasks = params.tasks.map((task, index) =>
+                prepareSubagentTask({
+                  state,
+                  parentThreadId: parentSessionId,
+                  toolCallId,
+                  task: {
+                    prompt: task.prompt,
+                    description: task.description ?? null,
+                    cwd: task.cwd ?? null,
+                    step: null,
+                    context: task.context ?? params.context ?? null,
+                  },
+                  ctx,
+                  thinkingLevel: pi.getThinkingLevel(),
+                  profile: taskProfiles?.[index] ?? resolveProfileForTask(task.agent, task.model),
+                  notify,
+                }),
+              );
+              await executePreparedTasks(preparedTasks, runSignal);
+            } else if (params.prompt) {
+              const prepared = prepareSubagentTask({
                 state,
-                parentThreadId: ctx.sessionManager.getSessionId(),
+                parentThreadId: parentSessionId,
                 toolCallId,
                 task: {
-                  prompt: step.prompt.replaceAll("{previous}", previousOutput),
-                  description: step.description ?? null,
-                  cwd: step.cwd ?? null,
-                  step: index + 1,
-                  context: step.context ?? params.context ?? null,
+                  prompt: params.prompt,
+                  description: params.description ?? null,
+                  cwd: params.cwd ?? null,
+                  step: null,
+                  context: params.context ?? null,
                 },
-                agentDir,
-                extensionPaths,
                 ctx,
-                signal,
                 thinkingLevel: pi.getThinkingLevel(),
-                profile: chainProfiles?.[index] ?? resolveProfileForTask(step.agent, step.model),
-                depth,
-                maxSubagentDepth,
+                profile: singleProfile!,
                 notify,
               });
-              previousOutput = resultTextForRun(run);
-              if (run.state !== "completed") {
-                break;
-              }
+              await executePreparedTasks([prepared], runSignal);
             }
-          } else if (params.tasks && params.tasks.length > 0) {
-            await mapWithConcurrency(params.tasks, MAX_CONCURRENCY, (task, index) =>
-              runSubagentTask({
-                state,
-                parentThreadId: ctx.sessionManager.getSessionId(),
-                toolCallId,
-                task: {
-                  prompt: task.prompt,
-                  description: task.description ?? null,
-                  cwd: task.cwd ?? null,
-                  step: null,
-                  context: task.context ?? params.context ?? null,
-                },
-                agentDir,
-                extensionPaths,
-                ctx,
-                signal,
-                thinkingLevel: pi.getThinkingLevel(),
-                profile: taskProfiles?.[index] ?? resolveProfileForTask(task.agent, task.model),
-                depth,
-                maxSubagentDepth,
-                notify,
-              }),
-            );
-          } else if (params.prompt) {
-            await runSubagentTask({
-              state,
-              parentThreadId: ctx.sessionManager.getSessionId(),
-              toolCallId,
-              task: {
-                prompt: params.prompt,
-                description: params.description ?? null,
-                cwd: params.cwd ?? null,
-                step: null,
-                context: params.context ?? null,
-              },
-              agentDir,
-              extensionPaths,
-              ctx,
-              signal,
-              thinkingLevel: pi.getThinkingLevel(),
-              profile: singleProfile!,
-              depth,
-              maxSubagentDepth,
-              notify,
+          };
+
+          if (runInBackground && backgroundController) {
+            const backgroundAbort = new AbortController();
+            const abortBeforeReturn = () => {
+              backgroundAbort.abort();
+            };
+            signal?.addEventListener("abort", abortBeforeReturn, { once: true });
+            const completion = executeRuns(backgroundAbort.signal).then(() => {
+              publisher?.flush();
+              const details = toolDetails(state);
+              return {
+                details,
+                isError: subagentDetailsHasError(details),
+                notificationText: backgroundNotificationForDetails(details),
+              };
             });
+            const turnId = backgroundController.activeBackgroundSubagentTurnId();
+            backgroundController.registerBackgroundSubagent({
+              toolCallId,
+              turnId,
+              currentDetails: () => toolDetails(state),
+              currentLiveDetails: () => capLiveSubagentActivities(toolDetails(state)),
+              summarize: summarizeSubagentDetails,
+              abort: () => {
+                backgroundAbort.abort();
+              },
+              completion,
+            });
+            backgroundRegistered = true;
+            publisher?.flush();
+            canPublishToolUpdates = false;
+            signal?.removeEventListener("abort", abortBeforeReturn);
+            const details = capLiveSubagentActivities(toolDetails(state));
+            return {
+              content: [{ type: "text", text: backgroundStartedText(details) }],
+              details,
+            };
           }
+
+          await executeRuns(signal);
 
           publisher?.flush();
           const details = toolDetails(state);
@@ -1025,10 +1315,18 @@ function summarizeSubagentDetails(details: SubagentToolDetails): string {
   if (details.runs.length === 0) {
     return "No subagents ran.";
   }
+  const queued = details.runs.filter((run) => run.state === "queued").length;
+  const running = details.runs.filter((run) => run.state === "running").length;
   const completed = details.runs.filter((run) => run.state === "completed").length;
   const failed = details.runs.filter((run) => run.state === "failed").length;
   const aborted = details.runs.filter((run) => run.state === "aborted").length;
   const parts = [`Subagents: ${completed}/${details.runs.length} completed`];
+  if (queued > 0) {
+    parts.push(`${queued} queued`);
+  }
+  if (running > 0) {
+    parts.push(`${running} running`);
+  }
   if (failed > 0) {
     parts.push(`${failed} failed`);
   }
@@ -1036,7 +1334,14 @@ function summarizeSubagentDetails(details: SubagentToolDetails): string {
     parts.push(`${aborted} aborted`);
   }
   const outputs = details.runs.map(
-    (run) => `### ${run.nickname}\n\n${run.finalText ?? run.errorMessage ?? run.state}`,
+    (run) =>
+      `### ${run.nickname}\n\n${truncateSubagentOutputForParent({
+        text: run.finalText ?? run.errorMessage ?? run.state,
+        maxBytes: DEFAULT_SUBAGENT_BUDGET_LIMITS.maxParentVisibleOutputBytesPerRun,
+      })}`,
   );
-  return `${parts.join(", ")}\n\n${outputs.join("\n\n---\n\n")}`;
+  return truncateSubagentOutputForParent({
+    text: `${parts.join(", ")}\n\n${outputs.join("\n\n---\n\n")}`,
+    maxBytes: DEFAULT_SUBAGENT_BUDGET_LIMITS.maxParentVisibleOutputBytesPerToolCall,
+  });
 }

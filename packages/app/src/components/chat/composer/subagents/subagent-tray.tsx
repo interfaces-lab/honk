@@ -7,7 +7,15 @@ import {
 } from "@honk/contracts";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { IconCrossSmall } from "central-icons";
-import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type CSSProperties,
+  type RefObject,
+} from "react";
 import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import { Button } from "@honk/honkkit/button";
 import { ToolCallLine } from "@honk/honkkit/tool-call";
@@ -47,7 +55,7 @@ const SUBAGENT_TRAY_COLLISION_AVOIDANCE = {
   fallbackAxisSide: "none",
 } as const;
 
-type SubagentTrayVirtualRow =
+export type SubagentTrayVirtualRow =
   | {
       readonly kind: "transcript";
       readonly id: string;
@@ -260,18 +268,28 @@ function SubagentTrayBody(props: {
   const { subagent } = props;
   const transcriptItems = subagent?.transcriptItems ?? EMPTY_SUBAGENT_TRANSCRIPT_ITEMS;
   const logs = subagent?.logs ?? EMPTY_SUBAGENT_LOGS;
-  const renderableTranscriptItems = transcriptItems.filter(hasRenderableSubagentTranscriptItem);
+  const renderableTranscriptItems = useMemo(
+    () => deriveRenderableSubagentTranscriptItems(transcriptItems),
+    [transcriptItems],
+  );
   const hasActivityTranscript = renderableTranscriptItems.length > 0;
-  const runningLogs = deriveVisibleSubagentLogs(logs, hasActivityTranscript);
+  const runningLogs = useMemo(
+    () => deriveVisibleSubagentLogs(logs, hasActivityTranscript),
+    [logs, hasActivityTranscript],
+  );
   const streamingLogId = runningLogs.at(-1)?.id;
   const scrollElementRef = useRef<HTMLDivElement | null>(null);
   const isStreaming = subagent?.isActive === true;
-  const rows = deriveSubagentTrayVirtualRows({
-    items: renderableTranscriptItems,
-    isStreaming,
-    logs: runningLogs,
-    streamingLogId,
-  });
+  const rows = useMemo(
+    () =>
+      deriveSubagentTrayVirtualRows({
+        items: renderableTranscriptItems,
+        isStreaming,
+        logs: runningLogs,
+        streamingLogId,
+      }),
+    [isStreaming, renderableTranscriptItems, runningLogs, streamingLogId],
+  );
 
   return (
     <div
@@ -291,7 +309,7 @@ function SubagentTrayBody(props: {
   );
 }
 
-function deriveSubagentTrayVirtualRows(input: {
+export function deriveSubagentTrayVirtualRows(input: {
   items: ReadonlyArray<SubagentTranscriptItem>;
   isStreaming: boolean;
   logs: ReadonlyArray<WorkLogSubagentLog>;
@@ -302,23 +320,72 @@ function deriveSubagentTrayVirtualRows(input: {
   }
 
   const rows: SubagentTrayVirtualRow[] = [];
-  for (const [index, item] of input.items.entries()) {
-    rows.push({
-      kind: "transcript",
-      id: `transcript:${item.id}`,
-      item,
-      streaming: input.isStreaming && index === input.items.length - 1 && item.loading,
-    });
-  }
-  for (const log of input.logs) {
-    rows.push({
-      kind: "log",
-      id: `log:${log.id}`,
-      log,
-      loading: log.id === input.streamingLogId,
-    });
+  const streamingTranscriptItemId = input.isStreaming ? input.items.at(-1)?.id : undefined;
+  let itemIndex = 0;
+  let logIndex = 0;
+  while (itemIndex < input.items.length || logIndex < input.logs.length) {
+    const item = input.items[itemIndex];
+    const log = input.logs[logIndex];
+    if (item && (!log || compareSubagentTranscriptItemToLog(item, log) <= 0)) {
+      rows.push(subagentTranscriptItemVirtualRow(item, item.id === streamingTranscriptItemId));
+      itemIndex += 1;
+      continue;
+    }
+    if (log) {
+      rows.push(subagentLogVirtualRow(log, log.id === input.streamingLogId));
+      logIndex += 1;
+    }
   }
   return rows;
+}
+
+function deriveRenderableSubagentTranscriptItems(
+  items: ReadonlyArray<SubagentTranscriptItem>,
+): ReadonlyArray<SubagentTranscriptItem> {
+  if (items.length === 0) {
+    return EMPTY_SUBAGENT_TRANSCRIPT_ITEMS;
+  }
+  const renderable: SubagentTranscriptItem[] = [];
+  for (const item of items) {
+    if (hasRenderableSubagentTranscriptItem(item)) {
+      renderable.push(item);
+    }
+  }
+  return renderable.length === 0 ? EMPTY_SUBAGENT_TRANSCRIPT_ITEMS : renderable;
+}
+
+function subagentTranscriptItemVirtualRow(
+  item: SubagentTranscriptItem,
+  streaming: boolean,
+): SubagentTrayVirtualRow {
+  return {
+    kind: "transcript",
+    id: `transcript:${item.id}`,
+    item,
+    streaming: streaming && item.loading,
+  };
+}
+
+function subagentLogVirtualRow(
+  log: WorkLogSubagentLog,
+  loading: boolean,
+): SubagentTrayVirtualRow {
+  return {
+    kind: "log",
+    id: `log:${log.id}`,
+    log,
+    loading,
+  };
+}
+
+function compareSubagentTranscriptItemToLog(
+  item: SubagentTranscriptItem,
+  log: WorkLogSubagentLog,
+): number {
+  const createdAtOrder = item.createdAt.localeCompare(log.createdAt);
+  return createdAtOrder === 0
+    ? `transcript:${item.id}`.localeCompare(`log:${log.id}`)
+    : createdAtOrder;
 }
 
 function useFocusedSubagent(selection: SubagentTraySelection): WorkLogSubagent | null {
@@ -358,12 +425,16 @@ function SubagentTrayVirtualRows({
   scrollElementRef: RefObject<HTMLDivElement | null>;
 }) {
   const shouldFollowScrollRef = useRef(true);
-  const estimateSize = (index: number) => estimateSubagentTrayVirtualRowSize(rows[index]);
+  const estimateSize = useCallback(
+    (index: number) => estimateSubagentTrayVirtualRowSize(rows[index]),
+    [rows],
+  );
+  const getItemKey = useCallback((index: number) => rows[index]?.id ?? index, [rows]);
   const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
     getScrollElement: () => scrollElementRef.current,
     estimateSize,
-    getItemKey: (index) => rows[index]?.id ?? index,
+    getItemKey,
     overscan: SUBAGENT_TRANSCRIPT_OVERSCAN,
     initialRect: DEFAULT_SUBAGENT_TRAY_RECT,
     anchorTo: "end",
@@ -430,7 +501,7 @@ function SubagentTrayVirtualRows({
             className="absolute left-0 top-0 w-full pb-(--chat-timeline-step-gap) [contain:layout]"
             style={subagentVirtualRowStyle(virtualRow)}
           >
-            <SubagentTrayVirtualRowContent
+            <MemoizedSubagentTrayVirtualRowContent
               activeThreadId={activeThreadId}
               environmentId={environmentId}
               projectRoot={projectRoot}
@@ -479,6 +550,8 @@ function SubagentTrayVirtualRowContent({
       return <div className="py-1 text-detail text-honk-fg-tertiary">No thread content yet.</div>;
   }
 }
+
+const MemoizedSubagentTrayVirtualRowContent = memo(SubagentTrayVirtualRowContent);
 
 function subagentVirtualRowStyle(virtualRow: VirtualItem): CSSProperties {
   return {
@@ -629,17 +702,20 @@ function SubagentTimelineStep({
   projectRoot: string | undefined;
   step: TimelineStep;
 }) {
-  const ctx: StepRendererContext = {
-    markdownCwd: projectRoot,
-    projectRoot,
-    activeThreadId,
-    activeThreadEnvironmentId: environmentId,
-    isServerThread: false,
-    onBeginEditUserMessage: undefined,
-    renderEditComposer: undefined,
-    onUpdateProposedPlan: undefined,
-    onImageExpand: noopImageExpand,
-  };
+  const ctx = useMemo<StepRendererContext>(
+    () => ({
+      markdownCwd: projectRoot,
+      projectRoot,
+      activeThreadId,
+      activeThreadEnvironmentId: environmentId,
+      isServerThread: false,
+      onBeginEditUserMessage: undefined,
+      renderEditComposer: undefined,
+      onUpdateProposedPlan: undefined,
+      onImageExpand: noopImageExpand,
+    }),
+    [activeThreadId, environmentId, projectRoot],
+  );
 
   return <StepRenderer step={step} editUserMessagesDisabled ctx={ctx} />;
 }

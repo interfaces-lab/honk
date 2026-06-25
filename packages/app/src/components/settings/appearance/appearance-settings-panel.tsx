@@ -161,6 +161,24 @@ export function AppearanceSettingsPanel() {
         {supportsAppIconSwitching ? <AppIconSettingsRow /> : null}
       </SettingsSection>
 
+      <SettingsSection title="Chat">
+        <SettingsRow
+          preferenceId="appearance.tool-call-density"
+          title="Tool Call Density"
+          description="Adjust how much detail is shown for tool calls"
+          control={
+            <ToolCallDensitySlider
+              value={settings.conversationDensity}
+              onChange={(value) => {
+                void updateSettings({ conversationDensity: value });
+              }}
+            />
+          }
+        >
+          <ToolCallDensityPreview density={settings.conversationDensity} />
+        </SettingsRow>
+      </SettingsSection>
+
       <SettingsSection title="Colors">
         <SettingsRow
           preferenceId="appearance.tint-hue"
@@ -308,24 +326,6 @@ export function AppearanceSettingsPanel() {
             />
           }
         />
-      </SettingsSection>
-
-      <SettingsSection title="Chat">
-        <SettingsRow
-          preferenceId="appearance.tool-call-density"
-          title="Tool Call Density"
-          description="Adjust how much detail is shown for tool calls"
-          control={
-            <ToolCallDensitySlider
-              value={settings.conversationDensity}
-              onChange={(value) => {
-                void updateSettings({ conversationDensity: value });
-              }}
-            />
-          }
-        >
-          <ToolCallDensityPreview density={settings.conversationDensity} />
-        </SettingsRow>
       </SettingsSection>
     </SettingsPageContainer>
   );

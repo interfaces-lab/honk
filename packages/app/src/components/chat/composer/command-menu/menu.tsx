@@ -334,6 +334,7 @@ export function useComposerCommandMenu(input: {
   agentMode?: AgentMode | undefined;
   allowModeSlashCommands?: boolean | undefined;
   allowThreadActionSlashCommands?: boolean | undefined;
+  multitaskModeEnabled?: boolean | undefined;
   composerTrigger: ComposerTrigger | null;
   environmentId: EnvironmentId;
   expandedSections: ReadonlySet<string>;
@@ -484,6 +485,15 @@ export function useComposerCommandMenu(input: {
           description: "Focus on diagnostics before making changes",
         },
       );
+      if (input.multitaskModeEnabled) {
+        builtInSlashCommandItems.push({
+          id: "slash:multitask",
+          type: "slash-command",
+          command: "multitask",
+          label: "/multitask",
+          description: "Coordinate background subagents",
+        });
+      }
     }
     if (input.allowThreadActionSlashCommands !== false) {
       builtInSlashCommandItems.push({

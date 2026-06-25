@@ -1,4 +1,4 @@
-import type { Model } from "@earendil-works/pi-ai/base";
+import type { Model } from "@earendil-works/pi-ai";
 import { AGENT_THINKING_LEVELS } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 import {

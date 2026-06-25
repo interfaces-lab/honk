@@ -307,6 +307,8 @@ export function interactionModeFromKeybindingCommand(
       return "plan";
     case "composer.mode.debug":
       return "debug";
+    case "composer.mode.multitask":
+      return "multitask";
     default:
       return null;
   }
@@ -324,6 +326,8 @@ export function keybindingCommandForInteractionMode(
       return "composer.mode.plan";
     case "debug":
       return "composer.mode.debug";
+    case "multitask":
+      return "composer.mode.multitask";
   }
 }
 
@@ -343,38 +347,6 @@ export function shouldShowThreadJumpHints(
   }
 
   return false;
-}
-
-export function isTerminalToggleShortcut(
-  event: ShortcutEventLike,
-  keybindings: ResolvedKeybindingsConfig,
-  options?: ShortcutMatchOptions,
-): boolean {
-  return matchesCommandShortcut(event, keybindings, "terminal.toggle", options);
-}
-
-export function isTerminalSplitShortcut(
-  event: ShortcutEventLike,
-  keybindings: ResolvedKeybindingsConfig,
-  options?: ShortcutMatchOptions,
-): boolean {
-  return matchesCommandShortcut(event, keybindings, "terminal.split", options);
-}
-
-export function isTerminalNewShortcut(
-  event: ShortcutEventLike,
-  keybindings: ResolvedKeybindingsConfig,
-  options?: ShortcutMatchOptions,
-): boolean {
-  return matchesCommandShortcut(event, keybindings, "terminal.new", options);
-}
-
-export function isTerminalCloseShortcut(
-  event: ShortcutEventLike,
-  keybindings: ResolvedKeybindingsConfig,
-  options?: ShortcutMatchOptions,
-): boolean {
-  return matchesCommandShortcut(event, keybindings, "terminal.close", options);
 }
 
 export function isChatNewShortcut(

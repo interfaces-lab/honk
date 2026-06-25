@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "node ./tsc-rc.mjs --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {

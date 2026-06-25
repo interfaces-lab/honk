@@ -32,19 +32,42 @@
   /* Spacing scale (N × 4px) */
   --honk-spacing-0-25: 1px;
   --honk-spacing-0-5: 2px;
+  --honk-spacing-0-75: 3px;
   --honk-spacing-1: 4px;
+  --honk-spacing-1-25: 5px;
   --honk-spacing-1-5: 6px;
+  --honk-spacing-1-75: 7px;
   --honk-spacing-2: 8px;
+  --honk-spacing-2-25: 9px;
   --honk-spacing-2-5: 10px;
+  --honk-spacing-2-75: 11px;
   --honk-spacing-3: 12px;
+  --honk-spacing-3-25: 13px;
+  --honk-spacing-3-5: 14px;
+  --honk-spacing-3-75: 15px;
   --honk-spacing-4: 16px;
+  --honk-spacing-4-25: 17px;
+  --honk-spacing-4-5: 18px;
+  --honk-spacing-4-75: 19px;
+  --honk-spacing-5: 20px;
+  --honk-spacing-5-5: 22px;
+  --honk-spacing-6: 24px;
+  --honk-spacing-6-5: 26px;
   --honk-spacing-7: 28px;
+  --honk-spacing-7-5: 30px;
+  --honk-spacing-8: 32px;
+  --honk-spacing-8-5: 34px;
+  --honk-spacing-9: 36px;
+  --honk-spacing-9-5: 38px;
+  --honk-spacing-10: 40px;
   /* Radius scale */
   --honk-radius-xs: 3px;
   --honk-radius-sm: 4px;
   --honk-radius-base: 6px;
   --honk-radius-lg: 8px;
   --honk-radius-xl: 12px;
+  --honk-radius-2xl: 14px;
+  --honk-radius-3xl: 16px;
   /* Workbench-fixed typography (12/13/14px ramp at default zoom) */
   --honk-text-tab: 12px;
   --honk-leading-tab: 16px;
@@ -85,8 +108,8 @@
   --honk-base-sidebar: #f3f3f3;
   --honk-base-chrome: #f8f8f8;
   --honk-base-editor: #fcfcfc;
-  --honk-base-accent: #3685bf;
-  --honk-base-focus: #3685bf;
+  --honk-base-accent: #599ce7;
+  --honk-base-focus: #141414;
   --honk-shadow-primary: color-mix(in srgb, #000 6%, transparent);
 
   --accent: var(--honk-bg-secondary);
@@ -148,7 +171,7 @@
   --honk-glass-surface-background: rgb(0 0 0 / 0.42);
 
   --background: var(--honk-base-editor);
-  --honk-base-foreground: #e4e4e4;
+  --honk-base-foreground: #f0f0f0;
   --foreground: var(--honk-base-foreground);
   --honk-swatch-inset-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 16%, transparent);
   --card: var(--honk-color-elevated-opaque);
@@ -165,7 +188,7 @@
   --honk-base-chrome: #141414;
   --honk-base-editor: #181818;
   --honk-base-accent: #599ce7;
-  --honk-base-focus: #e4e4e4;
+  --honk-base-focus: #f0f0f0;
   --honk-shadow-primary: transparent;
 
   --accent: var(--honk-bg-secondary);
@@ -330,8 +353,6 @@ html {
   --honk-fg-quaternary: color-mix(in srgb, var(--foreground) 36%, transparent);
   --honk-fg-active: var(--foreground);
   --honk-fg-focused: var(--foreground);
-  --honk-fg-red-primary: var(--destructive);
-  --honk-fg-green-primary: var(--success);
   --honk-bg-primary: color-mix(in srgb, var(--foreground) 20%, transparent);
   --honk-bg-secondary: color-mix(in srgb, var(--foreground) 14%, transparent);
   --honk-bg-secondary-wash: color-mix(in srgb, var(--honk-bg-secondary) 72%, transparent);
@@ -343,42 +364,77 @@ html {
   --honk-command-palette-surface-background: var(--honk-menu-surface-background);
   --honk-bg-active: color-mix(in srgb, var(--foreground) 16%, transparent);
   --honk-bg-focused: color-mix(in srgb, var(--foreground) 22%, transparent);
-  --honk-bg-green-primary: var(--success);
   --vscode-editor-background: var(--background);
   --vscode-foreground: var(--foreground);
   --vscode-sideBar-background: var(--honk-color-sidebar-opaque);
   --vscode-widget-border: var(--honk-stroke-tertiary);
   --vscode-list-hoverBackground: var(--honk-bg-quaternary);
-  --honk-tone-yellow: var(--warning);
-  --honk-tone-green: var(--success);
-  --honk-tone-red: var(--destructive);
+  --honk-tone-blue: #7bafe9;
+  --honk-tone-cyan: #81a1c1;
+  --honk-tone-green: #3fa266;
+  --honk-tone-magenta: #b48ead;
+  --honk-tone-orange: #d08770;
+  --honk-tone-purple: #9386f2;
+  --honk-tone-red: #fc6b83;
+  --honk-tone-yellow: #f1b467;
   --honk-bg-yellow-primary: var(--honk-tone-yellow);
-  --honk-bg-yellow-secondary: color-mix(in srgb, var(--honk-tone-yellow) 24%, transparent);
-  --honk-bg-green-secondary: color-mix(in srgb, var(--honk-tone-green) 24%, transparent);
-  --honk-bg-red-secondary: color-mix(in srgb, var(--honk-tone-red) 20%, transparent);
-  --honk-fg-orange-primary: color-mix(in oklch, var(--warning) 74%, var(--destructive));
-  --honk-fg-cyan-primary: var(--primary);
+  --honk-bg-blue-primary: var(--honk-tone-blue);
+  --honk-bg-cyan-primary: var(--honk-tone-cyan);
+  --honk-bg-green-primary: var(--honk-tone-green);
+  --honk-bg-magenta-primary: var(--honk-tone-magenta);
+  --honk-bg-orange-primary: var(--honk-tone-orange);
+  --honk-bg-purple-primary: var(--honk-tone-purple);
+  --honk-bg-red-primary: var(--honk-tone-red);
+  --honk-bg-yellow-secondary: color-mix(in srgb, var(--honk-tone-yellow) 12%, transparent);
+  --honk-bg-blue-secondary: color-mix(in srgb, var(--honk-tone-blue) 12%, transparent);
+  --honk-bg-cyan-secondary: color-mix(in srgb, var(--honk-tone-cyan) 12%, transparent);
+  --honk-bg-green-secondary: color-mix(in srgb, var(--honk-tone-green) 12%, transparent);
+  --honk-bg-magenta-secondary: color-mix(in srgb, var(--honk-tone-magenta) 12%, transparent);
+  --honk-bg-orange-secondary: color-mix(in srgb, var(--honk-tone-orange) 12%, transparent);
+  --honk-bg-purple-secondary: color-mix(in srgb, var(--honk-tone-purple) 12%, transparent);
+  --honk-bg-red-secondary: color-mix(in srgb, var(--honk-tone-red) 12%, transparent);
+  --honk-fg-blue-primary: var(--honk-tone-blue);
+  --honk-fg-cyan-primary: var(--honk-tone-cyan);
+  --honk-fg-green-primary: var(--honk-tone-green);
+  --honk-fg-magenta-primary: var(--honk-tone-magenta);
+  --honk-fg-orange-primary: var(--honk-tone-orange);
+  --honk-fg-purple-primary: var(--honk-tone-purple);
+  --honk-fg-red-primary: var(--honk-tone-red);
+  --honk-fg-yellow-primary: var(--honk-tone-yellow);
   --honk-git-status-added: color-mix(in srgb, var(--honk-fg-green-primary) 86%, var(--foreground));
   --honk-git-status-deleted: var(--honk-fg-red-primary);
   --honk-git-status-modified: var(--honk-fg-orange-primary);
   --honk-git-status-renamed: var(--honk-fg-cyan-primary);
   --honk-icon-yellow-primary: color-mix(in srgb, var(--honk-tone-yellow) 92%, transparent);
   --honk-icon-green-primary: color-mix(in srgb, var(--honk-tone-green) 92%, transparent);
+  --honk-icon-cyan-primary: color-mix(in srgb, var(--honk-tone-cyan) 92%, transparent);
+  --honk-icon-purple-primary: color-mix(in srgb, var(--honk-tone-purple) 92%, transparent);
+  --honk-icon-red-primary: color-mix(in srgb, var(--honk-tone-red) 92%, transparent);
   --honk-stroke-yellow-primary: color-mix(in srgb, var(--honk-tone-yellow) 56%, transparent);
   --honk-stroke-green-primary: color-mix(in srgb, var(--honk-tone-green) 56%, transparent);
+  --honk-stroke-cyan-primary: color-mix(in srgb, var(--honk-tone-cyan) 56%, transparent);
+  --honk-stroke-purple-primary: color-mix(in srgb, var(--honk-tone-purple) 56%, transparent);
+  --honk-stroke-red-primary: color-mix(in srgb, var(--honk-tone-red) 56%, transparent);
   --composer-mode-chat-background: var(--honk-bg-green-secondary);
   --composer-mode-chat-text: var(--honk-fg-green-primary);
   --composer-mode-plan-background: var(--honk-bg-yellow-secondary);
-  --composer-mode-plan-text: var(--honk-tone-yellow);
+  --composer-mode-plan-text: var(--honk-fg-yellow-primary);
   --composer-mode-debug-background: var(--honk-bg-red-secondary);
   --composer-mode-debug-text: var(--honk-fg-red-primary);
+  --composer-mode-multitask-background: var(--honk-bg-purple-secondary);
+  --composer-mode-multitask-text: var(--honk-fg-purple-primary);
+  --composer-mode-spec-background: var(--honk-bg-cyan-secondary);
+  --composer-mode-spec-text: var(--honk-fg-cyan-primary);
+  --composer-mode-spec-border: var(--honk-stroke-cyan-primary);
+  --composer-mode-spec-icon: var(--honk-icon-cyan-primary);
+  --composer-mode-background-background: var(--honk-bg-magenta-secondary);
+  --composer-mode-background-text: var(--honk-fg-magenta-primary);
   --composer-mode-plan-border: var(--honk-stroke-yellow-primary);
   --composer-mode-plan-icon: var(--honk-icon-yellow-primary);
   --honk-stroke-primary: color-mix(in srgb, var(--foreground) 20%, transparent);
   --honk-stroke-secondary: color-mix(in srgb, var(--foreground) 12%, transparent);
   --honk-stroke-quaternary: color-mix(in srgb, var(--foreground) 4%, transparent);
   --honk-stroke-focused: var(--ring);
-  --honk-stroke-red-primary: color-mix(in oklch, var(--destructive) 56%, transparent);
   --honk-icon-primary: color-mix(in srgb, var(--foreground) 86%, transparent);
   --honk-icon-secondary: color-mix(in srgb, var(--foreground) 66%, transparent);
   --honk-icon-tertiary: color-mix(in srgb, var(--foreground) 46%, transparent);
@@ -461,6 +517,10 @@ html {
 }
 
 [data-component="root"] {
+  --honk-focus-ring-color: var(--honk-stroke-focused);
+  --honk-focus-ring-width: 1px;
+  --honk-focus-ring-offset: 2px;
+  --honk-focus-ring-radius: var(--honk-radius-sm);
   --honk-composer-queue-edit-banner-background: color-mix(
     in srgb,
     var(--honk-composer-surface-background) 88%,
@@ -477,14 +537,14 @@ html.dark {
   --honk-vibrancy-sidebar-mix: 36%;
   --honk-vibrancy-chat-mix: 72%;
   --honk-vibrancy-editor-mix: var(--honk-vibrancy-chat-mix);
-  --honk-pane-surface-background: color-mix(in srgb, var(--honk-bg-elevated) 96%, #fff);
+  --honk-pane-surface-background: var(--honk-bg-elevated);
   --honk-menu-surface-background: var(--honk-pane-surface-background);
   --honk-composer-popup-surface-background: var(--honk-menu-surface-background);
-  --honk-bubble-surface-background: var(--honk-pane-surface-background);
-  --honk-bubble-surface-opaque-background: var(--honk-pane-surface-background);
+  --honk-bubble-surface-background: var(--honk-bg-elevated);
+  --honk-bubble-surface-opaque-background: var(--honk-bg-elevated);
   --honk-message-bubble-background: var(--honk-bubble-surface-background);
   --honk-composer-surface-background: var(--honk-bubble-surface-background);
-  --honk-composer-surface-opaque-background: var(--honk-pane-surface-background);
+  --honk-composer-surface-opaque-background: var(--honk-bg-elevated);
   --honk-command-palette-surface-background: var(--honk-menu-surface-background);
   --honk-workbench-panel-background: color-mix(
     in srgb,

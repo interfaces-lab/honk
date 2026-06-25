@@ -103,6 +103,7 @@ export function ProjectMonacoEditor(props: {
       guides: { indentation: true, bracketPairs: true },
       scrollBeyondLastLine: false,
       renderWhitespace: "selection",
+      contextmenu: false,
       wordWrap: wordWrapRef.current ? "on" : "off",
       readOnly: props.fileData === null,
       padding: { top: 12, bottom: 24 },

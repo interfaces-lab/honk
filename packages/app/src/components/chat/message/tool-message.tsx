@@ -385,11 +385,15 @@ function runtimeSubagentDisplaySummary(
   if (display.runs.length === 0) {
     return tool.summary?.trim() || "No subagents ran";
   }
+  const queued = display.runs.filter((run) => run.state === "queued").length;
   const running = display.runs.filter((run) => run.state === "running").length;
   const completed = display.runs.filter((run) => run.state === "completed").length;
   const failed = display.runs.filter((run) => run.state === "failed").length;
   const aborted = display.runs.filter((run) => run.state === "aborted").length;
   const parts = [`${completed}/${display.runs.length} completed`];
+  if (queued > 0) {
+    parts.push(`${queued} queued`);
+  }
   if (running > 0) {
     parts.push(`${running} running`);
   }
@@ -473,6 +477,8 @@ function runtimeSubagentTitle(nickname: string | undefined, role: string | undef
 
 function runtimeSubagentStatusLabel(state: RuntimeSubagentRun["state"]): string {
   switch (state) {
+    case "queued":
+      return "Queued";
     case "running":
       return "Running";
     case "completed":
@@ -1002,6 +1008,7 @@ function SubagentStatusIndicator({ subagent }: { subagent: WorkLogSubagent }) {
     subagent.rawStatus === "errored" ||
     subagent.rawStatus === "failed" ||
     subagent.rawStatus === "error";
+  const isQueued = subagent.statusLabel === "Queued" || subagent.rawStatus === "queued";
   if (subagent.isActive) {
     return (
       <span className="inline-flex shrink-0 items-center justify-center text-honk-icon-accent-primary">
@@ -1012,6 +1019,11 @@ function SubagentStatusIndicator({ subagent }: { subagent: WorkLogSubagent }) {
   if (isFailed) {
     return (
       <span className="size-1.5 shrink-0 rounded-full bg-honk-fg-red-primary" aria-hidden="true" />
+    );
+  }
+  if (isQueued) {
+    return (
+      <span className="size-1.5 shrink-0 rounded-full bg-honk-icon-secondary" aria-hidden="true" />
     );
   }
   // Cursor parity: completed runs get a quiet bullet, not an icon.

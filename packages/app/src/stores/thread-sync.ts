@@ -2042,6 +2042,87 @@ function preserveLiveRuntimeThreadState(previousThread: Thread | undefined, next
   };
 }
 
+function isRuntimeProjectedAssistantMessage(message: ChatMessage): boolean {
+  return message.role === "assistant" && String(message.id).startsWith("runtime:");
+}
+
+function hasRuntimeProjectedAssistantMessage(thread: Thread | undefined): thread is Thread {
+  return Boolean(thread?.messages.some(isRuntimeProjectedAssistantMessage));
+}
+
+function serverDetailIsMissingRuntimeProjection(
+  previousThread: Thread,
+  nextThread: Thread,
+): boolean {
+  const nextMessageIds = new Set(nextThread.messages.map((message) => message.id));
+  return previousThread.messages.some(
+    (message) => isRuntimeProjectedAssistantMessage(message) && !nextMessageIds.has(message.id),
+  );
+}
+
+function mergeThreadMessagesById(
+  previousMessages: ReadonlyArray<ChatMessage>,
+  nextMessages: ReadonlyArray<ChatMessage>,
+): ChatMessage[] {
+  const messageById = new Map(nextMessages.map((message) => [message.id, message] as const));
+  for (const message of previousMessages) {
+    messageById.set(message.id, message);
+  }
+  return [...messageById.values()].toSorted(compareCreatedThreadItem);
+}
+
+function mergeThreadEntriesById(
+  previousEntries: ReadonlyArray<ThreadTreeEntry>,
+  nextEntries: ReadonlyArray<ThreadTreeEntry>,
+): ThreadTreeEntry[] {
+  const entryById = new Map(nextEntries.map((entry) => [entry.id, entry] as const));
+  for (const entry of previousEntries) {
+    entryById.set(entry.id, entry);
+  }
+  return [...entryById.values()].toSorted(compareCreatedThreadItem);
+}
+
+function mergeProposedPlansById(
+  previousPlans: ReadonlyArray<ProposedPlan>,
+  nextPlans: ReadonlyArray<ProposedPlan>,
+): ProposedPlan[] {
+  const planById = new Map(previousPlans.map((plan) => [plan.id, plan] as const));
+  for (const plan of nextPlans) {
+    planById.set(plan.id, plan);
+  }
+  return [...planById.values()].toSorted(compareCreatedPlan);
+}
+
+function compareCreatedPlan(left: ProposedPlan, right: ProposedPlan): number {
+  const createdAtComparison = left.createdAt.localeCompare(right.createdAt);
+  return createdAtComparison === 0 ? left.id.localeCompare(right.id) : createdAtComparison;
+}
+
+function preserveRuntimeProjectionForStaleServerDetail(
+  previousThread: Thread | undefined,
+  nextThread: Thread,
+): Thread {
+  if (
+    !hasRuntimeProjectedAssistantMessage(previousThread) ||
+    !serverDetailIsMissingRuntimeProjection(previousThread, nextThread)
+  ) {
+    return nextThread;
+  }
+
+  return {
+    ...nextThread,
+    session: previousThread.session,
+    messages: mergeThreadMessagesById(previousThread.messages, nextThread.messages),
+    entries: mergeThreadEntriesById(previousThread.entries, nextThread.entries),
+    activities: upsertThreadActivities(nextThread.activities, previousThread.activities),
+    proposedPlans: mergeProposedPlansById(previousThread.proposedPlans, nextThread.proposedPlans),
+    leafId: previousThread.leafId,
+    latestTurn: previousThread.latestTurn ?? nextThread.latestTurn,
+    pendingSourceProposedPlan:
+      previousThread.pendingSourceProposedPlan ?? nextThread.pendingSourceProposedPlan,
+  };
+}
+
 function areSameChatMessages(
   previous: ReadonlyArray<ChatMessage>,
   next: ReadonlyArray<ChatMessage>,
@@ -2715,13 +2796,19 @@ function bindNextPendingUserTurnStart(
   readonly requestedAt: string | null;
 } {
   const messagesById = new Map(thread.messages.map((message) => [message.id, message] as const));
-  const pendingEntry = thread.entries.find((entry) => {
-    if (entry.kind !== "message" || entry.turnId !== null || entry.messageId === null) {
-      return false;
-    }
-    const message = messagesById.get(entry.messageId);
-    return message?.role === "user" && (message.turnId === null || message.turnId === undefined);
-  });
+  const pendingEntry = thread.entries
+    .filter((entry) => {
+      if (entry.kind !== "message" || entry.turnId !== null || entry.messageId === null) {
+        return false;
+      }
+      const message = messagesById.get(entry.messageId);
+      return (
+        message?.role === "user" &&
+        (message.turnId === null || message.turnId === undefined)
+      );
+    })
+    .toSorted(compareCreatedThreadItem)
+    .at(-1);
 
   if (!pendingEntry?.messageId) {
     return {
@@ -2740,6 +2827,45 @@ function bindNextPendingUserTurnStart(
     ),
     requestedAt: messagesById.get(pendingEntry.messageId)?.createdAt ?? pendingEntry.createdAt,
   };
+}
+
+function entryUserRole(
+  entry: ThreadTreeEntry,
+  messagesById: ReadonlyMap<MessageId, ChatMessage>,
+): ChatMessage["role"] | null {
+  if (entry.kind !== "message" || entry.messageId === null) {
+    return null;
+  }
+  return messagesById.get(entry.messageId)?.role ?? null;
+}
+
+function interruptedTurnLeafId(input: {
+  readonly thread: Thread;
+  readonly turnId: TurnId;
+  readonly allowPendingUserLeaf: boolean;
+}): ThreadEntryId | null {
+  const messagesById = new Map(input.thread.messages.map((message) => [message.id, message]));
+  const interruptedUserEntry = input.thread.entries.find(
+    (entry) => entry.turnId === input.turnId && entryUserRole(entry, messagesById) === "user",
+  );
+  if (interruptedUserEntry) {
+    return interruptedUserEntry.parentEntryId;
+  }
+
+  if (!input.allowPendingUserLeaf || input.thread.leafId === null) {
+    return input.thread.leafId;
+  }
+
+  const leafEntry = input.thread.entries.find((entry) => entry.id === input.thread.leafId);
+  if (
+    leafEntry &&
+    leafEntry.turnId === null &&
+    entryUserRole(leafEntry, messagesById) === "user"
+  ) {
+    return leafEntry.parentEntryId;
+  }
+
+  return input.thread.leafId;
 }
 
 function settledLatestTurnForRunningSession(
@@ -3065,9 +3191,13 @@ export function syncServerThreadDetail(
 ): AppState {
   const environmentState = getStoredEnvironmentState(state, environmentId);
   const previousThread = getThreadFromEnvironmentState(environmentState, thread.id);
+  const nextThread = preserveRuntimeProjectionForStaleServerDetail(
+    previousThread,
+    mapThread(thread, environmentId),
+  );
   const nextEnvironmentState = writeThreadState(
     clearLiveAssistantTurnsForThread(environmentState, thread.id),
-    mapThread(thread, environmentId),
+    nextThread,
     previousThread,
   );
   return commitEnvironmentState(state, environmentId, nextEnvironmentState);
@@ -3292,12 +3422,18 @@ export function applyThreadDetailEvent(
           (message, index) => message !== thread.messages[index],
         );
         if (latestTurn === null || latestTurn.turnId !== interruptTurnId) {
-          if (!messagesChanged) {
+          const leafId = interruptedTurnLeafId({
+            thread,
+            turnId: interruptTurnId,
+            allowPendingUserLeaf: true,
+          });
+          if (!messagesChanged && leafId === thread.leafId) {
             return thread;
           }
           return {
             ...thread,
             messages,
+            leafId,
             updatedAt: event.occurredAt,
           };
         }
@@ -3314,6 +3450,11 @@ export function applyThreadDetailEvent(
         return {
           ...thread,
           messages,
+          leafId: interruptedTurnLeafId({
+            thread,
+            turnId: interruptTurnId,
+            allowPendingUserLeaf: true,
+          }),
           latestTurn: nextLatestTurn,
           updatedAt: event.occurredAt,
         };
@@ -3778,6 +3919,11 @@ function applyAgentRuntimeEventToEnvironment(
         return {
           ...thread,
           session,
+          leafId: interruptedTurnLeafId({
+            thread,
+            turnId: interruptedTurnId,
+            allowPendingUserLeaf: true,
+          }),
           latestTurn: buildLatestTurn({
             previous: latestTurn,
             turnId: interruptedTurnId,

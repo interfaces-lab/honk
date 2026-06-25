@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -394,6 +394,158 @@ describe("runtime ingestion", () => {
           attempts: 2,
           status: "acked",
           ackSequence: 7,
+        },
+      ]);
+    } finally {
+      await rm(outboxDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not let one failed outbox record block later runtime records", async () => {
+    const outboxDir = await mkdtemp(join(tmpdir(), "honk-runtime-outbox-"));
+    const outboxPath = join(outboxDir, "runtime-records.json");
+    const poisonRecord: RuntimeIngestionRecord = {
+      recordId: RuntimeIngestionRecordId.make(
+        "runtime-assistant:thread:ingestion:runtime:ingestion:runtime:assistant-poison",
+      ),
+      threadId,
+      runtimeSessionId,
+      sourceEventId: "runtime:assistant-poison",
+      kind: "assistant.completion",
+      createdAt: "2026-06-08T12:00:01.000Z",
+      payload: {
+        messageId: MessageId.make("runtime:runtime:ingestion:runtime:assistant-poison"),
+        text: "This parent is missing",
+        turnId,
+        parentEntryId: ThreadEntryId.make("message:missing-parent"),
+      },
+    };
+    const laterRecord: RuntimeIngestionRecord = {
+      recordId: RuntimeIngestionRecordId.make(
+        "runtime-tool:thread:ingestion:runtime:ingestion:runtime-activity:runtime-event:after-poison",
+      ),
+      sourceEventId: "runtime-event:after-poison",
+      threadId,
+      runtimeSessionId,
+      createdAt,
+      kind: "thread.activity",
+      payload: {
+        activity: {
+          id: EventId.make("runtime-activity:runtime-event:after-poison"),
+          tone: "tool",
+          kind: "tool.completed",
+          summary: "Ran command",
+          payload: {
+            itemId: "toolu-after-poison",
+            itemType: "command_execution",
+            status: "completed",
+            title: "command",
+            data: {
+              toolName: "bash",
+              toolCallId: "toolu-after-poison",
+              isError: false,
+              result: {
+                output: "done",
+              },
+            },
+          },
+          turnId,
+          createdAt,
+        },
+      },
+    };
+    await writeFile(
+      outboxPath,
+      `${JSON.stringify(
+        [
+          {
+            record: poisonRecord,
+            createdAt,
+            updatedAt: createdAt,
+            attempts: 3,
+            status: "failed",
+            lastError: "missing parent",
+          },
+        ],
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+    __resetRuntimeIngestionForTests();
+    __configureRuntimeIngestionForTests({
+      httpBaseUrl: new URL("http://127.0.0.1:4242"),
+      bootstrapToken: "desktop-bootstrap-token",
+      runtimeRecordOutboxPath: outboxPath,
+    });
+
+    const ingestAttemptsByRecordId = new Map<string, number>();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (url.endsWith("/api/auth/bootstrap")) {
+          return new Response(
+            JSON.stringify({
+              authenticated: true,
+              role: "owner",
+              sessionMethod: "bearer-session-token",
+              expiresAt: "2026-12-31T00:00:00.000Z",
+              sessionToken: "session-token",
+            }),
+            { status: 200 },
+          );
+        }
+        if (url.endsWith("/api/runtime/ingest")) {
+          const body = JSON.parse(fetchCallBody(init)) as {
+            readonly records?: ReadonlyArray<{ readonly recordId?: unknown }>;
+          };
+          const recordId = body.records?.[0]?.recordId;
+          if (typeof recordId !== "string") {
+            return new Response(JSON.stringify({ error: "missing record" }), { status: 400 });
+          }
+          ingestAttemptsByRecordId.set(recordId, (ingestAttemptsByRecordId.get(recordId) ?? 0) + 1);
+          if (recordId === poisonRecord.recordId) {
+            return new Response(JSON.stringify({ error: "missing parent" }), { status: 400 });
+          }
+          return new Response(
+            JSON.stringify({
+              accepted: 1,
+              acks: [
+                {
+                  recordId,
+                  sequence: 42,
+                },
+              ],
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+
+    try {
+      ingestRuntimeHostEvent({ type: "runtime-ingestion-records", records: [laterRecord] });
+
+      await vi.waitFor(() => {
+        expect(ingestAttemptsByRecordId.get(poisonRecord.recordId)).toBe(1);
+        expect(ingestAttemptsByRecordId.get(laterRecord.recordId)).toBe(1);
+      });
+      const outbox = JSON.parse(await readFile(outboxPath, "utf8"));
+      expect(outbox).toMatchObject([
+        {
+          record: { recordId: poisonRecord.recordId },
+          attempts: 4,
+          status: "failed",
+          lastError: "missing parent",
+        },
+        {
+          record: { recordId: laterRecord.recordId },
+          attempts: 1,
+          status: "acked",
+          ackSequence: 42,
         },
       ]);
     } finally {

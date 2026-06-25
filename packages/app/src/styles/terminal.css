@@ -110,33 +110,12 @@ html.dark {
   --honk-terminal-ansi-bright-white: #e4e4e4;
 }
 
-.agent-window .thread-terminal-drawer {
-  background: var(--honk-terminal-shell-background);
-  border-color: var(--honk-terminal-border);
-  color: inherit;
-}
-
-.thread-terminal-drawer .xterm .xterm-scrollable-element > .scrollbar.vertical {
-  width: 6px !important;
-}
-
-.thread-terminal-drawer .xterm .xterm-scrollable-element > .scrollbar > .slider {
-  border-radius: 3px;
-}
-
-.thread-terminal-drawer .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
-  width: 6px !important;
-  left: 0 !important;
-}
-
-.agent-window .thread-terminal-viewport,
 .agent-window .workbench-terminal-viewport {
   contain: layout paint style;
   overflow: hidden;
   background: transparent;
 }
 
-.agent-window .thread-terminal-viewport .xterm,
 .agent-window .workbench-terminal-viewport .xterm {
   height: 100%;
   background: inherit;
@@ -149,14 +128,11 @@ html.dark {
   -moz-osx-font-smoothing: var(--honk-agent-window-font-smoothing-moz);
 }
 
-.agent-window .thread-terminal-viewport .xterm-viewport,
-.agent-window .thread-terminal-viewport .xterm-screen,
 .agent-window .workbench-terminal-viewport .xterm-viewport,
 .agent-window .workbench-terminal-viewport .xterm-screen {
   background: transparent !important;
 }
 
-.agent-window .thread-terminal-viewport .xterm-viewport,
 .agent-window .workbench-terminal-viewport .xterm-viewport {
   scrollbar-color: var(--honk-terminal-scrollbar-background) transparent;
 }

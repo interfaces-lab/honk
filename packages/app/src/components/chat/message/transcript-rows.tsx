@@ -4,7 +4,7 @@ import { type ReactNode } from "react";
 import type { ChatMessage } from "../../../types";
 import type { ExpandedImagePreview } from "./expanded-image-preview";
 import { AssistantMessage } from "./assistant-message";
-import { HumanMessage } from "./human-message";
+import { UserMessage } from "./user-message";
 
 /**
  * Row wrappers shared by the canonical timeline step renderer.
@@ -25,7 +25,7 @@ export function AssistantTranscriptRow({
   );
 }
 
-export interface HumanTranscriptRowProps {
+export interface UserTranscriptRowProps {
   message: ChatMessage;
   editAvailable: boolean;
   isEditing: boolean;
@@ -36,10 +36,10 @@ export interface HumanTranscriptRowProps {
   onBeginEditUserMessage?: ((messageId: MessageId) => void) | undefined;
 }
 
-export function HumanTranscriptRow(props: HumanTranscriptRowProps) {
+export function UserTranscriptRow(props: UserTranscriptRowProps) {
   return (
     <div className="box-border flex w-full min-w-0 px-0">
-      <HumanMessage
+      <UserMessage
         message={props.message}
         editAvailable={props.editAvailable}
         isEditing={props.isEditing}

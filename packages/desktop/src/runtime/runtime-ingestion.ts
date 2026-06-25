@@ -353,7 +353,6 @@ class RuntimeIngestionState {
             cause: errorMessage(error),
           }),
         );
-        return;
       }
     }
   }

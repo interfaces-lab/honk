@@ -1,5 +1,5 @@
 import { defineTool, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { Type } from "@earendil-works/pi-ai/base";
+import { Type } from "@earendil-works/pi-ai";
 import type {
   BrowserAutomationClickInput,
   BrowserAutomationController,

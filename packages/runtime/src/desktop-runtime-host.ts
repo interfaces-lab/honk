@@ -42,7 +42,7 @@ import {
   type ThreadAgentRuntimeSendTurnInput,
   type ThreadAgentRuntimeUpdateQueuedFollowUpInput,
 } from "@honk/contracts";
-import { getSupportedThinkingLevels, type OAuthLoginCallbacks } from "@earendil-works/pi-ai/base";
+import { getSupportedThinkingLevels, type OAuthLoginCallbacks } from "@earendil-works/pi-ai";
 import {
   AuthStorage,
   DefaultResourceLoader,
@@ -72,7 +72,6 @@ import { registerCursorComposerProvider } from "./cursor-composer-provider";
 import {
   createHonkPiModelRegistry,
   isHonkPiSupportedProviderId,
-  registerHonkPiTransports,
 } from "./honk-pi-models";
 
 const MAX_RUNTIME_EVENTS_IN_SNAPSHOT = 500;
@@ -206,7 +205,6 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
     this.modelRegistry = this.authStorage
       ? createHonkPiModelRegistry(ModelRegistry, this.authStorage, join(this.agentDir, "models.json"))
       : null;
-    registerHonkPiTransports();
     if (this.modelRegistry) {
       registerCursorComposerProvider(this.modelRegistry, { cwd: this.agentDir });
     }

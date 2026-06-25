@@ -144,6 +144,15 @@ describe("createSubagentExtension", () => {
 
   it("guides models to omit agent for default Worker tasks and describe visible work", async () => {
     const registeredTool = await registerSubagentTool();
+    expect(registeredTool?.description).toContain(
+      "primary way to start background implementation, research, review, or verification work",
+    );
+    expect(registeredTool?.promptSnippet).toContain(
+      "in Honk Multitask mode set runInBackground: true before doing broad local work",
+    );
+    expect(registeredTool?.promptGuidelines).toContain(
+      "In Honk Multitask mode, use this tool early with runInBackground: true for non-trivial work instead of doing all exploration and edits yourself.",
+    );
     expect(registeredTool?.description).toContain("Omit agent for the default Worker");
     expect(registeredTool?.promptSnippet).toContain("present-participle description");
     expect(registeredTool?.promptGuidelines).toContain(
@@ -170,5 +179,24 @@ describe("createSubagentExtension", () => {
         {} as ExtensionContext,
       ),
     ).rejects.toThrow('Unknown subagent agent type "custom-reviewer"');
+  });
+
+  it("admits at most twenty tasks per call", async () => {
+    const registeredTool = await registerSubagentTool();
+    const result = await registeredTool.execute(
+      "toolu-subagent",
+      {
+        tasks: Array.from({ length: 21 }, (_, index) => ({
+          prompt: `Task ${index + 1}`,
+        })),
+      },
+      undefined,
+      undefined,
+      {} as ExtensionContext,
+    );
+
+    expect(result.content).toEqual([
+      { type: "text", text: "Too many subagent tasks. Max is 20." },
+    ]);
   });
 });

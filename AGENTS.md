@@ -15,7 +15,6 @@
 ## Code
 
 - Read the relevant files before editing. Do not rely on search snippets for broad changes.
-- When writing Effect code, read `docs/effect-llms.md` first (idiomatic guide: `Effect.gen`/`Effect.fn`, `Context.Service`, errors, `Scope`, `Stream`).
 - No `any` types unless there is no better option.
 - Check installed dependency types instead of guessing external APIs.
 - Use top-level imports. Do not use inline imports such as `await import("./x")`, `import("pkg").Type`, or dynamic type imports.

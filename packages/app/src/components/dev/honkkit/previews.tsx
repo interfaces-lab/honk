@@ -37,6 +37,11 @@ import {
   CommandItem,
   CommandList,
   CommandPanel,
+  CommandSearchEmpty,
+  CommandSearchInput,
+  CommandSearchItem,
+  CommandSearchList,
+  CommandSearchPopup,
   CommandSeparator,
   CommandShortcut,
 } from "@honk/honkkit/command";
@@ -156,25 +161,152 @@ import {
 } from "@honk/honkkit/workbench-button";
 import { WorkbenchChromeRow } from "@honk/honkkit/workbench-chrome-row";
 import {
+  IconClipboard,
   IconBubbleText,
   IconCheckCircle2,
   IconChevronRightMedium,
   IconClock,
   IconConsole,
   IconCrossMediumDefault,
+  IconMagnifyingGlass,
   IconSettingsGear1,
   IconWarningSign,
 } from "central-icons";
 import { useDialKit } from "dialkit";
 import { useState, type CSSProperties, type ReactNode } from "react";
 
+import { ChatLoaderGlyph } from "~/components/chat/message/chat-loader";
 import { dialSelect, dialText, pickDialSelect } from "./dialkit-helpers";
 import { cn } from "~/lib/utils";
 
 type TokenStyle = CSSProperties & Record<`--${string}`, string | number>;
 
+type HonkBrandColor = {
+  id: string;
+  name: string;
+  hex: `#${string}`;
+  description: string;
+  bordered?: boolean;
+};
+
+const HONK_BRAND_PALETTE = [
+  {
+    id: "interfere-orange",
+    name: "Interfere Orange",
+    hex: "#FF3B00",
+    description: "Primary brand accent for high-energy moments and launches",
+  },
+  {
+    id: "interfere-pink",
+    name: "Interfere Pink",
+    hex: "#F6009D",
+    description: "Secondary accent for highlights, emphasis, and delight",
+  },
+  {
+    id: "interfere-purple",
+    name: "Interfere Purple",
+    hex: "#973AC6",
+    description: "Tertiary accent and gradient bridge across brand surfaces",
+  },
+  {
+    id: "interfere-blue",
+    name: "Interfere Blue",
+    hex: "#008EFF",
+    description: "Quaternary accent for focus, links, and active UI states",
+  },
+  {
+    id: "off-white",
+    name: "Off White",
+    hex: "#F6F6F6",
+    description: "Primary light background and neutral canvas",
+    bordered: true,
+  },
+  {
+    id: "near-black",
+    name: "Near Black",
+    hex: "#171717",
+    description: "Primary dark background and foreground anchor",
+  },
+] satisfies HonkBrandColor[];
+
+const HONK_BRAND_PALETTE_JSON = JSON.stringify(
+  HONK_BRAND_PALETTE.map(({ id, name, hex, description }) => ({
+    id,
+    name,
+    hex,
+    description,
+  })),
+  null,
+  2,
+);
+
 function PreviewFrame({ children }: { children: ReactNode }) {
-  return <div className="flex items-center justify-center">{children}</div>;
+  return <div className="flex w-full min-w-0 items-center justify-center">{children}</div>;
+}
+
+function HonkColorsPreview() {
+  const [copyLabel, setCopyLabel] = useState("Copy JSON");
+
+  async function copyPaletteJson() {
+    await navigator.clipboard.writeText(HONK_BRAND_PALETTE_JSON);
+    setCopyLabel("Copied");
+    window.setTimeout(() => setCopyLabel("Copy JSON"), 1200);
+  }
+
+  return (
+    <PreviewFrame>
+      <section className="w-[min(1120px,calc(100vw-18rem))] rounded-[32px] bg-[#fafafa] p-6 font-honk text-[#171717] shadow-honk-soft sm:p-8">
+        <div className="mb-10 flex flex-wrap items-center justify-between gap-4">
+          <h2 className="font-mono text-base font-medium tracking-[0.28em] text-[#6d6d6d] uppercase">
+            Colors
+          </h2>
+          <button
+            type="button"
+            onClick={copyPaletteJson}
+            className="inline-flex min-h-12 items-center justify-center gap-3 rounded-full bg-[#e9e9e7] px-6 text-base font-medium text-[#171717] outline-none hover:bg-[#dededc] focus-visible:ring-2 focus-visible:ring-[#008eff]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#fafafa]"
+          >
+            <IconClipboard className="size-5 shrink-0" aria-hidden />
+            <span>{copyLabel}</span>
+          </button>
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4" role="list">
+          {HONK_BRAND_PALETTE.map((color) => {
+            const swatchStyle: TokenStyle = {
+              "--honk-brand-palette-swatch": color.hex,
+            };
+
+            return (
+              <article
+                key={color.id}
+                className="[--palette-card-padding:--spacing(1.5)] [--palette-card-radius:1.75rem] rounded-(--palette-card-radius) bg-[#e9e9e7] p-(--palette-card-padding)"
+                role="listitem"
+              >
+                <div
+                  className={cn(
+                    "h-36 rounded-[calc(var(--palette-card-radius)-var(--palette-card-padding))] bg-(--honk-brand-palette-swatch)",
+                    color.bordered && "shadow-honk-swatch-inset",
+                  )}
+                  style={swatchStyle}
+                />
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-5 pt-5 pb-4">
+                  <h3 className="truncate text-xl font-medium tracking-[-0.01em] text-[#171717]">
+                    {color.name}
+                  </h3>
+                  <div className="font-mono text-lg font-medium tracking-[0.04em] text-[#707070] tabular-nums">
+                    {color.hex}
+                  </div>
+                  <p className="col-span-2 mt-2 truncate text-lg text-[#6d6d6d]">
+                    {color.description}
+                  </p>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    </PreviewFrame>
+  );
 }
 
 function ComponentSystemPreview() {
@@ -1716,20 +1848,74 @@ function ContextMenuPreview() {
 }
 
 function CommandPreview() {
-  const modes = ["palette", "composer", "composer-positioned"] as const;
+  const modes = ["palette", "composer", "composer-positioned", "search"] as const;
   const states = ["results", "loading", "empty"] as const;
   const itemKinds = ["slash", "path"] as const;
   const params = useDialKit("Command", {
-    mode: dialSelect(modes, "composer"),
+    mode: dialSelect(modes, "search"),
     state: dialSelect(states, "results"),
     itemKind: dialSelect(itemKinds, "slash"),
     itemCount: [4, 0, 6, 1],
-    placeholder: dialText("Search commands"),
+    placeholder: dialText("Search settings"),
+    searchQuery: dialText("mk"),
+    searchTitle: dialText("Time format"),
+    searchDescription: dialText("General"),
     showFooter: true,
   });
   const mode = pickDialSelect(params.mode, modes);
   const state = pickDialSelect(params.state, states);
   const itemKind = pickDialSelect(params.itemKind, itemKinds);
+
+  if (mode === "search") {
+    const searchItems =
+      state === "empty"
+        ? []
+        : [
+            {
+              id: "time-format",
+              title: params.searchTitle,
+              description: params.searchDescription,
+            },
+          ];
+
+    return (
+      <PreviewFrame>
+        <div className="w-80">
+          <Autocomplete
+          open
+          items={searchItems}
+          filteredItems={searchItems}
+          filter={null}
+          mode="none"
+          value={params.searchQuery}
+          autoHighlight
+        >
+          <CommandSearchInput
+            placeholder={params.placeholder}
+            startAddon={<IconMagnifyingGlass aria-hidden />}
+            aria-label="Command search preview"
+          />
+          <CommandSearchPopup side="bottom" align="start" sideOffset={4}>
+            <CommandSearchList>
+              {searchItems.map((item) => (
+                <CommandSearchItem
+                  key={item.id}
+                  value={item.id}
+                  title={item.title}
+                  description={item.description}
+                />
+              ))}
+              {searchItems.length === 0 ? (
+                <CommandSearchEmpty>No matching settings.</CommandSearchEmpty>
+              ) : null}
+            </CommandSearchList>
+          </CommandSearchPopup>
+        </Autocomplete>
+        </div>
+      </PreviewFrame>
+    );
+  }
+
   const slashItems = ["Ask", "Plan", "Search files", "Summarize", "New thread", "Open settings"];
   const pathItems = [
     "packages/app/src/components/chat/view/chat-view.tsx",
@@ -2022,6 +2208,349 @@ function ToastPreview() {
   );
 }
 
+interface SubagentPreviewLog {
+  id: string;
+  label: string;
+  detail?: string | undefined;
+  isRunning?: boolean | undefined;
+}
+
+interface SubagentPreviewFixture {
+  roleLabel: string;
+  verb: string;
+  model: string;
+  task: string;
+  logs: ReadonlyArray<SubagentPreviewLog>;
+}
+
+const SUBAGENT_PREVIEW_FIXTURE: SubagentPreviewFixture = {
+  roleLabel: "Oracle",
+  verb: "manifesting",
+  model: "gpt-5.5",
+  task: "mapping Cursor composer layout",
+  logs: [
+    {
+      id: "log-1",
+      label: "Started",
+      detail: "mapping Cursor composer layout",
+      isRunning: true,
+    },
+    {
+      id: "log-2",
+      label: "Task",
+      detail:
+        "In `/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js`, compare composer DOM structure",
+    },
+  ],
+};
+
+function SubagentPreviewIndicator({ active }: { active: boolean }) {
+  if (active) {
+    return (
+      <span className="inline-flex shrink-0 items-center justify-center text-honk-icon-accent-primary">
+        <ChatLoaderGlyph maxExtent={12} />
+      </span>
+    );
+  }
+  return <span className="size-1.5 shrink-0 rounded-full bg-honk-icon-tertiary" aria-hidden="true" />;
+}
+
+function SubagentPreviewActivityRows({
+  logs,
+  className,
+  rowClassName,
+}: {
+  logs: ReadonlyArray<SubagentPreviewLog>;
+  className?: string | undefined;
+  rowClassName?: string | undefined;
+}) {
+  return (
+    <div className={className}>
+      {logs.map((log) => (
+        <div
+          className={cn("flex min-h-5 max-w-full min-w-0 items-center gap-1.5", rowClassName)}
+          key={log.id}
+        >
+          <span className="inline-flex w-3 shrink-0 items-center justify-center" aria-hidden="true">
+            {log.isRunning ? (
+              <ChatLoaderGlyph className="text-honk-icon-accent-primary" maxExtent={10} />
+            ) : (
+              <span className="size-1.5 rounded-full bg-honk-icon-tertiary" />
+            )}
+          </span>
+          <span
+            className={cn(
+              "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap",
+              log.isRunning && "tool-call-shimmer",
+            )}
+          >
+            {log.label}
+            {log.detail ? <span className="text-honk-fg-quaternary">: {log.detail}</span> : null}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SubagentPreviewMetaRow({
+  fixture,
+  active,
+  showChevron = true,
+}: {
+  fixture: SubagentPreviewFixture;
+  active: boolean;
+  showChevron?: boolean | undefined;
+}) {
+  return (
+    <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden">
+      <span className="inline-flex w-3 shrink-0 items-center justify-center">
+        <SubagentPreviewIndicator active={active} />
+      </span>
+      <span className="shrink-0 font-medium text-honk-fg-primary">{fixture.roleLabel}</span>
+      <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium text-honk-fg-secondary">
+        {fixture.verb}
+      </span>
+      <span className="shrink-0 text-caption text-honk-fg-tertiary tabular-nums">{fixture.model}</span>
+      {showChevron ? (
+        <span className="ml-0.5 inline-flex shrink-0 text-honk-fg-tertiary" aria-hidden="true">
+          <IconChevronRightMedium className="size-3" />
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function SubagentStatusVariantStackedInline({
+  fixture,
+  active,
+}: {
+  fixture: SubagentPreviewFixture;
+  active: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="group/subagent-row flex min-h-6 w-fit max-w-full min-w-0 flex-col items-start gap-0.5 overflow-hidden text-left text-conversation text-honk-fg-secondary"
+      data-subagent-row=""
+    >
+      <SubagentPreviewMetaRow active={active} fixture={fixture} />
+      <span
+        className={cn(
+          "min-w-0 max-w-full overflow-hidden pl-4.5 text-ellipsis whitespace-nowrap text-honk-fg-tertiary",
+          active && "tool-call-shimmer",
+        )}
+        data-subagent-task=""
+      >
+        {fixture.task}
+      </span>
+      {active ? (
+        <SubagentPreviewActivityRows
+          className="mt-0.5 ml-4.5 flex max-w-full min-w-0 flex-col border-l border-honk-stroke-secondary/60 pl-2 text-honk-fg-tertiary"
+          logs={fixture.logs}
+        />
+      ) : null}
+    </button>
+  );
+}
+
+function SubagentStatusVariantTaskHeadline({
+  fixture,
+  active,
+}: {
+  fixture: SubagentPreviewFixture;
+  active: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="group/subagent-row flex w-full min-w-0 max-w-full flex-col items-start gap-1 text-left text-conversation"
+      data-subagent-row=""
+    >
+      <span className="inline-flex w-full min-w-0 items-center justify-between gap-2">
+        <span className="inline-flex min-w-0 items-center gap-1.5 overflow-hidden text-caption text-honk-fg-tertiary">
+          <SubagentPreviewIndicator active={active} />
+          <span className="shrink-0 font-medium text-honk-fg-secondary">
+            {fixture.roleLabel} {fixture.verb}
+          </span>
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-1 text-honk-fg-tertiary">
+          <Badge size="xs" variant="outline">
+            {fixture.model}
+          </Badge>
+          <IconChevronRightMedium className="size-3 opacity-60" />
+        </span>
+      </span>
+      <span
+        className={cn(
+          "w-full min-w-0 text-body font-medium text-honk-fg-primary",
+          active && "tool-call-shimmer",
+        )}
+        data-subagent-task=""
+      >
+        {fixture.task}
+      </span>
+      {active ? (
+        <SubagentPreviewActivityRows
+          className="data-subagent-running-log flex w-full min-w-0 max-w-full flex-col gap-0.5 text-caption text-honk-fg-tertiary"
+          logs={fixture.logs}
+          rowClassName="pl-0.5"
+        />
+      ) : null}
+    </button>
+  );
+}
+
+function SubagentStatusVariantSurfaceCard({
+  fixture,
+  active,
+}: {
+  fixture: SubagentPreviewFixture;
+  active: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="group/subagent-row flex w-full min-w-0 max-w-full flex-col gap-1.5 rounded-honk-control border border-honk-stroke-tertiary/80 bg-honk-bg-quinary/40 px-2.5 py-2 text-left text-conversation transition-colors hover:border-honk-stroke-secondary hover:bg-honk-bg-quinary/70"
+      data-subagent-row=""
+    >
+      <span className="inline-flex w-full min-w-0 items-center justify-between gap-2">
+        <span className="inline-flex min-w-0 items-center gap-1.5 overflow-hidden">
+          <SubagentPreviewIndicator active={active} />
+          <span className="shrink-0 font-medium text-honk-fg-primary">{fixture.roleLabel}</span>
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-secondary">
+            {fixture.verb}
+          </span>
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-1 text-caption text-honk-fg-tertiary tabular-nums">
+          {fixture.model}
+          <IconChevronRightMedium className="size-3" />
+        </span>
+      </span>
+      <span
+        className={cn(
+          "min-w-0 text-detail font-medium text-honk-fg-primary",
+          active && "tool-call-shimmer",
+        )}
+        data-subagent-task=""
+      >
+        {fixture.task}
+      </span>
+      {active ? (
+        <SubagentPreviewActivityRows
+          className="flex flex-col gap-0.5 rounded-honk-control bg-honk-bg-tertiary/30 px-2 py-1.5 text-caption text-honk-fg-tertiary"
+          logs={fixture.logs}
+        />
+      ) : null}
+    </button>
+  );
+}
+
+function SubagentStatusVariantActivityRail({
+  fixture,
+  active,
+}: {
+  fixture: SubagentPreviewFixture;
+  active: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="group/subagent-row relative flex w-full min-w-0 max-w-full flex-col gap-1 pl-3 text-left text-conversation"
+      data-subagent-row=""
+    >
+      <span
+        aria-hidden="true"
+        className="absolute top-1 bottom-1 left-1 w-px bg-honk-stroke-secondary/70"
+      />
+      <span className="relative inline-flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden">
+        <span className="absolute -left-3 inline-flex w-3 items-center justify-center bg-transparent">
+          <SubagentPreviewIndicator active={active} />
+        </span>
+        <span className="pl-1.5 font-medium text-honk-fg-primary">{fixture.roleLabel}</span>
+        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-secondary">
+          {fixture.verb}
+        </span>
+        <span className="shrink-0 text-caption text-honk-fg-tertiary">{fixture.model}</span>
+        <IconChevronRightMedium className="ml-auto size-3 shrink-0 text-honk-fg-tertiary" />
+      </span>
+      <span
+        className={cn(
+          "relative pl-1.5 text-detail font-medium text-honk-fg-primary",
+          active && "tool-call-shimmer",
+        )}
+        data-subagent-task=""
+      >
+        {fixture.task}
+      </span>
+      {active ? (
+        <div className="relative flex flex-col gap-1.5 pl-1.5 pt-0.5">
+          {fixture.logs.map((log) => (
+            <div className="relative flex min-w-0 items-start gap-2" key={log.id}>
+              <span className="absolute -left-3 top-1.5 inline-flex w-3 items-center justify-center">
+                {log.isRunning ? (
+                  <ChatLoaderGlyph className="text-honk-icon-accent-primary" maxExtent={8} />
+                ) : (
+                  <span className="size-1.5 rounded-full bg-honk-icon-tertiary" />
+                )}
+              </span>
+              <span
+                className={cn(
+                  "min-w-0 text-caption text-honk-fg-tertiary",
+                  log.isRunning && "tool-call-shimmer",
+                )}
+              >
+                <span className="font-medium text-honk-fg-secondary">{log.label}</span>
+                {log.detail ? (
+                  <span className="text-honk-fg-quaternary"> — {log.detail}</span>
+                ) : null}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </button>
+  );
+}
+
+function SubagentStatusPreview() {
+  const states = ["active", "completed"] as const;
+  const widths = ["compact", "wide"] as const;
+  const params = useDialKit("Subagent Status", {
+    state: dialSelect(states, "active"),
+    width: dialSelect(widths, "wide"),
+  });
+  const active = pickDialSelect(params.state, states) === "active";
+  const fixture = SUBAGENT_PREVIEW_FIXTURE;
+
+  return (
+    <PreviewFrame>
+      <div
+        className={cn(
+          "flex min-w-0 flex-col gap-2 px-(--conversation-text-inset) py-1 text-conversation",
+          pickDialSelect(params.width, widths) === "compact" ? "w-72" : "w-[28rem]",
+        )}
+        data-subagent-status-container=""
+      >
+        <div data-uidotsh-pick="Subagent status layout" className="contents">
+          <div data-uidotsh-option="Stacked inline (current)" className="contents">
+            <SubagentStatusVariantStackedInline active={active} fixture={fixture} />
+          </div>
+          <div data-uidotsh-option="Task headline" className="contents" hidden>
+            <SubagentStatusVariantTaskHeadline active={active} fixture={fixture} />
+          </div>
+          <div data-uidotsh-option="Surface card" className="contents" hidden>
+            <SubagentStatusVariantSurfaceCard active={active} fixture={fixture} />
+          </div>
+          <div data-uidotsh-option="Activity rail" className="contents" hidden>
+            <SubagentStatusVariantActivityRail active={active} fixture={fixture} />
+          </div>
+        </div>
+      </div>
+    </PreviewFrame>
+  );
+}
+
 function ToolCallPreview() {
   const statuses = [
     "idle",
@@ -2129,7 +2658,7 @@ function ToolCallPreview() {
             </ToolCallShellHeader>
             <ToolCallShellBody>
               <pre className="m-0 whitespace-pre-wrap px-(--conversation-tool-card-padding-x) py-1.5 font-mono text-conversation text-honk-fg-tertiary wrap-anywhere">
-                $ pnpm --filter @honk/app typecheck{"\n"}tsgo --noEmit
+                $ pnpm --filter @honk/app typecheck{"\n"}node ../../scripts/tsc-rc.mjs --noEmit
               </pre>
             </ToolCallShellBody>
           </ToolCallShellRoot>
@@ -2293,6 +2822,7 @@ export const MULTIKIT_PREVIEWS: Record<string, () => ReactNode> = {
   chart: ChartPreview,
   checkbox: CheckboxPreview,
   "component-system": ComponentSystemPreview,
+  "honk-colors": HonkColorsPreview,
   code: CodePreview,
   collapsible: CollapsiblePreview,
   autocomplete: AutocompletePreview,
@@ -2330,6 +2860,7 @@ export const MULTIKIT_PREVIEWS: Record<string, () => ReactNode> = {
   textarea: TextareaPreview,
   tooltip: TooltipPreview,
   toast: ToastPreview,
+  "subagent-status": SubagentStatusPreview,
   "tool-call": ToolCallPreview,
   toggle: TogglePreview,
   "toggle-group": ToggleGroupPreview,
