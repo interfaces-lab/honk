@@ -237,50 +237,53 @@ export interface LatestProposedPlanState {
   implementationThreadId: ThreadId | null;
 }
 
-export type WaitingPhase = "thinking";
+declare const TimelineEntryIdBrand: unique symbol;
+
+export type TimelineEntryId = string & {
+  readonly [TimelineEntryIdBrand]: "TimelineEntryId";
+};
 
 export type TimelineEntry =
   | {
-      id: string;
+      id: TimelineEntryId;
       kind: "message";
       createdAt: string;
       message: ChatMessage;
     }
   | {
-      id: string;
+      id: TimelineEntryId;
       kind: "proposed-plan";
       createdAt: string;
       proposedPlan: ProposedPlan;
     }
   | {
-      id: string;
+      id: TimelineEntryId;
       kind: "work";
       createdAt: string;
       entry: WorkLogEntry;
     }
   | {
-      id: string;
+      id: TimelineEntryId;
       kind: "runtime-thinking";
       createdAt: string;
       message: RuntimeDisplayTimelineMessageItem;
     }
   | {
-      id: string;
+      id: TimelineEntryId;
       kind: "runtime-tool";
       createdAt: string;
       tool: RuntimeDisplayTimelineToolItem;
     }
   | {
-      id: string;
+      id: TimelineEntryId;
       kind: "runtime-extension-ui-request";
       createdAt: string;
       request: RuntimeDisplayTimelineExtensionUiRequestItem;
     }
   | {
-      id: string;
+      id: TimelineEntryId;
       kind: "waiting";
       createdAt: string | null;
-      phase: WaitingPhase;
       elapsedStartedAt: string | null;
     };
 
@@ -708,20 +711,10 @@ export function findLatestProposedPlan(
   proposedPlans: ReadonlyArray<ProposedPlan>,
   latestTurnId: TurnId | string | null | undefined,
 ): LatestProposedPlanState | null {
-  if (latestTurnId) {
-    const matchingTurnPlan = [...proposedPlans]
-      .filter((proposedPlan) => proposedPlan.turnId === latestTurnId)
-      .toSorted(
-        (left, right) =>
-          left.updatedAt.localeCompare(right.updatedAt) || left.id.localeCompare(right.id),
-      )
-      .at(-1);
-    if (matchingTurnPlan) {
-      return toLatestProposedPlanState(matchingTurnPlan);
-    }
-  }
-
-  const latestPlan = [...proposedPlans]
+  const candidates = latestTurnId
+    ? proposedPlans.filter((proposedPlan) => proposedPlan.turnId === latestTurnId)
+    : proposedPlans;
+  const latestPlan = [...candidates]
     .toSorted(
       (left, right) =>
         left.updatedAt.localeCompare(right.updatedAt) || left.id.localeCompare(right.id),
@@ -3794,7 +3787,7 @@ function resolveSubagentStatusLabel(status: string | undefined): string | undefi
   switch (status) {
     case "queued":
     case "pending":
-      return "Queued";
+      return "Starting up";
     case "pendingInit":
     case "pending_init":
     case "starting":
@@ -3831,7 +3824,7 @@ function isActiveSubagentStatus(
   statusLabel: string | undefined,
 ): boolean {
   const label = statusLabel ?? resolveSubagentStatusLabel(rawStatus);
-  return label === "Starting" || label === "Running";
+  return label === "Starting" || label === "Starting up" || label === "Running";
 }
 
 function extractWorkLogRequestKind(

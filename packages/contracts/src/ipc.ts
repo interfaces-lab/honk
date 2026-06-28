@@ -254,10 +254,12 @@ export const DesktopWindowChromeStateSchema = Schema.Struct({
 
 export interface DesktopActiveWorkState {
   runningThreadCount: number;
+  runningThreadTitles: readonly string[];
 }
 
 export const DesktopActiveWorkStateSchema = Schema.Struct({
   runningThreadCount: NonNegativeInt,
+  runningThreadTitles: Schema.Array(Schema.String),
 });
 
 export interface PickFolderOptions {

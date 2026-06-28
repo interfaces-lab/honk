@@ -1,41 +1,30 @@
 "use client";
 
 import {
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
   type CSSProperties,
   type HTMLAttributes,
-  type MouseEventHandler,
   type RefObject,
 } from "react";
 
-import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
-import { cn } from "~/lib/utils";
+import { cn } from "./utils";
 
 const CHAT_LOADER_MAX_GRID = 5;
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+const CHAT_LOADER_DOT_SIZE_PX = 2;
+const CHAT_LOADER_CELL_PADDING_PX = 1;
 
 type ChatLoaderPhase = "idle" | "active";
-type ChatLoaderPattern = "full" | "ring" | "checker" | "cross" | "slash" | "backslash";
 
 interface ChatLoaderProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
-  animated?: boolean;
-  cellPadding?: number;
-  dotSize?: number;
-  hoverAnimated?: boolean;
   label?: string;
-  maxExtent?: number;
-  pattern?: ChatLoaderPattern;
-  speed?: number;
 }
 
 interface ChatLoaderGlyphProps extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
-  animated?: boolean;
-  cellPadding?: number;
-  dotSize?: number;
   maxExtent?: number;
-  pattern?: ChatLoaderPattern;
   speed?: number;
 }
 
@@ -50,7 +39,8 @@ interface ChatLoaderDotInput {
 }
 
 interface ChatLoaderDotOutput {
-  className?: string;
+  motion?: "diagonal-sweep" | undefined;
+  state?: "inactive" | undefined;
   style?: CSSProperties;
 }
 
@@ -74,7 +64,7 @@ const chatLoaderDotResolver: ChatLoaderDotResolver = ({
   phase,
 }) => {
   if (!isActive) {
-    return { className: "chat-loader-dot-inactive" };
+    return { state: "inactive" };
   }
 
   const path = trBlPathNormFromIndex(index, gridSize);
@@ -91,7 +81,7 @@ const chatLoaderDotResolver: ChatLoaderDotResolver = ({
     };
   }
 
-  return { className: "chat-loader-diagonal-sweep", style };
+  return { motion: "diagonal-sweep", style };
 };
 
 function subscribeReducedMotion(callback: () => void): () => void {
@@ -157,7 +147,7 @@ function useMatrixGridSize(options: {
     return CHAT_LOADER_MAX_GRID;
   });
 
-  useLayoutSyncEffect(() => {
+  useLayoutEffect(() => {
     if (fitToLineHeight && rootRef.current) {
       const extentPx = rootRef.current.getBoundingClientRect().height;
       const next = resolveGridSizeFromExtent(extentPx, cellSize);
@@ -174,55 +164,12 @@ function useMatrixGridSize(options: {
   return gridSize;
 }
 
-function useChatLoaderPhases(options: { animated: boolean; hoverAnimated: boolean }): {
-  onMouseEnter: MouseEventHandler<HTMLDivElement>;
-  onMouseLeave: MouseEventHandler<HTMLDivElement>;
-  phase: ChatLoaderPhase;
-} {
-  const { animated, hoverAnimated } = options;
-  const [isHovered, setIsHovered] = useState(false);
-  const onMouseEnter: MouseEventHandler<HTMLDivElement> = () => {
-    setIsHovered(true);
-  };
-  const onMouseLeave: MouseEventHandler<HTMLDivElement> = () => {
-    setIsHovered(false);
-  };
-  const phase: ChatLoaderPhase = hoverAnimated
-    ? isHovered
-      ? "active"
-      : "idle"
-    : animated
-      ? "active"
-      : "idle";
-
-  return { onMouseEnter, onMouseLeave, phase };
-}
-
 export function ChatLoader({
-  animated = true,
   className,
-  hoverAnimated = false,
   label = "Thinking",
-  onMouseEnter,
-  onMouseLeave,
   style,
   ...props
 }: ChatLoaderProps) {
-  const reducedMotion = usePrefersReducedMotion();
-  const { onMouseEnter: onLoaderMouseEnter, onMouseLeave: onLoaderMouseLeave } =
-    useChatLoaderPhases({
-      animated: animated && !reducedMotion,
-      hoverAnimated: hoverAnimated && !reducedMotion,
-    });
-  const handleMouseEnter: MouseEventHandler<HTMLDivElement> = (event) => {
-    onMouseEnter?.(event);
-    onLoaderMouseEnter(event);
-  };
-  const handleMouseLeave: MouseEventHandler<HTMLDivElement> = (event) => {
-    onMouseLeave?.(event);
-    onLoaderMouseLeave(event);
-  };
-
   return (
     <div
       role="status"
@@ -231,12 +178,14 @@ export function ChatLoader({
         "inline-flex max-w-full items-center gap-2 px-0.5 py-1.5 text-muted-foreground/80",
         className,
       )}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
       style={style}
       {...props}
     >
-      <span className="thinking-shimmer motion-reduce:animate-none" aria-hidden="true">
+      <span
+        className="motion-reduce:animate-none"
+        data-slot="conversation-loader-thinking"
+        aria-hidden="true"
+      >
         {label}
       </span>
     </div>
@@ -244,24 +193,17 @@ export function ChatLoader({
 }
 
 export function ChatLoaderGlyph({
-  animated = true,
-  cellPadding = 1,
-  dotSize = 2,
   maxExtent = 16,
-  pattern = "full",
   speed = 1,
   ...props
 }: ChatLoaderGlyphProps) {
   const reducedMotion = usePrefersReducedMotion();
-  const phase: ChatLoaderPhase = animated && !reducedMotion ? "active" : "idle";
+  const phase: ChatLoaderPhase = reducedMotion ? "idle" : "active";
 
   return (
     <ChatLoaderMatrix
-      cellPadding={cellPadding}
-      dotSize={dotSize}
       fitToLineHeight={false}
       maxExtent={maxExtent}
-      pattern={pattern}
       phase={phase}
       reducedMotion={reducedMotion}
       speed={speed}
@@ -271,44 +213,33 @@ export function ChatLoaderGlyph({
 }
 
 function ChatLoaderMatrix({
-  cellPadding,
   className,
-  dotSize,
   fitToLineHeight,
   maxExtent,
-  pattern,
   phase,
   reducedMotion,
   speed,
   ...props
 }: Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
-  cellPadding: number;
-  dotSize: number;
   fitToLineHeight: boolean;
   maxExtent?: number;
-  pattern: ChatLoaderPattern;
   phase: ChatLoaderPhase;
   reducedMotion: boolean;
   speed: number;
 }) {
   const rootRef = useRef<HTMLSpanElement>(null);
-  const normalizedDotSize = positiveNumber(dotSize, 2);
-  const normalizedCellPadding = nonNegativeNumber(cellPadding, 1);
-  const normalizedMaxExtent =
-    maxExtent == null ? null : positiveNumber(maxExtent, CHAT_LOADER_MAX_GRID * 4);
-  const normalizedSpeed = positiveNumber(speed, 1);
-  const cellSize = normalizedDotSize + normalizedCellPadding * 2;
+  const cellSize = CHAT_LOADER_DOT_SIZE_PX + CHAT_LOADER_CELL_PADDING_PX * 2;
   const gridSize = useMatrixGridSize({
     cellSize,
     fitToLineHeight,
-    maxExtentPx: normalizedMaxExtent,
+    maxExtentPx: maxExtent ?? null,
     rootRef,
   });
   const matrixExtent = gridSize * cellSize;
   const rootStyle: ChatLoaderStyle = {
     "--chat-loader-cell-size": `${cellSize}px`,
-    "--chat-loader-dot-size": `${normalizedDotSize}px`,
-    "--chat-loader-duration": `${Math.max(0.24, 1.2 / normalizedSpeed).toFixed(3)}s`,
+    "--chat-loader-dot-size": `${CHAT_LOADER_DOT_SIZE_PX}px`,
+    "--chat-loader-duration": `${Math.max(0.24, 1.2 / speed).toFixed(3)}s`,
     height: fitToLineHeight ? "var(--text-body--line-height, 1em)" : `${matrixExtent}px`,
     width: `${matrixExtent}px`,
   };
@@ -330,12 +261,11 @@ function ChatLoaderMatrix({
         {Array.from({ length: gridSize * gridSize }, (_, index) => {
           const row = Math.floor(index / gridSize);
           const col = index % gridSize;
-          const isActive = dotMatchesPattern(pattern, row, col, gridSize);
           const resolved = chatLoaderDotResolver({
             col,
             gridSize,
             index,
-            isActive,
+            isActive: true,
             phase,
             reducedMotion,
             row,
@@ -344,8 +274,10 @@ function ChatLoaderMatrix({
           return (
             <span className="grid place-items-center" key={`${row}:${col}`}>
               <span
-                className={cn("chat-loader-dot", resolved.className)}
-                data-active={isActive ? "true" : "false"}
+                data-slot="chat-loader-dot"
+                data-active="true"
+                data-motion={resolved.motion}
+                data-state={resolved.state}
                 style={resolved.style}
               />
             </span>
@@ -354,36 +286,4 @@ function ChatLoaderMatrix({
       </span>
     </span>
   );
-}
-
-function dotMatchesPattern(
-  pattern: ChatLoaderPattern,
-  row: number,
-  col: number,
-  gridSize: number,
-): boolean {
-  const last = gridSize - 1;
-
-  switch (pattern) {
-    case "backslash":
-      return row === col;
-    case "checker":
-      return (row + col) % 2 === 0;
-    case "cross":
-      return row === Math.floor(last / 2) || col === Math.floor(last / 2);
-    case "ring":
-      return row === 0 || col === 0 || row === last || col === last;
-    case "slash":
-      return row + col === last;
-    case "full":
-      return true;
-  }
-}
-
-function positiveNumber(value: number, fallback: number): number {
-  return Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-function nonNegativeNumber(value: number, fallback: number): number {
-  return Number.isFinite(value) && value >= 0 ? value : fallback;
 }

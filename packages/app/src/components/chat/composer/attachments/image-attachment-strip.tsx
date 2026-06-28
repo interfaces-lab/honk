@@ -1,8 +1,15 @@
-import { Button } from "@honk/honkkit/button";
+import {
+  Attachment,
+  AttachmentAction,
+  AttachmentFallback,
+  AttachmentGroup,
+  AttachmentImage,
+  AttachmentPreviewTrigger,
+} from "@honk/honkkit/attachment";
 import { IconCrossMediumDefault } from "central-icons";
 import type { ComposerImageAttachment } from "../../../../stores/chat-drafts";
 import {
-  buildExpandedImagePreview,
+  buildExpandedImagePreviewByIndex,
   type ExpandedImagePreview,
 } from "../../message/expanded-image-preview";
 
@@ -16,42 +23,31 @@ export function ComposerImageAttachmentStrip(props: {
   }
 
   return (
-    <div className="mb-2 flex flex-wrap gap-2 px-3 pt-2">
-      {props.images.map((image) => (
-        <div
-          key={image.id}
-          className="relative h-14 w-14 overflow-hidden rounded-[var(--honk-radius-control,6px)] border border-border/80 bg-background"
-        >
+    <AttachmentGroup className="mb-2 px-3 pt-2">
+      {props.images.map((image, index) => (
+        <Attachment key={image.id}>
           {image.previewUrl ? (
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-full w-full cursor-zoom-in rounded-none border-0 bg-transparent p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
+            <AttachmentPreviewTrigger
               aria-label={`Preview ${image.name}`}
               onClick={() => {
-                const preview = buildExpandedImagePreview(props.images, image.id);
+                const preview = buildExpandedImagePreviewByIndex(props.images, index);
                 if (!preview) return;
                 props.onExpandImage(preview);
               }}
             >
-              <img src={image.previewUrl} alt={image.name} className="h-full w-full object-cover" />
-            </Button>
+              <AttachmentImage src={image.previewUrl} alt={image.name} />
+            </AttachmentPreviewTrigger>
           ) : (
-            <div className="flex h-full w-full items-center justify-center px-1 text-center text-caption text-muted-foreground/70">
-              {image.name}
-            </div>
+            <AttachmentFallback>{image.name}</AttachmentFallback>
           )}
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            className="absolute right-1 top-1 bg-background/80 hover:bg-background/90"
+          <AttachmentAction
             onClick={() => props.onRemoveImage(image.id)}
             aria-label={`Remove ${image.name}`}
           >
             <IconCrossMediumDefault />
-          </Button>
-        </div>
+          </AttachmentAction>
+        </Attachment>
       ))}
-    </div>
+    </AttachmentGroup>
   );
 }

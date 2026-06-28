@@ -1,6 +1,6 @@
 {
   "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "honkkit",
+  "style": "new-york",
   "rsc": false,
   "tsx": true,
   "tailwind": {
@@ -22,6 +22,7 @@
     "hooks": "~"
   },
   "registries": {
+    "@honkkit": "https://honk.app/r/{name}.json",
     "@coss": "https://coss.com/ui/r/{name}.json"
   }
 }

@@ -1126,7 +1126,6 @@ function ChatShellHost(props: { children?: ReactNode }) {
         selectedId={selectedId}
         onSelectAgent={selectSidebarAgent}
         onClearDraft={sidebarModel.clearDraft}
-        onPrefetchAgent={sidebarModel.prefetchAgent}
         onNewAgent={sidebarModel.create}
         onOpenWorkspace={openAddProject}
       />

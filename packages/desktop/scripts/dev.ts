@@ -285,7 +285,7 @@ function signalProcessTree(pid: number, signal: NodeJS.Signals): void {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolveSleep) => {
-    setTimeout(resolveSleep, ms).unref();
+    setTimeout(resolveSleep, ms);
   });
 }
 

@@ -15,7 +15,8 @@ import {
   ToolCallMessage,
 } from "../message/tool-message";
 import { ProposedPlanMessage } from "../message/proposed-plan-message";
-import { AssistantTranscriptRow, UserTranscriptRow } from "../message/transcript-rows";
+import { AssistantMessage } from "../message/assistant-message";
+import { UserMessage } from "../message/user-message";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
 import ChatMarkdown from "../markdown/chat-markdown";
 import {
@@ -173,10 +174,14 @@ export function GroupedStepsRenderer({
             ) : null}
             {row.steps.map((step) =>
               step.kind === "message" ? (
-                <GroupedWorkMessageStep key={`work-row:${step.id}`} step={step} ctx={ctx} />
+                <GroupedWorkMessageStep
+                  key={groupedWorkStepKey("work-row", step)}
+                  step={step}
+                  ctx={ctx}
+                />
               ) : (
                 <StepRenderer
-                  key={`work-row:${step.id}`}
+                  key={groupedWorkStepKey("work-row", step)}
                   step={step}
                   editUserMessagesDisabled={editUserMessagesDisabled}
                   defaultEditExpanded
@@ -294,22 +299,28 @@ function MessageStepRenderer({
 }) {
   if (step.message.role === "user") {
     return (
-      <UserTranscriptRow
-        message={step.message}
-        editAvailable={step.editAvailable}
-        isEditing={isEditingUserMessage}
-        editDisabled={editUserMessagesDisabled}
-        isServerThread={ctx.isServerThread}
-        editComposer={
-          isEditingUserMessage ? (ctx.renderEditComposer?.(step.message) ?? null) : null
-        }
-        onImageExpand={ctx.onImageExpand}
-        onBeginEditUserMessage={ctx.onBeginEditUserMessage}
-      />
+      <div className="box-border flex w-full min-w-0 px-0">
+        <UserMessage
+          message={step.message}
+          editAvailable={step.editAvailable}
+          isEditing={isEditingUserMessage}
+          editDisabled={editUserMessagesDisabled}
+          isServerThread={ctx.isServerThread}
+          editComposer={
+            isEditingUserMessage ? (ctx.renderEditComposer?.(step.message) ?? null) : null
+          }
+          onImageExpand={ctx.onImageExpand}
+          onBeginEditUserMessage={ctx.onBeginEditUserMessage}
+        />
+      </div>
     );
   }
 
-  return <AssistantTranscriptRow message={step.message} markdownCwd={ctx.markdownCwd} />;
+  return (
+    <div className="box-border flex w-full min-w-0" data-assistant-transcript-row="">
+      <AssistantMessage message={step.message} markdownCwd={ctx.markdownCwd} />
+    </div>
+  );
 }
 
 function ProposedPlanStepRenderer({
@@ -406,7 +417,11 @@ function GroupedWorkMessageStep({
   if (isGroupedNarration) {
     return <GroupedMessageText step={step} ctx={ctx} />;
   }
-  return <AssistantTranscriptRow message={step.message} markdownCwd={ctx.markdownCwd} />;
+  return (
+    <div className="box-border flex w-full min-w-0" data-assistant-transcript-row="">
+      <AssistantMessage message={step.message} markdownCwd={ctx.markdownCwd} />
+    </div>
+  );
 }
 
 // Short assistant narration inside a work group renders as a plain markdown line (like
@@ -480,7 +495,7 @@ function WaitingStepRenderer({ step }: { step: TimelineWaitingStep }) {
       data-waiting-group=""
       data-waiting-step-id={step.id}
     >
-      <WorkingStatusRow phase={step.phase} elapsedStartedAt={step.elapsedStartedAt} />
+      <WorkingStatusRow elapsedStartedAt={step.elapsedStartedAt} />
     </div>
   );
 }
@@ -581,7 +596,7 @@ function WorkGroupPreview({
       >
         {previewSteps.map((step) => (
           <WorkGroupPreviewStep
-            key={`work-preview-row:${step.id}`}
+            key={groupedWorkStepKey("work-preview-row", step)}
             step={step}
             ctx={ctx}
             showOutputStrip={step.id === lastRunningOutputStepId}
@@ -590,6 +605,10 @@ function WorkGroupPreview({
       </div>
     </div>
   );
+}
+
+function groupedWorkStepKey(namespace: string, step: TimelineGroupedStep): string {
+  return `${namespace}:${step.id}`;
 }
 
 function WorkGroupPreviewStep({

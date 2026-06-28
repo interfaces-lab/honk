@@ -209,8 +209,5 @@ export {
   WorkbenchChromeLabel,
   WorkbenchChromeRow,
   WorkbenchChromeSpacer,
-  workbenchChromeActionGroupVariants,
-  workbenchChromeRowContentVariants,
-  workbenchChromeRowVariants,
   workbenchChromeTextControlVariants,
 };

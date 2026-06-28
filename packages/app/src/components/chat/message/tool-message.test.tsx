@@ -148,14 +148,13 @@ describe("RuntimeToolCallMessage command entries", () => {
       output: "M AGENTS.md",
       summary: "Completed bash",
       display: {
-        kind: "unknown",
-        toolName: "bash",
+        kind: "bash",
         output: "M AGENTS.md",
       },
     });
 
     expect(html).toContain("Ran");
-    expect(html).toContain("shell");
+    expect(html).not.toContain("data-tool-call-line-details");
     expect(html).not.toContain("M AGENTS.md");
     expect(html).not.toContain("packages/app/src/session-logic.ts");
   });

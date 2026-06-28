@@ -25,6 +25,49 @@ describe("createSubagentBudgetController", () => {
     expect(budget.canAcceptTaskCount(21)).toBe(false);
   });
 
+  it("allows four default subagents to run concurrently per parent session", async () => {
+    const budget = createSubagentBudgetController();
+    const leases = await Promise.all(
+      Array.from({ length: 4 }, (_, index) =>
+        budget.acquireSlot({
+          parentSessionId: "parent",
+          toolCallId: `tool-${index}`,
+          profileName: "general-purpose",
+        }),
+      ),
+    );
+
+    let fifthResolved = false;
+    const fifthPromise = budget
+      .acquireSlot({
+        parentSessionId: "parent",
+        toolCallId: "tool-5",
+        profileName: "general-purpose",
+      })
+      .then((lease) => {
+        fifthResolved = true;
+        return lease;
+      });
+
+    await Promise.resolve();
+    expect(fifthResolved).toBe(false);
+    expect(budget.snapshot()).toMatchObject({
+      activeTotal: 4,
+      queuedTotal: 1,
+      activeBySession: { parent: 4 },
+      activeByProfile: { "general-purpose": 4 },
+    });
+
+    leases[0]?.release();
+    const fifth = await fifthPromise;
+    expect(fifthResolved).toBe(true);
+
+    for (const lease of leases.slice(1)) {
+      lease.release();
+    }
+    fifth.release();
+  });
+
   it("queues slot requests until a lease is released", async () => {
     const budget = createSubagentBudgetController(
       testLimits({

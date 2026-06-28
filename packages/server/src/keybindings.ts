@@ -71,6 +71,10 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+l", command: "editor.addSelectionToChat", when: "editorFocus && !terminalFocus" },
   { key: "mod+shift+m", command: "editorPanel.toggleFullscreen", when: "!terminalFocus" },
   { key: "mod+l", command: "browser.focusLocationBar", when: "browserActive && !terminalFocus" },
+  { key: "mod+j", command: "terminal.toggle" },
+  { key: "mod+d", command: "terminal.split", when: "terminalFocus" },
+  { key: "mod+n", command: "terminal.new", when: "terminalFocus" },
+  { key: "mod+w", command: "terminal.close", when: "terminalFocus" },
   { key: "mod+shift+[", command: "thread.previous" },
   { key: "mod+shift+]", command: "thread.next" },
   ...THREAD_JUMP_KEYBINDING_COMMANDS.map((command, index) => ({

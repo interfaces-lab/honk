@@ -2,7 +2,7 @@ import { StatusDot as UiStatusDot } from "@honk/honkkit/status-dot";
 import { IconArchive1 } from "central-icons";
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 
-import { ChatLoaderGlyph } from "~/components/chat/message/chat-loader";
+import { ChatLoaderGlyph } from "@honk/honkkit/conversation-loader";
 import type { SidebarChatItem } from "./types";
 
 type UiStatusDotState = NonNullable<ComponentProps<typeof UiStatusDot>["state"]>;

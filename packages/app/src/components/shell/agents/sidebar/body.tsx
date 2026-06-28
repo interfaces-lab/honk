@@ -213,7 +213,6 @@ export function AgentSidebarBody(props: AgentSidebarProps) {
       onSelectAgent={props.onSelectAgent}
       onClearDraft={props.onClearDraft}
       {...(props.onNewAgent ? { onNewAgent: props.onNewAgent } : {})}
-      {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}
     />
   );
 

@@ -311,13 +311,12 @@ describe("runtime orchestration commands", () => {
         id: EventId.make("runtime-activity:runtime-event:subagent-tool"),
         tone: "tool",
         kind: "tool.completed",
-        summary: "Completed subagent",
+        summary: "Background task completed",
         payload: {
           itemId: "toolu-subagent",
           itemType: "collab_agent_tool_call",
           status: "completed",
           title: "subagent",
-          detail: "Completed subagent",
           data: {
             toolCallId: "toolu-subagent",
             toolName: "subagent",
@@ -365,6 +364,58 @@ describe("runtime orchestration commands", () => {
         parentItemId: RuntimeItemId.make("toolu-subagent"),
       },
     });
+  });
+
+  it("labels dispatched background subagents as running, not completed", () => {
+    const event: AgentRuntimeEvent = {
+      id: EventId.make("runtime-event:background-subagent-tool"),
+      agentRuntime: "pi",
+      threadId,
+      runtimeSessionId,
+      turnId,
+      type: "tool.completed",
+      summary: "Completed subagent",
+      createdAt,
+      data: {
+        toolName: "subagent",
+        toolCallId: "toolu-subagent-running",
+        isError: false,
+        result: {
+          content: [{ type: "text", text: "1 subagent running." }],
+          details: {
+            mode: "single",
+            runs: [
+              {
+                subagentThreadId: "thread:child-running",
+                agentId: "agent:child-running",
+                nickname: "Review",
+                role: "oracle",
+                model: "gpt-5.5",
+                prompt: "Review the code",
+                state: "running",
+                finalText: null,
+                errorMessage: null,
+              },
+            ],
+            activities: [],
+          },
+        },
+      },
+    };
+
+    const parentCommand = runtimeToolCompletedActivityCommands(event)[0];
+
+    if (parentCommand?.type !== "thread.activity.append") {
+      throw new Error("Expected parent subagent activity command.");
+    }
+    expect(parentCommand.activity).toMatchObject({
+      kind: "tool.completed",
+      summary: "1 subagent running",
+      payload: expect.objectContaining({
+        itemType: "collab_agent_tool_call",
+      }),
+    });
+    expect(parentCommand.activity.payload).not.toHaveProperty("detail");
   });
 
   it("compacts persisted subagent item payloads", () => {

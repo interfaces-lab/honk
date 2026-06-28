@@ -1,9 +1,11 @@
 import { EventId, MessageId, RuntimeSessionId, ThreadId, TurnId } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
-import type { WorkLogEntry } from "../../../session-logic";
+import type { TimelineEntry, TimelineEntryId, WorkLogEntry } from "../../../session-logic";
+import { timelineMessageEntryId } from "../view/timeline-entry-ids";
 import {
   computeStableMessagesTimelineRows,
+  deriveMessagesTimelineRows,
   type MessagesTimelineRow,
   type StableMessagesTimelineRowsState,
 } from "./timeline-rows";
@@ -14,10 +16,83 @@ const threadId = ThreadId.make("thread:runtime-row-stability");
 const runtimeSessionId = RuntimeSessionId.make("runtime:runtime-row-stability");
 const runtimeToolArgs = { command: "git status --short" };
 
+function rowId(value: string): TimelineEntryId {
+  return value as TimelineEntryId;
+}
+
+describe("deriveMessagesTimelineRows", () => {
+  it("fails loudly when projected timeline entries produce duplicate row ids", () => {
+    const messageId = MessageId.make("message:duplicate-row-id");
+    const entries: TimelineEntry[] = [
+      messageEntry(messageId, "First"),
+      messageEntry(messageId, "Second"),
+    ];
+
+    expect(() =>
+      deriveMessagesTimelineRows({
+        timelineEntries: entries,
+        isTurnActive: false,
+        editableUserMessageIds: new Set(),
+      }),
+    ).toThrow("Duplicate timeline render item id: message:message:duplicate-row-id");
+  });
+
+  it("fails loudly when grouped timeline steps produce duplicate ids", () => {
+    const duplicateId = rowId("work:duplicate-grouped-step");
+    const entries: TimelineEntry[] = [
+      workTimelineEntry(duplicateId, "git status"),
+      workTimelineEntry(duplicateId, "git diff"),
+    ];
+
+    expect(() =>
+      deriveMessagesTimelineRows({
+        timelineEntries: entries,
+        isTurnActive: true,
+        editableUserMessageIds: new Set(),
+        conversationDensity: "compact-all-grouped",
+      }),
+    ).toThrow("Duplicate grouped timeline step id: work:duplicate-grouped-step");
+  });
+});
+
 function emptyState(): StableMessagesTimelineRowsState {
   return {
     byId: new Map(),
     result: [],
+  };
+}
+
+function messageEntry(messageId: MessageId, text: string): TimelineEntry {
+  return {
+    kind: "message",
+    id: timelineMessageEntryId(messageId),
+    createdAt,
+    message: {
+      id: messageId,
+      role: "assistant",
+      text,
+      turnId,
+      createdAt,
+      completedAt: createdAt,
+      streaming: false,
+    },
+  };
+}
+
+function workTimelineEntry(id: TimelineEntryId, command: string): TimelineEntry {
+  return {
+    kind: "work",
+    id,
+    createdAt,
+    entry: {
+      id,
+      createdAt,
+      label: "Running command",
+      tone: "tool",
+      status: "running",
+      requestKind: "command",
+      command,
+    },
   };
 }
 
@@ -268,12 +343,112 @@ describe("computeStableMessagesTimelineRows", () => {
     expect(secondState).not.toBe(firstState);
     expect(secondState.result[0]).toBe(updated);
   });
+
+  it("preserves unchanged grouped step references when only one step in a work row changes", () => {
+    const first = groupedWorkRowWithSteps([
+      runtimeToolStep("toolu-step-a", "completed", "clean"),
+      runtimeToolStep("toolu-step-b", "running", "partial"),
+    ]);
+    const firstState = computeStableMessagesTimelineRows([first], emptyState());
+
+    const second = groupedWorkRowWithSteps([
+      runtimeToolStep("toolu-step-a", "completed", "clean"),
+      runtimeToolStep("toolu-step-b", "completed", "done"),
+    ]);
+    const secondState = computeStableMessagesTimelineRows([second], firstState);
+
+    const firstRow = firstState.result[0] as Extract<MessagesTimelineRow, { kind: "work" }> & {
+      steps: unknown[];
+    };
+    const secondRow = secondState.result[0] as Extract<MessagesTimelineRow, { kind: "work" }> & {
+      steps: unknown[];
+    };
+
+    // The row itself changes (one child updated), but the unchanged child keeps its reference so
+    // the compiler-memoized step renderer can bail out instead of re-rendering the whole group.
+    expect(secondState).not.toBe(firstState);
+    expect(secondRow).not.toBe(firstRow);
+    expect(secondRow.steps[0]).toBe(firstRow.steps[0]);
+    expect(secondRow.steps[1]).not.toBe(firstRow.steps[1]);
+  });
 });
+
+function runtimeToolStep(
+  toolCallId: string,
+  status: "running" | "completed" | "error",
+  output: string,
+) {
+  const base = runtimeToolRow(status) as Extract<MessagesTimelineRow, { kind: "runtime-tool" }>;
+  return {
+    ...base,
+    id: rowId(`tool:${toolCallId}`),
+    tool: {
+      ...base.tool,
+      id: `tool:${toolCallId}`,
+      toolCallId,
+      status,
+      isError: status === "error",
+      output,
+      result: output,
+      display: {
+        kind: "bash" as const,
+        command: runtimeToolArgs.command,
+        output,
+      },
+    },
+  } satisfies Extract<MessagesTimelineRow, { kind: "runtime-tool" }>;
+}
+
+function groupedWorkRowWithSteps(
+  steps: Array<Extract<MessagesTimelineRow, { kind: "runtime-tool" }>>,
+): Extract<MessagesTimelineRow, { kind: "work" }> {
+  const id = rowId("work:multi-step-group");
+  return {
+    kind: "work",
+    id,
+    createdAt,
+    completedDurationLabel: null,
+    isRunning: true,
+    isTailGroup: true,
+    isThinkingGroup: false,
+    isCommandGroup: true,
+    isWaitingGroup: false,
+    isBrowserGroup: false,
+    summary: {
+      action: "Running",
+      details: `${steps.length} commands`,
+    },
+    steps,
+    groupedEntries: [],
+    renderItem: {
+      kind: "group",
+      id,
+      createdAt,
+      group: {
+        id,
+        createdAt,
+        completedDurationLabel: null,
+        isRunning: true,
+        isTailGroup: true,
+        isThinkingGroup: false,
+        isCommandGroup: true,
+        isWaitingGroup: false,
+        isBrowserGroup: false,
+        summary: {
+          action: "Running",
+          details: `${steps.length} commands`,
+        },
+        steps,
+        entries: [],
+      },
+    },
+  };
+}
 
 function messageRow(id: string, text: string, streaming: boolean): MessagesTimelineRow {
   return {
     kind: "message",
-    id,
+    id: rowId(id),
     createdAt,
     message: {
       id: MessageId.make(id),
@@ -298,7 +473,7 @@ function userMessageRow(input: {
 }): MessagesTimelineRow {
   return {
     kind: "message",
-    id: "message:message:user-row-stability",
+    id: rowId("message:message:user-row-stability"),
     createdAt,
     message: {
       id: MessageId.make("message:user-row-stability"),
@@ -322,7 +497,7 @@ function runtimeToolRow(
 ): MessagesTimelineRow {
   return {
     kind: "runtime-tool",
-    id: "tool:toolu-row-stability",
+    id: rowId("tool:toolu-row-stability"),
     createdAt,
     tool: {
       id: "tool:toolu-row-stability",
@@ -357,7 +532,7 @@ function runtimeSubagentToolRow(
 ): MessagesTimelineRow {
   return {
     kind: "runtime-task",
-    id: "tool:toolu-subagent-row-stability",
+    id: rowId("tool:toolu-subagent-row-stability"),
     createdAt,
     tool: {
       id: "tool:toolu-subagent-row-stability",
@@ -395,7 +570,7 @@ function groupedRuntimeToolRow(status: "running" | "completed"): MessagesTimelin
   const toolStep = runtimeToolRow(status) as Extract<MessagesTimelineRow, { kind: "runtime-tool" }>;
   return {
     kind: "work",
-    id: "tool:toolu-row-stability",
+    id: rowId("tool:toolu-row-stability"),
     createdAt,
     completedDurationLabel: status === "running" ? null : "briefly",
     isRunning: status === "running",
@@ -412,10 +587,10 @@ function groupedRuntimeToolRow(status: "running" | "completed"): MessagesTimelin
     groupedEntries: [],
     renderItem: {
       kind: "group",
-      id: "tool:toolu-row-stability",
+      id: rowId("tool:toolu-row-stability"),
       createdAt,
       group: {
-        id: "tool:toolu-row-stability",
+        id: rowId("tool:toolu-row-stability"),
         createdAt,
         completedDurationLabel: status === "running" ? null : "briefly",
         isRunning: status === "running",
@@ -445,7 +620,7 @@ function singleWorkRow(id: string): MessagesTimelineRow {
   };
   return {
     kind: "work",
-    id,
+    id: rowId(id),
     createdAt,
     entry,
   };
@@ -454,7 +629,7 @@ function singleWorkRow(id: string): MessagesTimelineRow {
 function runtimeExtensionUiRequestRow(options: string[]): MessagesTimelineRow {
   return {
     kind: "runtime-extension-ui-request",
-    id: "extension-ui:request-row-stability",
+    id: rowId("extension-ui:request-row-stability"),
     createdAt,
     request: {
       id: "extension-ui:request-row-stability",
@@ -481,7 +656,7 @@ function runtimeThinkingRow(
 ): MessagesTimelineRow {
   return {
     kind: "runtime-thinking",
-    id: `message:${turnId}:assistant:thinking`,
+    id: rowId(`message:${turnId}:assistant:thinking`),
     createdAt,
     message: {
       id: `message:${turnId}:assistant`,

@@ -1,6 +1,6 @@
-import { Alert, AlertAction, AlertDescription } from "@honk/honkkit/alert";
 import { Button } from "@honk/honkkit/button";
-import { IconCrossMediumDefault, IconExclamationCircle } from "central-icons";
+import { StatusNotice } from "@honk/honkkit/marker";
+import { IconCrossMediumDefault } from "central-icons";
 
 export function ThreadErrorBanner({
   error,
@@ -11,26 +11,24 @@ export function ThreadErrorBanner({
 }) {
   if (!error) return null;
   return (
-    <div className="pt-3 mx-auto max-w-3xl">
-      <Alert variant="error">
-        <IconExclamationCircle />
-        <AlertDescription className="line-clamp-3" title={error}>
-          {error}
-        </AlertDescription>
-        {onDismiss && (
-          <AlertAction>
+    <div className="mx-auto max-w-3xl pt-3">
+      <StatusNotice
+        className="rounded-md border border-destructive/25 bg-popover/95 px-2 py-1.5 shadow-sm backdrop-blur-xl"
+        message={error}
+        action={
+          onDismiss ? (
             <Button
               aria-label="Dismiss error"
-              className="text-destructive/60 hover:text-destructive"
+              className="-my-0.5 size-7 shrink-0 text-destructive/60 hover:text-destructive"
               size="icon-sm"
               variant="ghost"
               onClick={onDismiss}
             >
               <IconCrossMediumDefault className="size-3.5" />
             </Button>
-          </AlertAction>
-        )}
-      </Alert>
+          ) : null
+        }
+      />
     </div>
   );
 }

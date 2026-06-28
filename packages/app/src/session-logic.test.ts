@@ -1,13 +1,80 @@
-import { EventId, TurnId, type OrchestrationThreadActivity } from "@honk/contracts";
+import {
+  EventId,
+  OrchestrationProposedPlanId,
+  TurnId,
+  type OrchestrationThreadActivity,
+} from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
   deriveWorkLogEntries,
   deriveWorkLogSubagentsFromOrderedActivities,
+  findLatestProposedPlan,
 } from "./session-logic";
+import type { ProposedPlan } from "./types";
 
 const createdAt = "2026-06-05T20:00:00.000Z";
 const turnId = TurnId.make("turn:streaming-command");
+
+function proposedPlan(input: {
+  id: string;
+  turnId: TurnId | null;
+  updatedAt: string;
+}): ProposedPlan {
+  return {
+    id: OrchestrationProposedPlanId.make(input.id),
+    turnId: input.turnId,
+    planMarkdown: `# ${input.id}`,
+    implementedAt: null,
+    implementationThreadId: null,
+    createdAt: input.updatedAt,
+    updatedAt: input.updatedAt,
+  };
+}
+
+describe("findLatestProposedPlan", () => {
+  it("returns the newest proposed plan from the requested turn", () => {
+    const requestedTurnId = TurnId.make("turn:plan-current");
+
+    expect(
+      findLatestProposedPlan(
+        [
+          proposedPlan({
+            id: "plan:old-turn",
+            turnId: TurnId.make("turn:plan-old"),
+            updatedAt: "2026-06-05T20:00:00.000Z",
+          }),
+          proposedPlan({
+            id: "plan:current-older",
+            turnId: requestedTurnId,
+            updatedAt: "2026-06-05T20:01:00.000Z",
+          }),
+          proposedPlan({
+            id: "plan:current-newer",
+            turnId: requestedTurnId,
+            updatedAt: "2026-06-05T20:02:00.000Z",
+          }),
+        ],
+        requestedTurnId,
+      )?.id,
+    ).toBe("plan:current-newer");
+  });
+
+  it("does not fall back to an older turn's proposed plan", () => {
+    expect(
+      findLatestProposedPlan(
+        [
+          proposedPlan({
+            id: "plan:old-turn",
+            turnId: TurnId.make("turn:plan-old"),
+            updatedAt: "2026-06-05T20:00:00.000Z",
+          }),
+        ],
+        TurnId.make("turn:normal-follow-up"),
+      ),
+    ).toBeNull();
+  });
+});
 
 describe("deriveWorkLogEntries", () => {
   it("omits metadata-only command completion rows", () => {

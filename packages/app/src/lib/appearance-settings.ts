@@ -2,8 +2,6 @@ import { isElectron } from "../env";
 import {
   DEFAULT_APPEARANCE_TINT_HUE,
   DEFAULT_APPEARANCE_TINT_INTENSITY,
-  applyAppearanceBaseColors,
-  getAppearanceThemeMode,
 } from "./appearance-colors";
 import {
   BASE_UI_FONT_PX,
@@ -84,16 +82,11 @@ function emitAppearanceSettingsChanged() {
 function wantsOsVibrancy() {
   if (getLiveAppearance().reduceTransparency) return false;
   if (!isElectron) return false;
-  if (document.body.getAttribute("data-honk-glass-mode") !== "true") return false;
   return /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 }
 
 function syncVibrancy() {
   const wantsVibrancy = wantsOsVibrancy();
-  const glassMode = document.body.getAttribute("data-honk-glass-mode") === "true";
-  document.body.classList.toggle("honk-os-vibrancy-on", glassMode && wantsVibrancy);
-  document.body.classList.toggle("honk-os-vibrancy-off", glassMode && !wantsVibrancy);
-
   const bridge = window.desktopBridge;
   if (!bridge?.setVibrancy) return;
   if (lastDesktopVibrancy === wantsVibrancy) return;
@@ -140,15 +133,11 @@ function applyTintToDom(hue: number, intensity: number) {
   const root = document.documentElement;
   root.style.setProperty("--honk-user-hue", String(hue));
   root.style.setProperty("--honk-intensity", String(intensity));
-  applyAppearanceBaseColors(root, getAppearanceThemeMode(root), hue, intensity);
 }
 
 function applyChromeRoot() {
   const root = document.documentElement;
-  const body = document.body;
   const appearance = getLiveAppearance();
-
-  body.classList.toggle("honk-reduce-transparency", appearance.reduceTransparency);
 
   root.style.setProperty("--honk-ui-font-size-user", `${BASE_UI_FONT_PX}px`);
   root.style.setProperty("--honk-code-font-size-user", `${appearance.codeFontSize}px`);
@@ -192,7 +181,7 @@ export function resetAppearanceSettings() {
   applyAppearanceSettings();
 }
 
-const TINT_PERSIST_DELAY_MS = 300;
+const TINT_PERSIST_DELAY_MS = 250;
 
 let tintPersistTimer: ReturnType<typeof setTimeout> | undefined;
 

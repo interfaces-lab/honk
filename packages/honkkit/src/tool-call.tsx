@@ -3,13 +3,30 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { IconChevronRightMedium } from "central-icons";
 import { cva } from "class-variance-authority";
-import type { ComponentPropsWithoutRef, ComponentType, ReactNode } from "react";
+import {
+  useState,
+  type ComponentPropsWithoutRef,
+  type ComponentType,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 
 import { cn, interactiveControlCursorVariants } from "./utils";
 
 type ToolCallIconComponent = ComponentType<{ className?: string | undefined }>;
 type ToolCallLineStatus = "idle" | "loading" | "completed" | "error";
 type ToolCallExpandableStatus = "running" | "completed" | "error";
+type ToolCallLineRootProps = ComponentPropsWithoutRef<"div"> & {
+  clickable?: boolean | undefined;
+  status?: ToolCallLineStatus | undefined;
+};
+type ToolCallLineButtonRootProps = ComponentPropsWithoutRef<typeof ButtonPrimitive> & {
+  status?: ToolCallLineStatus | undefined;
+};
+
+const EMPTY_TOOL_METADATA_ITEMS: readonly string[] = [];
+const STREAMING_SHELL_OUTPUT_MAX_CHARS = 12_000;
+const STREAMING_TOOL_OUTPUT_PREVIEW_MAX_HEIGHT_PX = 90;
 
 const toolCallLineVariants = cva(
   cn(
@@ -69,10 +86,13 @@ const toolCallLineDetailsVariants = cva(
   cn(
     "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-tertiary tabular-nums",
     "transition-colors duration-100",
-    "group-hover/tool-call-line:text-honk-fg-secondary",
   ),
   {
     variants: {
+      hoverTone: {
+        default: "group-hover/tool-call-line:text-honk-fg-secondary",
+        static: "group-hover/tool-call-line:text-honk-fg-tertiary",
+      },
       linkable: {
         false: "",
         true: cn(
@@ -85,6 +105,10 @@ const toolCallLineDetailsVariants = cva(
           "focus-visible:decoration-[color-mix(in_srgb,var(--honk-fg-secondary)_55%,transparent)]",
         ),
       },
+      loading: {
+        false: "",
+        true: "tool-call-shimmer",
+      },
       status: {
         idle: "",
         loading: "",
@@ -93,7 +117,9 @@ const toolCallLineDetailsVariants = cva(
       },
     },
     defaultVariants: {
+      hoverTone: "default",
       linkable: false,
+      loading: false,
       status: "idle",
     },
   },
@@ -105,9 +131,45 @@ interface ToolCallLineProps {
   details: ReactNode;
   icon?: ToolCallIconComponent | undefined;
   linkable?: boolean | undefined;
-  loading?: boolean | undefined;
   onClick?: (() => void) | undefined;
   status?: ToolCallLineStatus | undefined;
+}
+
+function ToolCallLineRoot({
+  className,
+  clickable = false,
+  status = "idle",
+  ...divProps
+}: ToolCallLineRootProps) {
+  return (
+    <div
+      className={cn(toolCallLineVariants({ clickable, status }), className)}
+      data-status={status}
+      data-tool-call-line=""
+      {...divProps}
+    />
+  );
+}
+
+function ToolCallLineButtonRoot({
+  className,
+  status = "idle",
+  type = "button",
+  ...buttonProps
+}: ToolCallLineButtonRootProps) {
+  return (
+    <ButtonPrimitive
+      type={type}
+      className={cn(
+        toolCallLineVariants({ clickable: true, status }),
+        "h-auto py-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
+        className,
+      )}
+      data-status={status}
+      data-tool-call-line=""
+      {...buttonProps}
+    />
+  );
 }
 
 function ToolCallLine({
@@ -116,19 +178,17 @@ function ToolCallLine({
   details,
   icon: Icon,
   linkable = false,
-  loading = false,
   onClick,
   status = "idle",
 }: ToolCallLineProps) {
-  const resolvedStatus = loading ? "loading" : status;
   const content = (
     <>
       {Icon ? <Icon className="size-3.5 shrink-0 text-honk-fg-tertiary" /> : null}
-      <ToolCallLineAction loading={resolvedStatus === "loading"} status={resolvedStatus}>
+      <ToolCallLineAction loading={status === "loading"} status={status}>
         {action}
       </ToolCallLineAction>
       {details ? (
-        <ToolCallLineDetails linkable={linkable} status={resolvedStatus}>
+        <ToolCallLineDetails linkable={linkable} status={status}>
           {details}
         </ToolCallLineDetails>
       ) : null}
@@ -139,10 +199,10 @@ function ToolCallLine({
     return (
       <div
         className={cn(
-          toolCallLineVariants({ clickable: false, status: resolvedStatus }),
+          toolCallLineVariants({ clickable: false, status }),
           className,
         )}
-        data-status={resolvedStatus}
+        data-status={status}
         data-tool-call-line=""
       >
         {content}
@@ -152,8 +212,8 @@ function ToolCallLine({
 
   return (
     <ButtonPrimitive
-      className={cn(toolCallLineVariants({ clickable: true, status: resolvedStatus }), className)}
-      data-status={resolvedStatus}
+      className={cn(toolCallLineVariants({ clickable: true, status }), className)}
+      data-status={status}
       data-tool-call-line=""
       onClick={onClick}
       type="button"
@@ -184,21 +244,140 @@ function ToolCallLineAction({
 function ToolCallLineDetails({
   children,
   className,
+  hoverTone = "default",
   linkable = false,
+  loading = false,
   status = "idle",
   ...spanProps
 }: ComponentPropsWithoutRef<"span"> & {
+  hoverTone?: "default" | "static" | undefined;
   linkable?: boolean | undefined;
+  loading?: boolean | undefined;
   status?: ToolCallLineStatus | undefined;
 }) {
   return (
     <span
       {...spanProps}
-      className={cn(toolCallLineDetailsVariants({ linkable, status }), className)}
+      className={cn(toolCallLineDetailsVariants({ hoverTone, linkable, loading, status }), className)}
       data-tool-call-line-details=""
     >
       {children}
     </span>
+  );
+}
+
+type ToolCallDisclosureLineBaseProps = {
+  action: ReactNode;
+  ariaLabel?: string | undefined;
+  className?: string | undefined;
+  details?: ReactNode;
+  detailsHoverTone?: "default" | "static" | undefined;
+  detailsLoading?: boolean | undefined;
+  icon?: ToolCallIconComponent | undefined;
+  status?: ToolCallLineStatus | undefined;
+  trailing?: ReactNode;
+};
+type ToolCallDisclosureLineProps =
+  | (ToolCallDisclosureLineBaseProps & {
+      expanded: boolean;
+      onToggleExpanded: () => void;
+      onClick?: never;
+    })
+  | (ToolCallDisclosureLineBaseProps & {
+      expanded?: never;
+      onClick: () => void;
+      onToggleExpanded?: never;
+    })
+  | (ToolCallDisclosureLineBaseProps & {
+      expanded?: never;
+      onClick?: never;
+      onToggleExpanded?: never;
+    });
+
+function ToolCallDisclosureLine({
+  action,
+  ariaLabel,
+  className,
+  details,
+  detailsHoverTone = "default",
+  detailsLoading = false,
+  expanded,
+  icon: Icon,
+  onClick,
+  onToggleExpanded,
+  status = "idle",
+  trailing,
+}: ToolCallDisclosureLineProps) {
+  const content = (
+    <>
+      {Icon ? <Icon className="size-3.5 shrink-0 text-honk-fg-tertiary" /> : null}
+      <ToolCallLineAction loading={status === "loading"} status={status}>
+        {action}
+      </ToolCallLineAction>
+      {details ? (
+        <ToolCallLineDetails
+          hoverTone={detailsHoverTone}
+          loading={detailsLoading}
+          status={status}
+        >
+          {details}
+        </ToolCallLineDetails>
+      ) : null}
+      {trailing}
+      {onToggleExpanded ? <ToolCallLineChevron expanded={expanded} /> : null}
+    </>
+  );
+
+  if (onToggleExpanded) {
+    return (
+      <ToolCallLineButtonRoot
+        aria-label={ariaLabel}
+        aria-expanded={expanded}
+        className={className}
+        onClick={onToggleExpanded}
+        status={status}
+      >
+        {content}
+      </ToolCallLineButtonRoot>
+    );
+  }
+
+  if (onClick) {
+    return (
+      <ToolCallLineButtonRoot
+        aria-label={ariaLabel}
+        className={className}
+        onClick={onClick}
+        status={status}
+      >
+        {content}
+      </ToolCallLineButtonRoot>
+    );
+  }
+
+  return (
+    <ToolCallLineRoot className={className} status={status}>
+      {content}
+    </ToolCallLineRoot>
+  );
+}
+
+function ToolCallDisclosureBody({
+  children,
+  className,
+  ...props
+}: ComponentPropsWithoutRef<"div">) {
+  return (
+    <div
+      {...props}
+      className={cn(
+        "max-w-agent-chat font-mono text-conversation text-honk-fg-tertiary",
+        className,
+      )}
+      data-tool-call-line-body=""
+    >
+      {children}
+    </div>
   );
 }
 
@@ -223,6 +402,193 @@ function ToolCallLineChevron({
       />
     </span>
   );
+}
+
+function ToolCallMetadataDisclosure({
+  icon: Icon,
+  action,
+  details,
+  output,
+  outputRenderer,
+  metadataItems = EMPTY_TOOL_METADATA_ITEMS,
+  loading = false,
+  onFileClick,
+  linkable = false,
+  defaultExpanded = false,
+  onExpandedChange,
+}: {
+  icon: ToolCallIconComponent | undefined;
+  action: string;
+  details: string;
+  output: string | null;
+  outputRenderer?: ((bodyText: string) => ReactNode) | undefined;
+  metadataItems?: ReadonlyArray<string> | undefined;
+  loading?: boolean | undefined;
+  onFileClick?: (() => void) | undefined;
+  linkable?: boolean | undefined;
+  defaultExpanded?: boolean | undefined;
+  onExpandedChange?: ((expanded: boolean) => void) | undefined;
+}) {
+  const hasOutput = output !== null && output !== undefined && output.length > 0;
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const showStreamingPreview = loading && hasOutput;
+  const showBody = isExpanded || showStreamingPreview;
+  const displayOutput = hasOutput ? resolveToolCallStreamingOutput(output ?? "", loading) : null;
+  const bodyText = (() => {
+    if (!showBody || !displayOutput) {
+      return "";
+    }
+    return displayOutput.text.trim();
+  })();
+
+  const toggleExpanded = () => {
+    setIsExpanded((current) => {
+      const next = !current;
+      onExpandedChange?.(next);
+      return next;
+    });
+  };
+
+  const detailsNode = details ? (
+    <ToolCallLineDetails
+      linkable={linkable}
+      role={linkable ? "button" : undefined}
+      tabIndex={linkable ? 0 : undefined}
+      onClick={
+        linkable && onFileClick
+          ? (event) => {
+              event.stopPropagation();
+              onFileClick();
+            }
+          : undefined
+      }
+      onKeyDown={
+        linkable && onFileClick
+          ? (event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              event.stopPropagation();
+              onFileClick();
+            }
+          : undefined
+      }
+    >
+      {details}
+    </ToolCallLineDetails>
+  ) : null;
+
+  const headerInner = (
+    <>
+      {Icon ? <Icon className="size-3.5 shrink-0 text-honk-fg-tertiary" /> : null}
+      <ToolCallLineAction loading={loading}>{action}</ToolCallLineAction>
+      {detailsNode}
+    </>
+  );
+
+  const chevron = <ToolCallLineChevron expanded={isExpanded} />;
+
+  return (
+    <div className="m-0 min-w-0 max-w-full">
+      <div className="group/metadata-tool flex w-full min-w-0 items-center gap-1">
+        {linkable ? (
+          <>
+            <div
+              className={cn(toolCallLineVariants({ clickable: false }), "w-auto max-w-full")}
+              data-tool-call-line=""
+            >
+              {headerInner}
+            </div>
+            <ButtonPrimitive
+              type="button"
+              className={cn(
+                "inline-flex size-4 shrink-0 cursor-pointer items-center justify-center",
+                "border-0 bg-transparent p-0 text-honk-fg-tertiary",
+                "opacity-0 transition-[color,opacity] duration-100",
+                "hover:text-honk-fg-secondary hover:opacity-100",
+                "focus-visible:text-honk-fg-secondary focus-visible:opacity-100",
+                "aria-expanded:opacity-100 group-hover/metadata-tool:opacity-100",
+              )}
+              aria-label={isExpanded ? "Collapse tool output" : "Expand tool output"}
+              aria-expanded={isExpanded}
+              onClick={toggleExpanded}
+            >
+              {chevron}
+            </ButtonPrimitive>
+          </>
+        ) : (
+          <ButtonPrimitive
+            type="button"
+            className={cn(
+              toolCallLineVariants({ clickable: true }),
+              "h-auto py-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent",
+            )}
+            data-tool-call-line=""
+            aria-expanded={isExpanded}
+            onClick={toggleExpanded}
+          >
+            {headerInner}
+            {chevron}
+          </ButtonPrimitive>
+        )}
+      </div>
+      {showBody ? (
+        <ToolCallDisclosureBody className="mt-1">
+          {bodyText ? (
+            <>
+              {displayOutput?.truncated ? (
+                <div className="pb-1 font-mono text-detail text-honk-fg-tertiary select-none">
+                  Showing latest output while tool runs.
+                </div>
+              ) : null}
+              <div
+                className={cn(
+                  showStreamingPreview && !isExpanded
+                    ? "flex max-h-(--streaming-tool-output-preview-max-height) flex-col-reverse overflow-hidden"
+                    : "max-h-[min(42vh,520px)] overflow-y-auto overscroll-contain",
+                )}
+                style={
+                  showStreamingPreview && !isExpanded
+                    ? ({
+                        "--streaming-tool-output-preview-max-height": `${STREAMING_TOOL_OUTPUT_PREVIEW_MAX_HEIGHT_PX}px`,
+                      } as CSSProperties)
+                    : undefined
+                }
+              >
+                {outputRenderer ? (
+                  outputRenderer(bodyText)
+                ) : (
+                  <pre className="m-0 overflow-hidden whitespace-pre-wrap p-0 wrap-anywhere select-text">
+                    {bodyText}
+                  </pre>
+                )}
+              </div>
+            </>
+          ) : null}
+          {isExpanded && metadataItems.length > 0 ? (
+            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-detail text-honk-fg-tertiary">
+              {metadataItems.map((item) => (
+                <span key={item}>{item}</span>
+              ))}
+            </div>
+          ) : null}
+        </ToolCallDisclosureBody>
+      ) : null}
+    </div>
+  );
+}
+
+function resolveToolCallStreamingOutput(
+  output: string,
+  loading: boolean,
+): { text: string; truncated: boolean } {
+  if (!loading || output.length <= STREAMING_SHELL_OUTPUT_MAX_CHARS) {
+    return { text: output, truncated: false };
+  }
+
+  const start = Math.max(0, output.length - STREAMING_SHELL_OUTPUT_MAX_CHARS);
+  const newlineStart = output.indexOf("\n", start);
+  const sliceStart = newlineStart === -1 ? start : newlineStart + 1;
+  return { text: output.slice(sliceStart), truncated: true };
 }
 
 function ToolCallTaskRoot({
@@ -357,6 +723,52 @@ function ToolCallTaskBody({ className, ...props }: ComponentPropsWithoutRef<"div
   );
 }
 
+function ToolCallTaskDisclosure({
+  body,
+  defaultExpanded = false,
+  loading = false,
+  onExpandedChange,
+  status,
+  statusIcon,
+  subtitle,
+  title,
+}: {
+  body: ReactNode;
+  defaultExpanded?: boolean | undefined;
+  loading?: boolean | undefined;
+  onExpandedChange?: ((expanded: boolean) => void) | undefined;
+  status: ToolCallExpandableStatus;
+  statusIcon?: ReactNode;
+  subtitle?: ReactNode;
+  title: ReactNode;
+}) {
+  const hasBody = Boolean(body);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded && hasBody);
+
+  const toggleExpanded = () => {
+    if (!hasBody) return;
+    setIsExpanded((current) => {
+      const next = !current;
+      onExpandedChange?.(next);
+      return next;
+    });
+  };
+
+  return (
+    <ToolCallTaskRoot expanded={isExpanded} status={status}>
+      <ToolCallTaskHeader aria-expanded={isExpanded} onClick={toggleExpanded}>
+        {statusIcon ? <ToolCallTaskStatusIcon>{statusIcon}</ToolCallTaskStatusIcon> : null}
+        <ToolCallTaskTitleArea>
+          <ToolCallTaskTitle loading={loading}>{title}</ToolCallTaskTitle>
+          {subtitle ? <ToolCallTaskSubtitle>{subtitle}</ToolCallTaskSubtitle> : null}
+        </ToolCallTaskTitleArea>
+        <ToolCallTaskChevron expanded={isExpanded} />
+      </ToolCallTaskHeader>
+      {isExpanded ? <ToolCallTaskBody>{body}</ToolCallTaskBody> : null}
+    </ToolCallTaskRoot>
+  );
+}
+
 function ToolCallShellRoot({
   className,
   expanded,
@@ -423,25 +835,56 @@ function ToolCallShellBody({ className, ...props }: ComponentPropsWithoutRef<"di
   );
 }
 
+function ToolCallShellDisclosure({
+  action,
+  body,
+  className,
+  details,
+  expandable,
+  expanded,
+  hasError = false,
+  icon: Icon,
+  loading = false,
+  onToggleExpanded,
+  status,
+}: {
+  action: ReactNode;
+  body: ReactNode;
+  className?: string | undefined;
+  details?: ReactNode;
+  expandable: boolean;
+  expanded: boolean;
+  hasError?: boolean | undefined;
+  icon?: ToolCallIconComponent | undefined;
+  loading?: boolean | undefined;
+  onToggleExpanded: () => void;
+  status: ToolCallExpandableStatus;
+}) {
+  return (
+    <ToolCallShellRoot className={className} expanded={expanded} status={status}>
+      <ToolCallShellHeader
+        expandable={expandable}
+        expanded={expanded}
+        hasError={hasError}
+        onClick={onToggleExpanded}
+      >
+        {Icon ? <Icon className="size-3.5 shrink-0 text-honk-fg-tertiary" /> : null}
+        <span className="inline-flex min-w-0 max-w-full items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap">
+          <ToolCallLineAction loading={loading}>{action}</ToolCallLineAction>
+          {details ? <ToolCallLineDetails>{details}</ToolCallLineDetails> : null}
+        </span>
+        {expandable ? <ToolCallLineChevron expanded={expanded} /> : null}
+      </ToolCallShellHeader>
+      {body ? <ToolCallShellBody>{body}</ToolCallShellBody> : null}
+    </ToolCallShellRoot>
+  );
+}
+
 export {
+  ToolCallDisclosureBody,
+  ToolCallDisclosureLine,
   ToolCallLine,
-  ToolCallLineAction,
-  ToolCallLineChevron,
-  ToolCallLineDetails,
-  ToolCallShellBody,
-  ToolCallShellHeader,
-  ToolCallShellRoot,
-  ToolCallTaskBody,
-  ToolCallTaskChevron,
-  ToolCallTaskHeader,
-  ToolCallTaskRoot,
-  ToolCallTaskStatusIcon,
-  ToolCallTaskSubtitle,
-  ToolCallTaskTitle,
-  ToolCallTaskTitleArea,
-  type ToolCallExpandableStatus,
-  type ToolCallLineStatus,
-  toolCallLineActionVariants,
-  toolCallLineDetailsVariants,
-  toolCallLineVariants,
+  ToolCallMetadataDisclosure,
+  ToolCallShellDisclosure,
+  ToolCallTaskDisclosure,
 };

@@ -1,7 +1,7 @@
 import { IconConsole } from "central-icons";
 
+import { InlineChip, InlineChipIcon, InlineChipLabel } from "@honk/honkkit/inline-chip";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@honk/honkkit/tooltip";
-import { cn } from "~/lib/utils";
 
 interface TerminalContextInlineChipProps {
   label: string;
@@ -16,20 +16,15 @@ export function TerminalContextInlineChip(props: TerminalContextInlineChipProps)
     <Tooltip>
       <TooltipTrigger
         render={
-          <span
-            className={cn(
-              "inline-flex max-w-full select-none items-center gap-1 rounded-sm border px-1.5 py-px font-honk text-body font-medium align-middle",
-              expired
-                ? "border-destructive/35 bg-destructive/8 text-destructive"
-                : "border-honk-stroke-tertiary bg-honk-bg-quaternary text-honk-fg-primary",
-            )}
+          <InlineChip
+            tone={expired ? "destructive" : "default"}
             data-terminal-context-expired={expired ? "true" : undefined}
           >
-            <span className={cn("size-3.5 shrink-0 opacity-85", expired && "opacity-100")}>
+            <InlineChipIcon className={expired ? "opacity-100" : undefined}>
               <IconConsole className="size-3.5" />
-            </span>
-            <span className="truncate select-none text-body">{label}</span>
-          </span>
+            </InlineChipIcon>
+            <InlineChipLabel>{label}</InlineChipLabel>
+          </InlineChip>
         }
       />
       <TooltipPopup side="top" className="max-w-80 whitespace-pre-wrap text-xs/4">

@@ -76,34 +76,8 @@
   background: var(--honk-shell-surface-bg);
 }
 
-body.honk-reduce-transparency[data-honk-glass-mode="true"] .honk-shell-sidebar {
-  background: var(--honk-base-sidebar);
-}
-
-body.honk-reduce-transparency[data-honk-glass-mode="true"] .honk-shell-surface {
-  background: var(--honk-base-chrome);
-}
-
 body {
-  background: color-mix(
-    in srgb,
-    var(--vscode-sideBar-background, var(--honk-color-sidebar-opaque)) 80%,
-    transparent
-  );
-}
-
-html[data-electron] body[data-honk-glass-mode="true"] {
   background: transparent;
-  background-image: none;
-}
-
-body.honk-reduce-transparency {
-  background: var(--honk-base-chrome);
-  background-image: none;
-}
-
-html[data-electron] body.honk-reduce-transparency[data-honk-glass-mode="true"] {
-  background: var(--honk-base-chrome);
   background-image: none;
 }
 
@@ -240,7 +214,7 @@ html[data-electron] body.honk-reduce-transparency[data-honk-glass-mode="true"] {
   --honk-shell-center-surface-background: var(--honk-workbench-editor-surface-background);
 }
 
-body[data-honk-glass-mode="true"] .agent-window {
+.agent-window {
   background: var(--honk-glass-surface-background);
 }
 
@@ -827,11 +801,6 @@ html:not([data-electron]) .agent-window {
   .honk-workbench-tool-island.editor-panel-tab-root[data-variant="simple-tabs"]
   [data-slot="workbench-chrome-trailing-section"] {
   padding-block: 0;
-}
-
-body.honk-reduce-transparency[data-honk-glass-mode="true"] .editor-panel-tab-root--simple-tabs {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
 }
 
 .agent-window

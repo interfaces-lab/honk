@@ -1,7 +1,7 @@
 import { MessageId, RuntimeSessionId, ThreadId, TurnId } from "@honk/contracts";
 import { describe, expect, it } from "vitest";
 
-import type { TimelineEntry, WorkLogEntry } from "../../../session-logic";
+import type { TimelineEntry, TimelineEntryId, WorkLogEntry } from "../../../session-logic";
 import {
   deriveTimelineRenderItems,
   finalizeGroupAssistantMessagesForTest,
@@ -30,6 +30,10 @@ const assistantCreatedAt = "2026-06-05T16:00:03.000Z";
 const assistantCompletedAt = "2026-06-05T16:00:08.000Z";
 const followUpCreatedAt = "2026-06-05T16:00:12.000Z";
 
+function testTimelineEntryId(value: string): TimelineEntryId {
+  return value as TimelineEntryId;
+}
+
 function workEntry(
   input: Partial<WorkLogEntry> & Pick<WorkLogEntry, "id" | "createdAt">,
 ): WorkLogEntry {
@@ -49,7 +53,7 @@ function runtimeReadTool(input: {
 }): Extract<TimelineEntry, { kind: "runtime-tool" }> {
   return {
     kind: "runtime-tool",
-    id: input.id,
+    id: testTimelineEntryId(input.id),
     createdAt: input.createdAt,
     tool: {
       id: input.id,
@@ -77,7 +81,7 @@ function runtimeAwaitTool(input: {
 }): Extract<TimelineEntry, { kind: "runtime-tool" }> {
   return {
     kind: "runtime-tool",
-    id: input.id,
+    id: testTimelineEntryId(input.id),
     createdAt: input.createdAt,
     tool: {
       id: input.id,
@@ -104,7 +108,7 @@ function runtimeBrowserMcpTool(input: {
 }): Extract<TimelineEntry, { kind: "runtime-tool" }> {
   return {
     kind: "runtime-tool",
-    id: input.id,
+    id: testTimelineEntryId(input.id),
     createdAt: input.createdAt,
     tool: {
       id: input.id,
@@ -131,7 +135,7 @@ function runtimeShellTool(input: {
 }): Extract<TimelineEntry, { kind: "runtime-tool" }> {
   return {
     kind: "runtime-tool",
-    id: input.id,
+    id: testTimelineEntryId(input.id),
     createdAt: input.createdAt,
     tool: {
       id: input.id,
@@ -160,7 +164,7 @@ function runtimeEditTool(input: {
 }): Extract<TimelineEntry, { kind: "runtime-tool" }> {
   return {
     kind: "runtime-tool",
-    id: input.id,
+    id: testTimelineEntryId(input.id),
     createdAt: input.createdAt,
     tool: {
       id: input.id,
@@ -189,7 +193,7 @@ function runtimeThinkingEntry(input: {
 }): Extract<TimelineEntry, { kind: "runtime-thinking" }> {
   return {
     kind: "runtime-thinking",
-    id: input.id,
+    id: testTimelineEntryId(input.id),
     createdAt: input.createdAt,
     message: {
       id: input.id,
@@ -214,7 +218,7 @@ function assistantTextEntry(input: {
 }): TimelineEntry {
   return {
     kind: "message",
-    id: input.id,
+    id: testTimelineEntryId(input.id),
     createdAt: input.createdAt,
     message: {
       id: MessageId.make(input.id),
@@ -233,7 +237,7 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "message",
-          id: "message:user",
+          id: testTimelineEntryId("message:user"),
           createdAt: userCreatedAt,
           message: {
             id: userId,
@@ -245,7 +249,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "message",
-          id: "message:assistant",
+          id: testTimelineEntryId("message:assistant"),
           createdAt: assistantCreatedAt,
           message: {
             id: assistantId,
@@ -258,7 +262,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "message",
-          id: "message:follow-up",
+          id: testTimelineEntryId("message:follow-up"),
           createdAt: followUpCreatedAt,
           message: {
             id: followUpId,
@@ -303,7 +307,7 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "work",
-          id: "work:thinking",
+          id: testTimelineEntryId("work:thinking"),
           createdAt: "2026-06-05T16:00:01.000Z",
           entry: workEntry({
             id: "thinking",
@@ -314,7 +318,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "work",
-          id: "work:command",
+          id: testTimelineEntryId("work:command"),
           createdAt: "2026-06-05T16:00:03.000Z",
           entry: workEntry({
             id: "command",
@@ -325,7 +329,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "work",
-          id: "work:edit",
+          id: testTimelineEntryId("work:edit"),
           createdAt: "2026-06-05T16:00:04.000Z",
           entry: workEntry({
             id: "edit",
@@ -353,7 +357,7 @@ describe("deriveTimelineRenderItems", () => {
         kind: "group",
         // One ongoing run: thinking groups with the tools that follow it, so a turn's
         // steps never split into per-tool "Worked for" rows.
-        id: "work:thinking",
+        id: testTimelineEntryId("work:thinking"),
         group: expect.objectContaining({
           isThinkingGroup: false,
           isCommandGroup: false,
@@ -383,9 +387,8 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "waiting",
-          id: "working-indicator-row",
+          id: testTimelineEntryId("working-indicator-row"),
           createdAt: "2026-06-05T16:00:00.000Z",
-          phase: "thinking",
           elapsedStartedAt: "2026-06-05T16:00:00.000Z",
         },
       ],
@@ -396,7 +399,7 @@ describe("deriveTimelineRenderItems", () => {
     expect(rows).toEqual([
       expect.objectContaining({
         kind: "waitingGroup",
-        id: "working-indicator-row",
+        id: testTimelineEntryId("working-indicator-row"),
         createdAt: "2026-06-05T16:00:00.000Z",
       }),
     ]);
@@ -413,9 +416,8 @@ describe("deriveTimelineRenderItems", () => {
         }),
         {
           kind: "waiting",
-          id: "working-indicator-row",
+          id: testTimelineEntryId("working-indicator-row"),
           createdAt: "2026-06-05T16:00:01.000Z",
-          phase: "thinking",
           elapsedStartedAt: "2026-06-05T16:00:01.000Z",
         },
       ],
@@ -426,7 +428,7 @@ describe("deriveTimelineRenderItems", () => {
     expect(rows).toEqual([
       expect.objectContaining({
         kind: "group",
-        id: "thinking:active",
+        id: testTimelineEntryId("thinking:active"),
         group: expect.objectContaining({
           isRunning: true,
           isThinkingGroup: true,
@@ -454,9 +456,8 @@ describe("deriveTimelineRenderItems", () => {
         }),
         {
           kind: "waiting",
-          id: "working-indicator-row",
+          id: testTimelineEntryId("working-indicator-row"),
           createdAt: "2026-06-05T16:00:02.000Z",
-          phase: "thinking",
           elapsedStartedAt: "2026-06-05T16:00:02.000Z",
         },
       ],
@@ -490,9 +491,8 @@ describe("deriveTimelineRenderItems", () => {
         }),
         {
           kind: "waiting",
-          id: "working-indicator-row",
+          id: testTimelineEntryId("working-indicator-row"),
           createdAt: "2026-06-05T16:00:02.000Z",
-          phase: "thinking",
           elapsedStartedAt: "2026-06-05T16:00:02.000Z",
         },
       ],
@@ -531,9 +531,8 @@ describe("deriveTimelineRenderItems", () => {
         }),
         {
           kind: "waiting",
-          id: "working-indicator-row",
+          id: testTimelineEntryId("working-indicator-row"),
           createdAt: "2026-06-05T16:00:03.000Z",
-          phase: "thinking",
           elapsedStartedAt: "2026-06-05T16:00:03.000Z",
         },
       ],
@@ -548,11 +547,11 @@ describe("deriveTimelineRenderItems", () => {
       }),
       expect.objectContaining({
         kind: "single",
-        id: "message:assistant",
+        id: testTimelineEntryId("message:assistant"),
       }),
       expect.objectContaining({
         kind: "waitingGroup",
-        id: "working-indicator-row",
+        id: testTimelineEntryId("working-indicator-row"),
       }),
     ]);
   });
@@ -562,7 +561,7 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "runtime-thinking",
-          id: "message:assistant:thinking",
+          id: testTimelineEntryId("message:assistant:thinking"),
           createdAt: "2026-06-05T16:00:01.000Z",
           message: {
             id: "message:assistant",
@@ -578,7 +577,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "runtime-tool",
-          id: "tool:toolu-runtime",
+          id: testTimelineEntryId("tool:toolu-runtime"),
           createdAt: "2026-06-05T16:00:02.000Z",
           tool: {
             id: "tool:toolu-runtime",
@@ -600,7 +599,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "runtime-tool",
-          id: "tool:toolu-runtime-2",
+          id: testTimelineEntryId("tool:toolu-runtime-2"),
           createdAt: "2026-06-05T16:00:03.000Z",
           tool: {
             id: "tool:toolu-runtime-2",
@@ -626,7 +625,7 @@ describe("deriveTimelineRenderItems", () => {
     expect(rows).toEqual([
       expect.objectContaining({
         kind: "group",
-        id: "message:assistant:thinking",
+        id: testTimelineEntryId("message:assistant:thinking"),
         group: expect.objectContaining({
           entries: [],
           isRunning: true,
@@ -660,7 +659,7 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "work",
-          id: "tool-call:cmd-1",
+          id: testTimelineEntryId("tool-call:cmd-1"),
           createdAt: "2026-06-05T16:00:01.000Z",
           entry: workEntry({
             id: "cmd-1",
@@ -672,7 +671,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "runtime-thinking",
-          id: "thinking:turn:turn-1:0",
+          id: testTimelineEntryId("thinking:turn:turn-1:0"),
           createdAt: "2026-06-05T16:00:05.000Z",
           message: {
             id: "message:assistant-2",
@@ -699,7 +698,7 @@ describe("deriveTimelineRenderItems", () => {
     expect(rows).toEqual([
       expect.objectContaining({
         kind: "group",
-        id: "tool-call:cmd-1",
+        id: testTimelineEntryId("tool-call:cmd-1"),
         group: expect.objectContaining({
           isRunning: true,
           isTailGroup: true,
@@ -723,7 +722,7 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "runtime-thinking",
-          id: "message:assistant:thinking",
+          id: testTimelineEntryId("message:assistant:thinking"),
           createdAt: "2026-06-05T16:00:01.000Z",
           message: {
             id: "message:assistant",
@@ -739,7 +738,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "runtime-tool",
-          id: "tool:toolu-subagent",
+          id: testTimelineEntryId("tool:toolu-subagent"),
           createdAt: "2026-06-05T16:00:02.000Z",
           tool: {
             id: "tool:toolu-subagent",
@@ -778,7 +777,7 @@ describe("deriveTimelineRenderItems", () => {
     expect(rows).toEqual([
       expect.objectContaining({
         kind: "group",
-        id: "message:assistant:thinking",
+        id: testTimelineEntryId("message:assistant:thinking"),
         group: expect.objectContaining({
           isThinkingGroup: true,
           summary: { action: "Thought", details: "briefly" },
@@ -786,7 +785,7 @@ describe("deriveTimelineRenderItems", () => {
       }),
       expect.objectContaining({
         kind: "single",
-        id: "tool:toolu-subagent",
+        id: testTimelineEntryId("tool:toolu-subagent"),
         step: expect.objectContaining({
           kind: "runtime-task",
           tool: expect.objectContaining({ toolCallId: "toolu-subagent" }),
@@ -800,7 +799,7 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "work",
-          id: "work:stale-running-command",
+          id: testTimelineEntryId("work:stale-running-command"),
           createdAt: "2026-06-05T16:00:03.000Z",
           entry: workEntry({
             id: "stale-running-command",
@@ -818,7 +817,7 @@ describe("deriveTimelineRenderItems", () => {
     expect(rows).toEqual([
       expect.objectContaining({
         kind: "group",
-        id: "work:stale-running-command",
+        id: testTimelineEntryId("work:stale-running-command"),
         group: expect.objectContaining({
           completedDurationLabel: "1 second",
           isRunning: false,
@@ -836,7 +835,7 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "runtime-thinking",
-          id: "message:stale-running-assistant:thinking",
+          id: testTimelineEntryId("message:stale-running-assistant:thinking"),
           createdAt: "2026-06-05T16:00:01.000Z",
           message: {
             id: "message:stale-running-assistant",
@@ -852,7 +851,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "runtime-tool",
-          id: "tool:stale-running-shell",
+          id: testTimelineEntryId("tool:stale-running-shell"),
           createdAt: "2026-06-05T16:00:02.000Z",
           tool: {
             id: "tool:stale-running-shell",
@@ -877,7 +876,7 @@ describe("deriveTimelineRenderItems", () => {
     expect(rows).toEqual([
       expect.objectContaining({
         kind: "group",
-        id: "message:stale-running-assistant:thinking",
+        id: testTimelineEntryId("message:stale-running-assistant:thinking"),
         group: expect.objectContaining({
           completedDurationLabel: null,
           isRunning: true,
@@ -903,7 +902,7 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "work",
-          id: "work:brief-thinking",
+          id: testTimelineEntryId("work:brief-thinking"),
           createdAt: "2026-06-05T16:00:01.000Z",
           entry: workEntry({
             id: "brief-thinking",
@@ -932,7 +931,7 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "work",
-          id: "work:read",
+          id: testTimelineEntryId("work:read"),
           createdAt: "2026-06-05T16:00:01.000Z",
           entry: workEntry({
             id: "read",
@@ -943,7 +942,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "work",
-          id: "work:search",
+          id: testTimelineEntryId("work:search"),
           createdAt: "2026-06-05T16:00:02.000Z",
           entry: workEntry({
             id: "search",
@@ -975,7 +974,7 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "work",
-          id: "work:delete",
+          id: testTimelineEntryId("work:delete"),
           createdAt: "2026-06-05T16:00:01.000Z",
           entry: workEntry({
             id: "delete",
@@ -1017,7 +1016,7 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "runtime-tool",
-          id: "tool:browser-1",
+          id: testTimelineEntryId("tool:browser-1"),
           createdAt: "2026-06-05T16:00:01.000Z",
           tool: {
             id: "tool:browser-1",
@@ -1036,7 +1035,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "runtime-tool",
-          id: "tool:browser-2",
+          id: testTimelineEntryId("tool:browser-2"),
           createdAt: "2026-06-05T16:00:02.000Z",
           tool: {
             id: "tool:browser-2",
@@ -1055,7 +1054,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "runtime-tool",
-          id: "tool:browser-3",
+          id: testTimelineEntryId("tool:browser-3"),
           createdAt: "2026-06-05T16:00:03.000Z",
           tool: {
             id: "tool:browser-3",
@@ -1096,7 +1095,7 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "work",
-          id: "work:earlier-running",
+          id: testTimelineEntryId("work:earlier-running"),
           createdAt: "2026-06-05T16:00:01.000Z",
           entry: workEntry({
             id: "earlier-running",
@@ -1108,7 +1107,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "message",
-          id: "message:boundary",
+          id: testTimelineEntryId("message:boundary"),
           createdAt: "2026-06-05T16:00:01.500Z",
           message: {
             id: MessageId.make("message:boundary"),
@@ -1120,7 +1119,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "work",
-          id: "work:tail-running",
+          id: testTimelineEntryId("work:tail-running"),
           createdAt: "2026-06-05T16:00:02.000Z",
           entry: workEntry({
             id: "tail-running",
@@ -1222,7 +1221,7 @@ describe("deriveTimelineRenderItems", () => {
         }),
         {
           kind: "message",
-          id: "message:assistant",
+          id: testTimelineEntryId("message:assistant"),
           createdAt: "2026-06-05T16:00:02.000Z",
           message: {
             id: assistantId,
@@ -1263,7 +1262,7 @@ describe("deriveTimelineRenderItems", () => {
         }),
         {
           kind: "message",
-          id: "message:assistant",
+          id: testTimelineEntryId("message:assistant"),
           createdAt: "2026-06-05T16:00:02.000Z",
           message: {
             id: assistantId,
@@ -1305,7 +1304,7 @@ describe("deriveTimelineRenderItems", () => {
       },
       {
         kind: "runtime-thinking",
-        id: "message:assistant:thinking",
+        id: testTimelineEntryId("message:assistant:thinking"),
         createdAt: "2026-06-05T16:00:02.000Z",
         message: {
           id: "message:assistant",
@@ -1560,7 +1559,7 @@ describe("deriveTimelineRenderItems", () => {
     expect(rows[1]).toEqual(
       expect.objectContaining({
         kind: "single",
-        id: "message:summary",
+        id: testTimelineEntryId("message:summary"),
         step: expect.objectContaining({
           kind: "message",
           message: expect.objectContaining({ text: "Done checking the test output." }),
@@ -1680,7 +1679,7 @@ describe("deriveTimelineRenderItems", () => {
   it("releases transcript-scale assistant text trapped inside group steps", () => {
     const trappedMessage: TimelineGroupedStep = {
       kind: "message",
-      id: "message:trapped",
+      id: testTimelineEntryId("message:trapped"),
       createdAt: "2026-06-05T16:00:02.000Z",
       message: {
         id: assistantId,
@@ -1698,10 +1697,10 @@ describe("deriveTimelineRenderItems", () => {
       [
         {
           kind: "group",
-          id: "tool:shell-1",
+          id: testTimelineEntryId("tool:shell-1"),
           createdAt: "2026-06-05T16:00:01.000Z",
           group: {
-            id: "tool:shell-1",
+            id: testTimelineEntryId("tool:shell-1"),
             createdAt: "2026-06-05T16:00:01.000Z",
             completedDurationLabel: null,
             isRunning: true,
@@ -1714,7 +1713,7 @@ describe("deriveTimelineRenderItems", () => {
             steps: [
               {
                 kind: "runtime-tool",
-                id: "tool:shell-1",
+                id: testTimelineEntryId("tool:shell-1"),
                 createdAt: "2026-06-05T16:00:01.000Z",
                 tool: runtimeShellTool({
                   id: "tool:shell-1",
@@ -1803,7 +1802,7 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "runtime-thinking",
-          id: "thinking:1",
+          id: testTimelineEntryId("thinking:1"),
           createdAt: "2026-06-05T16:00:01.000Z",
           message: {
             id: "thinking:1",
@@ -1900,7 +1899,7 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "runtime-tool",
-          id: "tool:toolu-runtime",
+          id: testTimelineEntryId("tool:toolu-runtime"),
           createdAt: "2026-06-05T16:00:02.000Z",
           tool: {
             id: "tool:toolu-runtime",
@@ -1919,7 +1918,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "runtime-extension-ui-request",
-          id: "extension-ui:request",
+          id: testTimelineEntryId("extension-ui:request"),
           createdAt: "2026-06-05T16:00:03.000Z",
           request: {
             id: "extension-ui:request",
@@ -1944,7 +1943,7 @@ describe("deriveTimelineRenderItems", () => {
     expect(rows).toEqual([
       expect.objectContaining({
         kind: "group",
-        id: "tool:toolu-runtime",
+        id: testTimelineEntryId("tool:toolu-runtime"),
         group: expect.objectContaining({
           steps: [expect.objectContaining({ kind: "runtime-tool" })],
         }),
@@ -1980,7 +1979,7 @@ describe("deriveTimelineRenderItems", () => {
     expect(rows).toEqual([
       expect.objectContaining({
         kind: "group",
-        id: "tool:await-1",
+        id: testTimelineEntryId("tool:await-1"),
         group: expect.objectContaining({
           isWaitingGroup: true,
           isBrowserGroup: false,
@@ -2049,7 +2048,7 @@ describe("deriveTimelineRenderItems", () => {
     expect(rows).toEqual([
       expect.objectContaining({
         kind: "single",
-        id: "tool:await-1",
+        id: testTimelineEntryId("tool:await-1"),
         step: expect.objectContaining({ kind: "runtime-tool" }),
       }),
     ]);
@@ -2076,7 +2075,7 @@ describe("deriveTimelineRenderItems", () => {
     expect(rows).toEqual([
       expect.objectContaining({
         kind: "group",
-        id: "tool:browser-1",
+        id: testTimelineEntryId("tool:browser-1"),
         group: expect.objectContaining({
           isWaitingGroup: false,
           isBrowserGroup: true,
@@ -2109,7 +2108,7 @@ describe("deriveTimelineRenderItems", () => {
     expect(rows).toEqual([
       expect.objectContaining({
         kind: "single",
-        id: "tool:browser-1",
+        id: testTimelineEntryId("tool:browser-1"),
         step: expect.objectContaining({ kind: "runtime-tool" }),
       }),
     ]);
@@ -2166,7 +2165,7 @@ describe("deriveTimelineRenderItems", () => {
   it("excludes long assistant narration from collapsed preview steps", () => {
     const shortMessage = {
       kind: "message" as const,
-      id: "message:short",
+      id: testTimelineEntryId("message:short"),
       createdAt: "2026-06-05T16:00:02.000Z",
       message: {
         id: assistantId,
@@ -2205,7 +2204,7 @@ describe("deriveTimelineRenderItems", () => {
       timelineEntries: [
         {
           kind: "work",
-          id: "work:shell",
+          id: testTimelineEntryId("work:shell"),
           createdAt: "2026-06-05T16:00:01.000Z",
           entry: workEntry({
             id: "shell",
@@ -2216,7 +2215,7 @@ describe("deriveTimelineRenderItems", () => {
         },
         {
           kind: "work",
-          id: "work:summary",
+          id: testTimelineEntryId("work:summary"),
           createdAt: "2026-06-05T16:00:02.000Z",
           entry: workEntry({
             id: "summary",
@@ -2278,7 +2277,7 @@ describe("deriveTimelineRenderItems", () => {
         timelineEntries: [
           {
             kind: "work",
-            id: "work:read-1",
+            id: testTimelineEntryId("work:read-1"),
             createdAt: "2026-06-05T16:00:01.000Z",
             entry: workEntry({
               id: "read-1",
@@ -2289,7 +2288,7 @@ describe("deriveTimelineRenderItems", () => {
           },
           {
             kind: "work",
-            id: "work:read-2",
+            id: testTimelineEntryId("work:read-2"),
             createdAt: "2026-06-05T16:00:02.000Z",
             entry: workEntry({
               id: "read-2",
@@ -2357,7 +2356,7 @@ describe("deriveTimelineRenderItems", () => {
         timelineEntries: [
           {
             kind: "work",
-            id: "work:thinking-1",
+            id: testTimelineEntryId("work:thinking-1"),
             createdAt: "2026-06-05T16:00:01.000Z",
             entry: workEntry({
               id: "thinking-1",
@@ -2367,7 +2366,7 @@ describe("deriveTimelineRenderItems", () => {
           },
           {
             kind: "work",
-            id: "work:thinking-2",
+            id: testTimelineEntryId("work:thinking-2"),
             createdAt: "2026-06-05T16:00:02.000Z",
             entry: workEntry({
               id: "thinking-2",
@@ -2536,7 +2535,7 @@ describe("pending approval handling", () => {
     expect(rows[1]).toEqual(
       expect.objectContaining({
         kind: "single",
-        id: "tool:shell-pending",
+        id: testTimelineEntryId("tool:shell-pending"),
       }),
     );
   });

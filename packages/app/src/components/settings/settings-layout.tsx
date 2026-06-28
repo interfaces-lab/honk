@@ -10,22 +10,31 @@ import { settingsPreferenceDomId } from "./settings-preference-index";
 export function SettingsSection({
   title,
   icon,
+  description,
   headerAction,
   children,
 }: {
   title: string;
   icon?: ReactNode;
+  description?: ReactNode;
   headerAction?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="space-y-2">
-      <div className="flex min-h-5 items-center justify-between px-1.5">
-        <h2 className="flex items-center gap-1.5 font-honk text-honk-sm font-medium text-honk-fg-tertiary">
-          {icon}
-          {title}
-        </h2>
-        {headerAction}
+      <div className="px-1.5">
+        <div className="flex min-h-5 items-center justify-between gap-3">
+          <h2 className="flex items-center gap-1.5 font-honk text-honk-sm font-medium text-honk-fg-tertiary">
+            {icon}
+            {title}
+          </h2>
+          {headerAction}
+        </div>
+        {description ? (
+          <p className="mt-1 max-w-[72ch] text-pretty text-body text-honk-fg-tertiary">
+            {description}
+          </p>
+        ) : null}
       </div>
       <div className="relative overflow-hidden rounded-lg bg-honk-bg-quinary text-card-foreground">
         {children}

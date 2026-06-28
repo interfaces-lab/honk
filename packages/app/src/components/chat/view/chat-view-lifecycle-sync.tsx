@@ -253,21 +253,18 @@ export function MarkSettledServerThreadVisitedSync({
 }
 
 export function ActiveThreadUiResetSync({
-  isAtBottomRef,
+  isAtEndRef,
   setPullRequestDialogState,
-  setShowScrollToBottom,
-  showScrollDebouncer,
+  setIsTimelineAtEnd,
 }: {
-  isAtBottomRef: RefObject<boolean>;
+  isAtEndRef: RefObject<boolean>;
   setPullRequestDialogState: Dispatch<SetStateAction<PullRequestDialogState | null>>;
-  setShowScrollToBottom: Dispatch<SetStateAction<boolean>>;
-  showScrollDebouncer: RefObject<{ cancel: () => void }>;
+  setIsTimelineAtEnd: Dispatch<SetStateAction<boolean>>;
 }) {
   useMountEffect(() => {
-    setPullRequestDialogState(null);
-    isAtBottomRef.current = true;
-    showScrollDebouncer.current.cancel();
-    setShowScrollToBottom(false);
+    setPullRequestDialogState((current) => (current === null ? current : null));
+    isAtEndRef.current = true;
+    setIsTimelineAtEnd((current) => (current ? current : true));
   });
 
   return null;

@@ -14,7 +14,6 @@ describe("resolveWaitingTimelineStatus", () => {
         activeTurnStartedAt: startedAt,
       }),
     ).toEqual({
-      phase: "thinking",
       elapsedStartedAt: startedAt,
     });
   });

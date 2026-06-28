@@ -109,7 +109,6 @@ export interface AgentSidebarProps {
   onClearDraft: (id: string) => void;
   onNewAgent?: (cwd: string) => void;
   onOpenWorkspace?: () => void;
-  onPrefetchAgent?: (id: string) => void;
   loading?: boolean;
   error?: boolean;
 }

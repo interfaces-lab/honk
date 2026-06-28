@@ -32,7 +32,7 @@ const APPEARANCE_CORE_COLORS: Record<AppearanceThemeMode, AppearanceCoreColors> 
     chrome: "#141414",
     editor: "#181818",
     accent: "#599CE7",
-    focus: "#E4E4E4",
+    focus: "#F0F0F0",
   },
 };
 
@@ -43,16 +43,6 @@ const TINT_TOKENS: readonly TintTokenConfig[] = [
   { token: "accent", hueShift: true },
   { token: "focus", hueShift: true },
 ];
-
-const APPEARANCE_BASE_TOKEN_NAMES: readonly AppearanceBaseTokenName[] = [
-  "--honk-base-sidebar",
-  "--honk-base-chrome",
-  "--honk-base-editor",
-  "--honk-base-accent",
-  "--honk-base-focus",
-];
-
-const APPEARANCE_TINT_STYLE_ID = "honk-custom-tint-tokens";
 
 export const DEFAULT_APPEARANCE_TINT_HUE = 210;
 export const DEFAULT_APPEARANCE_TINT_INTENSITY = 0;
@@ -139,29 +129,6 @@ function shiftHue(hex: string, hue: number) {
   return hslToHex({ h: hue, s, l });
 }
 
-export function getAppearanceThemeMode(root: Pick<Element, "classList">): AppearanceThemeMode {
-  return root.classList.contains("dark") ? "dark" : "light";
-}
-
-function getAppearanceTintStyleElement(root: HTMLElement) {
-  const ownerDocument = root.ownerDocument;
-  const existing = ownerDocument.getElementById(APPEARANCE_TINT_STYLE_ID);
-  if (existing instanceof HTMLStyleElement) return existing;
-
-  const style = ownerDocument.createElement("style");
-  style.id = APPEARANCE_TINT_STYLE_ID;
-  ownerDocument.head.append(style);
-  return style;
-}
-
-function removeAppearanceTintStyleElement(root: HTMLElement) {
-  root.ownerDocument.getElementById(APPEARANCE_TINT_STYLE_ID)?.remove();
-}
-
-function removeStaleInlineTintTokens(root: HTMLElement) {
-  for (const token of APPEARANCE_BASE_TOKEN_NAMES) root.style.removeProperty(token);
-}
-
 export function buildAppearanceBaseColors(
   mode: AppearanceThemeMode,
   hue: number,
@@ -188,28 +155,4 @@ export function buildAppearanceBaseColors(
     "--honk-base-accent": colors.accent,
     "--honk-base-focus": colors.focus,
   };
-}
-
-export function applyAppearanceBaseColors(
-  root: HTMLElement,
-  mode: AppearanceThemeMode,
-  hue: number,
-  intensity: number,
-) {
-  if (normalizeIntensity(intensity) <= 0) {
-    removeStaleInlineTintTokens(root);
-    removeAppearanceTintStyleElement(root);
-    return;
-  }
-
-  const colors = buildAppearanceBaseColors(mode, hue, intensity);
-  const lines: string[] = [];
-
-  for (const [token, value] of Object.entries(colors) as Array<[AppearanceBaseTokenName, string]>) {
-    lines.push(`  ${token}: ${value};`);
-  }
-
-  removeStaleInlineTintTokens(root);
-  getAppearanceTintStyleElement(root).textContent =
-    `body[data-honk-glass-mode="true"] {\n${lines.join("\n")}\n}`;
 }

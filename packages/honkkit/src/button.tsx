@@ -2,7 +2,7 @@
 
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import * as stylex from "@stylexjs/stylex";
-import * as React from "react";
+import type * as React from "react";
 
 import {
   colorVars,
@@ -46,14 +46,6 @@ interface ButtonProps extends ButtonPrimitive.Props {
   typography?: ButtonTypography;
   xstyle?: stylex.StyleXStyles;
 }
-
-type IconElementProps = {
-  "aria-hidden"?: boolean | "false" | "true" | undefined;
-  className?: string | undefined;
-  focusable?: boolean | "false" | "true" | undefined;
-  size?: number | string | undefined;
-  style?: React.CSSProperties | undefined;
-};
 
 const primaryHover = "color-mix(in oklab, var(--primary) 90%, transparent)";
 const destructiveHover = "color-mix(in oklab, var(--destructive) 90%, transparent)";
@@ -394,40 +386,10 @@ function warnIfMissingIconButtonName({
   );
 }
 
-function hasSizeClass(className: string | undefined): boolean {
-  return /(?:^|\s)(?:size|h|w)-/.test(className ?? "");
-}
-
-function normalizeIconElement(icon: React.ReactNode): React.ReactNode {
-  if (!React.isValidElement<IconElementProps>(icon)) {
-    return icon;
-  }
-
-  const iconProps: Partial<IconElementProps> = {
-    "aria-hidden": icon.props["aria-hidden"] ?? true,
-    focusable: icon.props.focusable ?? false,
-  };
-
-  if (
-    !hasSizeClass(icon.props.className) &&
-    icon.props.size == null &&
-    icon.props.style?.width == null &&
-    icon.props.style?.height == null
-  ) {
-    iconProps.style = {
-      ...icon.props.style,
-      height: "100%",
-      width: "100%",
-    };
-  }
-
-  return React.cloneElement(icon, iconProps);
-}
-
 function ButtonIconSlot({ children, size }: { children: React.ReactNode; size: ButtonSize }) {
   return (
     <span {...stylex.props(styles.iconWrapper, iconSizeStyleByButtonSize[size])}>
-      {normalizeIconElement(children)}
+      {children}
     </span>
   );
 }
@@ -534,12 +496,12 @@ function Button({
   return (
     <ButtonPrimitive
       {...mergedProps}
+      {...props}
       className={classNameProp}
       data-slot="button"
       render={render}
       style={styleProp}
       type={typeValue}
-      {...props}
     >
       {renderButtonContent({ children, endContent, icon, isIconOnly, label, size })}
     </ButtonPrimitive>

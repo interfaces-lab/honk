@@ -18,11 +18,15 @@ import {
 } from "react";
 import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import { Button } from "@honk/honkkit/button";
-import { ToolCallLine } from "@honk/honkkit/tool-call";
-import { ExpandableToolMetadataLine } from "../../message/tool-renderer";
+import { Text } from "@honk/honkkit/text";
+import {
+  ToolCallLine,
+  ToolCallMetadataDisclosure as ExpandableToolMetadataLine,
+} from "@honk/honkkit/tool-call";
 import { cn } from "~/lib/utils";
 import {
   type SubagentTranscriptItem,
+  type TimelineEntryId,
   type ToolDisplayArtifact,
   type WorkLogEntry,
   type WorkLogSubagent,
@@ -54,6 +58,10 @@ const SUBAGENT_TRAY_COLLISION_AVOIDANCE = {
   align: "shift",
   fallbackAxisSide: "none",
 } as const;
+
+function subagentTimelineStepId(value: string): TimelineEntryId {
+  return value as TimelineEntryId;
+}
 
 export type SubagentTrayVirtualRow =
   | {
@@ -200,6 +208,7 @@ function SubagentTray(props: { selection: SubagentTraySelection; onClose: () => 
   const title = subagent?.title ?? subagent?.nickname ?? subagent?.role ?? "Subagent";
   const roleLabel = formatSubagentRoleLabel(subagent?.role);
   const visibleRoleLabel = roleLabel && roleLabel !== title ? roleLabel : undefined;
+  const headerTitle = visibleRoleLabel ? `${visibleRoleLabel} ${title}` : title;
   const subagentThreadId = subagent?.subagentThreadId ?? selection.subagentThreadId;
 
   return (
@@ -212,22 +221,20 @@ function SubagentTray(props: { selection: SubagentTraySelection; onClose: () => 
         className="flex min-w-0 shrink-0 items-center gap-2 px-3 py-2"
         data-subagent-tray-header=""
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 text-left" title={headerTitle}>
           {visibleRoleLabel ? (
-            <span
-              data-subagent-role=""
-              className="shrink-0 text-caption font-medium text-honk-fg-secondary"
-              title={subagent?.role}
+            <Text
+              size="base"
+              tone="secondary"
+              weight="medium"
+              data-subagent-role={subagent?.role}
             >
               {visibleRoleLabel}
-            </span>
+            </Text>
           ) : null}
-          <div
-            className="min-w-0 flex-1 truncate text-title font-medium text-honk-fg-primary"
-            title={title}
-          >
+          <Text as="div" size="base" tone="primary" weight="medium" truncate>
             {title}
-          </div>
+          </Text>
         </div>
         <Button
           className="ml-auto shrink-0 text-honk-icon-secondary hover:text-honk-icon-primary"
@@ -429,7 +436,7 @@ function SubagentTrayVirtualRows({
     (index: number) => estimateSubagentTrayVirtualRowSize(rows[index]),
     [rows],
   );
-  const getItemKey = useCallback((index: number) => rows[index]?.id ?? index, [rows]);
+  const getItemKey = useCallback((index: number) => rows[index]!.id, [rows]);
   const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
     getScrollElement: () => scrollElementRef.current,
@@ -729,7 +736,11 @@ function subagentTranscriptItemStep(
   isStreaming: boolean,
 ): TimelineStep {
   const workEntry = subagentTranscriptItemToWorkEntry(item, isStreaming);
-  return subagentWorkStep(`subagent-tool-step:${item.id}`, item.createdAt, workEntry);
+  return subagentWorkStep(
+    subagentTimelineStepId(`subagent-tool-step:${item.id}`),
+    item.createdAt,
+    workEntry,
+  );
 }
 
 function subagentMessageStep(input: {
@@ -742,7 +753,7 @@ function subagentMessageStep(input: {
   const messageId = MessageId.make(input.id);
   return {
     kind: "message",
-    id: `subagent-message-step:${input.id}`,
+    id: subagentTimelineStepId(`subagent-message-step:${input.id}`),
     createdAt: input.createdAt,
     message: {
       id: messageId,
@@ -765,16 +776,24 @@ function subagentThinkingStep(
   label: string,
   isStreaming: boolean,
 ): TimelineStep {
-  return subagentWorkStep(`subagent-thinking-step:${id}`, createdAt, {
-    id: `subagent-thinking:${id}`,
+  return subagentWorkStep(
+    subagentTimelineStepId(`subagent-thinking-step:${id}`),
     createdAt,
-    label,
-    tone: "thinking",
-    status: isStreaming ? "running" : "completed",
-  });
+    {
+      id: `subagent-thinking:${id}`,
+      createdAt,
+      label,
+      tone: "thinking",
+      status: isStreaming ? "running" : "completed",
+    },
+  );
 }
 
-function subagentWorkStep(id: string, createdAt: string, entry: WorkLogEntry): TimelineStep {
+function subagentWorkStep(
+  id: TimelineEntryId,
+  createdAt: string,
+  entry: WorkLogEntry,
+): TimelineStep {
   return {
     kind: "work",
     id,
@@ -979,7 +998,7 @@ function SubagentActivityLine({
     );
   }
 
-  return <ToolCallLine action={action} details={body ?? ""} loading={loading} />;
+  return <ToolCallLine action={action} details={body ?? ""} status={loading ? "loading" : "idle"} />;
 }
 
 function shouldExpandSubagentActivityDetail(detail: string): boolean {

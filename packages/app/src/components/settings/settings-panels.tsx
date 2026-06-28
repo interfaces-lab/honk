@@ -1,16 +1,14 @@
 import {
   IconArchive1,
   IconArchiveJunk,
-  IconAgentNetwork,
-  IconAgents,
-  IconBrain1,
-  IconBuildingBlocks,
   IconCheckmark1,
   IconChevronDownSmall,
   IconClawd,
   IconCursor,
+  IconHammer,
+  IconLibrary,
   IconOpenaiCodex,
-  IconTelescope,
+  IconSparklesSoft,
 } from "central-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -33,7 +31,10 @@ import { scopeThreadRef } from "~/lib/environment-scope";
 import { DEFAULT_UNIFIED_SETTINGS } from "@honk/contracts/settings";
 import { Equal } from "effect";
 import { APP_VERSION } from "~/app/branding";
-import { countRunningThreadsWithServerState } from "~/desktop-active-work";
+import {
+  countRunningThreadsWithServerState,
+  selectRunningThreadTitlesWithServerState,
+} from "~/desktop-active-work";
 import {
   DEFAULT_APPEARANCE_SNAPSHOT,
   appearanceSettingsActions,
@@ -175,11 +176,14 @@ function AboutVersionSection() {
     }
 
     if (action === "install") {
-      const runningThreadCount = countRunningThreadsWithServerState(useStore.getState());
+      const storeState = useStore.getState();
+      const runningThreadCount = countRunningThreadsWithServerState(storeState);
+      const runningThreadTitles = selectRunningThreadTitlesWithServerState(storeState);
       if (shouldConfirmDesktopUpdateInstall(runningThreadCount)) {
         const confirmed = window.confirm(
           getDesktopUpdateInstallConfirmationMessage(
             updateState ?? { availableVersion: null, downloadedVersion: null },
+            runningThreadTitles,
           ),
         );
         if (!confirmed) return;
@@ -834,36 +838,24 @@ const SUBAGENT_PROFILE_CARDS = [
   {
     name: "general-purpose",
     label: "General Purpose",
-    description:
-      "Default delegated worker for broad implementation, research, and follow-up tasks.",
-    model: "Inherits parent",
-    mode: "Smart",
-    thinking: "Inherits parent",
-    tools: "Inherits parent",
-    icon: IconAgentNetwork,
+    description: "The default worker for implementation, research, and follow-up.",
+    icon: IconHammer,
   },
   {
     name: "librarian",
     label: "Librarian",
-    description: "Read-only reconnaissance for quickly mapping files, symbols, and code paths.",
-    model: "GPT-5.5",
-    mode: "Rush",
-    thinking: "Medium",
-    tools: "read, grep, find, ls, bash",
-    icon: IconTelescope,
+    description: "Fast read-only reconnaissance across files, symbols, and code paths.",
+    icon: IconLibrary,
   },
   {
     name: "oracle",
     label: "Oracle",
-    description:
-      "Read-only deep analysis for root cause, design trade-offs, and recommended approaches.",
-    model: "Inherits parent",
-    mode: "Deep",
-    thinking: "XHigh",
-    tools: "read, grep, find, ls, bash",
-    icon: IconBrain1,
+    description: "Slow read-only analysis for root cause, debugging, and design trade-offs.",
+    icon: IconSparklesSoft,
   },
 ] as const;
+
+const SKILLS_PREVIEW_LIMIT = 5;
 
 function SkillSummaryRow({
   skill,
@@ -876,30 +868,17 @@ function SkillSummaryRow({
   };
 }) {
   return (
-    <SettingsItemShell className="py-3">
-      <div className="flex min-w-0 items-start gap-2">
-        <IconBuildingBlocks className="mt-0.5 size-4.5 shrink-0 text-honk-icon-secondary" />
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-baseline gap-1.5">
-            <SettingsItemTitle className="min-w-0 truncate" title={skill.name}>
-              {skill.name}
-            </SettingsItemTitle>
-            <span className="shrink-0 text-detail text-honk-fg-tertiary">
-              {skill.scope === "project" ? "Project skill" : "User skill"}
-            </span>
-          </div>
-          <p className="mt-1 max-w-[64ch] text-pretty">
-            <Text as="span" size="base" tone="secondary">
-              {skill.description}
-            </Text>
-          </p>
-          <code
-            className="mt-2 block truncate font-honk-mono text-honk-sm text-honk-fg-tertiary"
-            title={skill.filePath}
-          >
-            {skill.filePath}
-          </code>
-        </div>
+    <SettingsItemShell className="h-19 py-3">
+      <div className="min-w-0">
+        <SettingsItemTitle className="min-w-0 truncate" title={skill.name}>
+          {skill.name}
+        </SettingsItemTitle>
+        <p
+          className="mt-0.5 truncate text-body text-honk-fg-secondary"
+          title={skill.description}
+        >
+          {skill.description}
+        </p>
       </div>
     </SettingsItemShell>
   );
@@ -909,52 +888,17 @@ function SubagentProfileCard({ profile }: { profile: (typeof SUBAGENT_PROFILE_CA
   const Icon = profile.icon;
 
   return (
-    <SettingsItemShell className="py-3">
-      <div className="flex min-w-0 items-start gap-2">
-        <Icon className="mt-0.5 size-4.5 shrink-0 text-honk-icon-secondary" />
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-baseline">
-            <SettingsItemTitle className="min-w-0 truncate">{profile.label}</SettingsItemTitle>
-          </div>
-          <p className="mt-1 max-w-[64ch] text-pretty">
-            <Text as="span" size="base" tone="secondary">
-              {profile.description}
-            </Text>
+    <SettingsItemShell className="py-2.5">
+      <div className="flex min-w-0 items-start gap-2.5">
+        <Icon className="mt-0.5 size-4 shrink-0 text-honk-icon-secondary" />
+        <div className="min-w-0">
+          <SettingsItemTitle className="min-w-0 truncate">{profile.label}</SettingsItemTitle>
+          <p
+            className="mt-0.5 line-clamp-2 text-body text-honk-fg-secondary"
+            title={profile.description}
+          >
+            {profile.description}
           </p>
-          <div className="mt-3 grid gap-x-3 gap-y-2 sm:grid-cols-4">
-            <div className="min-w-0">
-              <Text as="div" size="sm" tone="tertiary">
-                Model
-              </Text>
-              <Text as="div" size="sm" tone="primary" weight="medium">
-                {profile.model}
-              </Text>
-            </div>
-            <div className="min-w-0">
-              <Text as="div" size="sm" tone="tertiary">
-                Mode
-              </Text>
-              <Text as="div" size="sm" tone="primary" weight="medium">
-                {profile.mode}
-              </Text>
-            </div>
-            <div className="min-w-0">
-              <Text as="div" size="sm" tone="tertiary">
-                Thinking
-              </Text>
-              <Text as="div" size="sm" tone="primary" weight="medium">
-                {profile.thinking}
-              </Text>
-            </div>
-            <div className="min-w-0">
-              <Text as="div" size="sm" tone="tertiary">
-                Tools
-              </Text>
-              <Text as="div" size="sm" tone="primary" weight="medium" truncate>
-                {profile.tools}
-              </Text>
-            </div>
-          </div>
         </div>
       </div>
     </SettingsItemShell>
@@ -963,6 +907,7 @@ function SubagentProfileCard({ profile }: { profile: (typeof SUBAGENT_PROFILE_CA
 
 export function SkillsSettingsPanel() {
   const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
+  const [showAllSkills, setShowAllSkills] = useState(false);
   const skillsCwd = projects[0]?.cwd ?? null;
   const runtimeSkillsQuery = useQuery(
     runtimeSkillsQueryOptions({ cwd: skillsCwd, enabled: skillsCwd !== null }),
@@ -977,10 +922,17 @@ export function SkillsSettingsPanel() {
     : skillsCwd === null
       ? "Add a project to resolve user and project skills."
       : null;
+  const visibleRuntimeSkills = showAllSkills
+    ? runtimeSkills
+    : runtimeSkills.slice(0, SKILLS_PREVIEW_LIMIT);
+  const hiddenSkillCount = runtimeSkills.length - visibleRuntimeSkills.length;
 
   return (
     <SettingsPageContainer>
-      <SettingsSection title="Skills" icon={<IconBuildingBlocks className="size-4" />}>
+      <SettingsSection
+        title="Skills"
+        description="Skills are specialized capabilities that help the agent accomplish specific tasks. Skills will be invoked by the agent when relevant or can be triggered manually with / in chat."
+      >
         {skillsUnavailableReason ? (
           <SettingsRow title="Skills unavailable" description={skillsUnavailableReason} />
         ) : runtimeSkillsQuery.isLoading ? (
@@ -1003,11 +955,29 @@ export function SkillsSettingsPanel() {
             description="User and project skills will appear here."
           />
         ) : (
-          runtimeSkills.map((skill) => <SkillSummaryRow key={skill.filePath} skill={skill} />)
+          <>
+            {visibleRuntimeSkills.map((skill) => (
+              <SkillSummaryRow key={skill.filePath} skill={skill} />
+            ))}
+            {hiddenSkillCount > 0 || showAllSkills ? (
+              <SettingsItemShell className="py-2.5">
+                <button
+                  type="button"
+                  className="text-body text-honk-fg-tertiary transition-colors hover:text-honk-fg-primary"
+                  onClick={() => setShowAllSkills((isShowingAll) => !isShowingAll)}
+                >
+                  {showAllSkills ? "Show less" : `Show all (${hiddenSkillCount} more)`}
+                </button>
+              </SettingsItemShell>
+            ) : null}
+          </>
         )}
       </SettingsSection>
 
-      <SettingsSection title="Subagents" icon={<IconAgents className="size-4" />}>
+      <SettingsSection
+        title="Subagents"
+        description="Built-in specialists Honk can delegate to for parallel or focused work."
+      >
         {SUBAGENT_PROFILE_CARDS.map((profile) => (
           <SubagentProfileCard key={profile.name} profile={profile} />
         ))}

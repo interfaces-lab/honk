@@ -5,17 +5,9 @@
   "type": "module",
   "exports": {
     "./styles.css": "./src/styles.css",
-    "./naming": {
-      "types": "./src/naming.ts",
-      "import": "./src/naming.ts"
-    },
     "./theme": {
       "types": "./src/theme/index.ts",
       "import": "./src/theme/index.ts"
-    },
-    "./theme/tokens.stylex": {
-      "types": "./src/theme/tokens.stylex.ts",
-      "import": "./src/theme/tokens.stylex.ts"
     },
     "./alert": {
       "types": "./src/alert.tsx",
@@ -24,6 +16,10 @@
     "./alert-dialog": {
       "types": "./src/alert-dialog.tsx",
       "import": "./src/alert-dialog.tsx"
+    },
+    "./attachment": {
+      "types": "./src/attachment.tsx",
+      "import": "./src/attachment.tsx"
     },
     "./autocomplete": {
       "types": "./src/autocomplete.tsx",
@@ -60,6 +56,26 @@
     "./combobox": {
       "types": "./src/combobox.tsx",
       "import": "./src/combobox.tsx"
+    },
+    "./conversation-bubble": {
+      "types": "./src/conversation-bubble.tsx",
+      "import": "./src/conversation-bubble.tsx"
+    },
+    "./conversation-collapse": {
+      "types": "./src/conversation-collapse.tsx",
+      "import": "./src/conversation-collapse.tsx"
+    },
+    "./conversation-loader": {
+      "types": "./src/conversation-loader.tsx",
+      "import": "./src/conversation-loader.tsx"
+    },
+    "./conversation-status-row": {
+      "types": "./src/conversation-status-row.tsx",
+      "import": "./src/conversation-status-row.tsx"
+    },
+    "./conversation-scroller": {
+      "types": "./src/conversation-scroller.tsx",
+      "import": "./src/conversation-scroller.tsx"
     },
     "./context-menu": {
       "types": "./src/context-menu.tsx",
@@ -101,6 +117,10 @@
       "types": "./src/input-group.tsx",
       "import": "./src/input-group.tsx"
     },
+    "./inline-chip": {
+      "types": "./src/inline-chip.tsx",
+      "import": "./src/inline-chip.tsx"
+    },
     "./kbd": {
       "types": "./src/kbd.tsx",
       "import": "./src/kbd.tsx"
@@ -117,13 +137,9 @@
       "types": "./src/link.tsx",
       "import": "./src/link.tsx"
     },
-    "./local-storage": {
-      "types": "./src/local-storage.ts",
-      "import": "./src/local-storage.ts"
-    },
-    "./media-query": {
-      "types": "./src/media-query.ts",
-      "import": "./src/media-query.ts"
+    "./marker": {
+      "types": "./src/marker.tsx",
+      "import": "./src/marker.tsx"
     },
     "./menu": {
       "types": "./src/menu.tsx",
@@ -227,12 +243,15 @@
     }
   },
   "scripts": {
-    "typecheck": "node ../../scripts/tsc-rc.mjs --noEmit",
+    "registry:build": "node scripts/build-registry.mjs",
+    "registry:check": "node scripts/check-registry.mjs && node scripts/build-registry.mjs --dry-run && node scripts/check-registry-install.mjs",
+    "typecheck": "pnpm run registry:check && node ../../scripts/tsc-rc.mjs --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
     "@stylexjs/stylex": "0.19.0",
+    "@tanstack/react-virtual": "^3.14.3",
     "central-icons": "npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
     "class-variance-authority": "^0.7.1",
     "react": "^19.2.7",

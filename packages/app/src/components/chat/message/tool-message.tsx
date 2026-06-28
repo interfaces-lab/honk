@@ -36,7 +36,8 @@ import {
   subagentTraySelection,
   useSubagentTrayStore,
 } from "../../../stores/subagent-tray-store";
-import { ChatLoaderGlyph } from "./chat-loader";
+import { ChatLoaderGlyph } from "@honk/honkkit/conversation-loader";
+import { ConversationStatusRow } from "@honk/honkkit/conversation-status-row";
 
 type ToolCallStatus = "loading" | "completed" | "error";
 type RuntimeToolDisplay = NonNullable<RuntimeDisplayTimelineToolItem["display"]>;
@@ -223,36 +224,16 @@ export function RuntimeExtensionUiRequestMessage({
   const detail = request.message?.trim();
   const label = active ? `Waiting for ${request.title}` : `Answered ${request.title}`;
   return (
-    <div
+    <ConversationStatusRow
+      active={active}
       data-extension-ui-request=""
       data-extension-ui-request-id={request.requestId}
       data-extension-ui-request-kind={request.requestKind}
       data-extension-ui-request-active={active ? "true" : undefined}
-      className="flex w-full min-w-0 items-start gap-2 text-conversation text-honk-fg-secondary"
-    >
-      <IconBubbleQuestion
-        className={cn(
-          "mt-0.5 size-3.5 shrink-0 text-honk-icon-tertiary",
-          active && "tool-call-shimmer text-honk-icon-accent-primary",
-        )}
-        aria-hidden="true"
-      />
-      <div className="min-w-0 flex-1">
-        <div
-          className={cn(
-            "min-w-0 break-words font-medium text-honk-fg-primary wrap-anywhere",
-            active && "tool-call-shimmer",
-          )}
-        >
-          {label}
-        </div>
-        {detail ? (
-          <div className="mt-0.5 min-w-0 whitespace-pre-wrap break-words text-honk-fg-tertiary wrap-anywhere">
-            {detail}
-          </div>
-        ) : null}
-      </div>
-    </div>
+      detail={detail}
+      icon={<IconBubbleQuestion aria-hidden="true" />}
+      label={label}
+    />
   );
 }
 
@@ -265,35 +246,15 @@ function ExtensionUiRequestRow({
 }) {
   const detail = workEntry.detail?.trim();
   return (
-    <div
+    <ConversationStatusRow
+      active={active}
       data-extension-ui-request=""
       data-extension-ui-request-kind={workEntry.extensionUiRequestKind}
       data-extension-ui-request-active={active ? "true" : undefined}
-      className="flex w-full min-w-0 items-start gap-2 text-conversation text-honk-fg-secondary"
-    >
-      <IconBubbleQuestion
-        className={cn(
-          "mt-0.5 size-3.5 shrink-0 text-honk-icon-tertiary",
-          active && "tool-call-shimmer text-honk-icon-accent-primary",
-        )}
-        aria-hidden="true"
-      />
-      <div className="min-w-0 flex-1">
-        <div
-          className={cn(
-            "min-w-0 break-words font-medium text-honk-fg-primary wrap-anywhere",
-            active && "tool-call-shimmer",
-          )}
-        >
-          {workEntry.label}
-        </div>
-        {detail ? (
-          <div className="mt-0.5 min-w-0 whitespace-pre-wrap break-words text-honk-fg-tertiary wrap-anywhere">
-            {detail}
-          </div>
-        ) : null}
-      </div>
-    </div>
+      detail={detail}
+      icon={<IconBubbleQuestion aria-hidden="true" />}
+      label={workEntry.label}
+    />
   );
 }
 
@@ -390,20 +351,28 @@ function runtimeSubagentDisplaySummary(
   const completed = display.runs.filter((run) => run.state === "completed").length;
   const failed = display.runs.filter((run) => run.state === "failed").length;
   const aborted = display.runs.filter((run) => run.state === "aborted").length;
-  const parts = [`${completed}/${display.runs.length} completed`];
-  if (queued > 0) {
-    parts.push(`${queued} queued`);
-  }
-  if (running > 0) {
-    parts.push(`${running} running`);
+  const active = queued + running;
+  if (active > 0) {
+    return running > 0
+      ? `${active} ${pluralize("subagent", active)} running`
+      : active === 1
+        ? "Starting up"
+        : `${active} subagents starting`;
   }
   if (failed > 0) {
-    parts.push(`${failed} failed`);
+    return failed === 1 ? "Background task failed" : "Background tasks failed";
   }
   if (aborted > 0) {
-    parts.push(`${aborted} aborted`);
+    return aborted === 1 ? "Background task stopped" : "Background tasks stopped";
   }
-  return parts.join(", ");
+  if (completed > 0) {
+    return completed === 1 ? "Background task completed" : "Background tasks completed";
+  }
+  return tool.summary?.trim() || "Subagent update";
+}
+
+function pluralize(noun: string, count: number): string {
+  return count === 1 ? noun : `${noun}s`;
 }
 
 export function runtimeToolItemToSubagents(
@@ -431,7 +400,7 @@ function runtimeToolDisplayToSubagents(
       latestUpdate: runtimeSubagentLatestUpdate(run),
       title,
       statusLabel: runtimeSubagentStatusLabel(run.state),
-      isActive: run.state === "running",
+      isActive: run.state === "queued" || run.state === "running",
       logs: runtimeSubagentActivityLogs(display, run.subagentThreadId),
       hasDetails: true,
     };
@@ -478,7 +447,7 @@ function runtimeSubagentTitle(nickname: string | undefined, role: string | undef
 function runtimeSubagentStatusLabel(state: RuntimeSubagentRun["state"]): string {
   switch (state) {
     case "queued":
-      return "Queued";
+      return "Starting up";
     case "running":
       return "Running";
     case "completed":

@@ -1,6 +1,6 @@
+import { ConversationBubble } from "@honk/honkkit/conversation-bubble";
 import { type ChatMessage } from "../../../types";
 import ChatMarkdown from "../markdown/chat-markdown";
-import { ChatMessageBubble } from "./message-surface";
 
 interface AssistantMessageProps {
   message: ChatMessage;
@@ -26,7 +26,7 @@ export function AssistantMessage({ message, markdownCwd }: AssistantMessageProps
     // Full width inside the flex transcript row: a flex child sizes to max-content,
     // which shrinks short messages and their code blocks with them.
     <div className="w-full min-w-0">
-      <ChatMessageBubble messageRole="assistant" body={body} />
+      <ConversationBubble role="assistant">{body}</ConversationBubble>
     </div>
   );
 }

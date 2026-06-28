@@ -36,6 +36,14 @@ export const COMPOSER_MODE_KEYBINDING_COMMANDS = [
 ] as const;
 export type ComposerModeKeybindingCommand = (typeof COMPOSER_MODE_KEYBINDING_COMMANDS)[number];
 
+export const TERMINAL_KEYBINDING_COMMANDS = [
+  "terminal.toggle",
+  "terminal.split",
+  "terminal.new",
+  "terminal.close",
+] as const;
+export type TerminalKeybindingCommand = (typeof TERMINAL_KEYBINDING_COMMANDS)[number];
+
 const STATIC_KEYBINDING_COMMANDS = [
   "threadTree.toggle",
   "commandPalette.toggle",
@@ -52,6 +60,7 @@ const STATIC_KEYBINDING_COMMANDS = [
   "editor.addSelectionToChat",
   "editorPanel.toggleFullscreen",
   "browser.focusLocationBar",
+  ...TERMINAL_KEYBINDING_COMMANDS,
   ...THREAD_KEYBINDING_COMMANDS,
 ] as const;
 

@@ -28,10 +28,10 @@ import {
   scopeThreadRef,
 } from "~/lib/environment-scope";
 import { projectScriptRuntimeEnv } from "@honk/shared/project-scripts";
-import { Debouncer } from "@tanstack/react-pacer";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@honk/honkkit/alert";
 import { Button } from "@honk/honkkit/button";
+import { type ConversationScrollerController } from "@honk/honkkit/conversation-scroller";
 import { Spinner } from "@honk/honkkit/spinner";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "@tanstack/react-router";
@@ -167,7 +167,7 @@ import {
 import { useSubagentTrayStore } from "../../../stores/subagent-tray-store";
 import { ExpandedImageDialog } from "../message/expanded-image-dialog";
 import { PullRequestThreadDialog } from "../../pull-request-thread-dialog";
-import { MessagesTimeline, type MessagesTimelineController } from "../timeline/messages-timeline";
+import { MessagesTimeline } from "../timeline/messages-timeline";
 import { ChatHeader, type ChatHeaderTooltipDetails } from "./chat-header";
 import {
   InlineMessageEditComposer,
@@ -202,7 +202,7 @@ import {
   formatSchemaBackedTransportErrorDescription,
   sanitizeThreadErrorMessage,
 } from "~/rpc/transport-error";
-import { IconChevronRightMedium, IconExclamationCircle } from "central-icons";
+import { IconExclamationCircle } from "central-icons";
 import { useAttachmentPreviewHandoff } from "./attachment-preview-handoff";
 import { WorkspaceToolbar, type WorkspaceToolbarProject } from "./workspace-toolbar";
 import {
@@ -638,7 +638,7 @@ export default function ChatView(props: ChatViewProps) {
     }
   }, [composerRef, isInactiveTiledSurface]);
   const [editingUserMessageId, setEditingUserMessageId] = useState<MessageId | null>(null);
-  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [isTimelineAtEnd, setIsTimelineAtEnd] = useState(true);
   const [expandedImage, setExpandedImage] = useState<ExpandedImagePreview | null>(null);
   const threadSendIntents = useThreadSendIntentStore(
     (store) => store.sendIntentsByThreadKey[routeThreadKey] ?? EMPTY_THREAD_SEND_INTENTS,
@@ -717,8 +717,8 @@ export default function ChatView(props: ChatViewProps) {
     {},
     LastInvokedScriptByProjectSchema,
   );
-  const messagesTimelineControllerRef = useRef<MessagesTimelineController | null>(null);
-  const isAtBottomRef = useRef(true);
+  const conversationScrollerControllerRef = useRef<ConversationScrollerController | null>(null);
+  const isAtEndRef = useRef(true);
   const sendInFlightRef = useRef(false);
 
   const fallbackDraftProject = draftThread
@@ -1528,25 +1528,16 @@ export default function ChatView(props: ChatViewProps) {
     }
   };
 
-  // The messages timeline owns virtualized scroll state.
-  const scrollTimelineToBottom = (animated = false) => {
-    messagesTimelineControllerRef.current?.scrollToBottom({ animated });
+  const onIsAtEndChange = (isAtEnd: boolean) => {
+    if (isAtEndRef.current === isAtEnd) return;
+    isAtEndRef.current = isAtEnd;
+    setIsTimelineAtEnd(isAtEnd);
   };
 
-  // Debounce *showing* the scroll-to-bottom pill so it doesn't flash during
-  // thread switches while the virtualizer is settling; hiding is always immediate.
-  const showScrollDebouncer = useRef(
-    new Debouncer(() => setShowScrollToBottom(true), { wait: 150 }),
-  );
-  const onIsAtBottomChange = (isAtBottom: boolean) => {
-    if (isAtBottomRef.current === isAtBottom) return;
-    isAtBottomRef.current = isAtBottom;
-    if (isAtBottom) {
-      showScrollDebouncer.current.cancel();
-      setShowScrollToBottom(false);
-    } else {
-      showScrollDebouncer.current.maybeExecute();
-    }
+  const forceTimelineAtEnd = () => {
+    isAtEndRef.current = true;
+    setIsTimelineAtEnd(true);
+    conversationScrollerControllerRef.current?.scrollToEnd({ animated: false });
   };
 
   const closeExpandedImage = () => {
@@ -1846,10 +1837,7 @@ export default function ChatView(props: ChatViewProps) {
     try {
       setThreadError(threadIdForSend, null);
       beginLocalDispatch({ preparingWorktree: false });
-      isAtBottomRef.current = true;
-      showScrollDebouncer.current.cancel();
-      setShowScrollToBottom(false);
-      messagesTimelineControllerRef.current?.scrollToBottom({ animated: false });
+      forceTimelineAtEnd();
 
       markLocalRuntimeThread(threadIdForSend);
       applyLocalThreadTurnStartRequested({
@@ -2150,10 +2138,7 @@ export default function ChatView(props: ChatViewProps) {
     const optimisticAttachments = compiledTurn.optimisticAttachments;
     // Scroll to the current end before adding the optimistic message so the
     // virtualizer pins to the new item when the data changes.
-    isAtBottomRef.current = true;
-    showScrollDebouncer.current.cancel();
-    setShowScrollToBottom(false);
-    messagesTimelineControllerRef.current?.scrollToBottom({ animated: false });
+    forceTimelineAtEnd();
 
     markLocalRuntimeThread(threadIdForSend);
     appendThreadSendIntent(
@@ -2556,10 +2541,7 @@ export default function ChatView(props: ChatViewProps) {
       }
 
       setThreadError(threadIdForSend, null);
-      isAtBottomRef.current = true;
-      showScrollDebouncer.current.cancel();
-      setShowScrollToBottom(false);
-      messagesTimelineControllerRef.current?.scrollToBottom({ animated: false });
+      forceTimelineAtEnd();
 
       markLocalRuntimeThread(threadIdForSend);
       await sendRuntimeTurnWithPreparedPolicy({
@@ -2694,12 +2676,13 @@ export default function ChatView(props: ChatViewProps) {
     });
     const hasPlanFeedbackText = sendContext.prompt.trim().length > 0;
     const hasOnlyBlankPlanFollowUp = !currentComposerSendState.hasSendableContent;
+    const shouldSubmitPlanFeedback = interactionMode === "plan" && hasPlanFeedbackText;
     const planFollowUp =
       showPlanFollowUpPrompt &&
       activePendingPlan &&
       activePendingPlanSourceThreadId &&
       activeThread &&
-      (hasPlanFeedbackText || hasOnlyBlankPlanFollowUp)
+      (shouldSubmitPlanFeedback || hasOnlyBlankPlanFollowUp)
         ? {
             planMarkdown: activePendingPlan.planMarkdown,
             planId: activePendingPlan.id,
@@ -3062,10 +3045,7 @@ export default function ChatView(props: ChatViewProps) {
     beginLocalDispatch({ preparingWorktree: false });
 
     // Scroll to the current end *before* adding the optimistic message.
-    isAtBottomRef.current = true;
-    showScrollDebouncer.current.cancel();
-    setShowScrollToBottom(false);
-    messagesTimelineControllerRef.current?.scrollToBottom({ animated: false });
+    forceTimelineAtEnd();
 
     markLocalRuntimeThread(threadIdForSend);
     try {
@@ -3275,15 +3255,14 @@ export default function ChatView(props: ChatViewProps) {
     <>
       {activeThreadLifecycleSync}
       <ActiveThreadUiResetSync
-        key={activeThread?.id ?? ""}
-        isAtBottomRef={isAtBottomRef}
+        key={["active-thread-ui-reset", activeThread?.id ?? ""].join("\0")}
+        isAtEndRef={isAtEndRef}
         setPullRequestDialogState={setPullRequestDialogState}
-        setShowScrollToBottom={setShowScrollToBottom}
-        showScrollDebouncer={showScrollDebouncer}
+        setIsTimelineAtEnd={setIsTimelineAtEnd}
       />
       {isActiveSurface && autoFocusComposer ? (
         <ActiveThreadComposerFocusSync
-          key={activeThread?.id ?? ""}
+          key={["active-thread-composer-focus", activeThread?.id ?? ""].join("\0")}
           activeThreadId={activeThread?.id ?? null}
           focusComposer={focusComposer}
         />
@@ -3373,12 +3352,11 @@ export default function ChatView(props: ChatViewProps) {
                 ) : null}
                 <MessagesTimeline
                   key={activeTimelineCacheKey}
-                  isWorking={isWorking}
                   isTurnActive={timelineTurnActive}
                   isStreaming={isTimelineSurfaceActive}
                   editUserMessagesDisabled={isWorking}
                   bottomClearancePx={DOCKED_COMPOSER_TIMELINE_RESERVE_PX}
-                  timelineControllerRef={messagesTimelineControllerRef}
+                  scrollerControllerRef={conversationScrollerControllerRef}
                   timelineEntries={timelineEntries}
                   pendingApprovals={pendingApprovals}
                   activeThreadId={activeThread.id}
@@ -3395,27 +3373,9 @@ export default function ChatView(props: ChatViewProps) {
                     activeEditingUserMessageId !== null ? renderEditComposer : undefined
                   }
                   onUpdateProposedPlan={onUpdateProposedPlan}
-                  onIsAtBottomChange={onIsAtBottomChange}
+                  onIsAtEndChange={onIsAtEndChange}
                 />
 
-                {showScrollToBottom && (
-                  <div className="pointer-events-none absolute bottom-[calc(44px+1.25rem)] left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="outline"
-                      onClick={() => scrollTimelineToBottom(true)}
-                      className="pointer-events-auto rounded-full bg-(--honk-composer-surface-background)! text-honk-icon-secondary hover:bg-(--honk-composer-surface-background)! data-pressed:bg-(--honk-composer-surface-background)!"
-                      aria-label="Scroll to bottom"
-                      title="Scroll to bottom"
-                    >
-                      <IconChevronRightMedium
-                        className="size-3 rotate-90 text-honk-icon-secondary"
-                        aria-hidden="true"
-                      />
-                    </Button>
-                  </div>
-                )}
                 <div
                   aria-hidden="true"
                   data-chat-bottom-gradient-overlay=""
@@ -3448,7 +3408,7 @@ export default function ChatView(props: ChatViewProps) {
             )}
             data-new-agent-empty-state={isHeroComposer ? "" : undefined}
             {...(isConnecting ? { "data-disabled": "true" } : {})}
-            {...(showScrollToBottom ? {} : { "data-scrolled-to-bottom": "" })}
+            {...(isTimelineAtEnd ? { "data-scrolled-to-end": "" } : {})}
           >
             <ComposerPendingExtensionUiRequestPanel
               request={activePendingExtensionUiRequest}

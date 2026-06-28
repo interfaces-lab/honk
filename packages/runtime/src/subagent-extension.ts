@@ -685,9 +685,8 @@ function prepareSubagentTask(input: {
     model: childModel?.id ?? null,
     state: "queued",
   });
-  const title = taskDisplayName(input.task);
   input.state.runs.push(run);
-  pushActivity(input.state, run, "subagent.thread.started", `Queued ${title}`, {
+  pushActivity(input.state, run, "subagent.thread.started", "Starting up", {
     state: "queued",
   });
   pushActivity(input.state, run, "subagent.item.completed", "Subagent task", {
@@ -940,11 +939,11 @@ function subagentToolOverride(tools: readonly string[]): readonly string[] {
 
 function backgroundStartedText(details: SubagentToolDetails): string {
   if (details.mode === "chain") {
-    return "Started background subagent chain.";
+    return "Subagent chain running.";
   }
   return details.runs.length === 1
-    ? "Started 1 background subagent."
-    : `Started ${details.runs.length} background subagents.`;
+    ? "1 subagent running."
+    : `${details.runs.length} subagents running.`;
 }
 
 function safeNotificationText(text: string): string {
@@ -1320,19 +1319,14 @@ function summarizeSubagentDetails(details: SubagentToolDetails): string {
   const completed = details.runs.filter((run) => run.state === "completed").length;
   const failed = details.runs.filter((run) => run.state === "failed").length;
   const aborted = details.runs.filter((run) => run.state === "aborted").length;
-  const parts = [`Subagents: ${completed}/${details.runs.length} completed`];
-  if (queued > 0) {
-    parts.push(`${queued} queued`);
-  }
-  if (running > 0) {
-    parts.push(`${running} running`);
-  }
-  if (failed > 0) {
-    parts.push(`${failed} failed`);
-  }
-  if (aborted > 0) {
-    parts.push(`${aborted} aborted`);
-  }
+  const summary = summarizeSubagentRunCounts({
+    total: details.runs.length,
+    queued,
+    running,
+    completed,
+    failed,
+    aborted,
+  });
   const outputs = details.runs.map(
     (run) =>
       `### ${run.nickname}\n\n${truncateSubagentOutputForParent({
@@ -1341,7 +1335,39 @@ function summarizeSubagentDetails(details: SubagentToolDetails): string {
       })}`,
   );
   return truncateSubagentOutputForParent({
-    text: `${parts.join(", ")}\n\n${outputs.join("\n\n---\n\n")}`,
+    text: `${summary}\n\n${outputs.join("\n\n---\n\n")}`,
     maxBytes: DEFAULT_SUBAGENT_BUDGET_LIMITS.maxParentVisibleOutputBytesPerToolCall,
   });
+}
+
+function summarizeSubagentRunCounts(input: {
+  readonly total: number;
+  readonly queued: number;
+  readonly running: number;
+  readonly completed: number;
+  readonly failed: number;
+  readonly aborted: number;
+}): string {
+  const active = input.queued + input.running;
+  if (active > 0) {
+    return input.running > 0
+      ? `${active} ${pluralize("subagent", active)} running`
+      : active === 1
+        ? "Starting up"
+        : `${active} subagents starting`;
+  }
+  if (input.failed > 0) {
+    return input.failed === 1 ? "Background task failed" : "Background tasks failed";
+  }
+  if (input.aborted > 0) {
+    return input.aborted === 1 ? "Background task stopped" : "Background tasks stopped";
+  }
+  if (input.completed > 0) {
+    return input.completed === 1 ? "Background task completed" : "Background tasks completed";
+  }
+  return `${input.total} ${pluralize("subagent", input.total)}`;
+}
+
+function pluralize(noun: string, count: number): string {
+  return count === 1 ? noun : `${noun}s`;
 }

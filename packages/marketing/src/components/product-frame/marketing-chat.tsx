@@ -1,4 +1,4 @@
-import { ChatMessageBubble } from "~/components/chat/message/message-surface";
+import { ConversationBubble } from "@honk/honkkit/conversation-bubble";
 import { ToolCallRenderer } from "~/components/chat/message/tool-renderer";
 import { cn } from "@honk/honkkit/utils";
 import { useEffect, useRef } from "react";
@@ -20,10 +20,9 @@ function TimelineMessage(props: {
   if (props.item.kind === "user") {
     return (
       <div className={cn("w-full min-w-0", props.entering && "marketing-demo-enter")}>
-        <ChatMessageBubble
-          messageRole="user"
-          body={<div className="text-conversation text-honk-fg-primary">{props.item.text}</div>}
-        />
+        <ConversationBubble role="user">
+          <div className="text-conversation text-honk-fg-primary">{props.item.text}</div>
+        </ConversationBubble>
       </div>
     );
   }
@@ -32,10 +31,9 @@ function TimelineMessage(props: {
     return (
       <div className={cn("w-full min-w-0", props.entering && "marketing-demo-enter")}>
         <div className="box-border flex w-full min-w-0" data-assistant-transcript-row="">
-          <ChatMessageBubble
-            messageRole="assistant"
-            body={<div className="text-conversation text-honk-fg-primary">{props.item.text}</div>}
-          />
+          <ConversationBubble role="assistant">
+            <div className="text-conversation text-honk-fg-primary">{props.item.text}</div>
+          </ConversationBubble>
         </div>
       </div>
     );

@@ -1,10 +1,14 @@
 import { syncAppearanceDisplayZoom } from "./lib/appearance-settings";
-import { countRunningThreadsWithServerState } from "./desktop-active-work";
+import {
+  countRunningThreadsWithServerState,
+  selectRunningThreadTitlesWithServerState,
+} from "./desktop-active-work";
 import { isElectron } from "./env";
 import { useStore } from "./stores/thread-store";
 
 interface DesktopActiveWorkBridgeInstallation {
   lastRunningThreadCount: number;
+  lastRunningThreadTitles: string[];
   unsubscribe: () => void;
 }
 
@@ -12,18 +16,28 @@ type WindowWithDesktopActiveWorkBridge = Window & {
   __honkDesktopActiveWorkBridge?: DesktopActiveWorkBridgeInstallation;
 };
 
-function publishRunningThreadCount(
+function publishRunningThreadState(
   installation: DesktopActiveWorkBridgeInstallation,
   runningThreadCount: number,
+  runningThreadTitles: string[],
 ): void {
   const bridge = window.desktopBridge;
-  if (!bridge || runningThreadCount === installation.lastRunningThreadCount) {
+  if (
+    !bridge ||
+    (runningThreadCount === installation.lastRunningThreadCount &&
+      runningThreadTitles.length === installation.lastRunningThreadTitles.length &&
+      runningThreadTitles.every(
+        (title, index) => title === installation.lastRunningThreadTitles[index],
+      ))
+  ) {
     return;
   }
 
   installation.lastRunningThreadCount = runningThreadCount;
-  void bridge.setActiveWorkState({ runningThreadCount }).catch(() => {
+  installation.lastRunningThreadTitles = runningThreadTitles;
+  void bridge.setActiveWorkState({ runningThreadCount, runningThreadTitles }).catch(() => {
     installation.lastRunningThreadCount = -1;
+    installation.lastRunningThreadTitles = [];
   });
 }
 
@@ -40,11 +54,20 @@ export function installDesktopActiveWorkBridge(): void {
   syncAppearanceDisplayZoom();
   const installation: DesktopActiveWorkBridgeInstallation = {
     lastRunningThreadCount: -1,
+    lastRunningThreadTitles: [],
     unsubscribe: () => undefined,
   };
   installation.unsubscribe = useStore.subscribe((state) => {
-    publishRunningThreadCount(installation, countRunningThreadsWithServerState(state));
+    publishRunningThreadState(
+      installation,
+      countRunningThreadsWithServerState(state),
+      selectRunningThreadTitlesWithServerState(state),
+    );
   });
   targetWindow.__honkDesktopActiveWorkBridge = installation;
-  publishRunningThreadCount(installation, countRunningThreadsWithServerState(useStore.getState()));
+  publishRunningThreadState(
+    installation,
+    countRunningThreadsWithServerState(useStore.getState()),
+    selectRunningThreadTitlesWithServerState(useStore.getState()),
+  );
 }

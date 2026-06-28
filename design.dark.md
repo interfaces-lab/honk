@@ -189,6 +189,12 @@ Each semantic scale runs 10 steps (`100`–`1000`), and the step encodes intent,
 
 `background-100` is the primary dark editor surface; `background-200` is the dark chrome/chat surface for subtle separation. The `neutral-*` staircase maps Honk's surface, stroke, and foreground roles into one readable ladder. Accent staircases are derived from existing Honk status tokens (`--primary`, `--success`, `--warning`, `--destructive`) and should not become new overlapping CSS variables unless product code repeatedly needs a specific step.
 
+### Glass surfaces
+
+Glass mode uses a fixed compact surface recipe. In dark mode the base surfaces are sidebar `#181818`, chrome/chat `#141414`, editor/elevated `#181818`, foreground/focus `#F0F0F0`, and accent `#599CE7`. When native vibrancy is available, the sidebar is the most translucent pane (`36%` base color over transparent), while chat and editor are denser panes (`72%` base color over transparent). Root glass remains `rgba(0, 0, 0, .42)`. Composer and chat bubbles stay near-opaque with `color-mix(in srgb, var(--honk-base-editor) 96%, #fff)`; do not tint every nested card.
+
+The canonical implementation is StyleX surface themes selected at the app root. Components consume role surfaces (`root`, `sidebar`, `chat`, `editor`, `bubble`, `menu`) and never branch on vibrancy or transparency. Reduce Transparency and High Contrast are separate solid surface themes; they disable native vibrancy and use opaque sidebar/chrome/editor/base colors.
+
 ## Typography
 
 The app scale follows `--honk-ui-font-size-user`; workbench chrome has fixed compact metrics. Use text utilities backed by `packages/app/src/index.css` (`text-caption`, `text-detail`, `text-body`, `text-title`, `text-heading`) instead of setting font size or line height by hand. Use `--honk-font-mono` for code, data, and tabular figures.

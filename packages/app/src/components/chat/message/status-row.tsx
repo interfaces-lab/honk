@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 
-import { ChatLoader } from "./chat-loader";
+import { ChatLoader } from "@honk/honkkit/conversation-loader";
 import {
   resolveWaitingStatusLabel,
   WAITING_SLOW_LABEL_THRESHOLD_MS,
-  type WaitingPhase,
 } from "./waiting-status";
 
 function waitingElapsedMs(elapsedStartedAt: string | null): number {
@@ -37,10 +36,8 @@ function useWaitingStatusLabel(elapsedStartedAt: string | null): string {
 }
 
 export function WorkingStatusRow({
-  phase: _phase,
   elapsedStartedAt,
 }: {
-  phase: WaitingPhase;
   elapsedStartedAt?: string | null;
 }) {
   const label = useWaitingStatusLabel(elapsedStartedAt ?? null);

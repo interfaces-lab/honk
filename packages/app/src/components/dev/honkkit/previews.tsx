@@ -10,6 +10,14 @@ import {
   AlertDialogTrigger,
 } from "@honk/honkkit/alert-dialog";
 import {
+  Attachment,
+  AttachmentAction,
+  AttachmentFallback,
+  AttachmentGroup,
+  AttachmentImage,
+  AttachmentPreviewTrigger,
+} from "@honk/honkkit/attachment";
+import {
   Autocomplete,
   AutocompleteEmpty,
   AutocompleteGroup,
@@ -27,6 +35,11 @@ import { BarChart, LineChart, PieChart, type ChartDatum } from "@honk/honkkit/ch
 import { Checkbox } from "@honk/honkkit/checkbox";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@honk/honkkit/collapsible";
 import { Code, Pre } from "@honk/honkkit/code";
+import { ConversationBubble } from "@honk/honkkit/conversation-bubble";
+import { ConversationCollapse } from "@honk/honkkit/conversation-collapse";
+import { ChatLoader, ChatLoaderGlyph } from "@honk/honkkit/conversation-loader";
+import { ConversationScroller } from "@honk/honkkit/conversation-scroller";
+import { ConversationStatusRow } from "@honk/honkkit/conversation-status-row";
 import {
   Command,
   CommandEmpty,
@@ -82,10 +95,17 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@honk/honkkit/input-group";
+import {
+  InlineChip,
+  InlineChipDetail,
+  InlineChipIcon,
+  InlineChipLabel,
+} from "@honk/honkkit/inline-chip";
 import { Kbd, KbdGroup } from "@honk/honkkit/kbd";
 import { Label } from "@honk/honkkit/label";
 import { Grid, Row, Spacer, Stack } from "@honk/honkkit/layout";
 import { Link } from "@honk/honkkit/link";
+import { Marker, MarkerAction, MarkerContent, MarkerIcon, StatusNotice } from "@honk/honkkit/marker";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -139,20 +159,12 @@ import { ToggleGroup, ToggleGroupItem, ToggleGroupSeparator } from "@honk/honkki
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "@honk/honkkit/tooltip";
 import { toastContentVariants, toastRootVariants } from "@honk/honkkit/toast";
 import {
+  ToolCallDisclosureBody,
+  ToolCallDisclosureLine,
   ToolCallLine,
-  ToolCallLineChevron,
-  ToolCallShellBody,
-  ToolCallShellHeader,
-  ToolCallShellRoot,
-  ToolCallTaskBody,
-  ToolCallTaskChevron,
-  ToolCallTaskHeader,
-  ToolCallTaskRoot,
-  ToolCallTaskStatusIcon,
-  ToolCallTaskSubtitle,
-  ToolCallTaskTitle,
-  ToolCallTaskTitleArea,
-  type ToolCallLineStatus,
+  ToolCallMetadataDisclosure,
+  ToolCallShellDisclosure,
+  ToolCallTaskDisclosure,
 } from "@honk/honkkit/tool-call";
 import {
   WorkbenchIconButton,
@@ -162,6 +174,7 @@ import {
 import { WorkbenchChromeRow } from "@honk/honkkit/workbench-chrome-row";
 import {
   IconClipboard,
+  IconBubbleQuestion,
   IconBubbleText,
   IconCheckCircle2,
   IconChevronRightMedium,
@@ -173,9 +186,8 @@ import {
   IconWarningSign,
 } from "central-icons";
 import { useDialKit } from "dialkit";
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useState, type ComponentProps, type CSSProperties, type ReactNode } from "react";
 
-import { ChatLoaderGlyph } from "~/components/chat/message/chat-loader";
 import { dialSelect, dialText, pickDialSelect } from "./dialkit-helpers";
 import { cn } from "~/lib/utils";
 
@@ -549,14 +561,24 @@ function ButtonPreview() {
     variant: dialSelect(buttonVariants, "default"),
     size: dialSelect(buttonSizes, "default"),
     label: dialText("Button"),
+    icon: false,
+    endContent: false,
+    iconOnly: false,
     disabled: false,
   });
+  const icon = params.icon ? (
+    <IconSettingsGear1 className="size-full" aria-hidden="true" />
+  ) : undefined;
 
   return (
     <PreviewFrame>
       <Button
         variant={pickDialSelect(params.variant, buttonVariants)}
         size={pickDialSelect(params.size, buttonSizes)}
+        icon={icon}
+        endContent={params.endContent && !params.iconOnly ? <Kbd>Ctrl K</Kbd> : undefined}
+        isIconOnly={params.iconOnly}
+        aria-label={params.iconOnly ? params.label : undefined}
         disabled={params.disabled}
       >
         {params.label}
@@ -2061,6 +2083,369 @@ function StatusDotPreview() {
   );
 }
 
+function ConversationStatusRowPreview() {
+  const params = useDialKit("Conversation Status Row", {
+    label: dialText("Waiting for approval"),
+    detail: dialText("The extension wants to open a local browser window."),
+    active: true,
+    showDetail: true,
+  });
+
+  return (
+    <PreviewFrame>
+      <div className="w-full max-w-md">
+        <ConversationStatusRow
+          active={params.active}
+          detail={params.showDetail ? params.detail : undefined}
+          icon={<IconBubbleQuestion aria-hidden="true" />}
+          label={params.label}
+        />
+      </div>
+    </PreviewFrame>
+  );
+}
+
+function MarkerPreview() {
+  const tones = ["error", "warning"] as const;
+  const params = useDialKit("Marker", {
+    tone: dialSelect(tones, "error"),
+    showAction: true,
+  });
+  const tone = pickDialSelect(params.tone, tones);
+
+  return (
+    <PreviewFrame>
+      <div className="flex w-full max-w-xl flex-col gap-3">
+        <StatusNotice
+          action={
+            params.showAction ? (
+              <Button size="xs" variant="outline">
+                Retry
+              </Button>
+            ) : null
+          }
+          message={
+            tone === "error"
+              ? "The request failed before the tool returned output."
+              : "The response was truncated to the latest visible output."
+          }
+          tone={tone}
+        />
+        <Marker className="text-honk-fg-secondary">
+          <MarkerIcon>
+            <IconSettingsGear1 className="size-full text-honk-icon-tertiary" aria-hidden="true" />
+          </MarkerIcon>
+          <MarkerContent>
+            Marker slots can carry neutral inline status copy and a trailing control.
+          </MarkerContent>
+          <MarkerAction>
+            <Button size="xs" variant="ghost">
+              Open
+            </Button>
+          </MarkerAction>
+        </Marker>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+type ConversationScrollerPreviewRow = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+};
+
+const CONVERSATION_SCROLLER_PREVIEW_ROWS: readonly ConversationScrollerPreviewRow[] = [
+  {
+    id: "user-1",
+    role: "user",
+    text: "Can you move the reusable chat shell into HonkKit?",
+  },
+  {
+    id: "assistant-1",
+    role: "assistant",
+    text: "Yes. The app should still own message projection and runtime state.",
+  },
+  {
+    id: "user-2",
+    role: "user",
+    text: "Keep row identity strict and do not patch duplicate keys at the scroller layer.",
+  },
+  {
+    id: "assistant-2",
+    role: "assistant",
+    text: "The scroller can assume stable row ids and use them for virtualizer keys.",
+  },
+  {
+    id: "assistant-3",
+    role: "assistant",
+    text: "Sticky user anchors stay a rendering concern; duplicate id detection stays above.",
+  },
+  {
+    id: "user-3",
+    role: "user",
+    text: "Show me the primitive by itself.",
+  },
+  {
+    id: "assistant-4",
+    role: "assistant",
+    text: "This preview renders local fixture rows through ConversationScroller only.",
+  },
+];
+
+function ConversationScrollerPreview() {
+  const params = useDialKit("Conversation Scroller", {
+    stickyUsers: true,
+    streaming: false,
+    bottomClearance: [24, 0, 96, 4],
+  });
+
+  return (
+    <PreviewFrame>
+      <div className="h-96 w-full max-w-xl overflow-hidden rounded-honk-card border border-honk-stroke-secondary bg-honk-chat">
+        <ConversationScroller
+          aria-label="Conversation scroller preview"
+          bottomClearancePx={params.bottomClearance}
+          cacheKey="dev-honkkit-conversation-scroller"
+          className="pt-3"
+          contentClassName="mx-auto box-border max-w-agent-chat"
+          estimateRowSize={(row) => (row.text.length > 90 ? 96 : 68)}
+          getRowId={(row) => row.id}
+          isAnchorRow={(row) => params.stickyUsers && row.role === "user"}
+          isStreaming={params.streaming}
+          rowClassName="px-4 pb-3"
+          rows={CONVERSATION_SCROLLER_PREVIEW_ROWS}
+          shouldRenderStickyOverlay={(row) => row.role === "user" && params.stickyUsers}
+          stickyOverlayClassName="bg-honk-chat/90 backdrop-blur"
+          stickyTop={12}
+          renderRow={({ row, isActiveSticky }) => (
+            <ConversationBubble
+              role={row.role}
+              className={isActiveSticky ? "opacity-0" : undefined}
+            >
+              <p className="m-0 text-conversation text-honk-fg-primary">{row.text}</p>
+            </ConversationBubble>
+          )}
+          renderScrollToEndButton={({ scrollToEnd }) => (
+            <div className="pointer-events-none absolute right-4 bottom-4">
+              <Button
+                aria-label="Scroll to bottom"
+                className="pointer-events-auto rounded-full"
+                onClick={() => scrollToEnd({ animated: true })}
+                size="icon-sm"
+                type="button"
+                variant="outline"
+              >
+                <IconChevronRightMedium className="size-3 rotate-90" aria-hidden="true" />
+              </Button>
+            </div>
+          )}
+          renderStickyOverlay={({ row }) => (
+            <div className="px-4 pb-3">
+              <ConversationBubble role="user">
+                <p className="m-0 text-conversation text-honk-fg-primary">{row.text}</p>
+              </ConversationBubble>
+            </div>
+          )}
+        />
+      </div>
+    </PreviewFrame>
+  );
+}
+
+function ConversationBubblePreview() {
+  const variants = ["all", "user", "assistant"] as const;
+  const params = useDialKit("Conversation Bubble", {
+    variant: dialSelect(variants, "all"),
+    editable: false,
+    showMedia: true,
+    showFooter: true,
+  });
+  const variant = pickDialSelect(params.variant, variants);
+  const userMedia = params.showMedia ? (
+    <div className="flex gap-1.5">
+      {["PNG", "JPG"].map((label) => (
+        <div
+          key={label}
+          className="flex size-12 items-center justify-center rounded-honk-control border border-honk-stroke-secondary bg-honk-surface text-caption text-honk-fg-tertiary"
+        >
+          {label}
+        </div>
+      ))}
+    </div>
+  ) : null;
+  const footer = params.showFooter ? (
+    <div className="text-caption text-honk-fg-tertiary">Edited just now</div>
+  ) : null;
+  const editableSurfaceProps = params.editable
+    ? {
+        role: "button" as const,
+        tabIndex: 0,
+        "aria-label": "Edit message",
+        className: "cursor-pointer",
+      }
+    : undefined;
+
+  return (
+    <PreviewFrame>
+      <div className="flex w-full max-w-xl flex-col gap-3">
+        {variant !== "user" ? (
+          <ConversationBubble role="assistant">
+            <p className="m-0 text-conversation text-honk-fg-primary">
+              I checked the timeline path and found the row identity boundary.
+            </p>
+          </ConversationBubble>
+        ) : null}
+        {variant !== "assistant" ? (
+          <ConversationBubble
+            footer={footer}
+            media={userMedia}
+            role="user"
+            surfaceProps={editableSurfaceProps}
+          >
+            <p className="m-0 text-conversation text-honk-fg-primary">
+              Move the repeated shell into HonkKit, but keep the projector data in the app.
+            </p>
+          </ConversationBubble>
+        ) : null}
+      </div>
+    </PreviewFrame>
+  );
+}
+
+function ConversationLoaderPreview() {
+  const params = useDialKit("Conversation Loader", {
+    label: dialText("Thinking"),
+    maxExtent: [14, 8, 24, 1],
+    speed: [1, 0.25, 2, 0.05],
+  });
+
+  return (
+    <PreviewFrame>
+      <div className="flex w-full max-w-md flex-col gap-4 text-honk-fg-tertiary">
+        <ChatLoader label={params.label} />
+        <div className="flex items-center gap-4">
+          {[
+            { id: "compact", maxExtent: 8 },
+            { id: "default", maxExtent: 12 },
+            { id: "dial", maxExtent: params.maxExtent },
+          ].map((item) => (
+            <ChatLoaderGlyph
+              key={item.id}
+              className="text-honk-icon-accent-primary"
+              maxExtent={item.maxExtent}
+              speed={params.speed}
+            />
+          ))}
+        </div>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+function ConversationCollapsePreview() {
+  const modes = ["long", "short"] as const;
+  const params = useDialKit("Conversation Collapse", {
+    mode: dialSelect(modes, "long"),
+  });
+  const mode = pickDialSelect(params.mode, modes);
+  const copy =
+    mode === "long"
+      ? [
+          "Can you inspect the timeline rendering path and make sure grouped tool calls do not duplicate row identities?",
+          "Please keep the fix at the projector boundary if possible.",
+          "Do not patch keys in the renderer; I want the data model to stay honest.",
+          "After that, run the focused message tests and the package typecheck.",
+          "If anything needs a follow-up, leave the next step explicit.",
+        ]
+      : ["Can you inspect the timeline rendering path?"];
+
+  return (
+    <PreviewFrame>
+      <div className="w-full max-w-md rounded-honk-card bg-honk-bubble px-2.5 py-2 text-conversation text-honk-fg-primary [--honk-message-bubble-background:var(--honk-bubble)]">
+        <ConversationCollapse>
+          <div className="whitespace-pre-wrap break-words wrap-anywhere">{copy.join("\n")}</div>
+        </ConversationCollapse>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+const ATTACHMENT_PREVIEW_IMAGE_SRC =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' fill='%23f6f6f6'/%3E%3Cpath d='M12 58 31 37l13 13 8-9 16 17Z' fill='%23d7d7d7'/%3E%3Ccircle cx='53' cy='25' r='8' fill='%23ff3b00'/%3E%3C/svg%3E";
+
+function AttachmentPreview() {
+  const variants = ["all", "thumbnail", "manual"] as const;
+  const params = useDialKit("Attachment", {
+    variant: dialSelect(variants, "all"),
+    showAction: true,
+  });
+  const variant = pickDialSelect(params.variant, variants);
+
+  return (
+    <PreviewFrame>
+      <AttachmentGroup>
+        {variant !== "manual" ? (
+          <>
+            <Attachment>
+              <AttachmentPreviewTrigger
+                aria-label="Preview generated image"
+                onClick={() => undefined}
+              >
+                <AttachmentImage src={ATTACHMENT_PREVIEW_IMAGE_SRC} alt="Generated preview" />
+              </AttachmentPreviewTrigger>
+              {params.showAction ? (
+                <AttachmentAction aria-label="Remove generated image">
+                  <IconCrossMediumDefault />
+                </AttachmentAction>
+              ) : null}
+            </Attachment>
+            <Attachment>
+              <AttachmentFallback>notes.md</AttachmentFallback>
+            </Attachment>
+          </>
+        ) : null}
+        {variant !== "thumbnail" ? (
+          <Attachment>
+            <AttachmentPreviewTrigger
+              aria-label="Preview manual composition"
+              onClick={() => undefined}
+            >
+              <AttachmentImage src={ATTACHMENT_PREVIEW_IMAGE_SRC} alt="Manual composition" />
+            </AttachmentPreviewTrigger>
+          </Attachment>
+        ) : null}
+      </AttachmentGroup>
+    </PreviewFrame>
+  );
+}
+
+function InlineChipPreview() {
+  const tones = ["default", "destructive", "link"] as const;
+  const params = useDialKit("Inline Chip", {
+    tone: dialSelect(tones, "default"),
+    showDetail: true,
+  });
+  const tone = pickDialSelect(params.tone, tones);
+
+  return (
+    <PreviewFrame>
+      <div className="flex max-w-sm flex-wrap items-center gap-2">
+        <InlineChip tone={tone}>
+          <InlineChipIcon>
+            <IconConsole aria-hidden="true" />
+          </InlineChipIcon>
+          <InlineChipLabel>terminal:42</InlineChipLabel>
+          {params.showDetail ? <InlineChipDetail>active</InlineChipDetail> : null}
+        </InlineChip>
+        <InlineChip>
+          <InlineChipLabel>plain token</InlineChipLabel>
+        </InlineChip>
+      </div>
+    </PreviewFrame>
+  );
+}
+
 function SpinnerPreview() {
   const params = useDialKit("Spinner", {
     scale: [1, 0.5, 2, 0.05],
@@ -2208,357 +2593,15 @@ function ToastPreview() {
   );
 }
 
-interface SubagentPreviewLog {
-  id: string;
-  label: string;
-  detail?: string | undefined;
-  isRunning?: boolean | undefined;
-}
-
-interface SubagentPreviewFixture {
-  roleLabel: string;
-  verb: string;
-  model: string;
-  task: string;
-  logs: ReadonlyArray<SubagentPreviewLog>;
-}
-
-const SUBAGENT_PREVIEW_FIXTURE: SubagentPreviewFixture = {
-  roleLabel: "Oracle",
-  verb: "manifesting",
-  model: "gpt-5.5",
-  task: "mapping Cursor composer layout",
-  logs: [
-    {
-      id: "log-1",
-      label: "Started",
-      detail: "mapping Cursor composer layout",
-      isRunning: true,
-    },
-    {
-      id: "log-2",
-      label: "Task",
-      detail:
-        "In `/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js`, compare composer DOM structure",
-    },
-  ],
-};
-
-function SubagentPreviewIndicator({ active }: { active: boolean }) {
-  if (active) {
-    return (
-      <span className="inline-flex shrink-0 items-center justify-center text-honk-icon-accent-primary">
-        <ChatLoaderGlyph maxExtent={12} />
-      </span>
-    );
-  }
-  return <span className="size-1.5 shrink-0 rounded-full bg-honk-icon-tertiary" aria-hidden="true" />;
-}
-
-function SubagentPreviewActivityRows({
-  logs,
-  className,
-  rowClassName,
-}: {
-  logs: ReadonlyArray<SubagentPreviewLog>;
-  className?: string | undefined;
-  rowClassName?: string | undefined;
-}) {
-  return (
-    <div className={className}>
-      {logs.map((log) => (
-        <div
-          className={cn("flex min-h-5 max-w-full min-w-0 items-center gap-1.5", rowClassName)}
-          key={log.id}
-        >
-          <span className="inline-flex w-3 shrink-0 items-center justify-center" aria-hidden="true">
-            {log.isRunning ? (
-              <ChatLoaderGlyph className="text-honk-icon-accent-primary" maxExtent={10} />
-            ) : (
-              <span className="size-1.5 rounded-full bg-honk-icon-tertiary" />
-            )}
-          </span>
-          <span
-            className={cn(
-              "min-w-0 overflow-hidden text-ellipsis whitespace-nowrap",
-              log.isRunning && "tool-call-shimmer",
-            )}
-          >
-            {log.label}
-            {log.detail ? <span className="text-honk-fg-quaternary">: {log.detail}</span> : null}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SubagentPreviewMetaRow({
-  fixture,
-  active,
-  showChevron = true,
-}: {
-  fixture: SubagentPreviewFixture;
-  active: boolean;
-  showChevron?: boolean | undefined;
-}) {
-  return (
-    <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden">
-      <span className="inline-flex w-3 shrink-0 items-center justify-center">
-        <SubagentPreviewIndicator active={active} />
-      </span>
-      <span className="shrink-0 font-medium text-honk-fg-primary">{fixture.roleLabel}</span>
-      <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium text-honk-fg-secondary">
-        {fixture.verb}
-      </span>
-      <span className="shrink-0 text-caption text-honk-fg-tertiary tabular-nums">{fixture.model}</span>
-      {showChevron ? (
-        <span className="ml-0.5 inline-flex shrink-0 text-honk-fg-tertiary" aria-hidden="true">
-          <IconChevronRightMedium className="size-3" />
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-function SubagentStatusVariantStackedInline({
-  fixture,
-  active,
-}: {
-  fixture: SubagentPreviewFixture;
-  active: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      className="group/subagent-row flex min-h-6 w-fit max-w-full min-w-0 flex-col items-start gap-0.5 overflow-hidden text-left text-conversation text-honk-fg-secondary"
-      data-subagent-row=""
-    >
-      <SubagentPreviewMetaRow active={active} fixture={fixture} />
-      <span
-        className={cn(
-          "min-w-0 max-w-full overflow-hidden pl-4.5 text-ellipsis whitespace-nowrap text-honk-fg-tertiary",
-          active && "tool-call-shimmer",
-        )}
-        data-subagent-task=""
-      >
-        {fixture.task}
-      </span>
-      {active ? (
-        <SubagentPreviewActivityRows
-          className="mt-0.5 ml-4.5 flex max-w-full min-w-0 flex-col border-l border-honk-stroke-secondary/60 pl-2 text-honk-fg-tertiary"
-          logs={fixture.logs}
-        />
-      ) : null}
-    </button>
-  );
-}
-
-function SubagentStatusVariantTaskHeadline({
-  fixture,
-  active,
-}: {
-  fixture: SubagentPreviewFixture;
-  active: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      className="group/subagent-row flex w-full min-w-0 max-w-full flex-col items-start gap-1 text-left text-conversation"
-      data-subagent-row=""
-    >
-      <span className="inline-flex w-full min-w-0 items-center justify-between gap-2">
-        <span className="inline-flex min-w-0 items-center gap-1.5 overflow-hidden text-caption text-honk-fg-tertiary">
-          <SubagentPreviewIndicator active={active} />
-          <span className="shrink-0 font-medium text-honk-fg-secondary">
-            {fixture.roleLabel} {fixture.verb}
-          </span>
-        </span>
-        <span className="inline-flex shrink-0 items-center gap-1 text-honk-fg-tertiary">
-          <Badge size="xs" variant="outline">
-            {fixture.model}
-          </Badge>
-          <IconChevronRightMedium className="size-3 opacity-60" />
-        </span>
-      </span>
-      <span
-        className={cn(
-          "w-full min-w-0 text-body font-medium text-honk-fg-primary",
-          active && "tool-call-shimmer",
-        )}
-        data-subagent-task=""
-      >
-        {fixture.task}
-      </span>
-      {active ? (
-        <SubagentPreviewActivityRows
-          className="data-subagent-running-log flex w-full min-w-0 max-w-full flex-col gap-0.5 text-caption text-honk-fg-tertiary"
-          logs={fixture.logs}
-          rowClassName="pl-0.5"
-        />
-      ) : null}
-    </button>
-  );
-}
-
-function SubagentStatusVariantSurfaceCard({
-  fixture,
-  active,
-}: {
-  fixture: SubagentPreviewFixture;
-  active: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      className="group/subagent-row flex w-full min-w-0 max-w-full flex-col gap-1.5 rounded-honk-control border border-honk-stroke-tertiary/80 bg-honk-bg-quinary/40 px-2.5 py-2 text-left text-conversation transition-colors hover:border-honk-stroke-secondary hover:bg-honk-bg-quinary/70"
-      data-subagent-row=""
-    >
-      <span className="inline-flex w-full min-w-0 items-center justify-between gap-2">
-        <span className="inline-flex min-w-0 items-center gap-1.5 overflow-hidden">
-          <SubagentPreviewIndicator active={active} />
-          <span className="shrink-0 font-medium text-honk-fg-primary">{fixture.roleLabel}</span>
-          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-secondary">
-            {fixture.verb}
-          </span>
-        </span>
-        <span className="inline-flex shrink-0 items-center gap-1 text-caption text-honk-fg-tertiary tabular-nums">
-          {fixture.model}
-          <IconChevronRightMedium className="size-3" />
-        </span>
-      </span>
-      <span
-        className={cn(
-          "min-w-0 text-detail font-medium text-honk-fg-primary",
-          active && "tool-call-shimmer",
-        )}
-        data-subagent-task=""
-      >
-        {fixture.task}
-      </span>
-      {active ? (
-        <SubagentPreviewActivityRows
-          className="flex flex-col gap-0.5 rounded-honk-control bg-honk-bg-tertiary/30 px-2 py-1.5 text-caption text-honk-fg-tertiary"
-          logs={fixture.logs}
-        />
-      ) : null}
-    </button>
-  );
-}
-
-function SubagentStatusVariantActivityRail({
-  fixture,
-  active,
-}: {
-  fixture: SubagentPreviewFixture;
-  active: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      className="group/subagent-row relative flex w-full min-w-0 max-w-full flex-col gap-1 pl-3 text-left text-conversation"
-      data-subagent-row=""
-    >
-      <span
-        aria-hidden="true"
-        className="absolute top-1 bottom-1 left-1 w-px bg-honk-stroke-secondary/70"
-      />
-      <span className="relative inline-flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden">
-        <span className="absolute -left-3 inline-flex w-3 items-center justify-center bg-transparent">
-          <SubagentPreviewIndicator active={active} />
-        </span>
-        <span className="pl-1.5 font-medium text-honk-fg-primary">{fixture.roleLabel}</span>
-        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-secondary">
-          {fixture.verb}
-        </span>
-        <span className="shrink-0 text-caption text-honk-fg-tertiary">{fixture.model}</span>
-        <IconChevronRightMedium className="ml-auto size-3 shrink-0 text-honk-fg-tertiary" />
-      </span>
-      <span
-        className={cn(
-          "relative pl-1.5 text-detail font-medium text-honk-fg-primary",
-          active && "tool-call-shimmer",
-        )}
-        data-subagent-task=""
-      >
-        {fixture.task}
-      </span>
-      {active ? (
-        <div className="relative flex flex-col gap-1.5 pl-1.5 pt-0.5">
-          {fixture.logs.map((log) => (
-            <div className="relative flex min-w-0 items-start gap-2" key={log.id}>
-              <span className="absolute -left-3 top-1.5 inline-flex w-3 items-center justify-center">
-                {log.isRunning ? (
-                  <ChatLoaderGlyph className="text-honk-icon-accent-primary" maxExtent={8} />
-                ) : (
-                  <span className="size-1.5 rounded-full bg-honk-icon-tertiary" />
-                )}
-              </span>
-              <span
-                className={cn(
-                  "min-w-0 text-caption text-honk-fg-tertiary",
-                  log.isRunning && "tool-call-shimmer",
-                )}
-              >
-                <span className="font-medium text-honk-fg-secondary">{log.label}</span>
-                {log.detail ? (
-                  <span className="text-honk-fg-quaternary"> — {log.detail}</span>
-                ) : null}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </button>
-  );
-}
-
-function SubagentStatusPreview() {
-  const states = ["active", "completed"] as const;
-  const widths = ["compact", "wide"] as const;
-  const params = useDialKit("Subagent Status", {
-    state: dialSelect(states, "active"),
-    width: dialSelect(widths, "wide"),
-  });
-  const active = pickDialSelect(params.state, states) === "active";
-  const fixture = SUBAGENT_PREVIEW_FIXTURE;
-
-  return (
-    <PreviewFrame>
-      <div
-        className={cn(
-          "flex min-w-0 flex-col gap-2 px-(--conversation-text-inset) py-1 text-conversation",
-          pickDialSelect(params.width, widths) === "compact" ? "w-72" : "w-[28rem]",
-        )}
-        data-subagent-status-container=""
-      >
-        <div data-uidotsh-pick="Subagent status layout" className="contents">
-          <div data-uidotsh-option="Stacked inline (current)" className="contents">
-            <SubagentStatusVariantStackedInline active={active} fixture={fixture} />
-          </div>
-          <div data-uidotsh-option="Task headline" className="contents" hidden>
-            <SubagentStatusVariantTaskHeadline active={active} fixture={fixture} />
-          </div>
-          <div data-uidotsh-option="Surface card" className="contents" hidden>
-            <SubagentStatusVariantSurfaceCard active={active} fixture={fixture} />
-          </div>
-          <div data-uidotsh-option="Activity rail" className="contents" hidden>
-            <SubagentStatusVariantActivityRail active={active} fixture={fixture} />
-          </div>
-        </div>
-      </div>
-    </PreviewFrame>
-  );
-}
-
 function ToolCallPreview() {
+  type ToolCallPreviewStatus = NonNullable<ComponentProps<typeof ToolCallLine>["status"]>;
   const statuses = [
     "idle",
     "loading",
     "completed",
     "error",
-  ] as const satisfies readonly ToolCallLineStatus[];
-  const scenarios = ["line", "status-matrix", "task", "shell"] as const;
+  ] as const satisfies readonly ToolCallPreviewStatus[];
+  const scenarios = ["line", "status-matrix", "disclosure", "metadata", "task", "shell"] as const;
   const widths = ["compact", "wide"] as const;
   const params = useDialKit("Tool Call", {
     scenario: dialSelect(scenarios, "line"),
@@ -2572,6 +2615,8 @@ function ToolCallPreview() {
   });
   const status = pickDialSelect(params.status, statuses);
   const scenario = pickDialSelect(params.scenario, scenarios);
+  const expandableStatus =
+    status === "error" ? "error" : status === "loading" ? "running" : "completed";
   const toolCalls =
     scenario === "status-matrix"
       ? statuses.map((lineStatus) => ({
@@ -2599,13 +2644,51 @@ function ToolCallPreview() {
           pickDialSelect(params.width, widths) === "compact" ? "w-48" : "w-96",
         )}
       >
-        {scenario === "task" ? (
-          <ToolCallTaskRoot
-            expanded
-            status={status === "error" ? "error" : status === "loading" ? "running" : "completed"}
-          >
-            <ToolCallTaskHeader aria-expanded>
-              <ToolCallTaskStatusIcon>
+        {scenario === "disclosure" ? (
+          <div className="m-0 min-w-0 max-w-full">
+            <ToolCallDisclosureLine
+              action={params.action}
+              details={params.details}
+              expanded
+              icon={params.icon ? IconSettingsGear1 : undefined}
+              onToggleExpanded={() => undefined}
+              status={status}
+              trailing={
+                <Badge
+                  variant="outline"
+                  size="sm"
+                  className="ml-1 h-4 shrink-0 border-honk-stroke-secondary bg-transparent px-1 font-mono text-caption text-honk-fg-tertiary tabular-nums"
+                >
+                  4 files
+                </Badge>
+              }
+            />
+            <ToolCallDisclosureBody className="mt-1">
+              <pre className="m-0 max-h-[min(42vh,520px)] overflow-y-auto whitespace-pre-wrap p-0 wrap-anywhere">
+                packages/app/src/components/chat/message/tool-renderer.tsx{"\n"}
+                packages/honkkit/src/tool-call.tsx
+              </pre>
+            </ToolCallDisclosureBody>
+          </div>
+        ) : scenario === "metadata" ? (
+          <ToolCallMetadataDisclosure
+            action={params.action}
+            details={params.details}
+            defaultExpanded
+            icon={params.icon ? IconSettingsGear1 : undefined}
+            linkable={params.linkable}
+            loading={status === "loading"}
+            metadataItems={["exit 0", "4.8s"]}
+            onFileClick={() => undefined}
+            output={"$ pnpm run typecheck\nTasks: 11 successful, 11 total"}
+          />
+        ) : scenario === "task" ? (
+          <ToolCallTaskDisclosure
+            defaultExpanded
+            loading={status === "loading"}
+            status={expandableStatus}
+            statusIcon={
+              <>
                 {status === "loading" ? (
                   <IconClock className="tool-call-shimmer size-3.5" />
                 ) : status === "error" ? (
@@ -2613,55 +2696,33 @@ function ToolCallPreview() {
                 ) : (
                   <IconCheckCircle2 className="size-3.5" />
                 )}
-              </ToolCallTaskStatusIcon>
-              <ToolCallTaskTitleArea>
-                <ToolCallTaskTitle loading={status === "loading"}>
-                  {params.action}
-                </ToolCallTaskTitle>
-                <ToolCallTaskSubtitle>{params.details}</ToolCallTaskSubtitle>
-              </ToolCallTaskTitleArea>
-              <ToolCallTaskChevron expanded />
-            </ToolCallTaskHeader>
-            <ToolCallTaskBody>
+              </>
+            }
+            title={params.action}
+            subtitle={params.details}
+            body={
               <div className="rounded-honk-control border border-honk-stroke-tertiary bg-honk-bg-quinary px-2 py-1.5 text-honk-fg-secondary">
                 Subagent transcript slot
               </div>
-            </ToolCallTaskBody>
-          </ToolCallTaskRoot>
+            }
+          />
         ) : scenario === "shell" ? (
-          <ToolCallShellRoot
-            expanded
-            status={status === "error" ? "error" : status === "loading" ? "running" : "completed"}
-          >
-            <ToolCallShellHeader expandable expanded hasError={status === "error"}>
-              {params.icon ? (
-                <IconConsole className="size-3.5 shrink-0 text-honk-fg-tertiary" />
-              ) : null}
-              <span className="inline-flex min-w-0 max-w-full items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                <span
-                  className={cn(
-                    "shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-secondary",
-                    status === "loading" && "tool-call-shimmer",
-                  )}
-                  data-tool-call-line-action=""
-                >
-                  {params.action}
-                </span>
-                <span
-                  className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-honk-fg-tertiary"
-                  data-tool-call-line-details=""
-                >
-                  {params.details}
-                </span>
-              </span>
-              <ToolCallLineChevron expanded />
-            </ToolCallShellHeader>
-            <ToolCallShellBody>
+          <ToolCallShellDisclosure
+            action={params.action}
+            body={
               <pre className="m-0 whitespace-pre-wrap px-(--conversation-tool-card-padding-x) py-1.5 font-mono text-conversation text-honk-fg-tertiary wrap-anywhere">
                 $ pnpm --filter @honk/app typecheck{"\n"}node ../../scripts/tsc-rc.mjs --noEmit
               </pre>
-            </ToolCallShellBody>
-          </ToolCallShellRoot>
+            }
+            details={params.details}
+            expandable
+            expanded
+            hasError={status === "error"}
+            icon={params.icon ? IconConsole : undefined}
+            loading={status === "loading"}
+            onToggleExpanded={() => undefined}
+            status={expandableStatus}
+          />
         ) : (
           toolCalls.map((toolCall) => (
             <ToolCallLine
@@ -2837,6 +2898,7 @@ export const MULTIKIT_PREVIEWS: Record<string, () => ReactNode> = {
   icon: IconPreview,
   input: InputPreview,
   "input-group": InputGroupPreview,
+  "inline-chip": InlineChipPreview,
   kbd: KbdPreview,
   label: LabelPreview,
   layout: LayoutPreview,
@@ -2860,7 +2922,13 @@ export const MULTIKIT_PREVIEWS: Record<string, () => ReactNode> = {
   textarea: TextareaPreview,
   tooltip: TooltipPreview,
   toast: ToastPreview,
-  "subagent-status": SubagentStatusPreview,
+  marker: MarkerPreview,
+  "conversation-status-row": ConversationStatusRowPreview,
+  "conversation-scroller": ConversationScrollerPreview,
+  "conversation-bubble": ConversationBubblePreview,
+  "conversation-loader": ConversationLoaderPreview,
+  "conversation-collapse": ConversationCollapsePreview,
+  attachment: AttachmentPreview,
   "tool-call": ToolCallPreview,
   toggle: TogglePreview,
   "toggle-group": ToggleGroupPreview,
@@ -2869,13 +2937,6 @@ export const MULTIKIT_PREVIEWS: Record<string, () => ReactNode> = {
 };
 
 export function HonkKitPreview({ componentId }: { componentId: string }) {
-  const Preview = MULTIKIT_PREVIEWS[componentId];
-  if (!Preview) {
-    return (
-      <PreviewFrame>
-        <Text tone="secondary">Preview not implemented yet.</Text>
-      </PreviewFrame>
-    );
-  }
+  const Preview = MULTIKIT_PREVIEWS[componentId]!;
   return <Preview />;
 }

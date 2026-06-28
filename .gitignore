@@ -10,6 +10,7 @@ apps/*/out
 .astro
 packages/*/dist
 packages/*/out
+packages/marketing/public/r/
 packages/desktop/.electron-runtime/
 .env
 .env.local

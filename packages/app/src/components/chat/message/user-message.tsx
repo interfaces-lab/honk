@@ -1,5 +1,14 @@
 import { type MessageId } from "@honk/contracts";
-import { Button } from "@honk/honkkit/button";
+import {
+  Attachment,
+  AttachmentFallback,
+  AttachmentGroup,
+  AttachmentImage,
+  AttachmentPreviewTrigger,
+} from "@honk/honkkit/attachment";
+import { ConversationBubble } from "@honk/honkkit/conversation-bubble";
+import { ConversationCollapse } from "@honk/honkkit/conversation-collapse";
+import { StatusNotice } from "@honk/honkkit/marker";
 import {
   IconBranch,
   IconCloudUpload,
@@ -8,8 +17,11 @@ import {
   IconPush,
   type CentralIconBaseProps,
 } from "central-icons";
-import { type ComponentType, type ReactNode } from "react";
-import { buildExpandedImagePreview, type ExpandedImagePreview } from "./expanded-image-preview";
+import { type ComponentType, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import {
+  buildExpandedImagePreviewByIndex,
+  type ExpandedImagePreview,
+} from "./expanded-image-preview";
 import { TerminalContextInlineChip } from "./terminal-context-chip";
 import {
   deriveDisplayedUserMessageState,
@@ -18,13 +30,6 @@ import {
 } from "~/lib/terminal-context";
 import { type ChatMessage } from "../../../types";
 import { useAuthenticatedImagePreviewSrc } from "./authenticated-image-preview";
-import {
-  ChatMessageBubble,
-  EditableChatMessageBubble,
-  ReadonlyActionChatMessageBubble,
-} from "./message-surface";
-import { UserMessageTurnError } from "./user-message-turn-error";
-import { UserMessageCollapsible } from "./user-collapse";
 import {
   GIT_AGENT_ACTIONS,
   resolveGitAgentActionFromPrompt,
@@ -69,16 +74,17 @@ export function UserMessage({
 
   const media =
     userImages.length > 0 ? (
-      <div className="mb-2 flex max-w-full flex-wrap gap-2">
-        {userImages.map((image) => (
+      <AttachmentGroup className="mb-2">
+        {userImages.map((image, index) => (
           <UserMessageImageAttachment
             key={image.id}
             image={image}
+            imageIndex={index}
             images={userImages}
             onImageExpand={onImageExpand}
           />
         ))}
-      </div>
+      </AttachmentGroup>
     ) : null;
 
   const bodyInner = isGitAgentActionMessage ? (
@@ -97,7 +103,7 @@ export function UserMessage({
 
   const body =
     bodyInner && shouldUseUserMessageCollapse(displayedUserMessage.visibleText) ? (
-      <UserMessageCollapsible>{bodyInner}</UserMessageCollapsible>
+      <ConversationCollapse>{bodyInner}</ConversationCollapse>
     ) : (
       bodyInner
     );
@@ -114,27 +120,65 @@ export function UserMessage({
     typeof onBeginEditUserMessage === "function";
   const turnErrorFooter =
     message.turnFailure !== undefined ? (
-      <UserMessageTurnError message={message.turnFailure} />
+      <StatusNotice message={message.turnFailure} />
     ) : undefined;
 
   if (isGitAgentActionMessage) {
-    return <ReadonlyActionChatMessageBubble body={body} />;
+    return <ConversationBubble role="user">{body}</ConversationBubble>;
   }
 
   if (canEdit) {
     return (
-      <EditableChatMessageBubble
-        body={body}
+      <ConversationBubble
         footer={turnErrorFooter}
         media={media}
-        onActivate={() => onBeginEditUserMessage(message.id)}
-      />
+        role="user"
+        surfaceProps={editableUserMessageSurfaceProps({
+          messageId: message.id,
+          onBeginEditUserMessage,
+        })}
+      >
+        {body}
+      </ConversationBubble>
     );
   }
 
   return (
-    <ChatMessageBubble messageRole="user" body={body} footer={turnErrorFooter} media={media} />
+    <ConversationBubble role="user" footer={turnErrorFooter} media={media}>
+      {body}
+    </ConversationBubble>
   );
+}
+
+function editableUserMessageSurfaceProps(input: {
+  messageId: MessageId;
+  onBeginEditUserMessage: (messageId: MessageId) => void;
+}) {
+  const activateEdit = (event: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) => {
+    if ("clientX" in event) {
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed) {
+        return;
+      }
+    }
+    input.onBeginEditUserMessage(input.messageId);
+  };
+
+  return {
+    role: "button" as const,
+    tabIndex: 0,
+    "aria-label": "Edit message",
+    "data-editable": "true",
+    className: "cursor-pointer",
+    onClick: activateEdit,
+    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      event.preventDefault();
+      activateEdit(event);
+    },
+  };
 }
 
 function shouldUseUserMessageCollapse(text: string): boolean {
@@ -148,33 +192,29 @@ function shouldUseUserMessageCollapse(text: string): boolean {
 
 function UserMessageImageAttachment(props: {
   image: NonNullable<ChatMessage["attachments"]>[number];
+  imageIndex: number;
   images: NonNullable<ChatMessage["attachments"]>;
   onImageExpand: (preview: ExpandedImagePreview) => void;
 }) {
   const previewSrc = useAuthenticatedImagePreviewSrc(props.image.previewUrl);
 
   return (
-    <div className="size-14 shrink-0 overflow-hidden rounded-honk-control border border-honk-stroke-secondary bg-honk-bubble">
+    <Attachment>
       {previewSrc ? (
-        <Button
-          type="button"
-          variant="ghost"
-          className="block size-full cursor-zoom-in rounded-none border-0 bg-transparent p-0 shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent"
+        <AttachmentPreviewTrigger
           aria-label={`Preview ${props.image.name}`}
           onClick={() => {
-            const preview = buildExpandedImagePreview(props.images, props.image.id);
+            const preview = buildExpandedImagePreviewByIndex(props.images, props.imageIndex);
             if (!preview) return;
             props.onImageExpand(preview);
           }}
         >
-          <img src={previewSrc} alt={props.image.name} className="block size-full object-cover" />
-        </Button>
+          <AttachmentImage src={previewSrc} alt={props.image.name} />
+        </AttachmentPreviewTrigger>
       ) : (
-        <div className="flex size-full items-center justify-center px-1 text-center text-caption text-honk-fg-tertiary">
-          <span className="min-w-0 max-w-full truncate">{props.image.name}</span>
-        </div>
+        <AttachmentFallback>{props.image.name}</AttachmentFallback>
       )}
-    </div>
+    </Attachment>
   );
 }
 

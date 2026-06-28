@@ -1,22 +1,22 @@
 import { type EnvironmentId, type MessageId, type ThreadId } from "@honk/contracts";
+import { Button } from "@honk/honkkit/button";
 import {
-  useCallback,
+  ConversationScroller,
+  type ConversationScrollerController,
+} from "@honk/honkkit/conversation-scroller";
+import { IconChevronRightMedium } from "central-icons";
+import {
   useRef,
   useState,
   type RefObject,
-  type CSSProperties,
   type ReactNode,
 } from "react";
-import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { useConversationDensity } from "~/hooks/use-conversation-density";
 import {
-  defaultRangeExtractor,
-  useVirtualizer,
-  type Range,
-  type VirtualItem,
-  type Virtualizer,
-} from "@tanstack/react-virtual";
-import { type PendingApproval, type TimelineEntry } from "../../../session-logic";
+  type PendingApproval,
+  type TimelineEntry,
+  type TimelineEntryId,
+} from "../../../session-logic";
 import { type ChatMessage, type ProposedPlan } from "../../../types";
 import { type ExpandedImagePreview } from "../message/expanded-image-preview";
 import {
@@ -31,7 +31,6 @@ import {
   type PendingApprovalRequestKind,
 } from "./timeline-render-items";
 import { cn } from "~/lib/utils";
-import { useMountEffect } from "~/hooks/use-mount-effect";
 import {
   GroupedStepsRenderer,
   StepRenderer,
@@ -44,62 +43,17 @@ import {
   WORK_GROUP_STEP_GAP_PX,
   type StepRendererContext,
 } from "./step-renderer";
-import {
-  computeDynamicPaddingEndPx,
-  computeLastPairMinHeightPx,
-  computeLastTurnContentHeightPx,
-  computePinnedState,
-  NEAR_BOTTOM_THRESHOLD_PX,
-  shouldAdjustScrollOnItemResize,
-  type TimelineScrollFollowState,
-} from "./timeline-scroll-follow";
 
 type UserMessageTimelineRow = Extract<MessagesTimelineRow, { kind: "message" }>;
 
-const DEFAULT_VIRTUALIZER_RECT = { width: 0, height: 720 };
 const VIRTUAL_ROW_GAP_PX = 12;
-const VIRTUALIZER_OVERSCAN = 8;
-const MAX_TIMELINE_VIRTUALIZER_SNAPSHOTS = 16;
-const INITIAL_OFFSET_SAMPLE_ROW_COUNT = 64;
-
-interface TimelineVirtualizerSnapshot {
-  measuredItems: VirtualItem[];
-  scrollOffset: number;
-  isAtBottom: boolean;
-  firstRowId: string | undefined;
-}
-
-const timelineVirtualizerSnapshots = new Map<string, TimelineVirtualizerSnapshot>();
-
-function useValueIdentityVersion<TValue>(value: TValue): number {
-  const valueRef = useRef(value);
-  const versionRef = useRef(0);
-  if (valueRef.current !== value) {
-    valueRef.current = value;
-    versionRef.current += 1;
-  }
-  return versionRef.current;
-}
-
-interface MessagesTimelineScrollState {
-  isAtBottom: boolean;
-}
-
-export interface MessagesTimelineController {
-  scrollToBottom: (options?: { animated?: boolean }) => void;
-  getScrollState: () => MessagesTimelineScrollState;
-}
-
-// Public props.
 
 interface MessagesTimelineProps {
-  isWorking: boolean;
   isTurnActive: boolean;
   isStreaming?: boolean;
-  disableAutoScroll?: boolean;
   editUserMessagesDisabled: boolean;
   bottomClearancePx?: number | undefined;
-  timelineControllerRef: React.RefObject<MessagesTimelineController | null>;
+  scrollerControllerRef: RefObject<ConversationScrollerController | null>;
   timelineEntries: ReadonlyArray<TimelineEntry>;
   pendingApprovals?: ReadonlyArray<PendingApproval> | undefined;
   editableUserMessageIds: ReadonlySet<MessageId>;
@@ -114,19 +68,15 @@ interface MessagesTimelineProps {
   onBeginEditUserMessage: ((messageId: MessageId) => void) | undefined;
   renderEditComposer?: ((message: ChatMessage) => ReactNode) | undefined;
   onUpdateProposedPlan?: (proposedPlan: ProposedPlan, nextMarkdown: string) => Promise<boolean>;
-  onIsAtBottomChange: (isAtBottom: boolean) => void;
+  onIsAtEndChange: (isAtEnd: boolean) => void;
 }
 
-// Virtualized message list.
-
 export function MessagesTimeline({
-  isWorking: _isWorking,
   isTurnActive,
   isStreaming = false,
-  disableAutoScroll = false,
   editUserMessagesDisabled,
   bottomClearancePx = 0,
-  timelineControllerRef,
+  scrollerControllerRef,
   timelineEntries,
   pendingApprovals,
   editableUserMessageIds,
@@ -141,7 +91,7 @@ export function MessagesTimeline({
   onBeginEditUserMessage,
   renderEditComposer,
   onUpdateProposedPlan,
-  onIsAtBottomChange,
+  onIsAtEndChange,
 }: MessagesTimelineProps) {
   const conversationDensity = useConversationDensity();
   const pendingApprovalKinds: ReadonlySet<PendingApprovalRequestKind> =
@@ -171,337 +121,6 @@ export function MessagesTimeline({
       return next;
     });
   };
-  const userRowIndices = rows.flatMap((row, index) => (isUserMessageRow(row) ? [index] : []));
-  const stickyUserRowIndices = userRowIndices;
-  const scrollElementRef = useRef<HTMLDivElement | null>(null);
-  const scrollFollowRef = useRef<TimelineScrollFollowState>({ pinned: true, atBottom: true });
-  const lastUserScrollInputAtRef = useRef(0);
-  const isUserPointerDownRef = useRef(false);
-  const previousScrollOffsetRef = useRef(0);
-  const disableAutoScrollRef = useRef(disableAutoScroll);
-  const isStreamingRef = useRef(isStreaming);
-  const programmaticScrollFrameRef = useRef<number | null>(null);
-  const programmaticScrollDeadlineRef = useRef(0);
-  const programmaticScrollActiveRef = useRef(false);
-  const initializedScrollRef = useRef(false);
-  const stickyUserRowIndicesRef = useRef(stickyUserRowIndices);
-  const rowsRef = useRef(rows);
-  const [scrollViewportHeight, setScrollViewportHeight] = useState(DEFAULT_VIRTUALIZER_RECT.height);
-  const virtualizerBottomPadding = Math.max(0, Math.ceil(bottomClearancePx));
-  disableAutoScrollRef.current = disableAutoScroll;
-  isStreamingRef.current = isStreaming;
-  const lastHumanRowIndex = userRowIndices.at(-1) ?? null;
-  const estimateRowHeight = (index: number) =>
-    estimateVirtualTimelineRowSize(rows[index], expandedWorkGroupIds);
-  const cachedVirtualizerSnapshot = timelineVirtualizerSnapshots.get(timelineCacheKey) ?? null;
-  const initialMeasurementsCache = filterReusableTimelineMeasurements(
-    cachedVirtualizerSnapshot,
-    rows,
-  );
-  const virtualizerMeasurementsRef = useRef<VirtualItem[]>(initialMeasurementsCache);
-  const lastPairMinHeightPx = computeLastPairMinHeightPx(scrollViewportHeight);
-  const measuredHeightsForPadding = new Map<string, number>();
-  if (lastHumanRowIndex !== null) {
-    for (let index = lastHumanRowIndex; index < rows.length; index += 1) {
-      const row = rows[index];
-      if (!row) {
-        continue;
-      }
-      const measuredItem = virtualizerMeasurementsRef.current.find((item) => item.index === index);
-      measuredHeightsForPadding.set(row.id, measuredItem?.size ?? estimateRowHeight(index));
-    }
-  }
-  const lastTurnHeightForPadding = computeLastTurnContentHeightPx(
-    rows,
-    measuredHeightsForPadding,
-    lastHumanRowIndex ?? undefined,
-  );
-  const dynamicPaddingEnd = computeDynamicPaddingEndPx({
-    basePadding: virtualizerBottomPadding,
-    lastTurnHeight: lastTurnHeightForPadding,
-    minHeight: lastPairMinHeightPx,
-  });
-  const restoredInitialScrollOffset = shouldRestoreTimelineScrollOffset(
-    cachedVirtualizerSnapshot,
-    rows,
-  )
-    ? cachedVirtualizerSnapshot.scrollOffset
-    : null;
-  const shouldRestoreInitialScrollOffset = restoredInitialScrollOffset !== null;
-  const initialScrollOffset =
-    restoredInitialScrollOffset !== null
-      ? restoredInitialScrollOffset
-      : estimateInitialTimelineBottomOffset({
-          rows,
-          paddingEnd: dynamicPaddingEnd,
-          expandedWorkGroupIds,
-        });
-
-  rowsRef.current = rows;
-  stickyUserRowIndicesRef.current = stickyUserRowIndices;
-
-  // Scroll controller sync keys off callback identity via useValueIdentityVersion.
-  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- timeline controller identity
-  const reportIsAtBottom = useCallback(
-    (isAtBottom: boolean, options?: { force?: boolean }) => {
-      if (!options?.force && scrollFollowRef.current.atBottom === isAtBottom) {
-        return;
-      }
-      scrollFollowRef.current = {
-        ...scrollFollowRef.current,
-        atBottom: isAtBottom,
-      };
-      onIsAtBottomChange(isAtBottom);
-    },
-    [onIsAtBottomChange],
-  );
-
-  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- timeline controller identity
-  const clearProgrammaticScrollTracking = useCallback(() => {
-    programmaticScrollActiveRef.current = false;
-    if (programmaticScrollFrameRef.current != null) {
-      window.cancelAnimationFrame(programmaticScrollFrameRef.current);
-      programmaticScrollFrameRef.current = null;
-    }
-  }, []);
-
-  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- virtualizer range extractor identity
-  const rangeExtractor = useCallback((range: Range) => {
-    const defaultRange = defaultRangeExtractor(range);
-    const activeStickyIndex = findActiveStickyUserRowIndex(
-      stickyUserRowIndicesRef.current,
-      range.startIndex,
-    );
-
-    if (activeStickyIndex === null || defaultRange.includes(activeStickyIndex)) {
-      return defaultRange;
-    }
-
-    return [activeStickyIndex, ...defaultRange].toSorted((left, right) => left - right);
-  }, []);
-
-  const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
-    count: rows.length,
-    getScrollElement: () => scrollElementRef.current,
-    estimateSize: (index) => estimateVirtualTimelineRowSize(rows[index], expandedWorkGroupIds),
-    getItemKey: (index) => rows[index]?.id ?? index,
-    rangeExtractor,
-    overscan: VIRTUALIZER_OVERSCAN,
-    paddingEnd: dynamicPaddingEnd,
-    initialRect: DEFAULT_VIRTUALIZER_RECT,
-    initialOffset: initialScrollOffset,
-    initialMeasurementsCache,
-    anchorTo: "end",
-    followOnAppend: true,
-    scrollEndThreshold: NEAR_BOTTOM_THRESHOLD_PX + dynamicPaddingEnd,
-    useAnimationFrameWithResizeObserver: true,
-  });
-  virtualizerMeasurementsRef.current = rowVirtualizer.measurementsCache;
-  const virtualContentSize = rowVirtualizer.getTotalSize();
-
-  useLayoutSyncEffect(() => {
-    const scrollElement = scrollElementRef.current;
-    if (!scrollElement) {
-      return;
-    }
-
-    const updateViewportHeight = () => {
-      setScrollViewportHeight(scrollElement.clientHeight);
-    };
-    updateViewportHeight();
-
-    const observer = new ResizeObserver(updateViewportHeight);
-    observer.observe(scrollElement);
-    return () => observer.disconnect();
-  }, []);
-
-  useLayoutSyncEffect(() => {
-    rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, delta, instance) => {
-      const activeStickyIndex = findActiveStickyUserRowIndex(
-        stickyUserRowIndicesRef.current,
-        instance.range?.startIndex ?? item.index,
-      );
-      if (item.index === activeStickyIndex) {
-        return false;
-      }
-
-      const scrollOffset = instance.scrollOffset ?? 0;
-      const pinnedFollowing = scrollFollowRef.current.pinned && !disableAutoScrollRef.current;
-
-      if (isStreamingRef.current) {
-        return shouldAdjustScrollOnItemResize({
-          isStreaming: true,
-          pinnedFollowing,
-          delta,
-          itemEnd: item.end,
-          scrollOffset,
-        });
-      }
-
-      return delta !== 0 && item.start < scrollOffset && instance.scrollDirection !== "backward";
-    };
-  }, [rowVirtualizer]);
-
-  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- timeline controller identity
-  const getIsAtBottom = useCallback(
-    () => rowVirtualizer.isAtEnd(NEAR_BOTTOM_THRESHOLD_PX + dynamicPaddingEnd),
-    [dynamicPaddingEnd, rowVirtualizer],
-  );
-
-  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- timeline controller identity
-  const scheduleProgrammaticScrollResolution = useCallback(() => {
-    if (programmaticScrollFrameRef.current != null) {
-      return;
-    }
-
-    const resolveProgrammaticScroll = () => {
-      programmaticScrollFrameRef.current = null;
-      if (!programmaticScrollActiveRef.current) {
-        return;
-      }
-
-      const isAtBottom = getIsAtBottom();
-      if (isAtBottom || window.performance.now() >= programmaticScrollDeadlineRef.current) {
-        programmaticScrollActiveRef.current = false;
-        reportIsAtBottom(isAtBottom);
-        return;
-      }
-
-      programmaticScrollFrameRef.current = window.requestAnimationFrame(resolveProgrammaticScroll);
-    };
-
-    programmaticScrollFrameRef.current = window.requestAnimationFrame(resolveProgrammaticScroll);
-  }, [getIsAtBottom, reportIsAtBottom]);
-
-  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- timeline controller identity
-  const scrollToBottom = useCallback(
-    (options?: { animated?: boolean }) => {
-      if (!scrollElementRef.current) {
-        return;
-      }
-
-      scrollFollowRef.current = { pinned: true, atBottom: true };
-
-      const animated = options?.animated === true;
-      if (animated) {
-        programmaticScrollActiveRef.current = true;
-        programmaticScrollDeadlineRef.current = window.performance.now() + 1600;
-      } else {
-        clearProgrammaticScrollTracking();
-      }
-
-      rowVirtualizer.scrollToEnd({ behavior: animated ? "smooth" : "auto" });
-      if (animated) {
-        scheduleProgrammaticScrollResolution();
-      } else {
-        reportIsAtBottom(true);
-      }
-    },
-    [
-      clearProgrammaticScrollTracking,
-      reportIsAtBottom,
-      rowVirtualizer,
-      scheduleProgrammaticScrollResolution,
-    ],
-  );
-  const getIsAtBottomVersion = useValueIdentityVersion(getIsAtBottom);
-  const scrollToBottomVersion = useValueIdentityVersion(scrollToBottom);
-
-  const recordUserScrollInput = () => {
-    lastUserScrollInputAtRef.current = window.performance.now();
-    clearProgrammaticScrollTracking();
-  };
-
-  const handleScroll = () => {
-    const scrollElement = scrollElementRef.current;
-    if (!scrollElement) {
-      return;
-    }
-
-    const scrollOffset = scrollElement.scrollTop;
-    const lastObservedScrollOffset = previousScrollOffsetRef.current;
-    previousScrollOffsetRef.current = scrollOffset;
-
-    if (programmaticScrollActiveRef.current) {
-      const isAtBottom = getIsAtBottom();
-      if (isAtBottom) {
-        clearProgrammaticScrollTracking();
-        scrollFollowRef.current = { pinned: true, atBottom: true };
-        reportIsAtBottom(true);
-      }
-      return;
-    }
-
-    scrollFollowRef.current = computePinnedState(scrollFollowRef.current, {
-      totalHeight: scrollElement.scrollHeight,
-      clampedOffset: scrollOffset,
-      viewportHeight: scrollElement.clientHeight,
-      isScrolling: rowVirtualizer.isScrolling,
-      lastObservedScrollOffset,
-      isUserPointerDown: isUserPointerDownRef.current,
-      msSinceUserScrollInput: window.performance.now() - lastUserScrollInputAtRef.current,
-      isReady: initializedScrollRef.current,
-      isProgrammaticScrollActive: programmaticScrollActiveRef.current,
-    });
-    reportIsAtBottom(scrollFollowRef.current.atBottom);
-  };
-
-  useLayoutSyncEffect(() => {
-    if (rows.length === 0 || initializedScrollRef.current) {
-      return;
-    }
-
-    initializedScrollRef.current = true;
-    if (shouldRestoreInitialScrollOffset) {
-      scrollFollowRef.current = { pinned: false, atBottom: false };
-      reportIsAtBottom(false, { force: true });
-      return;
-    }
-
-    scrollFollowRef.current = { pinned: true, atBottom: true };
-    rowVirtualizer.scrollToEnd({ behavior: "auto" });
-    reportIsAtBottom(true, { force: true });
-  }, [reportIsAtBottom, rowVirtualizer, rows.length, shouldRestoreInitialScrollOffset]);
-
-  useLayoutSyncEffect(() => {
-    if (!initializedScrollRef.current || rows.length === 0) {
-      return;
-    }
-
-    if (!scrollFollowRef.current.pinned || disableAutoScrollRef.current) {
-      return;
-    }
-
-    const frameId = window.requestAnimationFrame(() => {
-      if (!scrollFollowRef.current.pinned || disableAutoScrollRef.current) {
-        return;
-      }
-      rowVirtualizer.scrollToEnd({ behavior: "auto" });
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [
-    dynamicPaddingEnd,
-    isStreaming,
-    rowVirtualizer,
-    rows,
-    scrollViewportHeight,
-    virtualContentSize,
-  ]);
-
-  useLayoutSyncEffect(
-    () => () => {
-      rememberTimelineVirtualizerSnapshot({
-        cacheKey: timelineCacheKey,
-        isAtBottom: scrollFollowRef.current.atBottom,
-        rows: rowsRef.current,
-        scrollElement: scrollElementRef.current,
-        virtualizer: rowVirtualizer,
-      });
-    },
-    [rowVirtualizer, timelineCacheKey],
-  );
-
   const sharedState: StepRendererContext = {
     markdownCwd,
     projectRoot,
@@ -514,319 +133,161 @@ export function MessagesTimeline({
     onUpdateProposedPlan,
     onImageExpand,
   };
-  const lifecycleSync = (
-    <>
-      <TimelineControllerSync
-        key={`controller:${getIsAtBottomVersion}:${scrollToBottomVersion}`}
-        getIsAtBottom={getIsAtBottom}
-        scrollToBottom={scrollToBottom}
-        timelineControllerRef={timelineControllerRef}
-      />
-      <ProgrammaticScrollTrackingCleanup
-        clearProgrammaticScrollTracking={clearProgrammaticScrollTracking}
-      />
-    </>
-  );
-
-  const virtualItems = rowVirtualizer.getVirtualItems();
-  const activeStickyUserRowIndex = findActiveStickyUserRowIndex(
-    stickyUserRowIndices,
-    rowVirtualizer.range?.startIndex ?? virtualItems[0]?.index ?? 0,
-  );
-  const floatingEditRow =
-    activeStickyUserRowIndex === null ? undefined : rows[activeStickyUserRowIndex];
-  const floatingEditUserRow =
-    floatingEditRow?.kind === "message" &&
-    floatingEditRow.message.role === "user" &&
-    floatingEditRow.message.id === editingUserMessageId
-      ? floatingEditRow
-      : null;
-  const virtualContentStyle = {
-    height: rowVirtualizer.getTotalSize(),
-    position: "relative",
-  } satisfies CSSProperties;
-  const scrollContainerStyle = {
-    scrollbarGutter: "stable both-edges",
-  } satisfies CSSProperties;
-
   return (
-    <>
-      {lifecycleSync}
-      <div className="relative flex h-full min-h-0 flex-1 flex-col gap-0 overflow-hidden pt-(--chat-timeline-padding-block-start)">
+    <MessagesTimelineScroller
+      bottomClearancePx={bottomClearancePx}
+      editUserMessagesDisabled={editUserMessagesDisabled}
+      editingUserMessageId={editingUserMessageId}
+      expandedWorkGroupIds={expandedWorkGroupIds}
+      isStreaming={isStreaming}
+      onIsAtEndChange={onIsAtEndChange}
+      onToggleWorkGroupExpanded={toggleWorkGroupExpanded}
+      rows={rows}
+      scrollerControllerRef={scrollerControllerRef}
+      sharedState={sharedState}
+      timelineCacheKey={timelineCacheKey}
+    />
+  );
+}
+
+function MessagesTimelineScroller({
+  bottomClearancePx,
+  editUserMessagesDisabled,
+  editingUserMessageId,
+  expandedWorkGroupIds,
+  isStreaming,
+  onIsAtEndChange,
+  onToggleWorkGroupExpanded,
+  rows,
+  scrollerControllerRef,
+  sharedState,
+  timelineCacheKey,
+}: {
+  bottomClearancePx: number;
+  editUserMessagesDisabled: boolean;
+  editingUserMessageId: MessageId | null;
+  expandedWorkGroupIds: ReadonlySet<string>;
+  isStreaming: boolean;
+  onIsAtEndChange: (isAtEnd: boolean) => void;
+  onToggleWorkGroupExpanded: (rowId: string) => void;
+  rows: ReadonlyArray<MessagesTimelineRow>;
+  scrollerControllerRef: RefObject<ConversationScrollerController | null>;
+  sharedState: StepRendererContext;
+  timelineCacheKey: string;
+}) {
+  return (
+    <ConversationScroller
+      aria-label="Messages"
+      cacheKey={timelineCacheKey}
+      canReuseMeasurement={(row) => row.kind !== "work"}
+      className="pt-(--chat-timeline-padding-block-start)"
+      contentClassName="mx-auto box-border max-w-agent-chat"
+      controllerRef={scrollerControllerRef}
+      estimateRowSize={(row) => estimateVirtualTimelineRowSize(row, expandedWorkGroupIds)}
+      getRowId={(row) => row.id}
+      isAnchorRow={isUserMessageRow}
+      isStreaming={isStreaming}
+      onIsAtEndChange={onIsAtEndChange}
+      bottomClearancePx={bottomClearancePx}
+      rowClassName="px-4 pb-(--chat-timeline-row-gap)"
+      rows={rows}
+      shouldRenderStickyOverlay={(row) =>
+        row.kind === "message" &&
+        row.message.role === "user" &&
+        row.message.id === editingUserMessageId
+      }
+      stickyOverlayClassName="z-(--z-index-chat-timeline-floating-edit-row)"
+      stickyTop="var(--chat-timeline-padding-block-start)"
+      viewportDataAttributes={{ "data-chat-timeline-scroll": "" }}
+      viewportClassName="scrollbar-thin"
+      renderRow={({ row, isActiveSticky }) => {
+        const isEditingUserMessage =
+          row.kind === "message" &&
+          row.message.role === "user" &&
+          row.message.id === editingUserMessageId;
+
+        return (
+          <div
+            className="w-full"
+            data-editing-user-message={isEditingUserMessage ? "true" : undefined}
+            data-sticky={isActiveSticky ? "true" : undefined}
+          >
+            <TimelineRowContent
+              row={row}
+              workGroupExpanded={
+                row.kind === "work" && "steps" in row && expandedWorkGroupIds.has(row.id)
+              }
+              onToggleWorkGroupExpanded={onToggleWorkGroupExpanded}
+              editUserMessagesDisabled={editUserMessagesDisabled}
+              isEditingUserMessage={isEditingUserMessage}
+              ctx={sharedState}
+            />
+          </div>
+        );
+      }}
+      renderStickyOverlay={({ row }) => (
         <div
-          ref={scrollElementRef}
-          onScroll={handleScroll}
-          onPointerDown={() => {
-            isUserPointerDownRef.current = true;
-            recordUserScrollInput();
-          }}
-          onPointerUp={() => {
-            isUserPointerDownRef.current = false;
-          }}
-          onPointerCancel={() => {
-            isUserPointerDownRef.current = false;
-          }}
-          onTouchStart={recordUserScrollInput}
-          onWheel={recordUserScrollInput}
-          data-chat-timeline-scroll=""
-          className="h-full min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [overflow-anchor:none] scrollbar-thin"
-          style={scrollContainerStyle}
+          className="mx-auto box-border w-full max-w-agent-chat px-4 pb-(--chat-timeline-row-gap)"
+          data-floating-edit-row-backplate="true"
         >
-          <div className="mx-auto box-border w-full max-w-agent-chat" style={virtualContentStyle}>
-            {virtualItems.map((virtualRow) => {
-              const row = rows[virtualRow.index];
-              if (!row) {
-                return null;
-              }
-
-              const isEditingUserMessage =
-                row.kind === "message" &&
-                row.message.role === "user" &&
-                row.message.id === editingUserMessageId;
-              const isActiveStickyUserRow = virtualRow.index === activeStickyUserRowIndex;
-              const isFloatingEditingUserMessage = isActiveStickyUserRow && isEditingUserMessage;
-
-              if (isFloatingEditingUserMessage) {
-                return (
-                  <div
-                    key={virtualRow.key}
-                    data-index={virtualRow.index}
-                    aria-hidden="true"
-                    className="box-border w-full px-4 pb-(--chat-timeline-row-gap) [contain:layout]"
-                    style={virtualRowStyle(
-                      virtualRow,
-                      isActiveStickyUserRow,
-                      isFloatingEditingUserMessage,
-                    )}
-                  />
-                );
-              }
-
-              return (
-                <div
-                  key={virtualRow.key}
-                  ref={rowVirtualizer.measureElement}
-                  data-index={virtualRow.index}
-                  className="flow-root w-full px-4 pb-(--chat-timeline-row-gap) [contain:layout]"
-                  style={virtualRowStyle(
-                    virtualRow,
-                    isActiveStickyUserRow,
-                    isFloatingEditingUserMessage,
-                  )}
-                >
-                  <div
-                    data-sticky={isActiveStickyUserRow ? "true" : undefined}
-                    data-editing-user-message={isEditingUserMessage ? "true" : undefined}
-                    className="w-full"
-                  >
-                    <TimelineRowContent
-                      row={row}
-                      workGroupExpanded={
-                        row.kind === "work" && "steps" in row && expandedWorkGroupIds.has(row.id)
-                      }
-                      onToggleWorkGroupExpanded={toggleWorkGroupExpanded}
-                      editUserMessagesDisabled={editUserMessagesDisabled}
-                      isEditingUserMessage={isEditingUserMessage}
-                      ctx={sharedState}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+          <div
+            className="pointer-events-auto w-full"
+            data-editing-user-message="true"
+            data-sticky="true"
+          >
+            <TimelineRowContent
+              row={row}
+              workGroupExpanded={false}
+              onToggleWorkGroupExpanded={onToggleWorkGroupExpanded}
+              editUserMessagesDisabled={editUserMessagesDisabled}
+              isEditingUserMessage
+              ctx={sharedState}
+            />
           </div>
         </div>
-        {floatingEditUserRow ? (
-          <div
-            data-floating-edit-row-backplate="true"
-            className="pointer-events-none absolute inset-x-0 z-(--z-index-chat-timeline-floating-edit-row)"
-            style={{ top: "var(--chat-timeline-padding-block-start)" }}
+      )}
+      renderScrollToEndButton={({ scrollToEnd }) => (
+        <div className="pointer-events-none absolute bottom-[calc(44px+1.25rem)] left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5">
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            onClick={() => scrollToEnd({ animated: true })}
+            className="pointer-events-auto rounded-full bg-(--honk-composer-surface-background)! text-honk-icon-secondary hover:bg-(--honk-composer-surface-background)! data-pressed:bg-(--honk-composer-surface-background)!"
+            aria-label="Scroll to bottom"
+            title="Scroll to bottom"
           >
-            <div className="mx-auto box-border w-full max-w-agent-chat px-4 pb-(--chat-timeline-row-gap)">
-              <div
-                data-sticky="true"
-                data-editing-user-message="true"
-                className="pointer-events-auto w-full"
-              >
-                <TimelineRowContent
-                  row={floatingEditUserRow}
-                  workGroupExpanded={false}
-                  onToggleWorkGroupExpanded={toggleWorkGroupExpanded}
-                  editUserMessagesDisabled={editUserMessagesDisabled}
-                  isEditingUserMessage
-                  ctx={sharedState}
-                />
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </>
+            <IconChevronRightMedium
+              className="size-3 rotate-90 text-honk-icon-secondary"
+              aria-hidden="true"
+            />
+          </Button>
+        </div>
+      )}
+    />
   );
-}
-
-function TimelineControllerSync({
-  getIsAtBottom,
-  scrollToBottom,
-  timelineControllerRef,
-}: {
-  getIsAtBottom: () => boolean;
-  scrollToBottom: MessagesTimelineController["scrollToBottom"];
-  timelineControllerRef: RefObject<MessagesTimelineController | null>;
-}) {
-  useMountEffect(() => {
-    const controller: MessagesTimelineController = {
-      scrollToBottom,
-      getScrollState: () => ({ isAtBottom: getIsAtBottom() }),
-    };
-
-    timelineControllerRef.current = controller;
-    return () => {
-      if (timelineControllerRef.current === controller) {
-        timelineControllerRef.current = null;
-      }
-    };
-  });
-
-  return null;
-}
-
-function ProgrammaticScrollTrackingCleanup({
-  clearProgrammaticScrollTracking,
-}: {
-  clearProgrammaticScrollTracking: () => void;
-}) {
-  useMountEffect(() => () => {
-    clearProgrammaticScrollTracking();
-  });
-
-  return null;
 }
 
 function isUserMessageRow(row: MessagesTimelineRow): row is UserMessageTimelineRow {
   return row.kind === "message" && row.message.role === "user";
 }
 
-function findActiveStickyUserRowIndex(indices: readonly number[], visibleStartIndex: number) {
-  let activeIndex: number | null = null;
-  for (const index of indices) {
-    if (index > visibleStartIndex) {
-      break;
-    }
-    activeIndex = index;
-  }
-  return activeIndex;
-}
-
 const ASSISTANT_MESSAGE_MIN_PX = 64;
 const USER_MESSAGE_MIN_PX = 56;
 
-function filterReusableTimelineMeasurements(
-  snapshot: TimelineVirtualizerSnapshot | null,
-  rows: readonly MessagesTimelineRow[],
-): VirtualItem[] {
-  if (!snapshot || snapshot.measuredItems.length === 0 || rows.length === 0) {
-    return [];
-  }
-
-  const rowsById = new Map(rows.map((row) => [row.id, row] as const));
-  return snapshot.measuredItems.filter((item) => {
-    if (typeof item.key !== "string") {
-      return false;
-    }
-    const row = rowsById.get(item.key);
-    return row !== undefined && row.kind !== "work";
-  });
-}
-
-function shouldRestoreTimelineScrollOffset(
-  snapshot: TimelineVirtualizerSnapshot | null,
-  rows: readonly MessagesTimelineRow[],
-): snapshot is TimelineVirtualizerSnapshot {
-  return (
-    snapshot !== null &&
-    !snapshot.isAtBottom &&
-    snapshot.scrollOffset > 0 &&
-    Number.isFinite(snapshot.scrollOffset) &&
-    snapshot.firstRowId === rows[0]?.id
-  );
-}
-
-function rememberTimelineVirtualizerSnapshot(input: {
-  cacheKey: string;
-  virtualizer: Virtualizer<HTMLDivElement, HTMLDivElement>;
-  scrollElement: HTMLDivElement | null;
-  rows: readonly MessagesTimelineRow[];
-  isAtBottom: boolean;
-}): void {
-  if (input.rows.length === 0) {
-    return;
-  }
-
-  const scrollOffset = Math.max(
-    0,
-    input.scrollElement?.scrollTop ?? input.virtualizer.scrollOffset ?? 0,
-  );
-  const measuredItems = input.virtualizer.takeSnapshot();
-  if (measuredItems.length === 0 && scrollOffset === 0 && input.isAtBottom) {
-    return;
-  }
-
-  timelineVirtualizerSnapshots.delete(input.cacheKey);
-  timelineVirtualizerSnapshots.set(input.cacheKey, {
-    measuredItems,
-    scrollOffset,
-    isAtBottom: input.isAtBottom,
-    firstRowId: input.rows[0]?.id,
-  });
-
-  while (timelineVirtualizerSnapshots.size > MAX_TIMELINE_VIRTUALIZER_SNAPSHOTS) {
-    const oldestCacheKey = timelineVirtualizerSnapshots.keys().next().value;
-    if (oldestCacheKey === undefined) {
-      return;
-    }
-    timelineVirtualizerSnapshots.delete(oldestCacheKey);
-  }
-}
-
 function estimateVirtualTimelineRowSize(
-  row: MessagesTimelineRow | undefined,
+  row: MessagesTimelineRow,
   expandedWorkGroupIds: ReadonlySet<string>,
 ): number {
   return estimateTimelineRowSize(
     row,
-    row?.kind === "work" && "steps" in row && expandedWorkGroupIds.has(row.id),
+    row.kind === "work" && "steps" in row && expandedWorkGroupIds.has(row.id),
   );
-}
-
-function estimateInitialTimelineBottomOffset(input: {
-  rows: readonly MessagesTimelineRow[];
-  paddingEnd: number;
-  expandedWorkGroupIds: ReadonlySet<string>;
-}): number {
-  if (input.rows.length === 0) {
-    return 0;
-  }
-
-  const sampleStartIndex = Math.max(0, input.rows.length - INITIAL_OFFSET_SAMPLE_ROW_COUNT);
-  let sampledSize = 0;
-  let sampledCount = 0;
-  for (let index = sampleStartIndex; index < input.rows.length; index += 1) {
-    sampledSize += estimateVirtualTimelineRowSize(input.rows[index], input.expandedWorkGroupIds);
-    sampledCount += 1;
-  }
-
-  const averageRowSize = sampledCount > 0 ? sampledSize / sampledCount : 96 + VIRTUAL_ROW_GAP_PX;
-  const totalSize = averageRowSize * input.rows.length + input.paddingEnd;
-  return Math.max(0, totalSize - DEFAULT_VIRTUALIZER_RECT.height);
 }
 
 const runningWorkGroupEstimateHeights = new Map<string, number>();
 
-function estimateTimelineRowSize(row: MessagesTimelineRow | undefined, expanded = false): number {
-  if (!row) {
-    return 96 + VIRTUAL_ROW_GAP_PX;
-  }
-
+function estimateTimelineRowSize(row: MessagesTimelineRow, expanded = false): number {
   if (row.kind === "message") {
     return estimateMessageTimelineRowSize(row);
   }
@@ -907,28 +368,6 @@ function estimateTimelineRowSize(row: MessagesTimelineRow | undefined, expanded 
 function estimateMessageTimelineRowSize(row: Extract<MessagesTimelineRow, { kind: "message" }>) {
   const minHeight = row.message.role === "user" ? USER_MESSAGE_MIN_PX : ASSISTANT_MESSAGE_MIN_PX;
   return minHeight + VIRTUAL_ROW_GAP_PX;
-}
-
-function virtualRowStyle(
-  virtualRow: VirtualItem,
-  isSticky: boolean,
-  isFloatingEdit: boolean,
-): CSSProperties {
-  if (isSticky) {
-    return {
-      position: "sticky",
-      top: 0,
-      zIndex: "var(--z-index-chat-timeline-sticky-user-message)",
-      ...(isFloatingEdit ? { height: virtualRow.size } : null),
-    };
-  }
-
-  return {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    transform: `translateY(${virtualRow.start}px)`,
-  };
 }
 
 // Route each row model to its renderer.
@@ -1078,7 +517,7 @@ function timelineRowToolHasError(row: TimelineRow): boolean {
 
 function useStableRows(rows: MessagesTimelineRow[]): MessagesTimelineRow[] {
   const prevState = useRef<StableMessagesTimelineRowsState>({
-    byId: new Map<string, MessagesTimelineRow>(),
+    byId: new Map<TimelineEntryId, MessagesTimelineRow>(),
     result: [],
   });
 

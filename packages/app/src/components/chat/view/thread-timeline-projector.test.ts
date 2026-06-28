@@ -9,7 +9,12 @@ import { describe, expect, it } from "vitest";
 
 import type { WorkLogEntry } from "../../../session-logic";
 import type { ChatMessage, ThreadSendIntent } from "../../../types";
-import { timelineMessageEntryId } from "./timeline-entry-ids";
+import {
+  timelineExtensionUiRequestEntryId,
+  timelineMessageEntryId,
+  timelineRuntimeThinkingFallbackEntryId,
+  timelineWorkEntryId,
+} from "./timeline-entry-ids";
 import {
   projectThreadTimeline,
   runtimeDisplayTimelineActiveTurnId,
@@ -66,9 +71,28 @@ describe("projectThreadTimeline", () => {
       id: "working-indicator-row",
       kind: "waiting",
       createdAt: turnStartedAt,
-      phase: "thinking",
       elapsedStartedAt: turnStartedAt,
     });
+  });
+
+  it("namespaces fallback work ids before row derivation", () => {
+    const collidingId = timelineMessageEntryId(userMessageId);
+    const workEntry = {
+      id: collidingId,
+      label: "Read files",
+      tone: "tool",
+      status: "running",
+      createdAt: "2026-06-05T16:00:02.000Z",
+    } satisfies WorkLogEntry;
+
+    const entries = project({
+      workLogEntries: [workEntry],
+    });
+
+    expect(entries.map((entry) => entry.id)).toEqual([
+      collidingId,
+      timelineWorkEntryId(collidingId),
+    ]);
   });
 
   it("stamps user messages with turnFailure and suppresses provider-failure assistant rows", () => {
@@ -134,7 +158,6 @@ describe("projectThreadTimeline", () => {
       id: "working-indicator-row",
       kind: "waiting",
       createdAt: pendingSendCreatedAt,
-      phase: "thinking",
       elapsedStartedAt: pendingSendCreatedAt,
     });
   });
@@ -238,7 +261,9 @@ describe("projectThreadTimeline", () => {
         kind: "message",
       }),
       expect.objectContaining({
-        id: "message:timeline-projector:assistant-thinking:thinking",
+        id: timelineRuntimeThinkingFallbackEntryId(
+          "message:timeline-projector:assistant-thinking",
+        ),
         kind: "runtime-thinking",
         message: expect.objectContaining({
           role: "assistant",
@@ -285,7 +310,7 @@ describe("projectThreadTimeline", () => {
 
     expect(entries).toEqual([
       expect.objectContaining({
-        id: "message:timeline-projector:assistant:thinking",
+        id: timelineRuntimeThinkingFallbackEntryId("message:timeline-projector:assistant"),
         kind: "runtime-thinking",
         message: expect.objectContaining({
           role: "assistant",
@@ -453,7 +478,7 @@ describe("projectThreadTimeline", () => {
 
     expect(entries).toEqual([
       expect.objectContaining({
-        id: "extension-ui:timeline-projector:request",
+        id: timelineExtensionUiRequestEntryId("request:timeline-projector"),
         kind: "runtime-extension-ui-request",
       }),
     ]);
@@ -461,7 +486,7 @@ describe("projectThreadTimeline", () => {
 
   it("does not duplicate a committed extension UI row when the runtime timeline has the same request", () => {
     const requestId = "timeline-projector:request";
-    const entryId = `extension-ui:${requestId}`;
+    const entryId = timelineExtensionUiRequestEntryId(requestId);
     const createdAt = "2026-06-05T16:00:02.000Z";
     const runtimeTimeline = {
       threadId,
@@ -532,7 +557,6 @@ describe("projectThreadTimeline", () => {
       id: "working-indicator-row",
       kind: "waiting",
       createdAt: turnStartedAt,
-      phase: "thinking",
       elapsedStartedAt: turnStartedAt,
     });
   });

@@ -73,7 +73,7 @@ export function extractMessageText(message: unknown): string {
 
 export function extractProviderFailureMessage(message: unknown): string | null {
   const stopReason = messageStopReason(message);
-  if (stopReason !== "error" && stopReason !== "aborted") {
+  if (stopReason !== "error") {
     return null;
   }
   const errorMessage = messageErrorMessage(message);

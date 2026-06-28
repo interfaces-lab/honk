@@ -10,7 +10,7 @@ import { syncBrowserChromeTheme } from "~/hooks/use-theme";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { DevDevtoolsPanel } from "~/dev/devtools-panel";
 import { useSettings } from "~/hooks/use-settings";
-import { APPEARANCE_SETTINGS_CHANGED, syncAppearanceVibrancy } from "~/lib/appearance-settings";
+import { APPEARANCE_SETTINGS_CHANGED } from "~/lib/appearance-settings";
 import { startEnvironmentConnectionService } from "~/environments/runtime";
 import { startDesktopRuntimeHostSync } from "~/stores/agent-runtime-store";
 import { readDesktopLocalEnvironmentBootstrap } from "~/environments/primary/target";
@@ -55,7 +55,6 @@ export function RootRouteView() {
       <RootMountPerformanceMark />
       <BrowserChromeThemeSync key={authGateState.status} />
       <AnchoredToastProvider>
-        <ShellGlassModeSync />
         <CursorPreferenceSync />
         <EnvironmentConnectionServiceSync />
         <WebSocketConnectionCoordinator />
@@ -88,24 +87,6 @@ function BrowserChromeThemeSync() {
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener(APPEARANCE_SETTINGS_CHANGED, sync);
-    };
-  });
-
-  return null;
-}
-
-function ShellGlassModeSync() {
-  useMountEffect(() => {
-    const previousValue = document.body.getAttribute("data-honk-glass-mode");
-    document.body.setAttribute("data-honk-glass-mode", "true");
-    syncAppearanceVibrancy();
-    return () => {
-      if (previousValue === null) {
-        document.body.removeAttribute("data-honk-glass-mode");
-      } else {
-        document.body.setAttribute("data-honk-glass-mode", previousValue);
-      }
-      syncAppearanceVibrancy();
     };
   });
 

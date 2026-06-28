@@ -361,10 +361,7 @@ html.dark [data-honk-composer-surface]:not([data-honk-composer-header]) {
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.35);
 }
 
-:is(
-  [data-message-bubble-surface],
-  [data-honk-composer-surface]:not([data-honk-composer-header])
-)::after {
+[data-honk-composer-surface]:not([data-honk-composer-header])::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -374,48 +371,29 @@ html.dark [data-honk-composer-surface]:not([data-honk-composer-header]) {
   transition: box-shadow 0.1s ease-in-out;
 }
 
-html.dark
-  :is(
-    [data-message-bubble-surface],
-    [data-honk-composer-surface]:not([data-honk-composer-header])
-  )::after {
+html.dark [data-honk-composer-surface]:not([data-honk-composer-header])::after {
   box-shadow: inset 0 0 0 1px var(--honk-stroke-secondary);
 }
 
-[data-message-bubble-surface][data-editable="true"]:is(:hover, :focus-within)::after,
 [data-honk-composer-surface]:not([data-honk-composer-header]):is(:hover, :focus-within)::after {
   box-shadow: inset 0 0 0 1px var(--honk-stroke-secondary);
 }
 
-body[data-honk-glass-mode="true"]
-  :is(
-    [data-message-bubble-surface],
-    [data-honk-composer-surface]:not([data-layout="inline-edit"])
-  ) {
+body[data-honk-glass-mode="true"] [data-honk-composer-surface]:not([data-layout="inline-edit"]) {
   backdrop-filter: blur(var(--honk-composer-blur, 10px));
   -webkit-backdrop-filter: blur(var(--honk-composer-blur, 10px));
 }
 
 body.honk-reduce-transparency[data-honk-glass-mode="true"]
-  :is(
-    [data-message-bubble-surface],
-    [data-honk-composer-surface]:not([data-honk-composer-header])
-  ) {
+  [data-honk-composer-surface]:not([data-honk-composer-header]) {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   background-color: var(--honk-composer-surface-opaque-background);
 }
 
 body.honk-reduce-transparency[data-honk-glass-mode="true"]
-  :is(
-    [data-message-bubble-surface],
-    [data-honk-composer-surface]:not([data-honk-composer-header])
-  )::after {
+  [data-honk-composer-surface]:not([data-honk-composer-header])::after {
   box-shadow: inset 0 0 0 1px var(--honk-stroke-tertiary);
-}
-
-[data-message-bubble-surface] {
-  background-color: var(--honk-message-bubble-background);
 }
 
 [data-honk-composer-surface]:not([data-honk-composer-header]) {
@@ -505,19 +483,9 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"]
   font-size: 9px;
 }
 
-body[data-honk-glass-mode="true"] [data-queued-composer-panel] {
+[data-queued-composer-panel] {
   backdrop-filter: blur(var(--honk-composer-queue-panel-blur));
   -webkit-backdrop-filter: blur(var(--honk-composer-queue-panel-blur));
-}
-
-body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-queued-composer-panel] {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  background-color: var(--honk-composer-queue-panel-opaque-background);
-}
-
-body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-queued-composer-panel]::after {
-  box-shadow: inset 0 0 0 1px var(--honk-stroke-tertiary);
 }
 
 [data-composer-thread-status-bar] {
@@ -533,7 +501,7 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-queued-composer
   visibility: hidden;
 }
 
-[data-scrolled-to-bottom] [data-composer-thread-status-bar] {
+[data-scrolled-to-end] [data-composer-thread-status-bar] {
   max-height: 3rem;
   min-height: 1.5rem;
   opacity: 1;
@@ -563,39 +531,18 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-queued-composer
   }
 }
 
-body.honk-reduce-transparency[data-honk-glass-mode="true"] [data-honk-composer-header] {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  background: var(--honk-composer-surface-opaque-background);
-}
-
-body.honk-reduce-transparency[data-honk-glass-mode="true"]
-  :is(
-    [data-composer-command-menu-root] [data-variant="surface"],
-    [data-composer-menu-preview],
-    .honk-slash-menu-popup,
-    .honk-workbench-menu-popup,
-    [data-testid="command-palette"]
-  ) {
+:is(
+  [data-composer-command-menu-root] [data-variant="surface"],
+  [data-composer-menu-preview],
+  .honk-slash-menu-popup,
+  .honk-workbench-menu-popup
+) {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   background-color: var(--honk-menu-surface-background);
 }
 
-/* Picker menus: opaque pane in glass (light and dark). Command palette stays glass in light. */
-body[data-honk-glass-mode="true"]
-  :is(
-    [data-composer-command-menu-root] [data-variant="surface"],
-    [data-composer-menu-preview],
-    .honk-slash-menu-popup,
-    .honk-workbench-menu-popup
-  ) {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  background-color: var(--honk-menu-surface-background);
-}
-
-html.dark body[data-honk-glass-mode="true"] [data-testid="command-palette"] {
+html.dark [data-testid="command-palette"] {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   background-color: var(--honk-menu-surface-background);

@@ -122,8 +122,17 @@ function runtimeToolActivitySummary(input: {
   readonly eventSummary: unknown;
   readonly itemType: ToolLifecycleItemType;
   readonly isError: boolean;
+  readonly subagentParentItem: Record<string, unknown> | null;
 }): { readonly summary: string; readonly detail?: string } {
   const eventSummary = asTrimmedString(input.eventSummary);
+  const subagentSummary = subagentParentItemSummary(input.subagentParentItem, input.isError);
+  if (
+    input.itemType === "collab_agent_tool_call" &&
+    subagentSummary !== null &&
+    (eventSummary === null || isGenericSubagentLifecycleSummary(eventSummary))
+  ) {
+    return { summary: subagentSummary };
+  }
   if (eventSummary !== null) {
     const migratedSummary = legacyCommandActivitySummaryByText[eventSummary];
     if (migratedSummary !== undefined) {
@@ -140,6 +149,90 @@ function runtimeToolActivitySummary(input: {
   }
 
   return { summary: input.isError ? "Tool failed" : "Tool completed" };
+}
+
+function isGenericSubagentLifecycleSummary(summary: string): boolean {
+  const normalized = summary
+    .trim()
+    .toLowerCase()
+    .replace(/[.:]+$/, "");
+  return (
+    normalized === "completed subagent" ||
+    normalized === "completed subagents" ||
+    normalized === "subagent completed" ||
+    normalized === "subagents completed" ||
+    normalized === "started subagent" ||
+    normalized === "started subagents" ||
+    normalized === "subagent started" ||
+    normalized === "subagents started" ||
+    normalized === "running subagent" ||
+    normalized === "running subagents" ||
+    normalized === "subagent running" ||
+    normalized === "subagents running"
+  );
+}
+
+function subagentParentItemSummary(
+  subagentParentItem: Record<string, unknown> | null,
+  isError: boolean,
+): string | null {
+  const itemDetails = asRecord(subagentParentItem?.details);
+  const runs = Array.isArray(itemDetails?.runs)
+    ? itemDetails.runs.map(asRecord).filter((run): run is Record<string, unknown> => run !== null)
+    : [];
+  if (runs.length === 0) {
+    return null;
+  }
+  const stateCounts = countSubagentRunStates(runs);
+  const active = stateCounts.queued + stateCounts.running;
+  if (active > 0) {
+    return stateCounts.running > 0
+      ? `${active} ${pluralize("subagent", active)} running`
+      : active === 1
+        ? "Starting up"
+        : `${active} subagents starting`;
+  }
+  const failed = stateCounts.failed + (isError && stateCounts.failed === 0 ? 1 : 0);
+  if (failed > 0) {
+    return failed === 1 ? "Background task failed" : "Background tasks failed";
+  }
+  if (stateCounts.aborted > 0) {
+    return stateCounts.aborted === 1 ? "Background task stopped" : "Background tasks stopped";
+  }
+  return runs.length === 1 ? "Background task completed" : "Background tasks completed";
+}
+
+function countSubagentRunStates(runs: readonly Record<string, unknown>[]): {
+  readonly queued: number;
+  readonly running: number;
+  readonly failed: number;
+  readonly aborted: number;
+} {
+  let queued = 0;
+  let running = 0;
+  let failed = 0;
+  let aborted = 0;
+  for (const run of runs) {
+    switch (asTrimmedString(run.state)) {
+      case "queued":
+        queued += 1;
+        break;
+      case "running":
+        running += 1;
+        break;
+      case "failed":
+        failed += 1;
+        break;
+      case "aborted":
+        aborted += 1;
+        break;
+    }
+  }
+  return { queued, running, failed, aborted };
+}
+
+function pluralize(noun: string, count: number): string {
+  return count === 1 ? noun : `${noun}s`;
 }
 
 function runtimeAssistantCompleteCommandId(
@@ -506,16 +599,17 @@ export function runtimeToolCompletedActivities(
   const isError = record.isError === true;
   const itemType = runtimeToolItemTypeForName(toolName);
   const title = itemType === "command_execution" ? "command" : toolName;
-  const summary = runtimeToolActivitySummary({
-    eventSummary: event.summary,
-    itemType,
-    isError,
-  });
   const subagentActivities = runtimeSubagentActivitiesForToolEvent(event);
   const subagentParentItem =
     toolName === "subagent"
       ? compactSubagentParentItem(record, isError ? "failed" : "completed")
       : null;
+  const summary = runtimeToolActivitySummary({
+    eventSummary: event.summary,
+    itemType,
+    isError,
+    subagentParentItem,
+  });
   if (
     shouldOmitMetadataOnlyToolCompletedActivity({
       record,

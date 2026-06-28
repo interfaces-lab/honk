@@ -5,6 +5,8 @@ import {
   ProjectId,
   RuntimeItemId,
   RuntimeSessionId,
+  type ChatAttachment,
+  type ExecutionEnvironmentDescriptor,
   ThreadEntryId,
   ThreadId,
   TurnId,
@@ -17,9 +19,10 @@ import {
   type OrchestrationThread,
   type SessionTreeProjection,
 } from "@honk/contracts";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getThreadFromEnvironmentState } from "../thread-derivation";
+import { writePrimaryEnvironmentDescriptor } from "~/environments/primary";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "../types";
 import { applyLocalThreadTurnStartRequested } from "./local-orchestration-events";
 import { selectSubagentProjection, useSubagentActivityStore } from "./subagent-activity-store";
@@ -659,6 +662,13 @@ function currentThread() {
   return { environmentState, thread: thread! };
 }
 
+function stubPrimaryEnvironmentWindow(): void {
+  vi.stubGlobal("window", {
+    desktopBridge: null,
+    location: new URL("http://127.0.0.1:13774/"),
+  });
+}
+
 function serverThreadDetailWithSubagent(detail: string, updatedAt: string): OrchestrationThread {
   const userMessageId = MessageId.make("message:server-user");
   return {
@@ -775,6 +785,29 @@ const gitActionAssistantCreatedAt = Date.prototype.toISOString.call(
   new Date(Date.UTC(2026, 5, 1, 12, 1, 1)),
 );
 const gitActionPrompt = "GitAction: commitAndPush\nAction: Commit & Push";
+const optimisticImagePreviewUrl = "blob:http://localhost/optimistic-image";
+const optimisticImageAttachment = {
+  type: "image",
+  id: "client-image-attachment",
+  name: "optimistic.png",
+  mimeType: "image/png",
+  sizeBytes: 42,
+  previewUrl: optimisticImagePreviewUrl,
+} satisfies ChatAttachment & { readonly previewUrl: string };
+const serverImageAttachment = {
+  type: "image",
+  id: "server-image-attachment",
+  name: "server.png",
+  mimeType: "image/png",
+  sizeBytes: 84,
+} satisfies ChatAttachment;
+const primaryEnvironmentDescriptor = {
+  environmentId,
+  label: "Pi runtime store",
+  platform: { os: "darwin", arch: "arm64" },
+  serverVersion: "0.0.0-test",
+  capabilities: { repositoryIdentity: false },
+} satisfies ExecutionEnvironmentDescriptor;
 
 function runtimeSessionThreadEntryId(entryId: RuntimeItemId): ThreadEntryId {
   return threadEntryIdForMessageId(runtimeSessionEntryMessageId(runtimeSessionId, entryId));
@@ -782,6 +815,8 @@ function runtimeSessionThreadEntryId(entryId: RuntimeItemId): ThreadEntryId {
 
 function serverThreadDetailWithExistingTranscript(input?: {
   readonly includeGitActionUser?: boolean;
+  readonly gitActionAttachments?: ChatAttachment[];
+  readonly gitActionParentEntryId?: ThreadEntryId;
 }): OrchestrationThread {
   const includeGitActionUser = input?.includeGitActionUser ?? false;
   return {
@@ -828,6 +863,7 @@ function serverThreadDetailWithExistingTranscript(input?: {
               text: gitActionPrompt,
               turnId: null,
               streaming: false,
+              ...(input?.gitActionAttachments ? { attachments: input.gitActionAttachments } : {}),
               createdAt: gitActionUserCreatedAt,
               updatedAt: gitActionUserCreatedAt,
             },
@@ -859,7 +895,7 @@ function serverThreadDetailWithExistingTranscript(input?: {
             {
               id: gitActionThreadEntryId,
               threadId,
-              parentEntryId: existingAssistantThreadEntryId,
+              parentEntryId: input?.gitActionParentEntryId ?? existingAssistantThreadEntryId,
               kind: "message" as const,
               messageId: gitActionMessageId,
               turnId: null,
@@ -968,7 +1004,9 @@ function textEchoRuntimeSessionTree(): SessionTreeProjection {
 
 describe("Pi runtime thread sync", () => {
   beforeEach(() => {
+    vi.unstubAllGlobals();
     useStore.setState(initialState);
+    writePrimaryEnvironmentDescriptor(primaryEnvironmentDescriptor);
     useSubagentActivityStore.getState().reset();
     useSubagentTrayStore.getState().closeTray();
   });
@@ -1090,6 +1128,107 @@ describe("Pi runtime thread sync", () => {
       [gitActionUserRuntimeThreadEntryId, existingAssistantThreadEntryId],
       [gitActionAssistantRuntimeThreadEntryId, gitActionUserRuntimeThreadEntryId],
     ]);
+    expect(thread.leafId).toBe(gitActionAssistantRuntimeThreadEntryId);
+  });
+
+  it("keeps optimistic image preview URLs in local message projection", () => {
+    const optimisticMessageId = MessageId.make("message:optimistic-image");
+    useStore
+      .getState()
+      .syncServerThreadDetail(serverThreadDetailWithExistingTranscript(), environmentId);
+
+    applyLocalThreadTurnStartRequested({
+      environmentId,
+      threadId,
+      message: {
+        messageId: optimisticMessageId,
+        text: "inspect this image",
+        attachments: [optimisticImageAttachment],
+      },
+      modelSelection: {
+        instanceId: "codex",
+        model: "gpt-5.5",
+      },
+      titleSeed: "inspect this image",
+      runtimeMode: DEFAULT_RUNTIME_MODE,
+      interactionMode: DEFAULT_INTERACTION_MODE,
+      createdAt: gitActionUserCreatedAt,
+    });
+
+    const message = currentThread().thread.messages.find(
+      (candidate) => candidate.id === optimisticMessageId,
+    );
+    expect(message?.attachments).toEqual([
+      expect.objectContaining({
+        id: optimisticImageAttachment.id,
+        previewUrl: optimisticImagePreviewUrl,
+      }),
+    ]);
+  });
+
+  it("uses same-id server attachment URLs while preserving missing runtime branches", () => {
+    stubPrimaryEnvironmentWindow();
+    useStore
+      .getState()
+      .syncServerThreadDetail(serverThreadDetailWithExistingTranscript(), environmentId);
+    applyLocalThreadTurnStartRequested({
+      environmentId,
+      threadId,
+      message: {
+        messageId: gitActionMessageId,
+        text: gitActionPrompt,
+        attachments: [optimisticImageAttachment],
+      },
+      modelSelection: {
+        instanceId: "codex",
+        model: "gpt-5.5",
+      },
+      titleSeed: gitActionPrompt,
+      runtimeMode: DEFAULT_RUNTIME_MODE,
+      interactionMode: DEFAULT_INTERACTION_MODE,
+      createdAt: gitActionUserCreatedAt,
+    });
+    useStore.getState().applyRuntimeSessionTreeProjection(
+      gitActionRuntimeSessionTree({
+        clientMessageId: gitActionMessageId,
+        userThreadEntryId: gitActionThreadEntryId,
+      }),
+      environmentId,
+    );
+
+    useStore.getState().syncServerThreadDetail(
+      serverThreadDetailWithExistingTranscript({
+        includeGitActionUser: true,
+        gitActionAttachments: [serverImageAttachment],
+        gitActionParentEntryId: existingUserThreadEntryId,
+      }),
+      environmentId,
+    );
+
+    const { thread } = currentThread();
+    const message = thread.messages.find((candidate) => candidate.id === gitActionMessageId);
+    expect(message?.attachments?.[0]?.id).toBe(serverImageAttachment.id);
+    expect(message?.attachments?.[0]?.previewUrl).not.toBe(optimisticImagePreviewUrl);
+    expect(new URL(message?.attachments?.[0]?.previewUrl ?? "").pathname).toBe(
+      `/attachments/${serverImageAttachment.id}`,
+    );
+    expect(thread.entries.find((entry) => entry.id === gitActionThreadEntryId)?.parentEntryId).toBe(
+      existingUserThreadEntryId,
+    );
+    expect(
+      thread.messages.find((candidate) => candidate.id === gitActionMessageId)?.attachments,
+    ).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: optimisticImageAttachment.id })]),
+    );
+    expect(thread.messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: runtimeSessionEntryMessageId(runtimeSessionId, gitActionAssistantRuntimeItemId),
+          role: "assistant",
+          text: "Committed and pushed.",
+        }),
+      ]),
+    );
     expect(thread.leafId).toBe(gitActionAssistantRuntimeThreadEntryId);
   });
 

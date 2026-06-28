@@ -1,7 +1,7 @@
 import { type MessageId } from "@honk/contracts";
 import type { ConversationDensity } from "@honk/contracts/settings";
 
-import { type TimelineEntry, type WorkLogEntry } from "../../../session-logic";
+import { type TimelineEntry, type TimelineEntryId, type WorkLogEntry } from "../../../session-logic";
 import { runtimeParentToolDisplaySignature } from "../../../lib/runtime-tool-display";
 import {
   computeMessageDurationStart,
@@ -42,7 +42,7 @@ export {
 
 export interface WorkTimelineRow {
   kind: "work";
-  id: string;
+  id: TimelineEntryId;
   createdAt: string;
   completedDurationLabel: string | null;
   isRunning: boolean;
@@ -71,7 +71,7 @@ export type RuntimeExtensionUiRequestTimelineRow = TimelineRuntimeExtensionUiReq
 
 export interface WorkingTimelineRow {
   kind: "working";
-  id: string;
+  id: TimelineEntryId;
   createdAt: string | null;
   step: TimelineWaitingStep;
   renderItem: Extract<TimelineRenderItem, { kind: "waitingGroup" }>;
@@ -91,7 +91,7 @@ export type BaseMessagesTimelineRow =
 export type MessagesTimelineRow = BaseMessagesTimelineRow;
 
 export interface StableMessagesTimelineRowsState {
-  byId: Map<string, MessagesTimelineRow>;
+  byId: Map<TimelineEntryId, MessagesTimelineRow>;
   result: MessagesTimelineRow[];
 }
 
@@ -103,19 +103,21 @@ export function deriveMessagesTimelineRows(input: {
   conversationDensity?: ConversationDensity | undefined;
   pendingApprovalKinds?: ReadonlySet<PendingApprovalRequestKind> | undefined;
 }): MessagesTimelineRow[] {
-  return deriveTimelineRenderItems(input).map(timelineRenderItemToRow);
+  const renderItems = deriveTimelineRenderItems(input);
+  assertUniqueTimelineRenderItemIds(renderItems);
+  return renderItems.map(timelineRenderItemToRow);
 }
 
 export function computeStableMessagesTimelineRows(
   rows: MessagesTimelineRow[],
   previous: StableMessagesTimelineRowsState,
 ): StableMessagesTimelineRowsState {
-  const next = new Map<string, MessagesTimelineRow>();
+  const next = new Map<TimelineEntryId, MessagesTimelineRow>();
   let anyChanged = rows.length !== previous.byId.size;
 
   const result = rows.map((row, index) => {
     const prevRow = previous.byId.get(row.id);
-    const nextRow = prevRow && isRowUnchanged(prevRow, row) ? prevRow : row;
+    const nextRow = prevRow && isRowUnchanged(prevRow, row) ? prevRow : stabilizeRow(prevRow, row);
     next.set(row.id, nextRow);
     if (!anyChanged && previous.result[index] !== nextRow) {
       anyChanged = true;
@@ -162,6 +164,67 @@ function timelineRenderItemToRow(item: TimelineRenderItem): MessagesTimelineRow 
   }
 }
 
+function assertUniqueTimelineRenderItemIds(items: ReadonlyArray<TimelineRenderItem>): void {
+  const seen = new Set<string>();
+  for (const item of items) {
+    if (seen.has(item.id)) {
+      throw new Error(`Duplicate timeline render item id: ${item.id}`);
+    }
+    seen.add(item.id);
+    assertUniqueGroupedStepIds(item);
+  }
+}
+
+function assertUniqueGroupedStepIds(item: TimelineRenderItem): void {
+  if (item.kind === "single") {
+    return;
+  }
+
+  const seen = new Set<string>();
+  for (const step of item.group.steps) {
+    if (seen.has(step.id)) {
+      throw new Error(`Duplicate grouped timeline step id: ${step.id}`);
+    }
+    seen.add(step.id);
+  }
+}
+
+// When a work group's data changes, only some of its grouped steps actually changed (e.g. one
+// streaming tool call). Reuse the previous step references for the unchanged steps so the
+// compiler-memoized step renderers bail out and only the changed child re-renders, instead of the
+// whole preview group re-rendering on every streaming tick.
+function stabilizeRow(
+  prevRow: MessagesTimelineRow | undefined,
+  row: MessagesTimelineRow,
+): MessagesTimelineRow {
+  if (
+    prevRow === undefined ||
+    prevRow.kind !== "work" ||
+    !("steps" in prevRow) ||
+    row.kind !== "work" ||
+    !("steps" in row)
+  ) {
+    return row;
+  }
+
+  const prevStepsById = new Map<string, TimelineGroupedStep>();
+  for (const step of prevRow.steps) {
+    prevStepsById.set(step.id, step);
+  }
+
+  let reusedAnyStep = false;
+  const steps = row.steps.map((step) => {
+    const prevStep = prevStepsById.get(step.id);
+    if (prevStep && prevStep !== step && isGroupedStepUnchanged(prevStep, step)) {
+      reusedAnyStep = true;
+      return prevStep;
+    }
+    return step;
+  });
+
+  return reusedAnyStep ? { ...row, steps } : row;
+}
+
 function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean {
   if (a.kind !== b.kind || a.id !== b.id) return false;
 
@@ -169,7 +232,6 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
     case "working":
       return (
         a.createdAt === (b as typeof a).createdAt &&
-        a.step.phase === (b as typeof a).step.phase &&
         a.step.elapsedStartedAt === (b as typeof a).step.elapsedStartedAt
       );
 
@@ -375,40 +437,30 @@ function areSameGroupedSteps(
   for (let index = 0; index < left.length; index += 1) {
     const leftStep = left[index];
     const rightStep = right[index];
-    if (
-      !leftStep ||
-      !rightStep ||
-      leftStep.kind !== rightStep.kind ||
-      leftStep.id !== rightStep.id
-    ) {
+    if (!leftStep || !rightStep || !isGroupedStepUnchanged(leftStep, rightStep)) {
       return false;
-    }
-    switch (leftStep.kind) {
-      case "work":
-        if ((rightStep as typeof leftStep).entry !== leftStep.entry) {
-          return false;
-        }
-        break;
-      case "runtime-thinking":
-        if (!isRuntimeThinkingRowUnchanged(leftStep, rightStep as typeof leftStep)) {
-          return false;
-        }
-        break;
-      case "runtime-tool":
-        if (!isRuntimeToolRowUnchanged(leftStep, rightStep as typeof leftStep)) {
-          return false;
-        }
-        break;
-      case "message":
-        if (
-          !isMessageRowMessageUnchanged(leftStep.message, (rightStep as typeof leftStep).message)
-        ) {
-          return false;
-        }
-        break;
     }
   }
   return true;
+}
+
+function isGroupedStepUnchanged(a: TimelineGroupedStep, b: TimelineGroupedStep): boolean {
+  if (a === b) {
+    return true;
+  }
+  if (a.kind !== b.kind || a.id !== b.id) {
+    return false;
+  }
+  switch (a.kind) {
+    case "work":
+      return (b as typeof a).entry === a.entry;
+    case "runtime-thinking":
+      return isRuntimeThinkingRowUnchanged(a, b as typeof a);
+    case "runtime-tool":
+      return isRuntimeToolRowUnchanged(a, b as typeof a);
+    case "message":
+      return isMessageRowMessageUnchanged(a.message, (b as typeof a).message);
+  }
 }
 
 function areSameWorkEntries(

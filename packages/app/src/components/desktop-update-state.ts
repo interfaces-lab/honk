@@ -73,9 +73,14 @@ export function getDesktopUpdateButtonTooltip(state: DesktopUpdateState): string
 
 export function getDesktopUpdateInstallConfirmationMessage(
   state: Pick<DesktopUpdateState, "availableVersion" | "downloadedVersion">,
+  runningThreadTitles: readonly string[],
 ): string {
   const version = state.downloadedVersion ?? state.availableVersion;
-  return `Install update${version ? ` ${version}` : ""} and restart Honk?\n\nAny running tasks will be interrupted. Make sure you're ready before continuing.`;
+  const threadList =
+    runningThreadTitles.length > 0
+      ? `\n\n${runningThreadTitles.map((title) => `• ${title}`).join("\n")}`
+      : "";
+  return `Install update${version ? ` ${version}` : ""} and restart Honk?\n\nAny running tasks will be interrupted.${threadList}\n\nMake sure you're ready before continuing.`;
 }
 
 export function shouldConfirmDesktopUpdateInstall(runningThreadCount: number): boolean {

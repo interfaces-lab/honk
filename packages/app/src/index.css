@@ -15,12 +15,6 @@
    * --motion-duration-* tokens) still win where set. */
   --default-transition-duration: 100ms;
   --animate-skeleton: skeleton 2s -1s infinite linear;
-  --animate-thinking: thinking-shimmer 2s linear infinite;
-  --animate-thinking-details-in: thinking-details-in 0.14s ease-out;
-  --animate-thinking-glyph: thinking-glyph 2.8s ease-in-out infinite;
-  --animate-thinking-word-in: thinking-word-in 0.22s ease-out;
-  --animate-chat-loader-diagonal-sweep: chat-loader-diagonal-sweep var(--chat-loader-duration, 1.2s)
-    ease-in-out infinite;
   --color-warning-foreground: var(--warning-foreground);
   --color-warning: var(--warning);
   --color-success-foreground: var(--success-foreground);
@@ -182,57 +176,6 @@
       background-position: -200% 0;
     }
   }
-  @keyframes thinking-shimmer {
-    to {
-      mask-position: -200% center;
-    }
-  }
-  @keyframes thinking-details-in {
-    from {
-      opacity: 0;
-      transform: translateY(-2px) scaleY(0.98);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scaleY(1);
-    }
-  }
-  @keyframes thinking-glyph {
-    0%,
-    100% {
-      opacity: 0.62;
-      transform: scale(0.92) rotate(0deg);
-    }
-    50% {
-      opacity: 1;
-      transform: scale(1) rotate(180deg);
-    }
-  }
-  @keyframes thinking-word-in {
-    from {
-      opacity: 0;
-      transform: translateY(70%);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  @keyframes chat-loader-diagonal-sweep {
-    0%,
-    100% {
-      opacity: 0.2;
-      transform: scale(0.78);
-    }
-    45% {
-      opacity: 0.88;
-      transform: scale(1);
-    }
-    72% {
-      opacity: 0.42;
-      transform: scale(0.9);
-    }
-  }
   @keyframes agent-sidebar-status-finish {
     0% {
       opacity: 0.35;
@@ -250,40 +193,6 @@
 }
 
 @layer utilities {
-  .thinking-shimmer {
-    mask-image: linear-gradient(
-      90deg,
-      oklch(0 0 0 / 0.45) 0%,
-      oklch(0 0 0 / 0.45) 30%,
-      oklch(0 0 0) 50%,
-      oklch(0 0 0 / 0.45) 70%,
-      oklch(0 0 0 / 0.45) 100%
-    );
-    mask-size: 200% 100%;
-    animation: var(--animate-thinking);
-  }
-}
-
-@layer utilities {
-  .chat-loader-dot {
-    display: block;
-    width: var(--chat-loader-dot-size, 2px);
-    height: var(--chat-loader-dot-size, 2px);
-    border-radius: 9999px;
-    background: currentColor;
-    opacity: 0.18;
-    transform-origin: center;
-  }
-
-  .chat-loader-dot-inactive {
-    opacity: 0.08;
-  }
-
-  .chat-loader-diagonal-sweep {
-    animation: var(--animate-chat-loader-diagonal-sweep);
-    animation-delay: calc(var(--chat-loader-path, 0) * -0.72s);
-  }
-
   .agent-sidebar-status-finish {
     animation: agent-sidebar-status-finish 720ms var(--ease-shell, ease-out);
     transform-origin: center;
@@ -321,7 +230,7 @@
     --honk-button-cursor: pointer;
     background-color: var(--app-background);
   }
-  html[data-electron]:has(body[data-honk-glass-mode="true"]) {
+  html[data-electron] {
     background-color: transparent;
   }
   body {
@@ -489,6 +398,7 @@ html.honk-overlay-debug [data-slot="context-menu-popup"] {
   outline-offset: 2px;
 }
 
+html.honk-overlay-debug [data-tooltip-trigger],
 html.honk-overlay-debug [data-slot="tooltip-trigger"],
 html.honk-overlay-debug [data-slot="context-menu-trigger"] {
   outline: 1px dashed oklch(0.682 0.14 237.298 / 0.85);

@@ -57,7 +57,6 @@ function waitingEntry(): TimelineEntry {
     id: "working-indicator-row",
     kind: "waiting",
     createdAt: null,
-    phase: "thinking",
     elapsedStartedAt: null,
   } as unknown as TimelineEntry;
 }

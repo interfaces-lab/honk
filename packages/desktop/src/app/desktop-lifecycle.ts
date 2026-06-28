@@ -120,9 +120,15 @@ function triggerShutdown(
 
 const requestQuitAfterPreventingDefault = Effect.fn(
   "desktop.lifecycle.requestQuitAfterPreventingDefault",
-)(function* (runningThreadCount: number) {
+)(function* (
+  runningThreadCount: number,
+  runningThreadTitles: readonly string[],
+) {
   const quitGuard = yield* DesktopQuitGuard.DesktopQuitGuard;
-  const confirmation = yield* quitGuard.confirmPreventedQuit(runningThreadCount);
+  const confirmation = yield* quitGuard.confirmPreventedQuit(
+    runningThreadCount,
+    runningThreadTitles,
+  );
 
   if (confirmation === "alreadyPrompting") {
     return;
@@ -223,7 +229,10 @@ export const layer = Layer.succeed(
 
         quitEvent.preventDefault();
         void runEffect(
-          requestQuitAfterPreventingDefault(decision.runningThreadCount).pipe(
+          requestQuitAfterPreventingDefault(
+            decision.runningThreadCount,
+            decision.runningThreadTitles,
+          ).pipe(
             Effect.withSpan("desktop.lifecycle.beforeQuit"),
           ),
         );

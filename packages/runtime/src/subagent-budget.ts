@@ -44,14 +44,14 @@ export interface LoadedSubagentRuntime {
 export const DEFAULT_SUBAGENT_BUDGET_LIMITS: SubagentBudgetLimits = {
   maxTasksPerToolCall: 20,
   maxActivePerToolCall: 4,
-  maxActivePerSession: 6,
+  maxActivePerSession: 4,
   maxLoadedIdleChildren: 5,
   maxParentVisibleOutputBytesPerRun: 50 * 1024,
   maxParentVisibleOutputBytesPerToolCall: 200 * 1024,
   profileActiveLimits: {
-    "general-purpose": 2,
+    "general-purpose": 4,
     librarian: 4,
-    oracle: 2,
+    oracle: 4,
   },
 };
 

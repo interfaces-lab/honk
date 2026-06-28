@@ -2,14 +2,14 @@ import { scopedThreadKey } from "~/lib/environment-scope";
 import type { ScopedProjectRef, ScopedThreadRef } from "@honk/contracts";
 import { SidebarItem } from "@honk/honkkit/sidebar";
 import { IconChevronRightMedium, IconFolder1, IconFolderOpen } from "central-icons";
-import { type DragEvent, useEffect, useMemo, useState } from "react";
+import { type DragEvent, useState } from "react";
 import { toast } from "sonner";
 
 import { resolveAndPersistPreferredEditor } from "~/editor-preferences";
 import { readLocalApi } from "~/local-api";
 import { cn } from "~/lib/utils";
 import { useUiStateStore } from "~/stores/ui-state-store";
-import { initialMaxVisible, nearViewportPrefetchLimit, pageStep } from "./constants";
+import { initialMaxVisible, pageStep } from "./constants";
 import { SidebarSectionContextMenu } from "./context-menu";
 import type { SidebarDragPayload, SidebarDropTarget } from "./drag-and-drop";
 import { AgentSidebarThreadItem } from "./thread-item";
@@ -55,9 +55,8 @@ export function AgentSidebarSection(props: {
   onSelectAgent: (id: string) => void;
   onClearDraft: (id: string) => void;
   onNewAgent?: (cwd: string) => void;
-  onPrefetchAgent?: (id: string) => void;
 }) {
-  const { onPrefetchAgent, section } = props;
+  const { section } = props;
   const savedOpen = useUiStateStore((store) =>
     section.projectStateKey ? (store.projectExpandedById[section.projectStateKey] ?? true) : true,
   );
@@ -94,21 +93,6 @@ export function AgentSidebarSection(props: {
     props.dropTarget?.sectionId === section.id ? props.dropTarget.position : null;
   const draggingProject = props.dragPayload?.sectionId === section.id;
   const canRemoveProject = section.projectRef !== undefined && section.projectCwd !== undefined;
-  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- effect dep identity for prefetch
-  const prefetchItems = useMemo(
-    () => (open ? section.items.slice(0, visible + nearViewportPrefetchLimit) : []),
-    [open, section.items, visible],
-  );
-
-  useEffect(() => {
-    if (!onPrefetchAgent) {
-      return;
-    }
-    for (const item of prefetchItems) {
-      onPrefetchAgent(item.id);
-    }
-  }, [onPrefetchAgent, prefetchItems]);
-
   const openSectionInEditor = () => {
     const localApi = readLocalApi();
     if (!localApi) {
@@ -304,7 +288,6 @@ export function AgentSidebarSection(props: {
               commitRename={props.commitRename}
               onSelectAgent={props.onSelectAgent}
               onClearDraft={props.onClearDraft}
-              {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}
             />
           ))}
           {showMore ? (

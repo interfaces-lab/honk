@@ -1,7 +1,18 @@
-import { IconCollaborationPointerRight, IconFolderAddRight } from "central-icons";
+import {
+  IconCollaborationPointerRight,
+  IconFolderAddRight,
+  IconMagnifyingGlass,
+} from "central-icons";
 import type { DragEvent } from "react";
 
 import { SidebarButton } from "@honk/honkkit/sidebar";
+
+import {
+  COMMAND_PALETTE_FALLBACK_KEYBINDINGS,
+  shortcutLabelForCommand,
+} from "~/keybindings";
+import { useServerKeybindings } from "~/rpc/server-state";
+import { useCommandPaletteStore } from "~/stores/ui/command-palette-store";
 
 import { SIDEBAR_CHAT_DRAG_MIME_TYPE } from "../agents/sidebar/drag-and-drop";
 
@@ -40,15 +51,37 @@ function writeNewAgentDragPayload(event: DragEvent<HTMLElement>): void {
 }
 
 export function ShellSidebarHeader(props: { onNewChat: () => void; onAddProject?: () => void }) {
+  const setCommandPaletteOpen = useCommandPaletteStore((store) => store.setOpen);
+  const keybindings = useServerKeybindings();
+  const activeKeybindings =
+    keybindings.length > 0 ? keybindings : COMMAND_PALETTE_FALLBACK_KEYBINDINGS;
+  const commandPaletteShortcutLabel = shortcutLabelForCommand(
+    activeKeybindings,
+    "commandPalette.toggle",
+  );
   return (
-    <div className="relative z-30 flex shrink-0 select-none flex-col gap-1 px-2 pt-2 pb-1.5">
-      <div className="flex min-h-[22px] min-w-0 items-center gap-0.5">
+    <div className="relative z-30 flex shrink-0 select-none flex-col gap-px px-2 pt-2 pb-1.5">
+      <div className="flex min-h-[22px] min-w-0 flex-col items-stretch gap-px">
+        <SidebarButton
+          variant="chrome"
+          onClick={() => setCommandPaletteOpen(true)}
+          className="min-w-0 text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary"
+          aria-label="Search"
+        >
+          <IconMagnifyingGlass className="size-4 shrink-0 opacity-65" aria-hidden />
+          <span className="min-w-0 flex-1 truncate">Search</span>
+          {commandPaletteShortcutLabel ? (
+            <span className="shrink-0 text-right text-caption text-honk-fg-quaternary">
+              {commandPaletteShortcutLabel}
+            </span>
+          ) : null}
+        </SidebarButton>
         <SidebarButton
           variant="chrome"
           draggable
           onClick={props.onNewChat}
           onDragStart={writeNewAgentDragPayload}
-          className="flex-1 text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary [-webkit-user-drag:element]"
+          className="min-w-0 text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary [-webkit-user-drag:element]"
           data-agent-sidebar-cell=""
           data-testid="new-thread-button"
         >

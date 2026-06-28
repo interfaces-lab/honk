@@ -12,13 +12,19 @@ import {
 import { shouldSuppressProviderFailureAssistantRow } from "../../../lib/turn-failure-index";
 
 import { resolveWaitingTimelineStatus } from "../message/waiting-status";
-import type { TimelineEntry, WorkLogEntry } from "../../../session-logic";
+import type { TimelineEntry, TimelineEntryId, WorkLogEntry } from "../../../session-logic";
 import type { ChatMessage, ProposedPlan, ThreadSendIntent } from "../../../types";
 import {
+  timelineExtensionUiRequestEntryId,
   timelineMessageEntryId,
+  timelineProposedPlanEntryId,
+  timelineRuntimeItemEntryId,
+  timelineRuntimeThinkingFallbackEntryId,
   timelineToolCallEntryId,
   timelineTurnAssistantEntryId,
   timelineTurnThinkingEntryId,
+  timelineWaitingEntryId,
+  timelineWorkEntryId,
 } from "./timeline-entry-ids";
 import type { ThreadBranchView } from "./thread-branch-view";
 
@@ -170,7 +176,7 @@ function turnOccurrenceCounter(): (turnId: string) => number {
 function committedMessageEntryId(
   message: ChatMessage,
   nextAssistantIndex: (turnId: string) => number,
-): string {
+): TimelineEntryId {
   return message.role === "assistant" && message.turnId
     ? timelineTurnAssistantEntryId(message.turnId, nextAssistantIndex(message.turnId))
     : timelineMessageEntryId(message.id);
@@ -193,7 +199,7 @@ function materializeCommittedTimelineEntries(input: {
     ),
     ...input.proposedPlans.map(
       (proposedPlan): TimelineEntry => ({
-        id: `proposed-plan:${proposedPlan.id}`,
+        id: timelineProposedPlanEntryId(proposedPlan.id),
         kind: "proposed-plan",
         createdAt: proposedPlan.createdAt,
         proposedPlan,
@@ -201,7 +207,11 @@ function materializeCommittedTimelineEntries(input: {
     ),
     ...input.workLogEntries.map(
       (entry): TimelineEntry => ({
-        id: entry.toolCallId ? timelineToolCallEntryId(entry.toolCallId) : entry.id,
+        id: entry.toolCallId
+          ? timelineToolCallEntryId(entry.toolCallId)
+          : entry.extensionUiRequestId
+            ? timelineExtensionUiRequestEntryId(entry.extensionUiRequestId)
+            : timelineWorkEntryId(entry.id),
         kind: "work",
         createdAt: entry.createdAt,
         entry,
@@ -434,7 +444,7 @@ function runtimeDisplayTimelineItemToTimelineEntries(
           // row id) re-keys at turn end and the whole group remounts.
           id: item.turnId
             ? timelineTurnThinkingEntryId(item.turnId, ctx.nextThinkingIndex(item.turnId))
-            : `${item.id}:thinking`,
+            : timelineRuntimeThinkingFallbackEntryId(item.id),
           kind: "runtime-thinking",
           createdAt: item.createdAt,
           message: runtimeThinkingStatusMessage(item),
@@ -476,7 +486,9 @@ function runtimeDisplayTimelineItemToTimelineEntries(
     case "tool":
       return [
         {
-          id: item.toolCallId ? timelineToolCallEntryId(item.toolCallId) : item.id,
+          id: item.toolCallId
+            ? timelineToolCallEntryId(item.toolCallId)
+            : timelineRuntimeItemEntryId(item.id),
           kind: "runtime-tool",
           createdAt: item.createdAt,
           tool: item,
@@ -485,7 +497,7 @@ function runtimeDisplayTimelineItemToTimelineEntries(
     case "extension-ui-request":
       return [
         {
-          id: item.id,
+          id: timelineExtensionUiRequestEntryId(item.requestId),
           kind: "runtime-extension-ui-request",
           createdAt: item.createdAt,
           request: item,
@@ -495,7 +507,7 @@ function runtimeDisplayTimelineItemToTimelineEntries(
       const planId = OrchestrationProposedPlanId.make(item.planId);
       return [
         {
-          id: item.id,
+          id: timelineProposedPlanEntryId(planId),
           kind: "proposed-plan",
           createdAt: item.createdAt,
           proposedPlan:
@@ -862,10 +874,9 @@ function appendWaitingTimelineEntry(input: {
   return [
     ...input.entries,
     {
-      id: "working-indicator-row",
+      id: timelineWaitingEntryId(),
       kind: "waiting",
       createdAt: input.activeTurnStartedAt,
-      phase: waitingStatus.phase,
       elapsedStartedAt: waitingStatus.elapsedStartedAt,
     },
   ];

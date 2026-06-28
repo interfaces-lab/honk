@@ -21,7 +21,12 @@
       "type": "registry:ui",
       "title": "Button",
       "description": "Primary action control with variant and size scales.",
-      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "dependencies": [
+        "@base-ui/react",
+        "@stylexjs/stylex",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
       "files": [
         {
           "path": "src/button.tsx",
@@ -31,7 +36,1897 @@
         {
           "path": "src/utils.ts",
           "type": "registry:lib",
-          "target": "lib/utils.ts"
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        },
+        {
+          "path": "src/utils/themeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/themeProps.ts"
+        },
+        {
+          "path": "src/naming.ts",
+          "type": "registry:lib",
+          "target": "components/ui/naming.ts"
+        },
+        {
+          "path": "src/theme/tokens.stylex.ts",
+          "type": "registry:lib",
+          "target": "components/ui/theme/tokens.stylex.ts"
+        }
+      ]
+    },
+    {
+      "name": "alert",
+      "type": "registry:ui",
+      "title": "Alert",
+      "description": "Inline status banner with title, description, and action slots.",
+      "dependencies": [
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/alert.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/alert.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "badge",
+      "type": "registry:ui",
+      "title": "Badge",
+      "description": "Compact status, count, and label badge.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/badge.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/badge.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "spinner",
+      "type": "registry:ui",
+      "title": "Spinner",
+      "description": "Accessible loading spinner.",
+      "dependencies": [
+        "@stylexjs/stylex",
+        "central-icons@npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/spinner.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/spinner.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        },
+        {
+          "path": "src/utils/themeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/themeProps.ts"
+        },
+        {
+          "path": "src/naming.ts",
+          "type": "registry:lib",
+          "target": "components/ui/naming.ts"
+        },
+        {
+          "path": "src/theme/tokens.stylex.ts",
+          "type": "registry:lib",
+          "target": "components/ui/theme/tokens.stylex.ts"
+        }
+      ]
+    },
+    {
+      "name": "status-dot",
+      "type": "registry:ui",
+      "title": "Status Dot",
+      "description": "Thread, provider, or process state dot.",
+      "dependencies": [
+        "@base-ui/react",
+        "@stylexjs/stylex",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/status-dot.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/status-dot.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        },
+        {
+          "path": "src/utils/themeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/themeProps.ts"
+        },
+        {
+          "path": "src/naming.ts",
+          "type": "registry:lib",
+          "target": "components/ui/naming.ts"
+        },
+        {
+          "path": "src/theme/tokens.stylex.ts",
+          "type": "registry:lib",
+          "target": "components/ui/theme/tokens.stylex.ts"
+        }
+      ]
+    },
+    {
+      "name": "toast",
+      "type": "registry:ui",
+      "title": "Toast",
+      "description": "Toast root, content, text, action, and icon button slots.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/button",
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/toast.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/toast.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "text",
+      "type": "registry:ui",
+      "title": "Text",
+      "description": "Semantic typography primitive with size, tone, weight, and layout variants.",
+      "dependencies": [
+        "@stylexjs/stylex"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/text.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/text.tsx"
+        }
+      ]
+    },
+    {
+      "name": "link",
+      "type": "registry:ui",
+      "title": "Link",
+      "description": "Token-backed anchor styling.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/link.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/link.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "code",
+      "type": "registry:ui",
+      "title": "Code",
+      "description": "Inline and block code display primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/code.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/code.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "kbd",
+      "type": "registry:ui",
+      "title": "Kbd",
+      "description": "Keyboard shortcut key and key group primitives.",
+      "dependencies": [
+        "@stylexjs/stylex",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/kbd.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/kbd.tsx"
+        },
+        {
+          "path": "src/BaseProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/BaseProps.ts"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        },
+        {
+          "path": "src/utils/themeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/themeProps.ts"
+        },
+        {
+          "path": "src/naming.ts",
+          "type": "registry:lib",
+          "target": "components/ui/naming.ts"
+        },
+        {
+          "path": "src/theme/tokens.stylex.ts",
+          "type": "registry:lib",
+          "target": "components/ui/theme/tokens.stylex.ts"
+        }
+      ]
+    },
+    {
+      "name": "label",
+      "type": "registry:ui",
+      "title": "Label",
+      "description": "Accessible form label primitive.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/label.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/label.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "inline-chip",
+      "type": "registry:ui",
+      "title": "Inline Chip",
+      "description": "Inline metadata chip slots for icon, label, and detail content.",
+      "dependencies": [
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/inline-chip.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/inline-chip.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "input",
+      "type": "registry:ui",
+      "title": "Input",
+      "description": "Token-backed text input with native and Base UI render modes.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/input.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/input.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "textarea",
+      "type": "registry:ui",
+      "title": "Textarea",
+      "description": "Auto-sizing textarea control shell.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/textarea.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/textarea.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "checkbox",
+      "type": "registry:ui",
+      "title": "Checkbox",
+      "description": "Checkbox control with checked and indeterminate indicators.",
+      "dependencies": [
+        "@base-ui/react",
+        "central-icons@npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/checkbox.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/checkbox.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "switch",
+      "type": "registry:ui",
+      "title": "Switch",
+      "description": "Binary switch control.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/switch.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/switch.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "radio-group",
+      "type": "registry:ui",
+      "title": "Radio Group",
+      "description": "Radio group and item controls.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/radio-group.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/radio-group.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "separator",
+      "type": "registry:ui",
+      "title": "Separator",
+      "description": "Horizontal or vertical separator primitive.",
+      "dependencies": [
+        "@base-ui/react",
+        "@stylexjs/stylex",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/separator.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/separator.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        },
+        {
+          "path": "src/utils/themeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/themeProps.ts"
+        },
+        {
+          "path": "src/naming.ts",
+          "type": "registry:lib",
+          "target": "components/ui/naming.ts"
+        },
+        {
+          "path": "src/theme/tokens.stylex.ts",
+          "type": "registry:lib",
+          "target": "components/ui/theme/tokens.stylex.ts"
+        }
+      ]
+    },
+    {
+      "name": "skeleton",
+      "type": "registry:ui",
+      "title": "Skeleton",
+      "description": "Loading placeholder block.",
+      "dependencies": [
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/skeleton.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/skeleton.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "tooltip",
+      "type": "registry:ui",
+      "title": "Tooltip",
+      "description": "Tooltip root, trigger, provider, and popup primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/tooltip.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/tooltip.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "popover",
+      "type": "registry:ui",
+      "title": "Popover",
+      "description": "Popover root, trigger, popup, close, title, and description primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/popover.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/popover.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "tabs",
+      "type": "registry:ui",
+      "title": "Tabs",
+      "description": "Segmented, underline, and workbench tabs primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/tabs.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/tabs.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "collapsible",
+      "type": "registry:ui",
+      "title": "Collapsible",
+      "description": "Collapsible root, trigger, and measured panel primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/collapsible.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/collapsible.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "scroll-area",
+      "type": "registry:ui",
+      "title": "Scroll Area",
+      "description": "Scroll area viewport with optional fades and custom scrollbars.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/scroll-area.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/scroll-area.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "alert-dialog",
+      "type": "registry:ui",
+      "title": "Alert Dialog",
+      "description": "Modal alert dialog slots.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/alert-dialog.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/alert-dialog.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "dialog",
+      "type": "registry:ui",
+      "title": "Dialog",
+      "description": "Modal dialog slots with close button and scrollable panel.",
+      "dependencies": [
+        "@base-ui/react",
+        "central-icons@npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/button",
+        "@honkkit/scroll-area",
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/dialog.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/dialog.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "avatar",
+      "type": "registry:ui",
+      "title": "Avatar",
+      "description": "Avatar root, image, and fallback primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/avatar.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/avatar.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "card",
+      "type": "registry:ui",
+      "title": "Card",
+      "description": "Composable card root, header, body, and footer primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/card.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/card.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "empty",
+      "type": "registry:ui",
+      "title": "Empty",
+      "description": "Empty state layout, media, title, description, and content slots.",
+      "dependencies": [
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/empty.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/empty.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "layout",
+      "type": "registry:ui",
+      "title": "Layout",
+      "description": "Stack, row, grid, and spacer layout primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/layout.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/layout.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "stat",
+      "type": "registry:ui",
+      "title": "Stat",
+      "description": "Compact stat label and value primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/stat.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/stat.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "table",
+      "type": "registry:ui",
+      "title": "Table",
+      "description": "Semantic table root and section primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/table.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/table.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "hover-card",
+      "type": "registry:ui",
+      "title": "Hover Card",
+      "description": "Hover card root, trigger, and positioned popup primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/hover-card.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/hover-card.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "workbench-button",
+      "type": "registry:ui",
+      "title": "Workbench Button",
+      "description": "Workbench icon, text, and tab controls.",
+      "dependencies": [
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/button",
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/workbench-button.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/workbench-button.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "workbench-chrome-row",
+      "type": "registry:ui",
+      "title": "Workbench Chrome Row",
+      "description": "Workbench tool and panel row chrome primitives.",
+      "dependencies": [
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/workbench-chrome-row.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/workbench-chrome-row.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "conversation-loader",
+      "type": "registry:ui",
+      "title": "Conversation Loader",
+      "description": "Animated inline loading status for conversation surfaces.",
+      "dependencies": [
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/conversation-loader.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/conversation-loader.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "conversation-bubble",
+      "type": "registry:ui",
+      "title": "Conversation Bubble",
+      "description": "Composable user and assistant message bubble surfaces.",
+      "dependencies": [
+        "@stylexjs/stylex",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/conversation-bubble.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/conversation-bubble.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "conversation-collapse",
+      "type": "registry:ui",
+      "title": "Conversation Collapse",
+      "description": "Measured conversation content collapse with fade and show more/less control.",
+      "dependencies": [
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/button",
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/conversation-collapse.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/conversation-collapse.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "conversation-scroller",
+      "type": "registry:ui",
+      "title": "Conversation Scroller",
+      "description": "Virtualized conversation scroller with sticky anchors and scroll-to-end control hooks.",
+      "dependencies": [
+        "@tanstack/react-virtual",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/conversation-scroller.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/conversation-scroller.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "conversation-status-row",
+      "type": "registry:ui",
+      "title": "Conversation Status Row",
+      "description": "Compact conversation activity row with icon, label, detail, and active shimmer state.",
+      "dependencies": [
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/conversation-status-row.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/conversation-status-row.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "attachment",
+      "type": "registry:ui",
+      "title": "Attachment",
+      "description": "Composable attachment preview, fallback, and action slots.",
+      "dependencies": [
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/button",
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/attachment.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/attachment.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "marker",
+      "type": "registry:ui",
+      "title": "Marker",
+      "description": "Inline status marker slots for notices and compact callouts.",
+      "dependencies": [
+        "central-icons@npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/marker.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/marker.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "toggle",
+      "type": "registry:ui",
+      "title": "Toggle",
+      "description": "Pressed-state toggle control.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/toggle.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/toggle.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "group",
+      "type": "registry:ui",
+      "title": "Group",
+      "description": "Grouped control shell, text, and separator primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/separator",
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/group.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/group.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "toggle-group",
+      "type": "registry:ui",
+      "title": "Toggle Group",
+      "description": "Single or multi-select toggle group primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/separator",
+        "@honkkit/styles",
+        "@honkkit/toggle"
+      ],
+      "files": [
+        {
+          "path": "src/toggle-group.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/toggle-group.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "input-group",
+      "type": "registry:ui",
+      "title": "Input Group",
+      "description": "Input and textarea group shell with addon and button slots.",
+      "dependencies": [
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/button",
+        "@honkkit/input",
+        "@honkkit/styles",
+        "@honkkit/textarea"
+      ],
+      "files": [
+        {
+          "path": "src/input-group.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/input-group.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "sidebar",
+      "type": "registry:ui",
+      "title": "Sidebar",
+      "description": "Sidebar tray, item, row, label, status, and button primitives.",
+      "dependencies": [
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/button",
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/sidebar.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/sidebar.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "menu",
+      "type": "registry:ui",
+      "title": "Menu",
+      "description": "Dropdown menu root, trigger, popup, items, groups, radios, checkboxes, and submenus.",
+      "dependencies": [
+        "@base-ui/react",
+        "central-icons@npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/menu.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/menu.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "context-menu",
+      "type": "registry:ui",
+      "title": "Context Menu",
+      "description": "Workbench context menu root, trigger, popup, item, and separator primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/menu",
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/context-menu.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/context-menu.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "select",
+      "type": "registry:ui",
+      "title": "Select",
+      "description": "Select root, trigger, popup, item, group, separator, and simple select primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "central-icons@npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/menu",
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/select.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/select.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "split-button",
+      "type": "registry:ui",
+      "title": "Split Button",
+      "description": "Split action button with menu trigger and popup slots.",
+      "dependencies": [
+        "central-icons@npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/button",
+        "@honkkit/group",
+        "@honkkit/menu",
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/split-button.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/split-button.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "autocomplete",
+      "type": "registry:ui",
+      "title": "Autocomplete",
+      "description": "Autocomplete root, input, popup, list, item, group, status, and collection primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "central-icons@npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/input",
+        "@honkkit/scroll-area",
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/autocomplete.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/autocomplete.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "combobox",
+      "type": "registry:ui",
+      "title": "Combobox",
+      "description": "Combobox root, input, popup, virtualized list, chip, item, group, and collection primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "central-icons@npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/input",
+        "@honkkit/scroll-area",
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/combobox.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/combobox.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "command",
+      "type": "registry:ui",
+      "title": "Command",
+      "description": "Command palette and command search primitives.",
+      "dependencies": [
+        "@base-ui/react",
+        "@stylexjs/stylex",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/autocomplete",
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/command.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/command.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        },
+        {
+          "path": "src/utils/themeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/themeProps.ts"
+        },
+        {
+          "path": "src/naming.ts",
+          "type": "registry:lib",
+          "target": "components/ui/naming.ts"
+        },
+        {
+          "path": "src/theme/tokens.stylex.ts",
+          "type": "registry:lib",
+          "target": "components/ui/theme/tokens.stylex.ts"
+        }
+      ]
+    },
+    {
+      "name": "icon",
+      "type": "registry:ui",
+      "title": "Icon",
+      "description": "Token-backed icon wrapper with size and tone variants.",
+      "dependencies": [
+        "@base-ui/react",
+        "@stylexjs/stylex",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/icon.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/icon.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        },
+        {
+          "path": "src/utils/themeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/themeProps.ts"
+        },
+        {
+          "path": "src/naming.ts",
+          "type": "registry:lib",
+          "target": "components/ui/naming.ts"
+        },
+        {
+          "path": "src/theme/tokens.stylex.ts",
+          "type": "registry:lib",
+          "target": "components/ui/theme/tokens.stylex.ts"
+        }
+      ]
+    },
+    {
+      "name": "chart",
+      "type": "registry:ui",
+      "title": "Chart",
+      "description": "Small SVG bar, line, and pie chart primitives.",
+      "dependencies": [
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/chart.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/chart.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
+        }
+      ]
+    },
+    {
+      "name": "local-storage",
+      "type": "registry:lib",
+      "title": "Local Storage",
+      "description": "Safe localStorage get/set helpers.",
+      "files": [
+        {
+          "path": "src/local-storage.ts",
+          "type": "registry:lib",
+          "target": "lib/local-storage.ts"
+        }
+      ]
+    },
+    {
+      "name": "media-query",
+      "type": "registry:hook",
+      "title": "Media Query",
+      "description": "Mobile breakpoint media query hook.",
+      "dependencies": [
+        "react"
+      ],
+      "files": [
+        {
+          "path": "src/media-query.ts",
+          "type": "registry:hook",
+          "target": "hooks/use-is-mobile.ts"
+        }
+      ]
+    },
+    {
+      "name": "tool-call",
+      "type": "registry:ui",
+      "title": "Tool Call",
+      "description": "Composable tool-call line, disclosure, task, and shell slots.",
+      "dependencies": [
+        "@base-ui/react",
+        "central-icons@npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
+      "registryDependencies": [
+        "@honkkit/styles"
+      ],
+      "files": [
+        {
+          "path": "src/tool-call.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/tool-call.tsx"
+        },
+        {
+          "path": "src/utils.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils.ts"
+        },
+        {
+          "path": "src/utils/mergeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/mergeProps.ts"
         }
       ]
     }

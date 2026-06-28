@@ -107,7 +107,6 @@ function AgentSidebarDraftItem(props: {
   selected: boolean;
   onSelectAgent: (id: string) => void;
   onClearDraft: (id: string) => void;
-  onPrefetchAgent?: (id: string) => void;
 }) {
   const title = useDraftSidebarTitle(props.item);
   const selectThread = () => {
@@ -132,12 +131,7 @@ function AgentSidebarDraftItem(props: {
       tabIndex={-1}
     >
       <StatusSlot item={props.item} />
-      <SidebarButton
-        variant="inset"
-        data-chat-item=""
-        onFocus={() => props.onPrefetchAgent?.(props.item.id)}
-        onPointerEnter={() => props.onPrefetchAgent?.(props.item.id)}
-      >
+      <SidebarButton variant="inset" data-chat-item="">
         <SidebarItemTitle title={title} selected={props.selected} />
       </SidebarButton>
       <div className="group-focus-within/sidebar-item:hidden [@media(hover:hover)]:group-hover/sidebar-item:hidden">
@@ -168,7 +162,6 @@ export function AgentSidebarThreadItem(props: {
   commitRename: CommitThreadRename;
   onSelectAgent: (id: string) => void;
   onClearDraft: (id: string) => void;
-  onPrefetchAgent?: (id: string) => void;
 }) {
   if (props.item.kind === "draft") {
     return (
@@ -177,7 +170,6 @@ export function AgentSidebarThreadItem(props: {
         selected={props.selected}
         onSelectAgent={props.onSelectAgent}
         onClearDraft={props.onClearDraft}
-        {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}
       />
     );
   }
@@ -191,7 +183,6 @@ export function AgentSidebarThreadItem(props: {
       cloneThread={props.cloneThread}
       commitRename={props.commitRename}
       onSelectAgent={props.onSelectAgent}
-      {...(props.onPrefetchAgent ? { onPrefetchAgent: props.onPrefetchAgent } : {})}
     />
   );
 }
@@ -204,7 +195,6 @@ function AgentSidebarServerThreadItem(props: {
   cloneThread: CloneThread;
   commitRename: CommitThreadRename;
   onSelectAgent: (id: string) => void;
-  onPrefetchAgent?: (id: string) => void;
 }) {
   const { item, onSelectAgent } = props;
   const targetThreadRef = props.item.threadRef;
@@ -391,12 +381,7 @@ function AgentSidebarServerThreadItem(props: {
         tabIndex={-1}
       >
         <StatusSlot item={props.item} />
-        <SidebarButton
-          variant="inset"
-          data-chat-item=""
-          onFocus={() => props.onPrefetchAgent?.(props.item.id)}
-          onPointerEnter={() => props.onPrefetchAgent?.(props.item.id)}
-        >
+        <SidebarButton variant="inset" data-chat-item="">
           <SidebarItemTitle
             title={props.item.title}
             selected={props.selected}

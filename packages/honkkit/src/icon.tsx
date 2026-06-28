@@ -26,14 +26,6 @@ interface IconProps extends useRender.ComponentProps<"span"> {
   xstyle?: stylex.StyleXStyles;
 }
 
-type IconElementProps = {
-  "aria-hidden"?: boolean | "false" | "true" | undefined;
-  className?: string | undefined;
-  focusable?: boolean | "false" | "true" | undefined;
-  size?: number | string | undefined;
-  style?: React.CSSProperties | undefined;
-};
-
 const styles = stylex.create({
   root: {
     alignItems: "center",
@@ -90,37 +82,6 @@ const toneStyles = stylex.create({
   },
 });
 
-function hasSizeClass(className: string | undefined): boolean {
-  return /(?:^|\s)(?:size|h|w)-/.test(className ?? "");
-}
-
-function normalizeIconElement(icon: React.ReactNode): React.ReactNode {
-  if (!React.isValidElement<IconElementProps>(icon)) {
-    return icon;
-  }
-
-  const iconProps: Partial<IconElementProps> = {
-    "aria-hidden": icon.props["aria-hidden"] ?? true,
-    focusable: icon.props.focusable ?? false,
-  };
-
-  if (
-    !hasSizeClass(icon.props.className) &&
-    icon.props.size == null &&
-    icon.props.style?.width == null &&
-    icon.props.style?.height == null
-  ) {
-    iconProps.style = {
-      ...icon.props.style,
-      display: "block",
-      height: "100%",
-      width: "100%",
-    };
-  }
-
-  return React.cloneElement(icon, iconProps);
-}
-
 function Icon({
   children,
   className,
@@ -139,7 +100,7 @@ function Icon({
       className,
       style,
     ),
-    children: normalizeIconElement(icon ?? children),
+    children: icon ?? children,
     "data-slot": "icon",
   };
 

@@ -15,8 +15,8 @@ import {
   formatDuration,
   type PendingApproval,
   type TimelineEntry,
+  type TimelineEntryId,
   type ToolDiffArtifact,
-  type WaitingPhase,
   type WorkLogEntry,
 } from "../../../session-logic";
 import { type ChatMessage, type ProposedPlan } from "../../../types";
@@ -37,7 +37,7 @@ export interface WorkGroupSummary {
 
 export interface TimelineMessageStep {
   kind: "message";
-  id: string;
+  id: TimelineEntryId;
   createdAt: string;
   message: ChatMessage;
   durationStart: string;
@@ -48,51 +48,50 @@ export interface TimelineMessageStep {
 
 export interface TimelineProposedPlanStep {
   kind: "proposed-plan";
-  id: string;
+  id: TimelineEntryId;
   createdAt: string;
   proposedPlan: ProposedPlan;
 }
 
 export interface TimelineRuntimeToolStep {
   kind: "runtime-tool";
-  id: string;
+  id: TimelineEntryId;
   createdAt: string;
   tool: RuntimeDisplayTimelineToolItem;
 }
 
 export interface TimelineRuntimeTaskStep {
   kind: "runtime-task";
-  id: string;
+  id: TimelineEntryId;
   createdAt: string;
   tool: RuntimeDisplayTimelineToolItem;
 }
 
 export interface TimelineRuntimeThinkingStep {
   kind: "runtime-thinking";
-  id: string;
+  id: TimelineEntryId;
   createdAt: string;
   message: RuntimeDisplayTimelineMessageItem;
 }
 
 export interface TimelineRuntimeExtensionUiRequestStep {
   kind: "runtime-extension-ui-request";
-  id: string;
+  id: TimelineEntryId;
   createdAt: string;
   request: RuntimeDisplayTimelineExtensionUiRequestItem;
 }
 
 export interface TimelineWorkStep {
   kind: "work";
-  id: string;
+  id: TimelineEntryId;
   createdAt: string;
   entry: WorkLogEntry;
 }
 
 export interface TimelineWaitingStep {
   kind: "waiting";
-  id: string;
+  id: TimelineEntryId;
   createdAt: string | null;
-  phase: WaitingPhase;
   elapsedStartedAt: string | null;
 }
 
@@ -113,7 +112,7 @@ export type TimelineGroupedStep =
   | TimelineMessageStep;
 
 export interface GroupedSteps {
-  id: string;
+  id: TimelineEntryId;
   createdAt: string;
   completedDurationLabel: string | null;
   isRunning: boolean;
@@ -298,7 +297,7 @@ function pushSingleTimelineStep(items: TimelineRenderItem[], step: TimelineGroup
 }
 
 export interface WaitingGroupedSteps {
-  id: string;
+  id: TimelineEntryId;
   createdAt: string | null;
   steps: readonly [TimelineWaitingStep];
 }
@@ -306,7 +305,7 @@ export interface WaitingGroupedSteps {
 export type TimelineRenderItem =
   | {
       kind: "single";
-      id: string;
+      id: TimelineEntryId;
       createdAt: string;
       step:
         | TimelineMessageStep
@@ -319,13 +318,13 @@ export type TimelineRenderItem =
     }
   | {
       kind: "group";
-      id: string;
+      id: TimelineEntryId;
       createdAt: string;
       group: GroupedSteps;
     }
   | {
       kind: "waitingGroup";
-      id: string;
+      id: TimelineEntryId;
       createdAt: string | null;
       group: WaitingGroupedSteps;
     };
@@ -571,7 +570,6 @@ export function deriveTimelineRenderItems(input: {
         kind: "waiting",
         id: timelineEntry.id,
         createdAt: timelineEntry.createdAt,
-        phase: timelineEntry.phase,
         elapsedStartedAt: timelineEntry.elapsedStartedAt,
       };
       items.push({

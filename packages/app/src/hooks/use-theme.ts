@@ -1,7 +1,11 @@
 import { useSyncExternalStore } from "react";
 
 import { isElectron } from "../env";
-import { APPEARANCE_SETTINGS_CHANGED, applyAppearanceBoot } from "../lib/appearance-settings";
+import {
+  APPEARANCE_SETTINGS_CHANGED,
+  applyAppearanceBoot,
+  readAppearanceSnapshot,
+} from "../lib/appearance-settings";
 
 type Theme = "light" | "dark" | "system";
 type ThemeSnapshot = {
@@ -80,11 +84,7 @@ function resolveBrowserChromeSurface(): HTMLElement {
 }
 
 function wantsElectronGlassBackground() {
-  return (
-    isElectron &&
-    document.body.getAttribute("data-honk-glass-mode") === "true" &&
-    !document.body.classList.contains("honk-reduce-transparency")
-  );
+  return isElectron && !readAppearanceSnapshot().reduceTransparency;
 }
 
 function getElectronGlassBackgroundColor() {

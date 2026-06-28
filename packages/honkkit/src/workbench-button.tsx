@@ -176,5 +176,4 @@ export {
   WorkbenchTabIconContent,
   WorkbenchTextButton,
   workbenchIconButtonVariants,
-  workbenchTextButtonVariants,
 };

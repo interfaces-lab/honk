@@ -15,6 +15,7 @@ export type DesktopBeforeQuitDecision =
   | {
       readonly type: "prevent";
       readonly runningThreadCount: number;
+      readonly runningThreadTitles: readonly string[];
     };
 
 export type DesktopQuitConfirmation = "confirmed" | "canceled" | "alreadyPrompting";
@@ -23,6 +24,7 @@ export interface DesktopQuitGuardShape {
   readonly evaluateBeforeQuit: Effect.Effect<DesktopBeforeQuitDecision>;
   readonly confirmPreventedQuit: (
     runningThreadCount: number,
+    runningThreadTitles: readonly string[],
   ) => Effect.Effect<DesktopQuitConfirmation>;
   readonly allowQuit: Effect.Effect<void>;
 }
@@ -35,8 +37,12 @@ const confirmQuitWithRunningThreads = Effect.fn("desktop.quitGuard.confirmRunnin
   function* (
     electronDialog: ElectronDialog.ElectronDialogShape,
     runningThreadCount: number,
+    runningThreadTitles: readonly string[],
   ): Effect.fn.Return<boolean> {
     const pronoun = runningThreadCount === 1 ? "its" : "their";
+    const threadList = runningThreadTitles
+      .map((title) => `  • ${title}`)
+      .join("\n");
     const result = yield* electronDialog.showMessageBox({
       type: "warning",
       buttons: ["Keep Running", "Quit Anyway"],
@@ -48,7 +54,8 @@ const confirmQuitWithRunningThreads = Effect.fn("desktop.quitGuard.confirmRunnin
         runningThreadCount === 1
           ? "A thread is still running."
           : `${runningThreadCount} threads are still running.`,
-      detail: `Quitting now will stop ${pronoun} current work.`,
+      detail:
+        `Quitting now will stop ${pronoun} current work.\n\n` + threadList,
     });
     return result.response === 1;
   },
@@ -81,10 +88,11 @@ export const layer = Layer.effect(
         return {
           type: "prevent",
           runningThreadCount: activeWork.runningThreadCount,
+          runningThreadTitles: activeWork.runningThreadTitles,
         } as const;
       }),
       confirmPreventedQuit: Effect.fn("desktop.quitGuard.confirmPreventedQuit")(
-        function* (runningThreadCount) {
+        function* (runningThreadCount, runningThreadTitles) {
           if (runningThreadCount <= 0) {
             return "confirmed";
           }
@@ -97,6 +105,7 @@ export const layer = Layer.effect(
           const confirmed = yield* confirmQuitWithRunningThreads(
             electronDialog,
             runningThreadCount,
+            runningThreadTitles,
           ).pipe(Effect.ensuring(Ref.set(quitPromptOpen, false)));
 
           return confirmed ? "confirmed" : "canceled";

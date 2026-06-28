@@ -34,15 +34,15 @@ export function PlanFollowUpTray(props: {
           </div>
         </div>
         <Button
-          className="shrink-0 bg-honk-bg-quinary text-honk-icon-secondary hover:text-honk-icon-primary"
+          className="size-5 shrink-0 rounded-full bg-honk-bg-quinary text-honk-icon-secondary hover:text-honk-icon-primary"
           size="icon-sm"
           variant="ghost"
           aria-label="Dismiss plan"
           title="Dismiss plan"
+          icon={<IconCrossSmall className="size-3" aria-hidden />}
+          isIconOnly
           onClick={props.onDismissPlan}
-        >
-          <IconCrossSmall className="size-3" aria-hidden />
-        </Button>
+        />
       </div>
 
       {previewMarkdown ? (
@@ -59,12 +59,12 @@ export function PlanFollowUpTray(props: {
             type="button"
             variant="ghost"
             size="sm"
-            className="px-2 text-detail [&_svg]:size-3.5"
+            typography="detail"
+            className="h-6 gap-1 rounded-full px-2.5"
+            icon={<IconEyeOpen className="size-3.5" aria-hidden />}
+            label="View Plan"
             onClick={props.onViewPlan}
-          >
-            <IconEyeOpen aria-hidden />
-            <span>View Plan</span>
-          </Button>
+          />
         ) : (
           <span className="h-6 min-w-0" aria-hidden />
         )}
@@ -72,15 +72,15 @@ export function PlanFollowUpTray(props: {
           type="button"
           variant="default"
           size="sm"
-          className="bg-(--honk-bg-yellow-primary) text-detail text-(--vscode-editor-background) hover:bg-[color-mix(in_srgb,var(--honk-bg-yellow-primary)_80%,var(--honk-bg-yellow-secondary))] data-pressed:bg-[color-mix(in_srgb,var(--honk-bg-yellow-primary)_80%,var(--honk-bg-yellow-secondary))] [&_svg]:size-3.5"
+          typography="detail"
+          className="h-6 gap-1 rounded-full bg-(--honk-bg-yellow-primary) px-2.5 text-(--honk-color-editor) hover:bg-[color-mix(in_srgb,var(--honk-bg-yellow-primary)_80%,var(--honk-bg-yellow-secondary))] data-pressed:bg-[color-mix(in_srgb,var(--honk-bg-yellow-primary)_80%,var(--honk-bg-yellow-secondary))] [&_svg]:text-current"
           disabled={props.isBuilding || !props.onBuildPlan}
           aria-label="Build plan"
           title="Build plan"
+          icon={<IconArrowUp className="size-3.5" aria-hidden />}
+          label={props.isBuilding ? "Building..." : "Build"}
           onClick={props.onBuildPlan}
-        >
-          <IconArrowUp aria-hidden />
-          <span>{props.isBuilding ? "Building..." : "Build"}</span>
-        </Button>
+        />
       </div>
     </ComposerFollowUpTraySurface>
   );

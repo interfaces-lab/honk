@@ -116,30 +116,6 @@ export function openChatIndex(target: ChatNavigator, options: ChatNavigationOpti
   });
 }
 
-export function prefetchDraftNavigation(router: AppRouter, draftId: DraftIdType | string): void {
-  void router
-    .preloadRoute({
-      to: "/draft/$draftId",
-      params: draftRouteParams(toDraftId(draftId)),
-    })
-    .catch(() => undefined);
-}
-
-export function prefetchThreadNavigation(input: {
-  readonly router: AppRouter;
-  readonly thread: { readonly environmentId: EnvironmentId; readonly id: ThreadId };
-}): void {
-  void input.router
-    .preloadRoute({
-      to: "/$environmentId/$threadId",
-      params: {
-        environmentId: input.thread.environmentId,
-        threadId: input.thread.id,
-      },
-    })
-    .catch(() => undefined);
-}
-
 export function clearNewThreadDraftSendArtifacts(draftId: DraftIdType | string): void {
   const targetDraftId = toDraftId(draftId);
   if (!isNewThreadDraftId(targetDraftId)) {

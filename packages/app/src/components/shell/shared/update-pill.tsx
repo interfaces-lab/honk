@@ -5,7 +5,10 @@ import { toast } from "sonner";
 
 import { APP_VERSION } from "~/app/branding";
 import { isElectron } from "~/env";
-import { countRunningThreadsWithServerState } from "~/desktop-active-work";
+import {
+  countRunningThreadsWithServerState,
+  selectRunningThreadTitlesWithServerState,
+} from "~/desktop-active-work";
 import {
   setDesktopUpdateStateQueryData,
   useDesktopUpdateState,
@@ -76,10 +79,12 @@ export function UpdatePill() {
     }
 
     if (action === "install") {
-      const runningThreadCount = countRunningThreadsWithServerState(useStore.getState());
+      const storeState = useStore.getState();
+      const runningThreadCount = countRunningThreadsWithServerState(storeState);
+      const runningThreadTitles = selectRunningThreadTitlesWithServerState(storeState);
       if (
         shouldConfirmDesktopUpdateInstall(runningThreadCount) &&
-        !window.confirm(getDesktopUpdateInstallConfirmationMessage(state))
+        !window.confirm(getDesktopUpdateInstallConfirmationMessage(state, runningThreadTitles))
       ) {
         return;
       }

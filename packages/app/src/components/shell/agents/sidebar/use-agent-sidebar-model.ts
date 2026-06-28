@@ -13,8 +13,6 @@ import {
   openChatIndex,
   openDraft,
   openThread,
-  prefetchDraftNavigation,
-  prefetchThreadNavigation,
 } from "~/app/chat-navigation";
 import { retainThreadDetailSubscription } from "~/environments/runtime/service";
 import {
@@ -623,28 +621,9 @@ export function useAgentSidebarModel(input: {
     }
   };
 
-  const prefetchAgent = (id: string) => {
-    const draft = drafts.find((entry) => entry.id === id);
-    if (draft) {
-      prefetchDraftNavigation(router, id);
-      return;
-    }
-
-    const summary = summaries.find((entry) => entry.id === id);
-    if (!summary || summary.projectId === null) {
-      return;
-    }
-
-    prefetchThreadNavigation({
-      router,
-      thread: { environmentId: summary.environmentId, id: summary.id },
-    });
-  };
-
   return {
     clearDraft,
     create,
-    prefetchAgent,
     sections,
     select,
   };

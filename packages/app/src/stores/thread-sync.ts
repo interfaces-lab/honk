@@ -69,6 +69,12 @@ const MAX_THREAD_PROPOSED_PLANS = 200;
 const MAX_THREAD_ACTIVITIES = 500;
 type ThreadActivity = Thread["activities"][number];
 type RuntimeSessionTreeEntry = SessionTreeProjection["entries"][number];
+type MessageAttachmentInput = NonNullable<OrchestrationMessage["attachments"]>[number] & {
+  readonly previewUrl?: string;
+};
+type MessageInput = Omit<OrchestrationMessage, "attachments"> & {
+  readonly attachments?: readonly MessageAttachmentInput[] | undefined;
+};
 type ProjectedRuntimeMessageEntry = RuntimeSessionTreeEntry & {
   readonly role: "user" | "assistant" | "system";
 };
@@ -170,17 +176,19 @@ function mapSession(session: OrchestrationSession): ThreadSession {
   };
 }
 
-function mapMessage(environmentId: EnvironmentId, message: OrchestrationMessage): ChatMessage {
+function mapMessage(environmentId: EnvironmentId, message: MessageInput): ChatMessage {
   const attachments = message.attachments?.map((attachment) => ({
     type: "image" as const,
     id: attachment.id,
     name: attachment.name,
     mimeType: attachment.mimeType,
     sizeBytes: attachment.sizeBytes,
-    previewUrl: resolveEnvironmentHttpUrl({
-      environmentId,
-      pathname: attachmentPreviewRoutePath(attachment.id),
-    }),
+    previewUrl:
+      attachment.previewUrl ??
+      resolveEnvironmentHttpUrl({
+        environmentId,
+        pathname: attachmentPreviewRoutePath(attachment.id),
+      }),
   }));
 
   return {
@@ -2066,7 +2074,9 @@ function mergeThreadMessagesById(
 ): ChatMessage[] {
   const messageById = new Map(nextMessages.map((message) => [message.id, message] as const));
   for (const message of previousMessages) {
-    messageById.set(message.id, message);
+    if (!messageById.has(message.id)) {
+      messageById.set(message.id, message);
+    }
   }
   return [...messageById.values()].toSorted(compareCreatedThreadItem);
 }
@@ -2077,7 +2087,9 @@ function mergeThreadEntriesById(
 ): ThreadTreeEntry[] {
   const entryById = new Map(nextEntries.map((entry) => [entry.id, entry] as const));
   for (const entry of previousEntries) {
-    entryById.set(entry.id, entry);
+    if (!entryById.has(entry.id)) {
+      entryById.set(entry.id, entry);
+    }
   }
   return [...entryById.values()].toSorted(compareCreatedThreadItem);
 }

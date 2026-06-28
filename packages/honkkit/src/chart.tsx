@@ -24,15 +24,8 @@ const chartColors = [
   "var(--honk-icon-quaternary)",
 ] as const;
 
-function cleanValue(value: number): number {
-  return Number.isFinite(value) ? Math.max(0, value) : 0;
-}
-
 function getChartMax(data: readonly ChartDatum[], maxValue: number | undefined): number {
-  if (typeof maxValue === "number" && Number.isFinite(maxValue) && maxValue > 0) {
-    return maxValue;
-  }
-  return Math.max(1, ...data.map((datum) => cleanValue(datum.value)));
+  return maxValue ?? Math.max(1, ...data.map((datum) => datum.value));
 }
 
 function getDatumColor(datum: ChartDatum, index: number): string {
@@ -73,8 +66,7 @@ function BarChart({ className, data, maxValue, showLabels = true, ...props }: Ch
         y2={height - bottom}
       />
       {data.map((datum, index) => {
-        const value = cleanValue(datum.value);
-        const barHeight = Math.max(1, (value / chartMax) * chartHeight);
+        const barHeight = Math.max(1, (datum.value / chartMax) * chartHeight);
         const x = index * (barWidth + gap);
         const y = height - bottom - barHeight;
 
@@ -110,7 +102,7 @@ function LineChart({ className, data, maxValue, showLabels = false, ...props }: 
   const lastIndex = Math.max(data.length - 1, 1);
   const points = data.map((datum, index) => {
     const x = (index / lastIndex) * width;
-    const y = height - bottom - (cleanValue(datum.value) / chartMax) * chartHeight;
+    const y = height - bottom - (datum.value / chartMax) * chartHeight;
     return { datum, index, x, y };
   });
   const pointString = points.map((point) => `${point.x},${point.y}`).join(" ");
@@ -210,7 +202,7 @@ function PieChart({ className, data, showLabels = false, ...props }: PieChartPro
   const centerX = 64;
   const centerY = 64;
   const radius = 48;
-  const values = data.map((datum) => cleanValue(datum.value));
+  const values = data.map((datum) => datum.value);
   const total = values.reduce((sum, value) => sum + value, 0);
   let cursor = 0;
 

@@ -2,11 +2,11 @@
 
 import {
   IconExpand45,
-  IconMagnifyingGlass,
   IconMinimize45,
   IconSidebar,
   IconSidebarHiddenLeftWide,
 } from "central-icons";
+import * as stylex from "@stylexjs/stylex";
 import { WorkbenchIconButton } from "@honk/honkkit/workbench-button";
 import { TabsPanel, TabsRoot } from "@honk/honkkit/tabs";
 import { useNavigate, useSearch } from "@tanstack/react-router";
@@ -22,12 +22,10 @@ import {
 } from "react";
 
 import { isElectronHost } from "~/env";
-import {
-  COMMAND_PALETTE_FALLBACK_KEYBINDINGS,
-  resolveShortcutCommand,
-  shortcutLabelForCommand,
-} from "~/keybindings";
+import { buildAppearanceBaseColors } from "~/lib/appearance-colors";
+import { resolveShortcutCommand } from "~/keybindings";
 import { useSettings } from "~/hooks/use-settings";
+import { syncBrowserChromeTheme, useTheme } from "~/hooks/use-theme";
 import { useServerKeybindings } from "~/rpc/server-state";
 import { useCommandPaletteStore } from "~/stores/ui/command-palette-store";
 import { isTerminalFocused } from "~/lib/terminal-focus";
@@ -44,6 +42,8 @@ import {
 } from "~/stores/workspace-editor-store";
 import { type WorkbenchTab } from "~/lib/workbench-tabs";
 import { cn } from "~/lib/utils";
+import { surfaceThemeFor } from "~/lib/surface-theme";
+import { useAppearanceSettingsSnapshot } from "~/stores/appearance-store";
 import { RightWorkbenchHeader, type WorkbenchTabMeta } from "./right-workbench-header";
 import {
   workbenchTabPersistenceActions,
@@ -63,6 +63,12 @@ const LEFT_LIMITS = SHELL_LEFT_PANEL_WIDTH_LIMITS;
 const RIGHT_LIMITS = RIGHT_WORKBENCH_WIDTH_LIMITS;
 const FALLBACK_WORKBENCH_TAB = "git" satisfies WorkbenchTab;
 type AppShellRouteKind = "draft" | "server" | "settings";
+
+const rootStyles = stylex.create({
+  surface: {
+    backgroundColor: "var(--honk-surface-root)",
+  },
+});
 
 function cssPixelLimit(limit: number): string {
   return Number.isFinite(limit) ? `${limit}px` : "100cqw";
@@ -629,18 +635,6 @@ function ShellLeftToggleButton() {
 
 function ShellHeaderControls(props: { showRight: boolean; workspaceKey: string | null }) {
   const rightOpen = useShellLayout((snapshot) => snapshot.editorPanelVisible);
-  const setCommandPaletteOpen = useCommandPaletteStore((store) => store.setOpen);
-  const keybindings = useServerKeybindings();
-
-  const activeKeybindings =
-    keybindings.length > 0 ? keybindings : COMMAND_PALETTE_FALLBACK_KEYBINDINGS;
-  const commandPaletteShortcutLabel = shortcutLabelForCommand(
-    activeKeybindings,
-    "commandPalette.toggle",
-  );
-  const commandPaletteTitle = commandPaletteShortcutLabel
-    ? `Search (${commandPaletteShortcutLabel})`
-    : "Search";
   const rightPanelLabel = SHOW_RIGHT_WORKBENCH_LABEL;
 
   return (
@@ -650,16 +644,6 @@ function ShellHeaderControls(props: { showRight: boolean; workspaceKey: string |
         data-shell-no-drag=""
       >
         <ShellLeftToggleButton />
-        <button
-          type="button"
-          onClick={() => setCommandPaletteOpen(true)}
-          data-shell-no-drag=""
-          className="flex h-(--honk-titlebar-control-height) w-(--honk-titlebar-control-height) shrink-0 items-center justify-center rounded-honk-control bg-transparent p-0 text-honk-fg-secondary transition-[background-color,color] hover:bg-honk-bg-quaternary hover:text-honk-fg-primary [&_svg]:block"
-          aria-label="Search"
-          title={commandPaletteTitle}
-        >
-          <IconMagnifyingGlass className="size-3.5 shrink-0" />
-        </button>
       </div>
       {props.showRight && !rightOpen ? (
         <div
@@ -782,6 +766,21 @@ export function AppShell(props: {
   threadTitle?: string | null;
 }) {
   const electron = isElectronHost();
+  const appearance = useAppearanceSettingsSnapshot();
+  const { resolvedTheme: themeMode } = useTheme();
+  const osVibrancy =
+    electron &&
+    !appearance.reduceTransparency &&
+    typeof navigator !== "undefined" &&
+    /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+  const surfaceTheme = surfaceThemeFor({
+    appearance: themeMode,
+    osVibrancy,
+    reduceTransparency: appearance.reduceTransparency,
+    highContrast: false,
+  });
+  const baseColorVars = buildAppearanceBaseColors(themeMode, appearance.hue, appearance.saturation);
+  const rootSurfaceProps = stylex.props(rootStyles.surface, surfaceTheme);
   const showRight = props.right !== null;
   const workspaceKey = props.workspaceKey ?? null;
   const routeThreadId = props.routeThreadId ?? null;
@@ -804,6 +803,10 @@ export function AppShell(props: {
     showRight,
     workspaceKey,
   });
+
+  useEffect(() => {
+    syncBrowserChromeTheme();
+  }, [appearance.reduceTransparency, appearance.hue, appearance.saturation, themeMode]);
 
   // Always-registered; reads fullscreen state at event time so AppShell never
   // subscribes (and never re-renders on a fullscreen toggle). Bubble phase (not
@@ -852,6 +855,72 @@ export function AppShell(props: {
     return () => window.removeEventListener("keydown", toggleFullscreen);
   }, [keybindings, routeThreadId, shellLayoutService, workspaceKey]);
 
+  useEffect(() => {
+    const right = props.right;
+    if (!right) {
+      return undefined;
+    }
+
+    const handleTerminalCommand = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || useCommandPaletteStore.getState().open) {
+        return;
+      }
+
+      const layout = shellLayoutService.getSnapshot();
+      const activeTerminalOpen =
+        layout.editorPanelVisible && right.snapshot.activeTab.kind === "terminal";
+      const command = resolveShortcutCommand(event, keybindings, {
+        context: {
+          terminalFocus: isTerminalFocused(),
+          terminalOpen: activeTerminalOpen,
+        },
+      });
+
+      if (
+        command !== "terminal.toggle" &&
+        command !== "terminal.split" &&
+        command !== "terminal.new" &&
+        command !== "terminal.close"
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (command === "terminal.toggle") {
+        if (activeTerminalOpen) {
+          setRightPanelOpen(false, workspaceKey);
+          return;
+        }
+        workbenchTabPersistenceActions.activateKind(workspaceKey, "terminal");
+        setRightPanelOpen(true, workspaceKey);
+        return;
+      }
+
+      if (command === "terminal.new" || command === "terminal.split") {
+        workbenchTabPersistenceActions.createTerminal(workspaceKey);
+        setRightPanelOpen(true, workspaceKey);
+        return;
+      }
+
+      const activeTerminalTab = right.tabs.find(
+        (tab) => tab.id === right.snapshot.activeTabId && tab.kind === "terminal",
+      );
+      if (!activeTerminalTab) {
+        return;
+      }
+      if (right.onCloseTab) {
+        right.onCloseTab(activeTerminalTab);
+        return;
+      }
+      workbenchTabPersistenceActions.closeTab(workspaceKey, activeTerminalTab.id);
+    };
+
+    window.addEventListener("keydown", handleTerminalCommand);
+    return () => window.removeEventListener("keydown", handleTerminalCommand);
+  }, [keybindings, props.right, shellLayoutService, workspaceKey]);
+
   const shellStyle: ShellRootStyle = {
     "--honk-shell-left-collapsed-width": "0px",
     "--honk-shell-left-min-width": `${LEFT_LIMITS.min}px`,
@@ -867,7 +936,10 @@ export function AppShell(props: {
   return (
     <ShellLayoutProvider service={shellLayoutService}>
       <div
-        className="agent-window relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-row overflow-x-clip bg-transparent"
+        className={cn(
+          "agent-window relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-row overflow-x-clip bg-transparent",
+          rootSurfaceProps.className,
+        )}
         data-component="root"
         data-agent-window=""
         data-shell-left-mode={modes.left}
@@ -880,7 +952,7 @@ export function AppShell(props: {
         data-agent-window-font-smoothing={
           agentWindowFontSmoothingAntialiased ? "antialiased" : "subpixel"
         }
-        style={shellStyle}
+        style={{ ...rootSurfaceProps.style, ...baseColorVars, ...shellStyle }}
         ref={agentWindowRef}
       >
         <RightWorkbenchWindowExpander electron={electron} />
