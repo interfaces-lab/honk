@@ -65,7 +65,7 @@ function SidebarItem({
   ...rest
 }: SidebarItemProps) {
   const itemClassName = cn(
-    "flex min-h-sidebar-item w-full min-w-0 select-none items-center justify-start gap-sidebar-item-gap rounded-honk-control border border-transparent px-1.5 py-1 text-left transition-none [-webkit-user-drag:none]",
+    "flex min-h-sidebar-item w-full min-w-0 select-none items-center justify-start !gap-sidebar-item-gap rounded-honk-control border border-transparent px-1.5 py-1 text-left transition-none [-webkit-user-drag:none]",
     interactive &&
       cn(
         "outline-none ring-offset-0 hover:bg-honk-bg-quaternary data-[highlighted=true]:bg-honk-bg-secondary data-[highlighted=true]:outline data-[highlighted=true]:outline-1 data-[highlighted=true]:-outline-offset-1 data-[highlighted=true]:outline-honk-stroke-focused focus-visible:ring-offset-0",
@@ -122,12 +122,12 @@ function SidebarButton(
       className={cn(
         variant === "chrome"
           ? cn(
-              "flex min-h-sidebar-item w-full select-none items-center justify-start gap-sidebar-item-gap rounded-honk-control border border-transparent px-1.5 py-1 text-left text-muted-foreground transition-colors [-webkit-user-drag:none]",
+              "flex min-h-sidebar-item w-full select-none items-center justify-start !gap-sidebar-item-gap rounded-honk-control border border-transparent px-1.5 py-1 text-left text-muted-foreground transition-colors [-webkit-user-drag:none]",
               interactiveControlCursorVariants(),
               controlTransitionVariants(),
             )
           : cn(
-              "min-h-0 min-w-0 flex-1 select-none justify-start border-0 bg-transparent p-0 text-left shadow-none outline-none ring-offset-0 before:hidden transition-none hover:!bg-transparent data-pressed:!bg-transparent data-[highlighted=true]:!bg-transparent data-[selected=true]:!bg-transparent [-webkit-user-drag:none]",
+              "min-h-0 min-w-0 flex-1 select-none justify-start !gap-sidebar-item-gap border-0 bg-transparent p-0 text-left shadow-none outline-none ring-offset-0 before:hidden transition-none hover:!bg-transparent data-pressed:!bg-transparent data-[highlighted=true]:!bg-transparent data-[selected=true]:!bg-transparent [-webkit-user-drag:none]",
               interactiveControlCursorVariants(),
             ),
         className,
