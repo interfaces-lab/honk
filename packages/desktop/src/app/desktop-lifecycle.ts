@@ -120,10 +120,7 @@ function triggerShutdown(
 
 const requestQuitAfterPreventingDefault = Effect.fn(
   "desktop.lifecycle.requestQuitAfterPreventingDefault",
-)(function* (
-  runningThreadCount: number,
-  runningThreadTitles: readonly string[],
-) {
+)(function* (runningThreadCount: number, runningThreadTitles: readonly string[]) {
   const quitGuard = yield* DesktopQuitGuard.DesktopQuitGuard;
   const confirmation = yield* quitGuard.confirmPreventedQuit(
     runningThreadCount,
@@ -232,9 +229,7 @@ export const layer = Layer.succeed(
           requestQuitAfterPreventingDefault(
             decision.runningThreadCount,
             decision.runningThreadTitles,
-          ).pipe(
-            Effect.withSpan("desktop.lifecycle.beforeQuit"),
-          ),
+          ).pipe(Effect.withSpan("desktop.lifecycle.beforeQuit")),
         );
       });
       yield* electronApp.on("will-quit", () => {

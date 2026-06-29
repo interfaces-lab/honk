@@ -294,11 +294,7 @@ export function projectRuntimeSessionEntry(
     id: makeRuntimeItemId(entry.id),
     threadEntryId: projectedThreadEntryId(entry.id, input?.clientMessageIdByEntryId),
     parentId: input?.entryById
-      ? nearestProjectedRuntimeEntryId(
-          entry.parentId,
-          input.entryById,
-          input.hiddenEntryIds,
-        )
+      ? nearestProjectedRuntimeEntryId(entry.parentId, input.entryById, input.hiddenEntryIds)
       : parentEntryId(entry),
     parentThreadEntryId: parentThreadEntryId(
       entry,

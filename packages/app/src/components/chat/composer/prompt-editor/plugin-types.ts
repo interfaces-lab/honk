@@ -18,11 +18,7 @@ export type ComposerPromptEditorPluginHelpers = {
   readSnapshotFromEditorState: () => ComposerPromptEditorSnapshot;
   readCollapsedLengthFromEditorState: () => number;
   setSelectionAtTextOffset: (offset: number, mode: SelectionOffsetMode) => void;
-  setSelectionRangeAtTextOffsets: (
-    start: number,
-    end: number,
-    mode: SelectionOffsetMode,
-  ) => void;
+  setSelectionRangeAtTextOffsets: (start: number, end: number, mode: SelectionOffsetMode) => void;
   isComposerAtomNode: (node: LexicalNode | null | undefined) => node is LexicalNode;
   pointAroundNode: (node: LexicalNode, after: boolean) => LexicalSelectionPoint;
   offsetBeforePoint: (point: LexicalSelectionPoint, mode: SelectionOffsetMode) => number;

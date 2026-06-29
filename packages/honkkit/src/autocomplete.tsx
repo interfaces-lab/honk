@@ -52,7 +52,7 @@ function AutocompleteInput({
             className,
           )}
           data-slot="autocomplete-input"
-          render={NativeInputRender as NonNullable<AutocompletePrimitive.Input.Props["render"]>}
+          render={<NativeInputRender />}
           {...props}
         />
         {showTrigger && (

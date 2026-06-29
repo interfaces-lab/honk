@@ -215,7 +215,10 @@ describe("truncateSubagentOutputForParent", () => {
 describe("evictIdleSubagentRuntimes", () => {
   it("evicts least-recently-used idle children without disposing active children", () => {
     const disposed: string[] = [];
-    const child = (id: string, input: { active: boolean; lastUsedAt: number }): LoadedSubagentRuntime => ({
+    const child = (
+      id: string,
+      input: { active: boolean; lastUsedAt: number },
+    ): LoadedSubagentRuntime => ({
       active: input.active,
       disposed: false,
       lastUsedAt: input.lastUsedAt,

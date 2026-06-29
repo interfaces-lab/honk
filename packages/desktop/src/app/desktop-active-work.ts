@@ -13,10 +13,7 @@ export class DesktopActiveWork extends Context.Service<DesktopActiveWork, Deskto
   "honk/desktop/ActiveWork",
 ) {}
 
-function activeWorkStateEqual(
-  a: DesktopActiveWorkState,
-  b: DesktopActiveWorkState,
-): boolean {
+function activeWorkStateEqual(a: DesktopActiveWorkState, b: DesktopActiveWorkState): boolean {
   return (
     a.runningThreadCount === b.runningThreadCount &&
     a.runningThreadTitles.length === b.runningThreadTitles.length &&
@@ -35,9 +32,7 @@ export const layer = Layer.effect(
     return DesktopActiveWork.of({
       get: Ref.get(stateRef),
       set: (state) =>
-        Ref.update(stateRef, (current) =>
-          activeWorkStateEqual(current, state) ? current : state,
-        ),
+        Ref.update(stateRef, (current) => (activeWorkStateEqual(current, state) ? current : state)),
     });
   }),
 );

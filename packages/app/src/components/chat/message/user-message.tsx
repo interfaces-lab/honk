@@ -119,9 +119,7 @@ export function UserMessage({
     editAvailable &&
     typeof onBeginEditUserMessage === "function";
   const turnErrorFooter =
-    message.turnFailure !== undefined ? (
-      <StatusNotice message={message.turnFailure} />
-    ) : undefined;
+    message.turnFailure !== undefined ? <StatusNotice message={message.turnFailure} /> : undefined;
 
   if (isGitAgentActionMessage) {
     return <ConversationBubble role="user">{body}</ConversationBubble>;

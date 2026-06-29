@@ -1593,10 +1593,7 @@ function reduceTranscriptDelta(
   upsertTranscriptItem(ctx, synthetic);
 }
 
-function upsertTranscriptItem(
-  ctx: MutableTranscriptContext,
-  item: SubagentTranscriptItem,
-): void {
+function upsertTranscriptItem(ctx: MutableTranscriptContext, item: SubagentTranscriptItem): void {
   ctx.itemsById.set(item.id, item);
   const idx = ctx.itemsOrdered.findIndex((row) => row.id === item.id);
   if (idx >= 0) {
@@ -1606,10 +1603,7 @@ function upsertTranscriptItem(
   }
 }
 
-function hasReasoningSummaryTranscriptItem(
-  ctx: MutableTranscriptContext,
-  itemId: string,
-): boolean {
+function hasReasoningSummaryTranscriptItem(ctx: MutableTranscriptContext, itemId: string): boolean {
   return ctx.itemsOrdered.some(
     (item) => item.itemId === itemId && item.streamKind === "reasoning_summary_text",
   );

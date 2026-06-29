@@ -84,7 +84,7 @@ export function StatusSlot(props: { item: SidebarChatItem }) {
 
   return (
     <span
-      className="flex size-5 shrink-0 items-center justify-center text-honk-icon-secondary"
+      className="flex size-4 shrink-0 items-center justify-center text-honk-icon-secondary"
       data-agent-sidebar-status=""
       data-agent-sidebar-status-finishing={finishing ? "true" : undefined}
     >

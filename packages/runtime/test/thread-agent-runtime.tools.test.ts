@@ -248,7 +248,9 @@ describe("ThreadAgentRuntime tools", () => {
     const events: AgentRuntimeEvent[] = [];
     const ingestionRecords: RuntimeIngestionRecord[] = [];
     harness.runtime.subscribe((event) => events.push(event));
-    harness.runtime.subscribeRuntimeIngestionRecords((records) => ingestionRecords.push(...records));
+    harness.runtime.subscribeRuntimeIngestionRecords((records) =>
+      ingestionRecords.push(...records),
+    );
     harness.setResponses([
       fauxAssistantMessage(
         fauxToolCall(CREATE_PLAN_TOOL_NAME, {

@@ -125,8 +125,8 @@
 }
 
 [data-honk-composer-shell="thread"][data-expanded=""] [data-prompt-editor-input="true"] {
-  padding: var(--honk-composer-thread-editor-padding-y)
-    var(--honk-composer-thread-editor-padding-x) 0;
+  padding: var(--honk-composer-thread-editor-padding-y) var(--honk-composer-thread-editor-padding-x)
+    0;
 }
 
 [data-honk-composer-shell="thread"]:not([data-expanded=""]) [data-prompt-editor-placeholder] {
@@ -138,8 +138,8 @@
 }
 
 [data-honk-composer-shell="thread"][data-expanded=""] [data-prompt-editor-placeholder] {
-  padding: var(--honk-composer-thread-editor-padding-y)
-    var(--honk-composer-thread-editor-padding-x) 0;
+  padding: var(--honk-composer-thread-editor-padding-y) var(--honk-composer-thread-editor-padding-x)
+    0;
 }
 
 [data-honk-composer-shell="inline-edit"] [data-prompt-editor-placeholder] {

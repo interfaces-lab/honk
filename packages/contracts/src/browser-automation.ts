@@ -142,7 +142,10 @@ export type BrowserAutomationOpenRequest = typeof BrowserAutomationOpenRequest.T
 export interface BrowserAutomationController {
   status(threadId: ThreadId): Promise<BrowserAutomationStatus>;
   open(threadId: ThreadId, input: BrowserAutomationOpenInput): Promise<BrowserAutomationStatus>;
-  navigate(threadId: ThreadId, input: BrowserAutomationNavigateInput): Promise<BrowserAutomationStatus>;
+  navigate(
+    threadId: ThreadId,
+    input: BrowserAutomationNavigateInput,
+  ): Promise<BrowserAutomationStatus>;
   snapshot(threadId: ThreadId): Promise<BrowserAutomationSnapshot>;
   click(threadId: ThreadId, input: BrowserAutomationClickInput): Promise<void>;
   type(threadId: ThreadId, input: BrowserAutomationTypeInput): Promise<void>;

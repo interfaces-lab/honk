@@ -373,10 +373,15 @@ export function createContextUsageExtension(sink: ContextUsageSnapshotSink): Ext
       return categories;
     };
 
-    const publishSnapshot = (ctx: {
-      readonly getContextUsage: () => { tokens: number | null; contextWindow: number } | undefined;
-      readonly model: { contextWindow: number } | undefined;
-    }, options?: { readonly estimatedUsedTokens?: number }) => {
+    const publishSnapshot = (
+      ctx: {
+        readonly getContextUsage: () =>
+          | { tokens: number | null; contextWindow: number }
+          | undefined;
+        readonly model: { contextWindow: number } | undefined;
+      },
+      options?: { readonly estimatedUsedTokens?: number },
+    ) => {
       const contextUsage = ctx.getContextUsage();
       const lastUsedTokens = state.lastUsage ? contextTokensForUsage(state.lastUsage) : 0;
       const usedTokens =
@@ -419,7 +424,9 @@ export function createContextUsageExtension(sink: ContextUsageSnapshotSink): Ext
 
     const publishPostCompactionSnapshot = (
       ctx: {
-        readonly getContextUsage: () => { tokens: number | null; contextWindow: number } | undefined;
+        readonly getContextUsage: () =>
+          | { tokens: number | null; contextWindow: number }
+          | undefined;
         readonly model: { contextWindow: number } | undefined;
         readonly sessionManager: { readonly getBranch: () => readonly unknown[] };
       },
@@ -439,8 +446,10 @@ export function createContextUsageExtension(sink: ContextUsageSnapshotSink): Ext
       state.lastUsage = null;
       state.staticCategoryTokens.delete("summarized_conversation");
 
-      let latestCompactionEntry: { readonly id?: unknown; readonly firstKeptEntryId?: unknown } | null =
-        null;
+      let latestCompactionEntry: {
+        readonly id?: unknown;
+        readonly firstKeptEntryId?: unknown;
+      } | null = null;
       for (const entry of ctx.sessionManager.getBranch()) {
         if (entry.type === "compaction") {
           recordCompactionSummary(entry.summary);

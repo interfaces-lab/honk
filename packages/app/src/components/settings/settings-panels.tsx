@@ -873,10 +873,7 @@ function SkillSummaryRow({
         <SettingsItemTitle className="min-w-0 truncate" title={skill.name}>
           {skill.name}
         </SettingsItemTitle>
-        <p
-          className="mt-0.5 truncate text-body text-honk-fg-secondary"
-          title={skill.description}
-        >
+        <p className="mt-0.5 truncate text-body text-honk-fg-secondary" title={skill.description}>
           {skill.description}
         </p>
       </div>
@@ -1433,9 +1430,7 @@ export function AgentRuntimeSettingsSectionsView({
   const preferences = snapshot.preferences;
   const authStatuses = snapshot.authStatuses;
   const authFlows = snapshot.credentialAuthFlows;
-  const multitaskModeEnabled = useLocalFeatureFlagsStore(
-    (state) => state.multitaskModeEnabled,
-  );
+  const multitaskModeEnabled = useLocalFeatureFlagsStore((state) => state.multitaskModeEnabled);
   const interactionModeOptions = multitaskModeEnabled
     ? AGENT_INTERACTION_MODE_OPTIONS
     : AGENT_INTERACTION_MODE_OPTIONS.filter((option) => option.value !== "multitask");
@@ -1655,9 +1650,7 @@ export function AgentRuntimeSettingsSectionsView({
             <Select
               value={preferences.interactionMode}
               onValueChange={(value) => {
-                const option = interactionModeOptions.find(
-                  (entry) => entry.value === value,
-                );
+                const option = interactionModeOptions.find((entry) => entry.value === value);
                 if (option) {
                   updateAgentPreferences({ interactionMode: option.value });
                 }

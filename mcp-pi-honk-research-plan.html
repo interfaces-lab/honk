@@ -1,111 +1,229 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pi SDK + MCP Research Plan for Honk</title>
-  <style>
-    :root {
-      color-scheme: light dark;
-      --bg: #0f1115;
-      --panel: #171a21;
-      --panel-2: #20242d;
-      --text: #f4f5f7;
-      --muted: #a8afbd;
-      --border: #343a46;
-      --accent: #8fb4ff;
-      --good: #8bd89b;
-      --warn: #ffd37a;
-      --bad: #ff9d9d;
-      --code: #101217;
-    }
-    @media (prefers-color-scheme: light) {
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pi SDK + MCP Research Plan for Honk</title>
+    <style>
       :root {
-        --bg: #f7f8fb;
-        --panel: #ffffff;
-        --panel-2: #f0f3f8;
-        --text: #161a22;
-        --muted: #5d6675;
-        --border: #d9dee8;
-        --accent: #245fcc;
-        --good: #18743a;
-        --warn: #8b5a00;
-        --bad: #a12828;
-        --code: #f4f6fa;
+        color-scheme: light dark;
+        --bg: #0f1115;
+        --panel: #171a21;
+        --panel-2: #20242d;
+        --text: #f4f5f7;
+        --muted: #a8afbd;
+        --border: #343a46;
+        --accent: #8fb4ff;
+        --good: #8bd89b;
+        --warn: #ffd37a;
+        --bad: #ff9d9d;
+        --code: #101217;
       }
-    }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    main {
-      max-width: 1120px;
-      margin: 0 auto;
-      padding: 48px 24px 80px;
-    }
-    h1, h2, h3 { line-height: 1.2; margin: 0 0 12px; }
-    h1 { font-size: 34px; letter-spacing: -0.03em; }
-    h2 { font-size: 24px; margin-top: 40px; border-top: 1px solid var(--border); padding-top: 28px; }
-    h3 { font-size: 18px; margin-top: 24px; }
-    p { margin: 0 0 14px; }
-    a { color: var(--accent); }
-    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
-    code { background: var(--code); padding: 2px 5px; border-radius: 5px; }
-    pre { background: var(--code); border: 1px solid var(--border); border-radius: 12px; padding: 14px; overflow: auto; }
-    ul, ol { margin: 8px 0 18px 24px; padding: 0; }
-    li { margin: 6px 0; }
-    table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; overflow: hidden; border-radius: 12px; }
-    th, td { border: 1px solid var(--border); padding: 10px 12px; text-align: left; vertical-align: top; }
-    th { background: var(--panel-2); }
-    td { background: var(--panel); }
-    .lede { color: var(--muted); font-size: 17px; max-width: 820px; }
-    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin: 18px 0; }
-    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-    .tag { display: inline-block; border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; color: var(--muted); margin-right: 6px; font-size: 12px; }
-    .good { color: var(--good); }
-    .warn { color: var(--warn); }
-    .bad { color: var(--bad); }
-    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } main { padding: 28px 16px 56px; } }
-  </style>
-</head>
-<body>
-<main>
-  <header>
-    <h1>Pi SDK + MCP Research Plan for Honk</h1>
-    <p class="lede">Lower-level comparison of Craft Agents’ MCP bridge, Pi SDK internals, and Honk’s current runtime layer, followed by a concrete implementation plan for adding MCP as a first-class Honk runtime capability.</p>
-    <p><span class="tag">Research</span><span class="tag">MCP</span><span class="tag">Pi SDK</span><span class="tag">Honk Runtime</span></p>
-  </header>
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f7f8fb;
+          --panel: #ffffff;
+          --panel-2: #f0f3f8;
+          --text: #161a22;
+          --muted: #5d6675;
+          --border: #d9dee8;
+          --accent: #245fcc;
+          --good: #18743a;
+          --warn: #8b5a00;
+          --bad: #a12828;
+          --code: #f4f6fa;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          15px/1.55 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+      main {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 48px 24px 80px;
+      }
+      h1,
+      h2,
+      h3 {
+        line-height: 1.2;
+        margin: 0 0 12px;
+      }
+      h1 {
+        font-size: 34px;
+        letter-spacing: -0.03em;
+      }
+      h2 {
+        font-size: 24px;
+        margin-top: 40px;
+        border-top: 1px solid var(--border);
+        padding-top: 28px;
+      }
+      h3 {
+        font-size: 18px;
+        margin-top: 24px;
+      }
+      p {
+        margin: 0 0 14px;
+      }
+      a {
+        color: var(--accent);
+      }
+      code,
+      pre {
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      }
+      code {
+        background: var(--code);
+        padding: 2px 5px;
+        border-radius: 5px;
+      }
+      pre {
+        background: var(--code);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+        overflow: auto;
+      }
+      ul,
+      ol {
+        margin: 8px 0 18px 24px;
+        padding: 0;
+      }
+      li {
+        margin: 6px 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 16px 0 24px;
+        overflow: hidden;
+        border-radius: 12px;
+      }
+      th,
+      td {
+        border: 1px solid var(--border);
+        padding: 10px 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: var(--panel-2);
+      }
+      td {
+        background: var(--panel);
+      }
+      .lede {
+        color: var(--muted);
+        font-size: 17px;
+        max-width: 820px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 20px;
+        margin: 18px 0;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .tag {
+        display: inline-block;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 2px 9px;
+        color: var(--muted);
+        margin-right: 6px;
+        font-size: 12px;
+      }
+      .good {
+        color: var(--good);
+      }
+      .warn {
+        color: var(--warn);
+      }
+      .bad {
+        color: var(--bad);
+      }
+      @media (max-width: 760px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        main {
+          padding: 28px 16px 56px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Pi SDK + MCP Research Plan for Honk</h1>
+        <p class="lede">
+          Lower-level comparison of Craft Agents’ MCP bridge, Pi SDK internals, and Honk’s current
+          runtime layer, followed by a concrete implementation plan for adding MCP as a first-class
+          Honk runtime capability.
+        </p>
+        <p>
+          <span class="tag">Research</span><span class="tag">MCP</span
+          ><span class="tag">Pi SDK</span><span class="tag">Honk Runtime</span>
+        </p>
+      </header>
 
-  <section class="card">
-    <h2>Executive summary</h2>
-    <p>Craft did not use a native Pi MCP API. Pi intentionally has no built-in MCP layer. Craft handled MCP by converting discovered MCP tools into ordinary Pi <code>ToolDefinition</code> custom tools, then proxying execution back to a centralized MCP client pool.</p>
-    <p>Honk currently embeds Pi directly in-process through <code>ThreadAgentRuntime</code>, which is simpler than Craft’s subprocess model. Honk can implement MCP without Craft’s JSONL bridge by adding an in-process MCP manager and registering dynamic Pi tools through Honk-owned extensions or session custom tools.</p>
-  </section>
+      <section class="card">
+        <h2>Executive summary</h2>
+        <p>
+          Craft did not use a native Pi MCP API. Pi intentionally has no built-in MCP layer. Craft
+          handled MCP by converting discovered MCP tools into ordinary Pi
+          <code>ToolDefinition</code> custom tools, then proxying execution back to a centralized
+          MCP client pool.
+        </p>
+        <p>
+          Honk currently embeds Pi directly in-process through <code>ThreadAgentRuntime</code>,
+          which is simpler than Craft’s subprocess model. Honk can implement MCP without Craft’s
+          JSONL bridge by adding an in-process MCP manager and registering dynamic Pi tools through
+          Honk-owned extensions or session custom tools.
+        </p>
+      </section>
 
-  <h2>Craft lower-level MCP path</h2>
-  <div class="grid">
-    <div class="card">
-      <h3>Important files</h3>
-      <ul>
-        <li><code>packages/shared/src/mcp/mcp-pool.ts</code></li>
-        <li><code>packages/shared/src/mcp/client.ts</code></li>
-        <li><code>packages/shared/src/mcp/pool-server.ts</code></li>
-        <li><code>packages/shared/src/agent/pi-agent.ts</code></li>
-        <li><code>packages/pi-agent-server/src/index.ts</code></li>
-        <li><code>packages/pi-agent-server/src/craft-metadata-schema.ts</code></li>
-      </ul>
-    </div>
-    <div class="card">
-      <h3>Core idea</h3>
-      <p>One centralized <code>McpClientPool</code> owns real MCP connections. Backends receive proxy tool definitions and route tool execution through the pool.</p>
-      <pre>mcp__{sourceSlug}__{originalToolName}</pre>
-    </div>
-  </div>
+      <h2>Craft lower-level MCP path</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Important files</h3>
+          <ul>
+            <li><code>packages/shared/src/mcp/mcp-pool.ts</code></li>
+            <li><code>packages/shared/src/mcp/client.ts</code></li>
+            <li><code>packages/shared/src/mcp/pool-server.ts</code></li>
+            <li><code>packages/shared/src/agent/pi-agent.ts</code></li>
+            <li><code>packages/pi-agent-server/src/index.ts</code></li>
+            <li><code>packages/pi-agent-server/src/craft-metadata-schema.ts</code></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Core idea</h3>
+          <p>
+            One centralized <code>McpClientPool</code> owns real MCP connections. Backends receive
+            proxy tool definitions and route tool execution through the pool.
+          </p>
+          <pre>mcp__{sourceSlug}__{originalToolName}</pre>
+        </div>
+      </div>
 
-  <h3>Craft execution flow</h3>
-  <pre>LLM
+      <h3>Craft execution flow</h3>
+      <pre>
+LLM
   -> Pi tool call: mcp__linear__searchIssues
   -> pi-agent-server custom ToolDefinition.execute()
   -> JSONL tool_execute_request
@@ -115,22 +233,44 @@
   -> result text
   -> JSONL tool_execute_response
   -> Pi tool result message
-  -> next LLM turn</pre>
+  -> next LLM turn</pre
+      >
 
-  <h3>Craft design details</h3>
-  <ul>
-    <li><strong>Pool owns connection lifecycle:</strong> HTTP/Streamable MCP, stdio MCP, and in-process API sources.</li>
-    <li><strong>Tool discovery is cached:</strong> <code>listTools()</code> runs at connect/sync time; proxy definitions are derived from cached MCP tool schemas.</li>
-    <li><strong>Pi sees normal tools:</strong> Craft passes proxy tools through <code>customTools</code> and includes every name in the <code>tools</code> allowlist.</li>
-    <li><strong>Permissions stay outside Pi:</strong> every tool invokes a pre-tool-use JSONL handshake before execution.</li>
-    <li><strong>Dynamic tool changes recreate Pi sessions:</strong> Craft marks <code>toolsChanged</code>, disposes the session before the next prompt, then resumes via Pi session storage.</li>
-    <li><strong>Schema patching:</strong> Craft adds optional <code>_intent</code> and <code>_displayName</code> properties to strict schemas, then strips them before real execution.</li>
-  </ul>
+      <h3>Craft design details</h3>
+      <ul>
+        <li>
+          <strong>Pool owns connection lifecycle:</strong> HTTP/Streamable MCP, stdio MCP, and
+          in-process API sources.
+        </li>
+        <li>
+          <strong>Tool discovery is cached:</strong> <code>listTools()</code> runs at connect/sync
+          time; proxy definitions are derived from cached MCP tool schemas.
+        </li>
+        <li>
+          <strong>Pi sees normal tools:</strong> Craft passes proxy tools through
+          <code>customTools</code> and includes every name in the <code>tools</code> allowlist.
+        </li>
+        <li>
+          <strong>Permissions stay outside Pi:</strong> every tool invokes a pre-tool-use JSONL
+          handshake before execution.
+        </li>
+        <li>
+          <strong>Dynamic tool changes recreate Pi sessions:</strong> Craft marks
+          <code>toolsChanged</code>, disposes the session before the next prompt, then resumes via
+          Pi session storage.
+        </li>
+        <li>
+          <strong>Schema patching:</strong> Craft adds optional <code>_intent</code> and
+          <code>_displayName</code> properties to strict schemas, then strips them before real
+          execution.
+        </li>
+      </ul>
 
-  <h2>Pi SDK internals</h2>
-  <div class="card">
-    <h3>Main stack</h3>
-    <pre>createAgentSession()
+      <h2>Pi SDK internals</h2>
+      <div class="card">
+        <h3>Main stack</h3>
+        <pre>
+createAgentSession()
   -> AuthStorage
   -> ModelRegistry
   -> SettingsManager
@@ -139,145 +279,265 @@
   -> AgentSession
     -> Agent from @earendil-works/pi-agent-core
       -> runAgentLoop()
-        -> pi-ai streamSimple()</pre>
-  </div>
+        -> pi-ai streamSimple()</pre
+        >
+      </div>
 
-  <h3>Tool model</h3>
-  <p>Pi tools are plain <code>ToolDefinition</code> objects wrapped into low-level <code>AgentTool</code> instances:</p>
-  <pre>{
+      <h3>Tool model</h3>
+      <p>
+        Pi tools are plain <code>ToolDefinition</code> objects wrapped into low-level
+        <code>AgentTool</code> instances:
+      </p>
+      <pre>
+{
   name,
   label,
   description,
   parameters,
   execute(toolCallId, params, signal, onUpdate, ctx)
-}</pre>
-  <p>There is no native MCP semantic path. A tool named <code>mcp__github__search</code> is just a normal custom tool unless the embedding app gives it meaning.</p>
+}</pre
+      >
+      <p>
+        There is no native MCP semantic path. A tool named <code>mcp__github__search</code> is just
+        a normal custom tool unless the embedding app gives it meaning.
+      </p>
 
-  <h3>Agent loop details</h3>
-  <ol>
-    <li>User message is appended.</li>
-    <li>Provider stream starts through <code>streamSimple()</code>.</li>
-    <li>Assistant deltas emit <code>message_update</code>.</li>
-    <li>Assistant tool calls are collected.</li>
-    <li>Tool calls preflight sequentially, then execute in parallel by default.</li>
-    <li>Tool results become <code>toolResult</code> messages.</li>
-    <li>The loop continues until no tool calls and no queued follow-ups remain.</li>
-  </ol>
+      <h3>Agent loop details</h3>
+      <ol>
+        <li>User message is appended.</li>
+        <li>Provider stream starts through <code>streamSimple()</code>.</li>
+        <li>Assistant deltas emit <code>message_update</code>.</li>
+        <li>Assistant tool calls are collected.</li>
+        <li>Tool calls preflight sequentially, then execute in parallel by default.</li>
+        <li>Tool results become <code>toolResult</code> messages.</li>
+        <li>The loop continues until no tool calls and no queued follow-ups remain.</li>
+      </ol>
 
-  <h2>Honk current layer</h2>
-  <table>
-    <thead><tr><th>Layer</th><th>Current state</th></tr></thead>
-    <tbody>
-      <tr><td>Pi embedding</td><td>Direct in-process SDK via <code>packages/runtime/src/thread-agent-runtime.ts</code>.</td></tr>
-      <tr><td>Extension system</td><td>Honk supplies first-party extension factories: plan, ask_question, debug_logs, subagent, browser automation, policy, context usage.</td></tr>
-      <tr><td>MCP execution</td><td>No Craft-like MCP client pool found.</td></tr>
-      <tr><td>MCP UI</td><td>Display projection classifies <code>mcp*</code> or <code>__</code> tool names as MCP-shaped for rendering.</td></tr>
-      <tr><td>Cursor ACP</td><td>Composer provider currently starts Cursor sessions with <code>mcpServers: []</code>.</td></tr>
-    </tbody>
-  </table>
+      <h2>Honk current layer</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Current state</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Pi embedding</td>
+            <td>
+              Direct in-process SDK via <code>packages/runtime/src/thread-agent-runtime.ts</code>.
+            </td>
+          </tr>
+          <tr>
+            <td>Extension system</td>
+            <td>
+              Honk supplies first-party extension factories: plan, ask_question, debug_logs,
+              subagent, browser automation, policy, context usage.
+            </td>
+          </tr>
+          <tr>
+            <td>MCP execution</td>
+            <td>No Craft-like MCP client pool found.</td>
+          </tr>
+          <tr>
+            <td>MCP UI</td>
+            <td>
+              Display projection classifies <code>mcp*</code> or <code>__</code> tool names as
+              MCP-shaped for rendering.
+            </td>
+          </tr>
+          <tr>
+            <td>Cursor ACP</td>
+            <td>
+              Composer provider currently starts Cursor sessions with <code>mcpServers: []</code>.
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
-  <h2>Recommended Honk architecture</h2>
-  <div class="card">
-    <h3>Preferred path: in-process MCP runtime</h3>
-    <p>Do not copy Craft’s subprocess JSONL bridge unless isolation becomes necessary. Honk can register MCP tools directly into the existing Pi session because Honk already owns Pi in-process.</p>
-    <pre>DesktopRuntimeHost
+      <h2>Recommended Honk architecture</h2>
+      <div class="card">
+        <h3>Preferred path: in-process MCP runtime</h3>
+        <p>
+          Do not copy Craft’s subprocess JSONL bridge unless isolation becomes necessary. Honk can
+          register MCP tools directly into the existing Pi session because Honk already owns Pi
+          in-process.
+        </p>
+        <pre>
+DesktopRuntimeHost
   -> McpRuntimeRegistry
     -> McpClientConnection(s)
     -> MCP tool definitions
   -> ThreadAgentRuntime
     -> Honk MCP extension pi.registerTool(...)
     -> Pi AgentSession tool registry
-    -> tool.execute() calls MCP client directly</pre>
-  </div>
+    -> tool.execute() calls MCP client directly</pre
+        >
+      </div>
 
-  <h3>New concepts</h3>
-  <ul>
-    <li><strong>McpRuntimeRegistry:</strong> process-level owner for MCP server configs, connections, discovery, and cleanup.</li>
-    <li><strong>McpToolCatalog:</strong> normalized list of available tools by server slug.</li>
-    <li><strong>McpPiToolAdapter:</strong> converts MCP <code>Tool</code> schemas into Pi <code>ToolDefinition</code>s.</li>
-    <li><strong>McpPermissionPolicy:</strong> integrates with Honk’s runtime policy / interaction mode before calling the real MCP server.</li>
-    <li><strong>McpResultNormalizer:</strong> converts text/image/audio/resource MCP content into model-safe text, saved files, and UI details.</li>
-  </ul>
+      <h3>New concepts</h3>
+      <ul>
+        <li>
+          <strong>McpRuntimeRegistry:</strong> process-level owner for MCP server configs,
+          connections, discovery, and cleanup.
+        </li>
+        <li><strong>McpToolCatalog:</strong> normalized list of available tools by server slug.</li>
+        <li>
+          <strong>McpPiToolAdapter:</strong> converts MCP <code>Tool</code> schemas into Pi
+          <code>ToolDefinition</code>s.
+        </li>
+        <li>
+          <strong>McpPermissionPolicy:</strong> integrates with Honk’s runtime policy / interaction
+          mode before calling the real MCP server.
+        </li>
+        <li>
+          <strong>McpResultNormalizer:</strong> converts text/image/audio/resource MCP content into
+          model-safe text, saved files, and UI details.
+        </li>
+      </ul>
 
-  <h2>Implementation plan</h2>
+      <h2>Implementation plan</h2>
 
-  <h3>Phase 1: Runtime MCP core</h3>
-  <ol>
-    <li>Create <code>packages/runtime/src/mcp/client.ts</code> using <code>@modelcontextprotocol/sdk</code> client transports.</li>
-    <li>Support Streamable HTTP first; add stdio behind an explicit local-execution setting.</li>
-    <li>Add env filtering for stdio based on Craft’s blocked env list, adapted to Honk credentials.</li>
-    <li>Create <code>McpRuntimeRegistry</code> with connect, disconnect, listTools, callTool, and dispose.</li>
-    <li>Normalize server slugs and tool names to <code>mcp__{slug}__{tool}</code>.</li>
-  </ol>
+      <h3>Phase 1: Runtime MCP core</h3>
+      <ol>
+        <li>
+          Create <code>packages/runtime/src/mcp/client.ts</code> using
+          <code>@modelcontextprotocol/sdk</code> client transports.
+        </li>
+        <li>
+          Support Streamable HTTP first; add stdio behind an explicit local-execution setting.
+        </li>
+        <li>
+          Add env filtering for stdio based on Craft’s blocked env list, adapted to Honk
+          credentials.
+        </li>
+        <li>
+          Create <code>McpRuntimeRegistry</code> with connect, disconnect, listTools, callTool, and
+          dispose.
+        </li>
+        <li>Normalize server slugs and tool names to <code>mcp__{slug}__{tool}</code>.</li>
+      </ol>
 
-  <h3>Phase 2: Pi tool adapter</h3>
-  <ol>
-    <li>Create a converter from MCP JSON schema to Pi-compatible TypeBox/JSON schema.</li>
-    <li>Strip unsupported schema metadata such as remote <code>$schema</code> URIs.</li>
-    <li>Generate <code>ToolDefinition</code> objects with <code>promptSnippet</code> so tools are visible in Pi’s system prompt.</li>
-    <li>Return <code>details</code> with <code>{ kind: "mcp", serverSlug, originalToolName }</code> for Honk UI projection.</li>
-    <li>Throw on MCP error results only when appropriate; otherwise preserve MCP <code>isError</code> semantics in details and returned text.</li>
-  </ol>
+      <h3>Phase 2: Pi tool adapter</h3>
+      <ol>
+        <li>Create a converter from MCP JSON schema to Pi-compatible TypeBox/JSON schema.</li>
+        <li>Strip unsupported schema metadata such as remote <code>$schema</code> URIs.</li>
+        <li>
+          Generate <code>ToolDefinition</code> objects with <code>promptSnippet</code> so tools are
+          visible in Pi’s system prompt.
+        </li>
+        <li>
+          Return <code>details</code> with
+          <code>{ kind: "mcp", serverSlug, originalToolName }</code> for Honk UI projection.
+        </li>
+        <li>
+          Throw on MCP error results only when appropriate; otherwise preserve MCP
+          <code>isError</code> semantics in details and returned text.
+        </li>
+      </ol>
 
-  <h3>Phase 3: Dynamic registration through a Honk extension</h3>
-  <ol>
-    <li>Add <code>createMcpRuntimeExtension()</code> to Honk’s desktop extension factory list.</li>
-    <li>On <code>session_start</code>, register all active MCP tools with <code>pi.registerTool()</code>.</li>
-    <li>When MCP tool catalog changes, dynamically register new tools and call <code>pi.setActiveTools()</code> to include them.</li>
-    <li>Avoid session recreation unless Pi dynamic registration proves insufficient for system prompt refresh.</li>
-  </ol>
+      <h3>Phase 3: Dynamic registration through a Honk extension</h3>
+      <ol>
+        <li>
+          Add <code>createMcpRuntimeExtension()</code> to Honk’s desktop extension factory list.
+        </li>
+        <li>
+          On <code>session_start</code>, register all active MCP tools with
+          <code>pi.registerTool()</code>.
+        </li>
+        <li>
+          When MCP tool catalog changes, dynamically register new tools and call
+          <code>pi.setActiveTools()</code> to include them.
+        </li>
+        <li>
+          Avoid session recreation unless Pi dynamic registration proves insufficient for system
+          prompt refresh.
+        </li>
+      </ol>
 
-  <h3>Phase 4: Permissions and interaction modes</h3>
-  <ol>
-    <li>Run MCP calls through Honk policy before execution.</li>
-    <li>Classify tools as read/write using server annotations when available and name heuristics otherwise.</li>
-    <li>In Ask mode, default to read-only MCP tools only.</li>
-    <li>For write-like MCP tools, require the same approval UX as mutating shell/file tools.</li>
-  </ol>
+      <h3>Phase 4: Permissions and interaction modes</h3>
+      <ol>
+        <li>Run MCP calls through Honk policy before execution.</li>
+        <li>
+          Classify tools as read/write using server annotations when available and name heuristics
+          otherwise.
+        </li>
+        <li>In Ask mode, default to read-only MCP tools only.</li>
+        <li>
+          For write-like MCP tools, require the same approval UX as mutating shell/file tools.
+        </li>
+      </ol>
 
-  <h3>Phase 5: Result handling</h3>
-  <ol>
-    <li>Normalize MCP content blocks into model-safe text.</li>
-    <li>Save binary image/audio/resource payloads into the thread/session data directory.</li>
-    <li>Apply Honk truncation/large-output behavior before returning content to Pi.</li>
-    <li>Attach structured metadata so timeline rendering can show provider, operation, result size, and saved artifact links.</li>
-  </ol>
+      <h3>Phase 5: Result handling</h3>
+      <ol>
+        <li>Normalize MCP content blocks into model-safe text.</li>
+        <li>Save binary image/audio/resource payloads into the thread/session data directory.</li>
+        <li>Apply Honk truncation/large-output behavior before returning content to Pi.</li>
+        <li>
+          Attach structured metadata so timeline rendering can show provider, operation, result
+          size, and saved artifact links.
+        </li>
+      </ol>
 
-  <h3>Phase 6: UI and configuration</h3>
-  <ol>
-    <li>Add a minimal settings/config surface for MCP servers.</li>
-    <li>Expose connected/disconnected/error states in the environment or runtime snapshot.</li>
-    <li>Update timeline MCP rendering to use structured details instead of only name heuristics.</li>
-    <li>Optional: add <code>@</code> or command menu surfaces later, but do not block core runtime on source UX.</li>
-  </ol>
+      <h3>Phase 6: UI and configuration</h3>
+      <ol>
+        <li>Add a minimal settings/config surface for MCP servers.</li>
+        <li>Expose connected/disconnected/error states in the environment or runtime snapshot.</li>
+        <li>
+          Update timeline MCP rendering to use structured details instead of only name heuristics.
+        </li>
+        <li>
+          Optional: add <code>@</code> or command menu surfaces later, but do not block core runtime
+          on source UX.
+        </li>
+      </ol>
 
-  <h2>Risks</h2>
-  <ul>
-    <li><span class="warn">Schema compatibility:</span> MCP servers emit broad JSON Schema. Pi tool validation may reject unsupported schema constructs unless normalized.</li>
-    <li><span class="warn">Token bloat:</span> exposing many MCP tools directly can inflate the system prompt. Tool filtering and per-thread activation matter.</li>
-    <li><span class="bad">Stdio security:</span> local MCP servers are arbitrary subprocesses. Gate behind explicit trust and env filtering.</li>
-    <li><span class="warn">Dynamic registration:</span> Pi supports dynamic <code>pi.registerTool()</code>, but system prompt refresh behavior should be verified with characterization tests.</li>
-    <li><span class="warn">Provider compatibility:</span> some models are sensitive to large tool catalogs and complex schemas.</li>
-  </ul>
+      <h2>Risks</h2>
+      <ul>
+        <li>
+          <span class="warn">Schema compatibility:</span> MCP servers emit broad JSON Schema. Pi
+          tool validation may reject unsupported schema constructs unless normalized.
+        </li>
+        <li>
+          <span class="warn">Token bloat:</span> exposing many MCP tools directly can inflate the
+          system prompt. Tool filtering and per-thread activation matter.
+        </li>
+        <li>
+          <span class="bad">Stdio security:</span> local MCP servers are arbitrary subprocesses.
+          Gate behind explicit trust and env filtering.
+        </li>
+        <li>
+          <span class="warn">Dynamic registration:</span> Pi supports dynamic
+          <code>pi.registerTool()</code>, but system prompt refresh behavior should be verified with
+          characterization tests.
+        </li>
+        <li>
+          <span class="warn">Provider compatibility:</span> some models are sensitive to large tool
+          catalogs and complex schemas.
+        </li>
+      </ul>
 
-  <h2>Verification checklist</h2>
-  <ul>
-    <li>Unit test tool-name mapping: <code>mcp__slug__tool</code> round-trips to original MCP tool.</li>
-    <li>Unit test schema normalization against representative MCP schemas.</li>
-    <li>Integration test HTTP MCP server: list tools and call tool from a Pi session.</li>
-    <li>Integration test stdio MCP server with env filtering.</li>
-    <li>Runtime test dynamic tool addition after session creation.</li>
-    <li>UI projection test structured MCP details render as MCP timeline entries.</li>
-    <li>Security test Ask mode blocks write-like MCP tools.</li>
-  </ul>
+      <h2>Verification checklist</h2>
+      <ul>
+        <li>
+          Unit test tool-name mapping: <code>mcp__slug__tool</code> round-trips to original MCP
+          tool.
+        </li>
+        <li>Unit test schema normalization against representative MCP schemas.</li>
+        <li>Integration test HTTP MCP server: list tools and call tool from a Pi session.</li>
+        <li>Integration test stdio MCP server with env filtering.</li>
+        <li>Runtime test dynamic tool addition after session creation.</li>
+        <li>UI projection test structured MCP details render as MCP timeline entries.</li>
+        <li>Security test Ask mode blocks write-like MCP tools.</li>
+      </ul>
 
-  <h2>Non-goals for first pass</h2>
-  <ul>
-    <li>No Craft-style full source marketplace.</li>
-    <li>No OAuth source setup automation.</li>
-    <li>No cross-backend MCP HTTP proxy server unless Cursor/Codex integration needs it.</li>
-    <li>No broad API-source abstraction; start with real MCP servers.</li>
-  </ul>
-</main>
-</body>
+      <h2>Non-goals for first pass</h2>
+      <ul>
+        <li>No Craft-style full source marketplace.</li>
+        <li>No OAuth source setup automation.</li>
+        <li>No cross-backend MCP HTTP proxy server unless Cursor/Codex integration needs it.</li>
+        <li>No broad API-source abstraction; start with real MCP servers.</li>
+      </ul>
+    </main>
+  </body>
 </html>

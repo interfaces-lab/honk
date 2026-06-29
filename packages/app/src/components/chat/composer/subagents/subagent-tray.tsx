@@ -223,12 +223,7 @@ function SubagentTray(props: { selection: SubagentTraySelection; onClose: () => 
       >
         <div className="flex min-w-0 flex-1 items-center gap-1.5 text-left" title={headerTitle}>
           {visibleRoleLabel ? (
-            <Text
-              size="base"
-              tone="secondary"
-              weight="medium"
-              data-subagent-role={subagent?.role}
-            >
+            <Text size="base" tone="secondary" weight="medium" data-subagent-role={subagent?.role}>
               {visibleRoleLabel}
             </Text>
           ) : null}
@@ -373,10 +368,7 @@ function subagentTranscriptItemVirtualRow(
   };
 }
 
-function subagentLogVirtualRow(
-  log: WorkLogSubagentLog,
-  loading: boolean,
-): SubagentTrayVirtualRow {
+function subagentLogVirtualRow(log: WorkLogSubagentLog, loading: boolean): SubagentTrayVirtualRow {
   return {
     kind: "log",
     id: `log:${log.id}`,
@@ -776,17 +768,13 @@ function subagentThinkingStep(
   label: string,
   isStreaming: boolean,
 ): TimelineStep {
-  return subagentWorkStep(
-    subagentTimelineStepId(`subagent-thinking-step:${id}`),
+  return subagentWorkStep(subagentTimelineStepId(`subagent-thinking-step:${id}`), createdAt, {
+    id: `subagent-thinking:${id}`,
     createdAt,
-    {
-      id: `subagent-thinking:${id}`,
-      createdAt,
-      label,
-      tone: "thinking",
-      status: isStreaming ? "running" : "completed",
-    },
-  );
+    label,
+    tone: "thinking",
+    status: isStreaming ? "running" : "completed",
+  });
 }
 
 function subagentWorkStep(
@@ -998,7 +986,9 @@ function SubagentActivityLine({
     );
   }
 
-  return <ToolCallLine action={action} details={body ?? ""} status={loading ? "loading" : "idle"} />;
+  return (
+    <ToolCallLine action={action} details={body ?? ""} status={loading ? "loading" : "idle"} />
+  );
 }
 
 function shouldExpandSubagentActivityDetail(detail: string): boolean {

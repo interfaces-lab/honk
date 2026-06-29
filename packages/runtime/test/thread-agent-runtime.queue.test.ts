@@ -138,9 +138,7 @@ describe("ThreadAgentRuntime canonical queued follow-up behavior", () => {
         .map(String),
     );
     const runtimeTurnIds = new Set(
-      events
-        .filter((event) => event.turnId !== undefined)
-        .map((event) => String(event.turnId)),
+      events.filter((event) => event.turnId !== undefined).map((event) => String(event.turnId)),
     );
 
     expect(entryTurnIds).toEqual(new Set([String(turnId)]));

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { SubagentActivityDetails, SubagentToolDetails } from "@honk/contracts";
-import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+  ToolDefinition,
+} from "@earendil-works/pi-coding-agent";
 
 import {
   capLiveSubagentActivities,
@@ -195,8 +199,6 @@ describe("createSubagentExtension", () => {
       {} as ExtensionContext,
     );
 
-    expect(result.content).toEqual([
-      { type: "text", text: "Too many subagent tasks. Max is 20." },
-    ]);
+    expect(result.content).toEqual([{ type: "text", text: "Too many subagent tasks. Max is 20." }]);
   });
 });

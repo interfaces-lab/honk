@@ -35,7 +35,9 @@ function readPersistedLocalFeatureFlags(): PersistedLocalFeatureFlags {
   }
 }
 
-function persistLocalFeatureFlags(state: Pick<LocalFeatureFlagsState, "multitaskModeEnabled">): void {
+function persistLocalFeatureFlags(
+  state: Pick<LocalFeatureFlagsState, "multitaskModeEnabled">,
+): void {
   if (typeof window === "undefined") {
     return;
   }

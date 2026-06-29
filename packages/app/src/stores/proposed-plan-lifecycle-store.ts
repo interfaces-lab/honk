@@ -47,9 +47,7 @@ function readPersistedDismissedPlanKeys(): string[] {
       return [];
     }
     const parsed = JSON.parse(raw) as PersistedProposedPlanLifecycleState;
-    return Array.isArray(parsed.dismissedPlanKeys)
-      ? uniqueStrings(parsed.dismissedPlanKeys)
-      : [];
+    return Array.isArray(parsed.dismissedPlanKeys) ? uniqueStrings(parsed.dismissedPlanKeys) : [];
   } catch {
     return [];
   }

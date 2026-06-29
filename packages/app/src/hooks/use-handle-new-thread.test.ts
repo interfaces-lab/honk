@@ -5,11 +5,7 @@ import type { AppRouter } from "~/router";
 import { scopedProjectKey, scopeProjectRef } from "../lib/environment-scope";
 import { DEFAULT_INTERACTION_MODE } from "../types";
 import { useThreadSendIntentStore } from "../stores/thread-send-intent-store";
-import {
-  DraftId,
-  useComposerDraftStore,
-  type DraftId as DraftIdType,
-} from "../stores/chat-drafts";
+import { DraftId, useComposerDraftStore, type DraftId as DraftIdType } from "../stores/chat-drafts";
 import { openNewThreadWithRouter } from "./use-handle-new-thread";
 
 const environmentId = EnvironmentId.make("environment:new-thread");

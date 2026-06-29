@@ -1,5 +1,6 @@
 "use client";
 
+import * as stylex from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
 
 import { Button } from "./button";
@@ -11,6 +12,47 @@ type SidebarItemProps = Omit<ComponentProps<typeof Button>, "variant"> & {
   interactive?: boolean;
   selected?: boolean;
 };
+
+const styles = stylex.create({
+  trayHeaderButton: {
+    display: "flex",
+    flexGrow: 1,
+    flexShrink: 1,
+    gap: 8,
+    justifyContent: "flex-start",
+    minWidth: 0,
+    paddingBlock: 4,
+    paddingInline: 6,
+  },
+  item: {
+    display: "flex",
+    gap: "var(--honk-sidebar-item-gap)",
+    height: "auto",
+    justifyContent: "flex-start",
+    paddingBlock: "var(--honk-sidebar-row-padding-block, 4px)",
+    paddingInline: "var(--honk-sidebar-row-padding-inline, 6px)",
+  },
+  chromeButton: {
+    display: "flex",
+    gap: "var(--honk-sidebar-item-gap)",
+    height: "auto",
+    justifyContent: "flex-start",
+    paddingBlock: "var(--honk-sidebar-row-padding-block, 4px)",
+    paddingInline: "var(--honk-sidebar-row-padding-inline, 6px)",
+  },
+  insetButton: {
+    borderWidth: 0,
+    display: "inline-flex",
+    flexGrow: 1,
+    flexShrink: 1,
+    gap: "var(--honk-sidebar-item-gap)",
+    height: "auto",
+    justifyContent: "flex-start",
+    minHeight: 0,
+    minWidth: 0,
+    padding: 0,
+  },
+});
 
 function SidebarTray({ className, ...props }: ComponentProps<"div">) {
   return (
@@ -37,12 +79,14 @@ function SidebarTrayHeader({ className, ...props }: ComponentProps<"div">) {
 
 function SidebarTrayHeaderButton({
   className,
+  xstyle,
   ...props
 }: Omit<ComponentProps<typeof Button>, "variant">) {
   return (
     <Button
       type="button"
       variant="ghost"
+      xstyle={[styles.trayHeaderButton, xstyle]}
       className={cn(
         "flex min-w-0 flex-1 items-center gap-2 rounded-honk-control px-1.5 py-1 text-left text-honk-fg-secondary transition-colors hover:bg-honk-bg-quaternary hover:text-honk-fg-primary focus-visible:ring-1 focus-visible:ring-honk-stroke-focused focus-visible:outline-none",
         "bg-transparent shadow-none before:hidden",
@@ -62,6 +106,7 @@ function SidebarItem({
   nativeButton,
   render,
   selected,
+  xstyle,
   ...rest
 }: SidebarItemProps) {
   const itemClassName = cn(
@@ -96,6 +141,7 @@ function SidebarItem({
       nativeButton={nativeButton ?? (render ? false : undefined)}
       render={render}
       className={itemClassName}
+      xstyle={[styles.item, xstyle]}
       {...rest}
     />
   );
@@ -106,10 +152,14 @@ function SidebarButton(
     variant: "chrome" | "item" | "inset";
   },
 ) {
-  const { variant, className, ...rest } = props;
+  const { variant, className, xstyle, ...rest } = props;
   if (variant === "item") {
     return (
-      <SidebarItem className={cn("group/sidebar-item relative h-auto", className)} {...rest} />
+      <SidebarItem
+        className={cn("group/sidebar-item relative h-auto", className)}
+        xstyle={xstyle}
+        {...rest}
+      />
     );
   }
 
@@ -119,6 +169,7 @@ function SidebarButton(
       variant="ghost"
       typography={variant === "chrome" ? "sidebar" : "inherit"}
       data-slot={`sidebar-button-${variant}`}
+      xstyle={[variant === "chrome" ? styles.chromeButton : styles.insetButton, xstyle]}
       className={cn(
         variant === "chrome"
           ? cn(

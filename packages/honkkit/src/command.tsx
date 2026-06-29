@@ -31,7 +31,7 @@ import {
   spacingVars,
   typographyVars,
 } from "./theme/tokens.stylex";
-import { mergeProps, type PropsObject } from "./utils/mergeProps";
+import { mergeProps } from "./utils/mergeProps";
 import { themeProps } from "./utils/themeProps";
 
 /** Shared with `Input` size `sm` (`h-6`). Items size from this control height. */
@@ -40,6 +40,12 @@ const commandSearchControlHeightVar = "--honk-command-search-control-height";
 const commandSearchMetricsStyle = {
   [commandSearchControlHeightVar]: sizeDefaults["--honk-kit-size-button"],
 } as React.CSSProperties;
+
+type PropsObject = {
+  className?: string;
+  style?: React.CSSProperties | undefined;
+  [key: string]: unknown;
+};
 
 function withCommandSearchMetrics(props: PropsObject): PropsObject {
   return {

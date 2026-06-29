@@ -22,11 +22,7 @@ import {
   type AgentRuntimeModelDescriptor,
   DEFAULT_PROJECTLESS_CWD,
 } from "@honk/contracts";
-import {
-  scopedThreadKey,
-  scopeProjectRef,
-  scopeThreadRef,
-} from "~/lib/environment-scope";
+import { scopedThreadKey, scopeProjectRef, scopeThreadRef } from "~/lib/environment-scope";
 import { projectScriptRuntimeEnv } from "@honk/shared/project-scripts";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@honk/honkkit/alert";
@@ -584,9 +580,7 @@ export default function ChatView(props: ChatViewProps) {
     routeKind === "server" ? store.threadLastVisitedAtById[routeThreadKey] : undefined,
   );
   const settings = useSettings();
-  const multitaskModeEnabled = useLocalFeatureFlagsStore(
-    (state) => state.multitaskModeEnabled,
-  );
+  const multitaskModeEnabled = useLocalFeatureFlagsStore((state) => state.multitaskModeEnabled);
   const workspaceProjects = useStore(useShallow(selectProjectsAcrossEnvironments));
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const {
@@ -959,9 +953,7 @@ export default function ChatView(props: ChatViewProps) {
   const dismissedPendingPlanKeys = useProposedPlanLifecycleStore(
     (state) => state.dismissedPlanKeys,
   );
-  const buildingPendingPlanKeys = useProposedPlanLifecycleStore(
-    (state) => state.buildingPlanKeys,
-  );
+  const buildingPendingPlanKeys = useProposedPlanLifecycleStore((state) => state.buildingPlanKeys);
   const dismissLifecyclePlan = useProposedPlanLifecycleStore((state) => state.dismissPlan);
   const markLifecyclePlanBuilding = useProposedPlanLifecycleStore(
     (state) => state.markPlanBuilding,

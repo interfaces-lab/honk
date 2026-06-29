@@ -767,11 +767,7 @@ function SubagentStatusRow({
   const role = subagent.role?.trim();
   const activeRoleLabel = roleLabel ?? "Worker";
   const activeVerb =
-    role === "oracle"
-      ? "manifesting"
-      : role === "librarian"
-        ? "researching"
-        : "handling";
+    role === "oracle" ? "manifesting" : role === "librarian" ? "researching" : "handling";
   const displayTitle = subagent.isActive ? activeRoleLabel : title;
   const visibleRoleLabel =
     !subagent.isActive && roleLabel && roleLabel !== title ? roleLabel : undefined;
@@ -961,8 +957,12 @@ function pickActiveSubagentStatusText(input: {
   statusLabel: string | undefined;
 }): string | undefined {
   const ignored = new Set(
-    [input.activeRoleLabel, `${input.activeRoleLabel} ${input.activeVerb}`, input.activeVerb, input.statusLabel]
-      .map((value) => value?.trim().toLowerCase() ?? ""),
+    [
+      input.activeRoleLabel,
+      `${input.activeRoleLabel} ${input.activeVerb}`,
+      input.activeVerb,
+      input.statusLabel,
+    ].map((value) => value?.trim().toLowerCase() ?? ""),
   );
   const candidates = [input.latestUpdate, input.prompt, input.nickname, input.statusLabel];
   return candidates.find((value) => {

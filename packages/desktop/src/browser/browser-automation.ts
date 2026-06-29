@@ -98,9 +98,7 @@ type SendCommand = (
   params?: Record<string, unknown>,
 ) => Effect.Effect<unknown, BrowserAutomationError>;
 
-export class BrowserAutomationError extends Data.TaggedError(
-  "BrowserAutomationError",
-)<{
+export class BrowserAutomationError extends Data.TaggedError("BrowserAutomationError")<{
   readonly operation: string;
   readonly cause: unknown;
 }> {
@@ -159,10 +157,7 @@ function messageFromUnknown(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
-function browserAutomationError(
-  operation: string,
-  cause: unknown,
-): BrowserAutomationError {
+function browserAutomationError(operation: string, cause: unknown): BrowserAutomationError {
   return new BrowserAutomationError({ operation, cause });
 }
 
@@ -187,7 +182,8 @@ function attemptPromise<A>(
 
 function appendLimited<T>(items: T[], item: T): void {
   items.push(item);
-  if (items.length > DIAGNOSTIC_BUFFER_LIMIT) items.splice(0, items.length - DIAGNOSTIC_BUFFER_LIMIT);
+  if (items.length > DIAGNOSTIC_BUFFER_LIMIT)
+    items.splice(0, items.length - DIAGNOSTIC_BUFFER_LIMIT);
 }
 
 function isPointResult(value: unknown): value is PointResult {
@@ -201,9 +197,7 @@ function isPointResult(value: unknown): value is PointResult {
 
 function isErrorResult(value: unknown): value is ErrorResult {
   return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof Reflect.get(value, "error") === "string"
+    typeof value === "object" && value !== null && typeof Reflect.get(value, "error") === "string"
   );
 }
 
@@ -248,7 +242,10 @@ function webContentsFor(record: BrowserHostRecord): Electron.WebContents | null 
   return contents;
 }
 
-function statusFor(record: BrowserHostRecord, contents: Electron.WebContents): BrowserAutomationStatus {
+function statusFor(
+  record: BrowserHostRecord,
+  contents: Electron.WebContents,
+): BrowserAutomationStatus {
   return {
     available: true,
     visible: record.visible,
@@ -293,7 +290,9 @@ function cdpErrorMessage(result: CdpEvaluationResult): string | null {
   );
 }
 
-function cdpModifiers(modifiers: readonly ("Alt" | "Control" | "Meta" | "Shift")[] | undefined): number {
+function cdpModifiers(
+  modifiers: readonly ("Alt" | "Control" | "Meta" | "Shift")[] | undefined,
+): number {
   return (modifiers ?? []).reduce((mask, modifier) => {
     if (modifier === "Alt") return mask | 1;
     if (modifier === "Control") return mask | 2;
@@ -638,82 +637,85 @@ const makeDesktopBrowserAutomation = Effect.fn("browserAutomation.make")(functio
         );
       }
 
-      const createControlSession = Effect.fn("browserAutomation.createControlSession")(function* () {
-        const scope = yield* Scope.fork(parentScope, "sequential");
-        const semaphore = yield* Semaphore.make(1);
-        const diagnostics: BrowserDiagnostics = { consoleEntries: [], networkEntries: [] };
-        const onMessage: BrowserControlSession["onMessage"] = (_event, method, params) => {
-          if (method === "Runtime.consoleAPICalled") {
-            const level = params["type"];
-            appendLimited(diagnostics.consoleEntries, {
-              level: typeof level === "string" ? level : "log",
-              text: consoleTextFromParams(params),
-              timestamp: new Date().toISOString(),
-            });
-          }
-          if (method === "Log.entryAdded") {
-            const entry = Reflect.get(params, "entry");
-            appendLimited(diagnostics.consoleEntries, {
-              level: String(
-                typeof entry === "object" && entry !== null ? Reflect.get(entry, "level") : "log",
-              ),
-              text: String(
-                typeof entry === "object" && entry !== null ? Reflect.get(entry, "text") : "",
-              ),
-              timestamp: new Date().toISOString(),
-            });
-          }
-          if (
-            method === "Network.requestWillBeSent" ||
-            method === "Network.responseReceived" ||
-            method === "Network.loadingFailed"
-          ) {
-            appendLimited(diagnostics.networkEntries, networkEntryFromParams(method, params));
-          }
-        };
-
-        yield* Scope.addFinalizer(
-          scope,
-          Effect.sync(() => {
-            contents.debugger.off("message", onMessage);
-            if (!contents.isDestroyed() && contents.debugger.isAttached()) {
-              contents.debugger.detach();
+      const createControlSession = Effect.fn("browserAutomation.createControlSession")(
+        function* () {
+          const scope = yield* Scope.fork(parentScope, "sequential");
+          const semaphore = yield* Semaphore.make(1);
+          const diagnostics: BrowserDiagnostics = { consoleEntries: [], networkEntries: [] };
+          const onMessage: BrowserControlSession["onMessage"] = (_event, method, params) => {
+            if (method === "Runtime.consoleAPICalled") {
+              const level = params["type"];
+              appendLimited(diagnostics.consoleEntries, {
+                level: typeof level === "string" ? level : "log",
+                text: consoleTextFromParams(params),
+                timestamp: new Date().toISOString(),
+              });
             }
-          }).pipe(Effect.ignore),
-        );
+            if (method === "Log.entryAdded") {
+              const entry = Reflect.get(params, "entry");
+              appendLimited(diagnostics.consoleEntries, {
+                level: String(
+                  typeof entry === "object" && entry !== null ? Reflect.get(entry, "level") : "log",
+                ),
+                text: String(
+                  typeof entry === "object" && entry !== null ? Reflect.get(entry, "text") : "",
+                ),
+                timestamp: new Date().toISOString(),
+              });
+            }
+            if (
+              method === "Network.requestWillBeSent" ||
+              method === "Network.responseReceived" ||
+              method === "Network.loadingFailed"
+            ) {
+              appendLimited(diagnostics.networkEntries, networkEntryFromParams(method, params));
+            }
+          };
 
-        yield* Effect.try({
-          try: () => {
-            contents.debugger.on("message", onMessage);
-            contents.debugger.attach("1.3");
-          },
-          catch: (cause) => browserAutomationError("attachDebugger", cause),
-        }).pipe(Effect.onError(() => Scope.close(scope, Exit.void).pipe(Effect.ignore)));
+          yield* Scope.addFinalizer(
+            scope,
+            Effect.sync(() => {
+              contents.debugger.off("message", onMessage);
+              if (!contents.isDestroyed() && contents.debugger.isAttached()) {
+                contents.debugger.detach();
+              }
+            }).pipe(Effect.ignore),
+          );
 
-        yield* Effect.all(
-          ["Runtime.enable", "Accessibility.enable", "Network.enable", "Log.enable"].map((method) =>
-            Effect.tryPromise({
-              try: () => contents.debugger.sendCommand(method),
-              catch: (cause) => browserAutomationError(method, cause),
+          yield* Effect.try({
+            try: () => {
+              contents.debugger.on("message", onMessage);
+              contents.debugger.attach("1.3");
+            },
+            catch: (cause) => browserAutomationError("attachDebugger", cause),
+          }).pipe(Effect.onError(() => Scope.close(scope, Exit.void).pipe(Effect.ignore)));
+
+          yield* Effect.all(
+            ["Runtime.enable", "Accessibility.enable", "Network.enable", "Log.enable"].map(
+              (method) =>
+                Effect.tryPromise({
+                  try: () => contents.debugger.sendCommand(method),
+                  catch: (cause) => browserAutomationError(method, cause),
+                }),
+            ),
+            { concurrency: "unbounded", discard: true },
+          ).pipe(Effect.onError(() => Scope.close(scope, Exit.void).pipe(Effect.ignore)));
+
+          const session: BrowserControlSession = {
+            webContentsId: contents.id,
+            scope,
+            semaphore,
+            onMessage,
+            diagnostics,
+          };
+          return [
+            session,
+            replaceMap(sessions, (copy) => {
+              copy.set(contents.id, session);
             }),
-          ),
-          { concurrency: "unbounded", discard: true },
-        ).pipe(Effect.onError(() => Scope.close(scope, Exit.void).pipe(Effect.ignore)));
-
-        const session: BrowserControlSession = {
-          webContentsId: contents.id,
-          scope,
-          semaphore,
-          onMessage,
-          diagnostics,
-        };
-        return [
-          session,
-          replaceMap(sessions, (copy) => {
-            copy.set(contents.id, session);
-          }),
-        ] as const;
-      });
+          ] as const;
+        },
+      );
 
       return createControlSession();
     });
@@ -824,7 +826,11 @@ const makeDesktopBrowserAutomation = Effect.fn("browserAutomation.make")(functio
           concurrency: "unbounded",
           discard: true,
         });
-        const result = yield* evaluateWithDebugger<PageSnapshotResult>(send, snapshotScript(), true);
+        const result = yield* evaluateWithDebugger<PageSnapshotResult>(
+          send,
+          snapshotScript(),
+          true,
+        );
         if (!isPageSnapshotResult(result)) {
           return yield* browserAutomationError(
             "snapshot",
@@ -832,7 +838,9 @@ const makeDesktopBrowserAutomation = Effect.fn("browserAutomation.make")(functio
           );
         }
         const accessibilityTree = yield* send("Accessibility.getFullAXTree");
-        const sourceImage = yield* attemptPromise("capturePage", () => owner.contents.capturePage());
+        const sourceImage = yield* attemptPromise("capturePage", () =>
+          owner.contents.capturePage(),
+        );
         const sourceSize = sourceImage.getSize();
         const image =
           sourceSize.width > MAX_SCREENSHOT_WIDTH
@@ -924,7 +932,8 @@ const makeDesktopBrowserAutomation = Effect.fn("browserAutomation.make")(functio
     const owner = yield* requireOwner(threadId);
     yield* withControlSession(owner.contents, (send) =>
       Effect.gen(function* () {
-        const point = input.selector || input.locator ? yield* resolvePoint(send, input) : { x: 10, y: 10 };
+        const point =
+          input.selector || input.locator ? yield* resolvePoint(send, input) : { x: 10, y: 10 };
         yield* send("Input.dispatchMouseEvent", {
           type: "mouseWheel",
           x: point.x,
@@ -957,7 +966,11 @@ const makeDesktopBrowserAutomation = Effect.fn("browserAutomation.make")(functio
         const timeout = timeoutMs(input.timeoutMs);
         const deadline = Date.now() + timeout;
         while (Date.now() <= deadline) {
-          const result = yield* evaluateWithDebugger<boolean>(send, waitConditionScript(input), true);
+          const result = yield* evaluateWithDebugger<boolean>(
+            send,
+            waitConditionScript(input),
+            true,
+          );
           if (result === true) return;
           yield* Effect.promise(() => sleep(100));
         }

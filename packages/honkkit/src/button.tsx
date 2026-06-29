@@ -388,9 +388,7 @@ function warnIfMissingIconButtonName({
 
 function ButtonIconSlot({ children, size }: { children: React.ReactNode; size: ButtonSize }) {
   return (
-    <span {...stylex.props(styles.iconWrapper, iconSizeStyleByButtonSize[size])}>
-      {children}
-    </span>
+    <span {...stylex.props(styles.iconWrapper, iconSizeStyleByButtonSize[size])}>{children}</span>
   );
 }
 

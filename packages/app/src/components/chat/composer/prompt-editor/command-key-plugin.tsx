@@ -14,10 +14,7 @@ import type { ComposerCommandKey, ComposerPromptEditorPluginHelpers } from "./pl
 export function ComposerCommandKeyPlugin({
   onCommandKeyDownRef,
   pendingSurroundSelectionRef,
-}: Pick<
-  ComposerPromptEditorPluginHelpers,
-  "onCommandKeyDownRef" | "pendingSurroundSelectionRef"
->) {
+}: Pick<ComposerPromptEditorPluginHelpers, "onCommandKeyDownRef" | "pendingSurroundSelectionRef">) {
   const [editor] = useLexicalComposerContext();
 
   useLayoutSyncEffect(() => {

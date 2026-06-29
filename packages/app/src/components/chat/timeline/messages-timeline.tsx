@@ -5,12 +5,7 @@ import {
   type ConversationScrollerController,
 } from "@honk/honkkit/conversation-scroller";
 import { IconChevronRightMedium } from "central-icons";
-import {
-  useRef,
-  useState,
-  type RefObject,
-  type ReactNode,
-} from "react";
+import { useRef, useState, type RefObject, type ReactNode } from "react";
 import { useConversationDensity } from "~/hooks/use-conversation-density";
 import {
   type PendingApproval,

@@ -5,10 +5,7 @@ const EXTENSION_FILE_PATTERN = /\.(ts|js)$/;
 const EXTENSIONS_DIR_NAME = "extensions";
 const GLOB_SEGMENT = "*";
 
-export function normalizeAdditionalExtensionPaths(
-  paths: readonly string[],
-  cwd: string,
-): string[] {
+export function normalizeAdditionalExtensionPaths(paths: readonly string[], cwd: string): string[] {
   return paths.flatMap((path) => expandExtensionsDirectoryPath(path, cwd));
 }
 
@@ -52,7 +49,8 @@ function listExtensionChildren(path: string): string[] | null {
     return readdirSync(path, { withFileTypes: true })
       .filter((entry) => !entry.name.startsWith("."))
       .filter(
-        (entry) => entry.isDirectory() || (entry.isFile() && EXTENSION_FILE_PATTERN.test(entry.name)),
+        (entry) =>
+          entry.isDirectory() || (entry.isFile() && EXTENSION_FILE_PATTERN.test(entry.name)),
       )
       .map((entry) => join(path, entry.name))
       .sort((left, right) => left.localeCompare(right));

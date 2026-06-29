@@ -58,11 +58,7 @@ type ExpandableToolMetadataLineProps = ComponentProps<typeof ExpandableToolMetad
 
 export type ToolCallConversationDensity = ConversationDensity;
 
-function ToolMetadataLine({
-  metadataItems,
-  output,
-  ...props
-}: ExpandableToolMetadataLineProps) {
+function ToolMetadataLine({ metadataItems, output, ...props }: ExpandableToolMetadataLineProps) {
   const hasOutput = output !== null && output !== undefined && output.length > 0;
   const hasMetadata = (metadataItems?.length ?? 0) > 0;
 

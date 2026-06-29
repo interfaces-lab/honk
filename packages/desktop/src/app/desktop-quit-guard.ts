@@ -40,9 +40,7 @@ const confirmQuitWithRunningThreads = Effect.fn("desktop.quitGuard.confirmRunnin
     runningThreadTitles: readonly string[],
   ): Effect.fn.Return<boolean> {
     const pronoun = runningThreadCount === 1 ? "its" : "their";
-    const threadList = runningThreadTitles
-      .map((title) => `  • ${title}`)
-      .join("\n");
+    const threadList = runningThreadTitles.map((title) => `  • ${title}`).join("\n");
     const result = yield* electronDialog.showMessageBox({
       type: "warning",
       buttons: ["Keep Running", "Quit Anyway"],
@@ -54,8 +52,7 @@ const confirmQuitWithRunningThreads = Effect.fn("desktop.quitGuard.confirmRunnin
         runningThreadCount === 1
           ? "A thread is still running."
           : `${runningThreadCount} threads are still running.`,
-      detail:
-        `Quitting now will stop ${pronoun} current work.\n\n` + threadList,
+      detail: `Quitting now will stop ${pronoun} current work.\n\n` + threadList,
     });
     return result.response === 1;
   },

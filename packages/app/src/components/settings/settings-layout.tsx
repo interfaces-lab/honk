@@ -79,7 +79,10 @@ export function SettingsItemTitle({
   title?: string;
 }) {
   return (
-    <h3 className={cn("font-honk text-honk-lg font-medium text-honk-fg-primary", className)} title={title}>
+    <h3
+      className={cn("font-honk text-honk-lg font-medium text-honk-fg-primary", className)}
+      title={title}
+    >
       {children}
     </h3>
   );

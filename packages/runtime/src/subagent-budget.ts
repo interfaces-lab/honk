@@ -75,7 +75,8 @@ export function createSubagentBudgetController(
   };
 
   const hasCapacity = (input: SubagentBudgetAcquireInput): boolean => {
-    const profileLimit = limits.profileActiveLimits[input.profileName] ?? limits.maxActivePerSession;
+    const profileLimit =
+      limits.profileActiveLimits[input.profileName] ?? limits.maxActivePerSession;
     return (
       countOf(activeByToolCall, input.toolCallId) < limits.maxActivePerToolCall &&
       countOf(activeBySession, input.parentSessionId) < limits.maxActivePerSession &&

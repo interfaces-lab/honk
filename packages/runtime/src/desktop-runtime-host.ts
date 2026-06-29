@@ -69,10 +69,7 @@ import {
 } from "./display-timeline-projection";
 import { toWireRuntimeEvent } from "./runtime-event-wire";
 import { registerCursorComposerProvider } from "./cursor-composer-provider";
-import {
-  createHonkPiModelRegistry,
-  isHonkPiSupportedProviderId,
-} from "./honk-pi-models";
+import { createHonkPiModelRegistry, isHonkPiSupportedProviderId } from "./honk-pi-models";
 
 const MAX_RUNTIME_EVENTS_IN_SNAPSHOT = 500;
 // Live runtime events are retained only to (a) feed the host snapshot and (b) re-project the live
@@ -203,7 +200,11 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
         ? AuthStorage.create(join(this.agentDir, "auth.json"))
         : options.authStorage;
     this.modelRegistry = this.authStorage
-      ? createHonkPiModelRegistry(ModelRegistry, this.authStorage, join(this.agentDir, "models.json"))
+      ? createHonkPiModelRegistry(
+          ModelRegistry,
+          this.authStorage,
+          join(this.agentDir, "models.json"),
+        )
       : null;
     if (this.modelRegistry) {
       registerCursorComposerProvider(this.modelRegistry, { cwd: this.agentDir });
@@ -472,9 +473,7 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       expandPromptTemplates: null,
       source: null,
       streamingBehavior: input.streamingBehavior ?? null,
-      ...(input.runtimeUserTurnStart
-        ? { runtimeUserTurnStart: input.runtimeUserTurnStart }
-        : {}),
+      ...(input.runtimeUserTurnStart ? { runtimeUserTurnStart: input.runtimeUserTurnStart } : {}),
     });
   }
 

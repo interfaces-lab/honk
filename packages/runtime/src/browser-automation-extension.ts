@@ -61,16 +61,26 @@ const BrowserClickParams = Type.Object({
 const BrowserTypeParams = Type.Object({
   ...LocatorTarget,
   text: Type.String({ description: "Literal text to insert." }),
-  clear: Type.Optional(Type.Boolean({ description: "Clear existing text first. Defaults to false." })),
+  clear: Type.Optional(
+    Type.Boolean({ description: "Clear existing text first. Defaults to false." }),
+  ),
   timeoutMs: OptionalTimeoutMs,
 });
 
 const BrowserPressParams = Type.Object({
   key: Type.String({ description: "Keyboard key, for example Enter, Escape, Tab, or ArrowDown." }),
   modifiers: Type.Optional(
-    Type.Array(Type.Union([Type.Literal("Alt"), Type.Literal("Control"), Type.Literal("Meta"), Type.Literal("Shift")]), {
-      description: "Modifier keys held while pressing key.",
-    }),
+    Type.Array(
+      Type.Union([
+        Type.Literal("Alt"),
+        Type.Literal("Control"),
+        Type.Literal("Meta"),
+        Type.Literal("Shift"),
+      ]),
+      {
+        description: "Modifier keys held while pressing key.",
+      },
+    ),
   ),
 });
 
@@ -82,7 +92,9 @@ const BrowserScrollParams = Type.Object({
 
 const BrowserEvaluateParams = Type.Object({
   expression: Type.String({ description: "JavaScript expression evaluated in the page." }),
-  awaitPromise: Type.Optional(Type.Boolean({ description: "Await returned promises. Defaults to true." })),
+  awaitPromise: Type.Optional(
+    Type.Boolean({ description: "Await returned promises. Defaults to true." }),
+  ),
 });
 
 const BrowserWaitForParams = Type.Object({
@@ -171,7 +183,8 @@ export function createBrowserAutomationExtension(options: {
         label: "Browser Status",
         description:
           "Report whether the current Honk thread has an automation-capable browser tab, including URL, title, visibility, and loading state.",
-        promptSnippet: "Use browser_status before browser work to inspect the attached Honk browser.",
+        promptSnippet:
+          "Use browser_status before browser work to inspect the attached Honk browser.",
         promptGuidelines: [
           "For browser work, first call browser_status. If no browser is attached, call browser_open before concluding unavailable.",
           "Use Honk browser tools before external browser automation.",
@@ -188,8 +201,10 @@ export function createBrowserAutomationExtension(options: {
       defineTool({
         name: "browser_open",
         label: "Open Browser",
-        description: "Reveal and initialize the Honk browser for this thread, optionally navigating to a URL.",
-        promptSnippet: "Use browser_open to reveal the product-native browser when browser_status is unavailable.",
+        description:
+          "Reveal and initialize the Honk browser for this thread, optionally navigating to a URL.",
+        promptSnippet:
+          "Use browser_open to reveal the product-native browser when browser_status is unavailable.",
         parameters: BrowserOpenParams,
         async execute(_toolCallId, params: BrowserAutomationOpenInput) {
           const status = await requireController().open(threadId, params);
@@ -202,7 +217,8 @@ export function createBrowserAutomationExtension(options: {
       defineTool({
         name: "browser_navigate",
         label: "Navigate Browser",
-        description: "Navigate the active Honk browser tab to a URL and wait for readiness by default.",
+        description:
+          "Navigate the active Honk browser tab to a URL and wait for readiness by default.",
         promptSnippet: "Use browser_navigate to navigate the shared Honk browser tab.",
         parameters: BrowserNavigateParams,
         async execute(_toolCallId, params: BrowserAutomationNavigateInput) {
@@ -218,7 +234,8 @@ export function createBrowserAutomationExtension(options: {
         label: "Inspect Browser",
         description:
           "Inspect the current Honk browser page. Returns URL/title/loading state, visible text, interactive elements, recent console entries, and a screenshot.",
-        promptSnippet: "Use browser_snapshot before browser interactions and prefer returned selectors over coordinates.",
+        promptSnippet:
+          "Use browser_snapshot before browser interactions and prefer returned selectors over coordinates.",
         parameters: Type.Object({}),
         async execute() {
           const snapshot = await requireController().snapshot(threadId);
@@ -271,7 +288,8 @@ export function createBrowserAutomationExtension(options: {
         name: "browser_press",
         label: "Press Browser Key",
         description: "Press one keyboard key in the active Honk browser page.",
-        promptSnippet: "Use browser_press for Enter, Escape, Tab, arrows, and shortcuts in the Honk browser.",
+        promptSnippet:
+          "Use browser_press for Enter, Escape, Tab, arrows, and shortcuts in the Honk browser.",
         parameters: BrowserPressParams,
         async execute(_toolCallId, params: BrowserAutomationPressInput) {
           await requireController().press(threadId, params);
@@ -300,7 +318,8 @@ export function createBrowserAutomationExtension(options: {
         label: "Evaluate Browser JavaScript",
         description:
           "Evaluate a JavaScript expression in the active Honk browser page. Prefer snapshot and semantic actions first.",
-        promptSnippet: "Use browser_evaluate for browser inspection or interactions unsupported by focused browser tools.",
+        promptSnippet:
+          "Use browser_evaluate for browser inspection or interactions unsupported by focused browser tools.",
         parameters: BrowserEvaluateParams,
         async execute(_toolCallId, params: BrowserAutomationEvaluateInput) {
           const value = await requireController().evaluate(threadId, params);
@@ -315,7 +334,8 @@ export function createBrowserAutomationExtension(options: {
         label: "Wait for Browser",
         description:
           "Wait until selector/locator, visible text, and/or URL conditions match in the Honk browser.",
-        promptSnippet: "Use browser_wait_for after navigation or interactions that update the page asynchronously.",
+        promptSnippet:
+          "Use browser_wait_for after navigation or interactions that update the page asynchronously.",
         parameters: BrowserWaitForParams,
         async execute(_toolCallId, params: BrowserAutomationWaitForInput) {
           await requireController().waitFor(threadId, params);

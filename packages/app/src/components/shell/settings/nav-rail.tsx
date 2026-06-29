@@ -2,9 +2,7 @@ import { Link, useSearch } from "@tanstack/react-router";
 import { IconChevronLeftMedium, IconMagnifyingGlass } from "central-icons";
 import { useMemo, useState } from "react";
 
-import {
-  Autocomplete,
-} from "@honk/honkkit/autocomplete";
+import { Autocomplete } from "@honk/honkkit/autocomplete";
 import {
   CommandSearchEmpty,
   CommandSearchInput,
@@ -93,7 +91,12 @@ export function SettingsNavRail(props: { onBack: () => void }) {
                 data-1p-ignore
               />
             </div>
-            <CommandSearchPopup side="top" align="start" sideOffset={4} className="w-[min(var(--available-width),24rem)]">
+            <CommandSearchPopup
+              side="top"
+              align="start"
+              sideOffset={4}
+              className="w-(--anchor-width)"
+            >
               <CommandSearchList>
                 <SettingsSearchResults results={searchResults} onSelect={selectResult} />
                 {searchResults.length === 0 ? (

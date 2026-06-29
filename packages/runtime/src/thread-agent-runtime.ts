@@ -340,7 +340,10 @@ export class ThreadAgentRuntime implements BackgroundSubagentController {
         cwd: options.cwd,
         agentDir: options.agentDir,
         settingsManager,
-        additionalExtensionPaths: normalizeAdditionalExtensionPaths(options.extensionPaths ?? [], options.cwd),
+        additionalExtensionPaths: normalizeAdditionalExtensionPaths(
+          options.extensionPaths ?? [],
+          options.cwd,
+        ),
         extensionFactories: [
           createCodexApplyPatchExtension(options.policy),
           createToolCallDescriptionExtension(),
@@ -855,7 +858,9 @@ export class ThreadAgentRuntime implements BackgroundSubagentController {
             images,
             interactionMode: options.interactionMode,
             sourceProposedPlan: options.sourceProposedPlan,
-            ...(options.parentEntryId !== undefined ? { parentEntryId: options.parentEntryId } : {}),
+            ...(options.parentEntryId !== undefined
+              ? { parentEntryId: options.parentEntryId }
+              : {}),
             ...(options.runtimeUserTurnStart
               ? { runtimeUserTurnStart: options.runtimeUserTurnStart }
               : {}),
@@ -878,7 +883,9 @@ export class ThreadAgentRuntime implements BackgroundSubagentController {
     this.sourceProposedPlanByTurnId.set(turnId, options.sourceProposedPlan);
     this.interactionModeByTurnId.set(turnId, options.interactionMode);
     if (!queueIntoActiveRun && visibility === "visible") {
-      this.emit(this.createPromptUserMessageEvent(text, turnId, clientMessageId, options.createdAt));
+      this.emit(
+        this.createPromptUserMessageEvent(text, turnId, clientMessageId, options.createdAt),
+      );
     }
     const interactionMode = this.interactionModeQueue.enqueue(options.interactionMode);
     const baselineActiveToolNames = this.session.getActiveToolNames();
@@ -1659,27 +1666,27 @@ export class ThreadAgentRuntime implements BackgroundSubagentController {
       this.session.setActiveToolsByName(baselineActiveToolNames);
       this.refreshToolCallDescriptionSupport();
     };
-    void this.session.followUp(item.input, toPiImageContent(item.images)).catch((error: unknown) => {
-      this.nextPiTurnStartsFollowUpPrompt = false;
-      const restore = this.queuedToolProfileRestore;
-      if (restore) {
-        this.queuedToolProfileRestore = null;
-        restore();
-      }
-      this.removePendingPromptClientMessage(pending);
-      this.clearTurnTracking(pending.turnId);
-      this.restoreQueuedFollowUp(item);
-      this.emit(
-        this.createEvent(
-          "runtime.error",
-          error instanceof Error
-            ? error.message
-            : "Failed to submit queued follow-up to Pi.",
-        ),
-      );
-      this.emit(this.projectRuntimePiSessionEvent(terminalEvent, undefined));
-      this.finishPiEventTurn(terminalEvent, undefined);
-    });
+    void this.session
+      .followUp(item.input, toPiImageContent(item.images))
+      .catch((error: unknown) => {
+        this.nextPiTurnStartsFollowUpPrompt = false;
+        const restore = this.queuedToolProfileRestore;
+        if (restore) {
+          this.queuedToolProfileRestore = null;
+          restore();
+        }
+        this.removePendingPromptClientMessage(pending);
+        this.clearTurnTracking(pending.turnId);
+        this.restoreQueuedFollowUp(item);
+        this.emit(
+          this.createEvent(
+            "runtime.error",
+            error instanceof Error ? error.message : "Failed to submit queued follow-up to Pi.",
+          ),
+        );
+        this.emit(this.projectRuntimePiSessionEvent(terminalEvent, undefined));
+        this.finishPiEventTurn(terminalEvent, undefined);
+      });
     return true;
   }
 
@@ -1989,11 +1996,7 @@ export class ThreadAgentRuntime implements BackgroundSubagentController {
     event: AgentSessionEvent,
     turnId: TurnId | undefined,
   ): PendingPromptClientMessage | null {
-    if (
-      turnId === undefined ||
-      !("message" in event) ||
-      event.message.role !== "user"
-    ) {
+    if (turnId === undefined || !("message" in event) || event.message.role !== "user") {
       return null;
     }
     const text = extractMessageText(event.message);
@@ -2004,15 +2007,8 @@ export class ThreadAgentRuntime implements BackgroundSubagentController {
     );
   }
 
-  private isHiddenPromptUserEvent(
-    event: AgentSessionEvent,
-    turnId: TurnId | undefined,
-  ): boolean {
-    if (
-      turnId === undefined ||
-      !("message" in event) ||
-      event.message.role !== "user"
-    ) {
+  private isHiddenPromptUserEvent(event: AgentSessionEvent, turnId: TurnId | undefined): boolean {
+    if (turnId === undefined || !("message" in event) || event.message.role !== "user") {
       return false;
     }
     const text = extractMessageText(event.message);
@@ -2244,10 +2240,7 @@ function rewriteDefaultPiSystemPromptForHonk(
 function createHonkSystemPromptIdentityExtension(queue: InteractionModeQueue): ExtensionFactory {
   return (pi) => {
     pi.on("before_agent_start", (event) => {
-      const systemPrompt = rewriteDefaultPiSystemPromptForHonk(
-        event.systemPrompt,
-        queue.peek(),
-      );
+      const systemPrompt = rewriteDefaultPiSystemPromptForHonk(event.systemPrompt, queue.peek());
       return systemPrompt === event.systemPrompt ? undefined : { systemPrompt };
     });
   };

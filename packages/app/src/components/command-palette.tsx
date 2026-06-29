@@ -388,9 +388,7 @@ function OpenCommandPaletteDialog() {
   const availableEditors = useServerAvailableEditors();
   const serverConfig = useServerConfig();
   const observability = useServerObservability();
-  const multitaskModeEnabled = useLocalFeatureFlagsStore(
-    (state) => state.multitaskModeEnabled,
-  );
+  const multitaskModeEnabled = useLocalFeatureFlagsStore((state) => state.multitaskModeEnabled);
   const toggleMultitaskModeEnabled = useLocalFeatureFlagsStore(
     (state) => state.toggleMultitaskModeEnabled,
   );

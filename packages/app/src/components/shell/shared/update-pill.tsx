@@ -46,9 +46,7 @@ function getSidebarUpdateChipLabel(
   }
   if (state.status === "downloading") {
     const progress =
-      typeof state.downloadPercent === "number"
-        ? ` ${Math.floor(state.downloadPercent)}%`
-        : "";
+      typeof state.downloadPercent === "number" ? ` ${Math.floor(state.downloadPercent)}%` : "";
     return `Downloading${progress}`;
   }
   return `Update · ${targetVersion}`;

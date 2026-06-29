@@ -13,10 +13,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  createRuntimeFauxProvider,
-  registerFauxInModelRegistry,
-} from "../../runtime-test-harness";
+import { createRuntimeFauxProvider, registerFauxInModelRegistry } from "../../runtime-test-harness";
 
 type RecordedSessionEvent = {
   readonly type:

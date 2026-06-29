@@ -134,7 +134,7 @@ export function ConversationScroller<TRow>({
   const [scrollViewportHeight, setScrollViewportHeight] = useState(DEFAULT_VIRTUALIZER_RECT.height);
   const [showScrollToEndButton, setShowScrollToEndButton] = useState(false);
   const virtualizerBottomPadding = Math.max(0, Math.ceil(bottomClearancePx));
-  const cachedSnapshot = cacheKey ? conversationScrollerSnapshots.get(cacheKey) ?? null : null;
+  const cachedSnapshot = cacheKey ? (conversationScrollerSnapshots.get(cacheKey) ?? null) : null;
   const initialMeasurementsCache = filterReusableMeasurements({
     snapshot: cachedSnapshot,
     rows,
@@ -146,7 +146,9 @@ export function ConversationScroller<TRow>({
   const lastAnchorIndex = findLastAnchorRowIndex(rows, isAnchorRow);
   const estimateSize = (index: number) => {
     const row = rows[index]!;
-    return estimateRowSize?.(row, index) ?? DEFAULT_VIRTUALIZER_RECT.height / 6 + DEFAULT_ROW_GAP_PX;
+    return (
+      estimateRowSize?.(row, index) ?? DEFAULT_VIRTUALIZER_RECT.height / 6 + DEFAULT_ROW_GAP_PX
+    );
   };
 
   if (lastAnchorIndex !== null) {
@@ -493,8 +495,7 @@ export function ConversationScroller<TRow>({
     stickyRowIndices,
     rowVirtualizer.range?.startIndex ?? virtualItems[0]?.index ?? 0,
   );
-  const activeStickyRow =
-    activeStickyRowIndex === null ? null : rows[activeStickyRowIndex]!;
+  const activeStickyRow = activeStickyRowIndex === null ? null : rows[activeStickyRowIndex]!;
   const stickyOverlayActive =
     activeStickyRowIndex !== null &&
     activeStickyRow !== null &&
@@ -585,10 +586,7 @@ export function ConversationScroller<TRow>({
       activeStickyRowIndex !== null &&
       renderStickyOverlay ? (
         <div
-          className={cn(
-            "pointer-events-none absolute inset-x-0",
-            stickyOverlayClassName,
-          )}
+          className={cn("pointer-events-none absolute inset-x-0", stickyOverlayClassName)}
           data-slot="conversation-scroller-sticky-overlay"
           style={{ top: stickyTop }}
         >

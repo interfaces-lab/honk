@@ -55,7 +55,9 @@ for (const id of specialIds) {
 
 for (const id of previewIds) {
   if (!allowedPreviewIds.has(id)) {
-    errors.push(`HonkKit preview "${id}" is not backed by a registry item or special catalog page.`);
+    errors.push(
+      `HonkKit preview "${id}" is not backed by a registry item or special catalog page.`,
+    );
   }
 }
 

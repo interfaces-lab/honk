@@ -66,12 +66,42 @@ colors:
   destructive-900: "color-mix(in srgb, var(--destructive) 56%, var(--honk-fg-primary))"
   destructive-1000: "color-mix(in srgb, var(--destructive) 24%, var(--honk-fg-primary))"
 typography:
-  caption: { fontFamily: "var(--honk-font-ui)", fontSize: "var(--honk-text-caption)", lineHeight: "var(--honk-leading-caption)" }
-  detail: { fontFamily: "var(--honk-font-ui)", fontSize: "var(--honk-text-detail)", lineHeight: "var(--honk-leading-detail)" }
-  body: { fontFamily: "var(--honk-font-ui)", fontSize: "var(--honk-text-body)", lineHeight: "var(--honk-leading-body)" }
-  title: { fontFamily: "var(--honk-font-ui)", fontSize: "var(--honk-text-title)", lineHeight: "var(--honk-leading-title)" }
-  heading: { fontFamily: "var(--honk-font-ui)", fontSize: "var(--honk-text-heading)", lineHeight: "var(--honk-leading-heading)" }
-  code: { fontFamily: "var(--honk-font-mono)", fontSize: "var(--honk-code-font-size-user, 12px)", lineHeight: "calc(var(--honk-code-font-size-user, 12px) * 1.45)" }
+  caption:
+    {
+      fontFamily: "var(--honk-font-ui)",
+      fontSize: "var(--honk-text-caption)",
+      lineHeight: "var(--honk-leading-caption)",
+    }
+  detail:
+    {
+      fontFamily: "var(--honk-font-ui)",
+      fontSize: "var(--honk-text-detail)",
+      lineHeight: "var(--honk-leading-detail)",
+    }
+  body:
+    {
+      fontFamily: "var(--honk-font-ui)",
+      fontSize: "var(--honk-text-body)",
+      lineHeight: "var(--honk-leading-body)",
+    }
+  title:
+    {
+      fontFamily: "var(--honk-font-ui)",
+      fontSize: "var(--honk-text-title)",
+      lineHeight: "var(--honk-leading-title)",
+    }
+  heading:
+    {
+      fontFamily: "var(--honk-font-ui)",
+      fontSize: "var(--honk-text-heading)",
+      lineHeight: "var(--honk-leading-heading)",
+    }
+  code:
+    {
+      fontFamily: "var(--honk-font-mono)",
+      fontSize: "var(--honk-code-font-size-user, 12px)",
+      lineHeight: "calc(var(--honk-code-font-size-user, 12px) * 1.45)",
+    }
 spacing:
   "0.25": "var(--honk-spacing-0-25)"
   "0.5": "var(--honk-spacing-0-5)"

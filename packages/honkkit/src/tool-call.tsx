@@ -198,10 +198,7 @@ function ToolCallLine({
   if (!onClick) {
     return (
       <div
-        className={cn(
-          toolCallLineVariants({ clickable: false, status }),
-          className,
-        )}
+        className={cn(toolCallLineVariants({ clickable: false, status }), className)}
         data-status={status}
         data-tool-call-line=""
       >
@@ -258,7 +255,10 @@ function ToolCallLineDetails({
   return (
     <span
       {...spanProps}
-      className={cn(toolCallLineDetailsVariants({ hoverTone, linkable, loading, status }), className)}
+      className={cn(
+        toolCallLineDetailsVariants({ hoverTone, linkable, loading, status }),
+        className,
+      )}
       data-tool-call-line-details=""
     >
       {children}
@@ -315,11 +315,7 @@ function ToolCallDisclosureLine({
         {action}
       </ToolCallLineAction>
       {details ? (
-        <ToolCallLineDetails
-          hoverTone={detailsHoverTone}
-          loading={detailsLoading}
-          status={status}
-        >
+        <ToolCallLineDetails hoverTone={detailsHoverTone} loading={detailsLoading} status={status}>
           {details}
         </ToolCallLineDetails>
       ) : null}

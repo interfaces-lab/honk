@@ -550,13 +550,7 @@ export const SUBAGENT_MODES = ["single", "parallel", "chain"] as const;
 export const SubagentMode = Schema.Literals(SUBAGENT_MODES);
 export type SubagentMode = typeof SubagentMode.Type;
 
-export const SUBAGENT_RUN_STATES = [
-  "queued",
-  "running",
-  "completed",
-  "failed",
-  "aborted",
-] as const;
+export const SUBAGENT_RUN_STATES = ["queued", "running", "completed", "failed", "aborted"] as const;
 export const SubagentRunState = Schema.Literals(SUBAGENT_RUN_STATES);
 export type SubagentRunState = typeof SubagentRunState.Type;
 

@@ -6,10 +6,7 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "~/lib/environment-scope";
-import {
-  getSidebarThreadModifiedAt,
-  needsSidebarAttention,
-} from "./use-agent-sidebar-model";
+import { getSidebarThreadModifiedAt, needsSidebarAttention } from "./use-agent-sidebar-model";
 import { hasActiveOrchestrationTurn, hasVisibleActiveOrchestrationTurn } from "~/session-logic";
 import { buildProjectChatSections } from "./view-model";
 import type { SidebarThreadSummary as StoreSidebarThreadSummary } from "~/types";
@@ -169,8 +166,10 @@ describe("buildProjectChatSections", () => {
   });
 
   it("keeps multiple draft rows for the same project sorted by recency", () => {
-    const olderDraftId = "new-thread-draft:project:environment:primary:project:workspace:thread:older";
-    const newerDraftId = "new-thread-draft:project:environment:primary:project:workspace:thread:newer";
+    const olderDraftId =
+      "new-thread-draft:project:environment:primary:project:workspace:thread:older";
+    const newerDraftId =
+      "new-thread-draft:project:environment:primary:project:workspace:thread:newer";
     const sections = buildProjectChatSections(
       [],
       [

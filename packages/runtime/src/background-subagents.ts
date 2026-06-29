@@ -1,8 +1,5 @@
 import type { SubagentToolDetails, TurnId } from "@honk/contracts";
-import {
-  DEFAULT_SUBAGENT_BUDGET_LIMITS,
-  truncateSubagentOutputForParent,
-} from "./subagent-budget";
+import { DEFAULT_SUBAGENT_BUDGET_LIMITS, truncateSubagentOutputForParent } from "./subagent-budget";
 
 export const BACKGROUND_SUBAGENT_COMPLETION_DEBOUNCE_MS = 200;
 
@@ -29,9 +26,7 @@ export interface BackgroundSubagentController {
   readonly emitBackgroundSubagentUpdate: (toolCallId: string) => void;
 }
 
-export function buildBackgroundSubagentCompletionMessage(
-  notifications: readonly string[],
-): string {
+export function buildBackgroundSubagentCompletionMessage(notifications: readonly string[]): string {
   const cappedNotifications = notifications.map((notification) =>
     truncateSubagentOutputForParent({
       text: notification,

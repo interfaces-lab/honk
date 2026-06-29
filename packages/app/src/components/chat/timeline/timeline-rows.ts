@@ -1,7 +1,11 @@
 import { type MessageId } from "@honk/contracts";
 import type { ConversationDensity } from "@honk/contracts/settings";
 
-import { type TimelineEntry, type TimelineEntryId, type WorkLogEntry } from "../../../session-logic";
+import {
+  type TimelineEntry,
+  type TimelineEntryId,
+  type WorkLogEntry,
+} from "../../../session-logic";
 import { runtimeParentToolDisplaySignature } from "../../../lib/runtime-tool-display";
 import {
   computeMessageDurationStart,

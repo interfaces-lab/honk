@@ -1533,9 +1533,7 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
     const isInlineEditComposer = layout === "inline-edit";
     const isNewAgentComposer = layout === "new-agent";
     const composerVariant = variant;
-    const multitaskModeEnabled = useLocalFeatureFlagsStore(
-      (state) => state.multitaskModeEnabled,
-    );
+    const multitaskModeEnabled = useLocalFeatureFlagsStore((state) => state.multitaskModeEnabled);
     const effectiveInteractionMode =
       interactionMode === "multitask" && !multitaskModeEnabled ? "agent" : interactionMode;
     const showModeControls = !isInlineEditComposer && !isEditingQueuedComposerItem;
@@ -1724,7 +1722,7 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
         persistedFastModePreferences.openaiModelFastMode !== runtimePreferences.fast;
       const restoreCursorComposerFastMode =
         persistedFastModePreferences.cursorComposerFastMode !==
-          cursorComposerFastEnabled(runtimePreferences.modelSelection);
+        cursorComposerFastEnabled(runtimePreferences.modelSelection);
 
       if (!restoreOpenAIFastMode && !restoreCursorComposerFastMode) {
         return;
@@ -1829,7 +1827,11 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
       prompt: string,
     ): ActiveComposerInteractionMode | null => {
       const usage = syncModeSuggestionUsageForPrompt(prompt);
-      return suggestedComposerInteractionMode({ interactionMode: effectiveInteractionMode, prompt, usage });
+      return suggestedComposerInteractionMode({
+        interactionMode: effectiveInteractionMode,
+        prompt,
+        usage,
+      });
     };
 
     const consumeInteractionModeSuggestion = (): ActiveComposerInteractionMode | null => {
@@ -3052,11 +3054,11 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
                                     ? "Inspect failures and gather diagnostics..."
                                     : effectiveInteractionMode === "multitask"
                                       ? "Coordinate background subagents..."
-                                    : phase === "disconnected"
-                                      ? "Ask for follow-up changes or attach images"
-                                      : composerVariant === "compact"
-                                        ? "Send follow-up"
-                                        : "Plan, Build, / for skills, @ for context"
+                                      : phase === "disconnected"
+                                        ? "Ask for follow-up changes or attach images"
+                                        : composerVariant === "compact"
+                                          ? "Send follow-up"
+                                          : "Plan, Build, / for skills, @ for context"
                   }
                   disabled={isConnecting || isComposerApprovalState}
                 />

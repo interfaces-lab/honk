@@ -19,6 +19,7 @@
   --honk-sidebar-section-gap: 8px;
   --honk-sidebar-item-gap: 4px;
   --honk-sidebar-item-height: 28px;
+  --honk-sidebar-row-padding-inline: 6px;
   --honk-sidebar-row-padding-block: 4px;
   --honk-display-zoom-factor: 1;
   --honk-workbench-toggle-left: var(--honk-workbench-toggle-left-user, 12px);

@@ -21,9 +21,7 @@ const inlineChipVariants = cva(
   },
 );
 
-interface InlineChipProps
-  extends ComponentProps<"span">,
-    VariantProps<typeof inlineChipVariants> {}
+interface InlineChipProps extends ComponentProps<"span">, VariantProps<typeof inlineChipVariants> {}
 
 function InlineChip({ className, tone, ...props }: InlineChipProps) {
   return (

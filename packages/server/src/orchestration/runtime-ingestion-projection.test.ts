@@ -625,7 +625,9 @@ describe("runtime ingestion projection chain", () => {
         planMarkdown: "# Plan\n\n1. Do the thing",
       },
     ]);
-    expect(rows.messages).toEqual([{ messageId: userMessageId, role: "user", turnId: assistantTurnId }]);
+    expect(rows.messages).toEqual([
+      { messageId: userMessageId, role: "user", turnId: assistantTurnId },
+    ]);
     expect(rows.entries).toEqual([
       { entryId: userEntryId, parentEntryId: null, turnId: assistantTurnId },
     ]);

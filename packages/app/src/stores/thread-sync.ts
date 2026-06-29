@@ -2814,10 +2814,7 @@ function bindNextPendingUserTurnStart(
         return false;
       }
       const message = messagesById.get(entry.messageId);
-      return (
-        message?.role === "user" &&
-        (message.turnId === null || message.turnId === undefined)
-      );
+      return message?.role === "user" && (message.turnId === null || message.turnId === undefined);
     })
     .toSorted(compareCreatedThreadItem)
     .at(-1);
@@ -2869,11 +2866,7 @@ function interruptedTurnLeafId(input: {
   }
 
   const leafEntry = input.thread.entries.find((entry) => entry.id === input.thread.leafId);
-  if (
-    leafEntry &&
-    leafEntry.turnId === null &&
-    entryUserRole(leafEntry, messagesById) === "user"
-  ) {
+  if (leafEntry && leafEntry.turnId === null && entryUserRole(leafEntry, messagesById) === "user") {
     return leafEntry.parentEntryId;
   }
 

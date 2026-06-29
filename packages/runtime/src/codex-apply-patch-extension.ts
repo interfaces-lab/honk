@@ -713,12 +713,9 @@ export function formatFileDiff(
 
   const oldLabel = oldContent === null ? "/dev/null" : `a/${path}`;
   const newLabel = newContent === null ? "/dev/null" : `b/${path}`;
-  return [
-    `diff --git a/${path} b/${path}`,
-    `--- ${oldLabel}`,
-    `+++ ${newLabel}`,
-    ...hunks,
-  ].join("\n");
+  return [`diff --git a/${path} b/${path}`, `--- ${oldLabel}`, `+++ ${newLabel}`, ...hunks].join(
+    "\n",
+  );
 }
 
 function diffLineSegments(

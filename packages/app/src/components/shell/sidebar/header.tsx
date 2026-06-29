@@ -7,10 +7,7 @@ import type { DragEvent } from "react";
 
 import { SidebarButton } from "@honk/honkkit/sidebar";
 
-import {
-  COMMAND_PALETTE_FALLBACK_KEYBINDINGS,
-  shortcutLabelForCommand,
-} from "~/keybindings";
+import { COMMAND_PALETTE_FALLBACK_KEYBINDINGS, shortcutLabelForCommand } from "~/keybindings";
 import { useServerKeybindings } from "~/rpc/server-state";
 import { useCommandPaletteStore } from "~/stores/ui/command-palette-store";
 

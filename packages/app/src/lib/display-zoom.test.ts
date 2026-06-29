@@ -52,8 +52,9 @@ describe("uiFontSizeToNormalizedLineHeight", () => {
   it("accounts for display zoom from the font-size preference", () => {
     const zoomFactor = uiFontSizeToZoomFactor(16);
 
-    expect(
-      uiFontSizeToNormalizedLineHeight(16) * BASE_UI_FONT_PX * zoomFactor,
-    ).toBeCloseTo(TARGET_UI_TEXT_LINE_HEIGHT_PX, 5);
+    expect(uiFontSizeToNormalizedLineHeight(16) * BASE_UI_FONT_PX * zoomFactor).toBeCloseTo(
+      TARGET_UI_TEXT_LINE_HEIGHT_PX,
+      5,
+    );
   });
 });

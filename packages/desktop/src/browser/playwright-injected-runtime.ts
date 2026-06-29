@@ -25,46 +25,46 @@ export class PlaywrightInjectedRuntimeError extends Data.TaggedError(
 const fail = (operation: string, cause: unknown) =>
   new PlaywrightInjectedRuntimeError({ operation, cause });
 
-export const playwrightInjectedRuntimeSource = Effect.fn("browser.playwrightInjectedRuntime.source")(
-  function* () {
-    const packageJsonPath = yield* Effect.try({
-      try: () => nodeRequire.resolve("playwright-core/package.json"),
-      catch: (cause) => fail("resolvePackage", cause),
-    });
-    const coreBundle = yield* Effect.tryPromise({
-      try: () => readFile(join(dirname(packageJsonPath), "lib/coreBundle.js"), "utf8"),
-      catch: (cause) => fail("readCoreBundle", cause),
-    });
-    const marker = "source3 = ";
-    const start = coreBundle.indexOf(marker);
-    if (start < 0) {
-      return yield* fail(
-        "findSourceMarker",
-        new Error("Playwright injected runtime marker was not found."),
-      );
-    }
-    const literalStart = start + marker.length;
-    const literalEnd = coreBundle.indexOf(";\n  }\n});", literalStart);
-    if (literalEnd < 0) {
-      return yield* fail(
-        "findSourceTerminator",
-        new Error("Playwright injected runtime terminator was not found."),
-      );
-    }
-    const literal = coreBundle.slice(literalStart, literalEnd);
-    const source = yield* Effect.try({
-      try: () => runInNewContext(literal, Object.create(null), { timeout: 1_000 }),
-      catch: (cause) => fail("evaluateSourceLiteral", cause),
-    });
-    if (typeof source !== "string" || source.length < 100_000) {
-      return yield* fail(
-        "validateSource",
-        new Error("Playwright injected runtime extraction returned invalid source."),
-      );
-    }
-    return source;
-  },
-);
+export const playwrightInjectedRuntimeSource = Effect.fn(
+  "browser.playwrightInjectedRuntime.source",
+)(function* () {
+  const packageJsonPath = yield* Effect.try({
+    try: () => nodeRequire.resolve("playwright-core/package.json"),
+    catch: (cause) => fail("resolvePackage", cause),
+  });
+  const coreBundle = yield* Effect.tryPromise({
+    try: () => readFile(join(dirname(packageJsonPath), "lib/coreBundle.js"), "utf8"),
+    catch: (cause) => fail("readCoreBundle", cause),
+  });
+  const marker = "source3 = ";
+  const start = coreBundle.indexOf(marker);
+  if (start < 0) {
+    return yield* fail(
+      "findSourceMarker",
+      new Error("Playwright injected runtime marker was not found."),
+    );
+  }
+  const literalStart = start + marker.length;
+  const literalEnd = coreBundle.indexOf(";\n  }\n});", literalStart);
+  if (literalEnd < 0) {
+    return yield* fail(
+      "findSourceTerminator",
+      new Error("Playwright injected runtime terminator was not found."),
+    );
+  }
+  const literal = coreBundle.slice(literalStart, literalEnd);
+  const source = yield* Effect.try({
+    try: () => runInNewContext(literal, Object.create(null), { timeout: 1_000 }),
+    catch: (cause) => fail("evaluateSourceLiteral", cause),
+  });
+  if (typeof source !== "string" || source.length < 100_000) {
+    return yield* fail(
+      "validateSource",
+      new Error("Playwright injected runtime extraction returned invalid source."),
+    );
+  }
+  return source;
+});
 
 export const playwrightInjectedRuntimeInstallExpression = Effect.fn(
   "browser.playwrightInjectedRuntime.installExpression",

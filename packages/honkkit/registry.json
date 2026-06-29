@@ -65,13 +65,8 @@
       "type": "registry:ui",
       "title": "Alert",
       "description": "Inline status banner with title, description, and action slots.",
-      "dependencies": [
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/alert.tsx",
@@ -95,14 +90,8 @@
       "type": "registry:ui",
       "title": "Badge",
       "description": "Compact status, count, and label badge.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/badge.tsx",
@@ -132,9 +121,7 @@
         "class-variance-authority",
         "tailwind-merge"
       ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/spinner.tsx",
@@ -179,9 +166,7 @@
         "class-variance-authority",
         "tailwind-merge"
       ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/status-dot.tsx",
@@ -220,15 +205,8 @@
       "type": "registry:ui",
       "title": "Toast",
       "description": "Toast root, content, text, action, and icon button slots.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/button",
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/button", "@honkkit/styles"],
       "files": [
         {
           "path": "src/toast.tsx",
@@ -252,12 +230,8 @@
       "type": "registry:ui",
       "title": "Text",
       "description": "Semantic typography primitive with size, tone, weight, and layout variants.",
-      "dependencies": [
-        "@stylexjs/stylex"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@stylexjs/stylex"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/text.tsx",
@@ -271,14 +245,8 @@
       "type": "registry:ui",
       "title": "Link",
       "description": "Token-backed anchor styling.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/link.tsx",
@@ -302,14 +270,8 @@
       "type": "registry:ui",
       "title": "Code",
       "description": "Inline and block code display primitives.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/code.tsx",
@@ -333,14 +295,8 @@
       "type": "registry:ui",
       "title": "Kbd",
       "description": "Keyboard shortcut key and key group primitives.",
-      "dependencies": [
-        "@stylexjs/stylex",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@stylexjs/stylex", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/kbd.tsx",
@@ -384,14 +340,8 @@
       "type": "registry:ui",
       "title": "Label",
       "description": "Accessible form label primitive.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/label.tsx",
@@ -415,13 +365,8 @@
       "type": "registry:ui",
       "title": "Inline Chip",
       "description": "Inline metadata chip slots for icon, label, and detail content.",
-      "dependencies": [
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/inline-chip.tsx",
@@ -445,14 +390,8 @@
       "type": "registry:ui",
       "title": "Input",
       "description": "Token-backed text input with native and Base UI render modes.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/input.tsx",
@@ -476,14 +415,8 @@
       "type": "registry:ui",
       "title": "Textarea",
       "description": "Auto-sizing textarea control shell.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/textarea.tsx",
@@ -513,9 +446,7 @@
         "class-variance-authority",
         "tailwind-merge"
       ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/checkbox.tsx",
@@ -539,14 +470,8 @@
       "type": "registry:ui",
       "title": "Switch",
       "description": "Binary switch control.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/switch.tsx",
@@ -570,14 +495,8 @@
       "type": "registry:ui",
       "title": "Radio Group",
       "description": "Radio group and item controls.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/radio-group.tsx",
@@ -607,9 +526,7 @@
         "class-variance-authority",
         "tailwind-merge"
       ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/separator.tsx",
@@ -648,13 +565,8 @@
       "type": "registry:ui",
       "title": "Skeleton",
       "description": "Loading placeholder block.",
-      "dependencies": [
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/skeleton.tsx",
@@ -678,14 +590,8 @@
       "type": "registry:ui",
       "title": "Tooltip",
       "description": "Tooltip root, trigger, provider, and popup primitives.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/tooltip.tsx",
@@ -709,14 +615,8 @@
       "type": "registry:ui",
       "title": "Popover",
       "description": "Popover root, trigger, popup, close, title, and description primitives.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/popover.tsx",
@@ -740,14 +640,8 @@
       "type": "registry:ui",
       "title": "Tabs",
       "description": "Segmented, underline, and workbench tabs primitives.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/tabs.tsx",
@@ -771,14 +665,8 @@
       "type": "registry:ui",
       "title": "Collapsible",
       "description": "Collapsible root, trigger, and measured panel primitives.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/collapsible.tsx",
@@ -802,14 +690,8 @@
       "type": "registry:ui",
       "title": "Scroll Area",
       "description": "Scroll area viewport with optional fades and custom scrollbars.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/scroll-area.tsx",
@@ -833,14 +715,8 @@
       "type": "registry:ui",
       "title": "Alert Dialog",
       "description": "Modal alert dialog slots.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/alert-dialog.tsx",
@@ -870,11 +746,7 @@
         "class-variance-authority",
         "tailwind-merge"
       ],
-      "registryDependencies": [
-        "@honkkit/button",
-        "@honkkit/scroll-area",
-        "@honkkit/styles"
-      ],
+      "registryDependencies": ["@honkkit/button", "@honkkit/scroll-area", "@honkkit/styles"],
       "files": [
         {
           "path": "src/dialog.tsx",
@@ -898,14 +770,8 @@
       "type": "registry:ui",
       "title": "Avatar",
       "description": "Avatar root, image, and fallback primitives.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/avatar.tsx",
@@ -929,14 +795,8 @@
       "type": "registry:ui",
       "title": "Card",
       "description": "Composable card root, header, body, and footer primitives.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/card.tsx",
@@ -960,13 +820,8 @@
       "type": "registry:ui",
       "title": "Empty",
       "description": "Empty state layout, media, title, description, and content slots.",
-      "dependencies": [
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/empty.tsx",
@@ -990,14 +845,8 @@
       "type": "registry:ui",
       "title": "Layout",
       "description": "Stack, row, grid, and spacer layout primitives.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/layout.tsx",
@@ -1021,14 +870,8 @@
       "type": "registry:ui",
       "title": "Stat",
       "description": "Compact stat label and value primitives.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/stat.tsx",
@@ -1052,14 +895,8 @@
       "type": "registry:ui",
       "title": "Table",
       "description": "Semantic table root and section primitives.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/table.tsx",
@@ -1083,14 +920,8 @@
       "type": "registry:ui",
       "title": "Hover Card",
       "description": "Hover card root, trigger, and positioned popup primitives.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/hover-card.tsx",
@@ -1114,14 +945,8 @@
       "type": "registry:ui",
       "title": "Workbench Button",
       "description": "Workbench icon, text, and tab controls.",
-      "dependencies": [
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/button",
-        "@honkkit/styles"
-      ],
+      "dependencies": ["class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/button", "@honkkit/styles"],
       "files": [
         {
           "path": "src/workbench-button.tsx",
@@ -1145,13 +970,8 @@
       "type": "registry:ui",
       "title": "Workbench Chrome Row",
       "description": "Workbench tool and panel row chrome primitives.",
-      "dependencies": [
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/workbench-chrome-row.tsx",
@@ -1175,13 +995,8 @@
       "type": "registry:ui",
       "title": "Conversation Loader",
       "description": "Animated inline loading status for conversation surfaces.",
-      "dependencies": [
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/conversation-loader.tsx",
@@ -1205,14 +1020,8 @@
       "type": "registry:ui",
       "title": "Conversation Bubble",
       "description": "Composable user and assistant message bubble surfaces.",
-      "dependencies": [
-        "@stylexjs/stylex",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@stylexjs/stylex", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/conversation-bubble.tsx",
@@ -1236,14 +1045,8 @@
       "type": "registry:ui",
       "title": "Conversation Collapse",
       "description": "Measured conversation content collapse with fade and show more/less control.",
-      "dependencies": [
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/button",
-        "@honkkit/styles"
-      ],
+      "dependencies": ["class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/button", "@honkkit/styles"],
       "files": [
         {
           "path": "src/conversation-collapse.tsx",
@@ -1267,14 +1070,8 @@
       "type": "registry:ui",
       "title": "Conversation Scroller",
       "description": "Virtualized conversation scroller with sticky anchors and scroll-to-end control hooks.",
-      "dependencies": [
-        "@tanstack/react-virtual",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@tanstack/react-virtual", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/conversation-scroller.tsx",
@@ -1298,13 +1095,8 @@
       "type": "registry:ui",
       "title": "Conversation Status Row",
       "description": "Compact conversation activity row with icon, label, detail, and active shimmer state.",
-      "dependencies": [
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/conversation-status-row.tsx",
@@ -1328,14 +1120,8 @@
       "type": "registry:ui",
       "title": "Attachment",
       "description": "Composable attachment preview, fallback, and action slots.",
-      "dependencies": [
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/button",
-        "@honkkit/styles"
-      ],
+      "dependencies": ["class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/button", "@honkkit/styles"],
       "files": [
         {
           "path": "src/attachment.tsx",
@@ -1364,9 +1150,7 @@
         "class-variance-authority",
         "tailwind-merge"
       ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/marker.tsx",
@@ -1390,14 +1174,8 @@
       "type": "registry:ui",
       "title": "Toggle",
       "description": "Pressed-state toggle control.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/toggle.tsx",
@@ -1421,15 +1199,8 @@
       "type": "registry:ui",
       "title": "Group",
       "description": "Grouped control shell, text, and separator primitives.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/separator",
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/separator", "@honkkit/styles"],
       "files": [
         {
           "path": "src/group.tsx",
@@ -1453,16 +1224,8 @@
       "type": "registry:ui",
       "title": "Toggle Group",
       "description": "Single or multi-select toggle group primitives.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/separator",
-        "@honkkit/styles",
-        "@honkkit/toggle"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/separator", "@honkkit/styles", "@honkkit/toggle"],
       "files": [
         {
           "path": "src/toggle-group.tsx",
@@ -1486,10 +1249,7 @@
       "type": "registry:ui",
       "title": "Input Group",
       "description": "Input and textarea group shell with addon and button slots.",
-      "dependencies": [
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
+      "dependencies": ["class-variance-authority", "tailwind-merge"],
       "registryDependencies": [
         "@honkkit/button",
         "@honkkit/input",
@@ -1519,14 +1279,8 @@
       "type": "registry:ui",
       "title": "Sidebar",
       "description": "Sidebar tray, item, row, label, status, and button primitives.",
-      "dependencies": [
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/button",
-        "@honkkit/styles"
-      ],
+      "dependencies": ["class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/button", "@honkkit/styles"],
       "files": [
         {
           "path": "src/sidebar.tsx",
@@ -1556,9 +1310,7 @@
         "class-variance-authority",
         "tailwind-merge"
       ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/menu.tsx",
@@ -1582,15 +1334,8 @@
       "type": "registry:ui",
       "title": "Context Menu",
       "description": "Workbench context menu root, trigger, popup, item, and separator primitives.",
-      "dependencies": [
-        "@base-ui/react",
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/menu",
-        "@honkkit/styles"
-      ],
+      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/menu", "@honkkit/styles"],
       "files": [
         {
           "path": "src/context-menu.tsx",
@@ -1620,10 +1365,7 @@
         "class-variance-authority",
         "tailwind-merge"
       ],
-      "registryDependencies": [
-        "@honkkit/menu",
-        "@honkkit/styles"
-      ],
+      "registryDependencies": ["@honkkit/menu", "@honkkit/styles"],
       "files": [
         {
           "path": "src/select.tsx",
@@ -1687,11 +1429,7 @@
         "class-variance-authority",
         "tailwind-merge"
       ],
-      "registryDependencies": [
-        "@honkkit/input",
-        "@honkkit/scroll-area",
-        "@honkkit/styles"
-      ],
+      "registryDependencies": ["@honkkit/input", "@honkkit/scroll-area", "@honkkit/styles"],
       "files": [
         {
           "path": "src/autocomplete.tsx",
@@ -1721,11 +1459,7 @@
         "class-variance-authority",
         "tailwind-merge"
       ],
-      "registryDependencies": [
-        "@honkkit/input",
-        "@honkkit/scroll-area",
-        "@honkkit/styles"
-      ],
+      "registryDependencies": ["@honkkit/input", "@honkkit/scroll-area", "@honkkit/styles"],
       "files": [
         {
           "path": "src/combobox.tsx",
@@ -1755,10 +1489,7 @@
         "class-variance-authority",
         "tailwind-merge"
       ],
-      "registryDependencies": [
-        "@honkkit/autocomplete",
-        "@honkkit/styles"
-      ],
+      "registryDependencies": ["@honkkit/autocomplete", "@honkkit/styles"],
       "files": [
         {
           "path": "src/command.tsx",
@@ -1803,9 +1534,7 @@
         "class-variance-authority",
         "tailwind-merge"
       ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/icon.tsx",
@@ -1844,13 +1573,8 @@
       "type": "registry:ui",
       "title": "Chart",
       "description": "Small SVG bar, line, and pie chart primitives.",
-      "dependencies": [
-        "class-variance-authority",
-        "tailwind-merge"
-      ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "dependencies": ["class-variance-authority", "tailwind-merge"],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/chart.tsx",
@@ -1887,9 +1611,7 @@
       "type": "registry:hook",
       "title": "Media Query",
       "description": "Mobile breakpoint media query hook.",
-      "dependencies": [
-        "react"
-      ],
+      "dependencies": ["react"],
       "files": [
         {
           "path": "src/media-query.ts",
@@ -1909,9 +1631,7 @@
         "class-variance-authority",
         "tailwind-merge"
       ],
-      "registryDependencies": [
-        "@honkkit/styles"
-      ],
+      "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/tool-call.tsx",

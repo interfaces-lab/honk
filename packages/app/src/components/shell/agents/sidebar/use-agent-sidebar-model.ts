@@ -9,11 +9,7 @@ import { useRouter } from "@tanstack/react-router";
 import { useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 
-import {
-  openChatIndex,
-  openDraft,
-  openThread,
-} from "~/app/chat-navigation";
+import { openChatIndex, openDraft, openThread } from "~/app/chat-navigation";
 import { retainThreadDetailSubscription } from "~/environments/runtime/service";
 import {
   type ChatThreadActionContext,

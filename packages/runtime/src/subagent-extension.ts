@@ -947,7 +947,9 @@ function backgroundStartedText(details: SubagentToolDetails): string {
 }
 
 function safeNotificationText(text: string): string {
-  return text.replaceAll("</response>", "</ response>").replaceAll("</agent_notification>", "</ agent_notification>");
+  return text
+    .replaceAll("</response>", "</ response>")
+    .replaceAll("</agent_notification>", "</ agent_notification>");
 }
 
 function backgroundNotificationForDetails(details: SubagentToolDetails): string | null {
@@ -1059,20 +1061,21 @@ export function createSubagentExtension(options: SubagentExtensionOptions): Exte
           // Compute + publish the combined details at most ~10 Hz (trailing edge). runSubagentTask
           // calls `notify()` on every child event; the throttle reads the current `state` only when
           // it actually fires, so the expensive `toolDetails` copy no longer runs per child chunk.
-          const publisher = onUpdate || backgroundController
-            ? createTrailingThrottle(() => {
-                const details = capLiveSubagentActivities(toolDetails(state));
-                if (onUpdate && canPublishToolUpdates) {
-                  onUpdate({
-                    content: [{ type: "text", text: summarizeSubagentDetails(details) }],
-                    details,
-                  });
-                }
-                if (backgroundRegistered) {
-                  backgroundController?.emitBackgroundSubagentUpdate(toolCallId);
-                }
-              }, SUBAGENT_PUBLISH_INTERVAL_MS)
-            : null;
+          const publisher =
+            onUpdate || backgroundController
+              ? createTrailingThrottle(() => {
+                  const details = capLiveSubagentActivities(toolDetails(state));
+                  if (onUpdate && canPublishToolUpdates) {
+                    onUpdate({
+                      content: [{ type: "text", text: summarizeSubagentDetails(details) }],
+                      details,
+                    });
+                  }
+                  if (backgroundRegistered) {
+                    backgroundController?.emitBackgroundSubagentUpdate(toolCallId);
+                  }
+                }, SUBAGENT_PUBLISH_INTERVAL_MS)
+              : null;
           const notify = publisher ? () => publisher.schedule() : undefined;
 
           if (modeCount !== 1) {

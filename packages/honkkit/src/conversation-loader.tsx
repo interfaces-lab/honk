@@ -164,12 +164,7 @@ function useMatrixGridSize(options: {
   return gridSize;
 }
 
-export function ChatLoader({
-  className,
-  label = "Thinking",
-  style,
-  ...props
-}: ChatLoaderProps) {
+export function ChatLoader({ className, label = "Thinking", style, ...props }: ChatLoaderProps) {
   return (
     <div
       role="status"
@@ -192,11 +187,7 @@ export function ChatLoader({
   );
 }
 
-export function ChatLoaderGlyph({
-  maxExtent = 16,
-  speed = 1,
-  ...props
-}: ChatLoaderGlyphProps) {
+export function ChatLoaderGlyph({ maxExtent = 16, speed = 1, ...props }: ChatLoaderGlyphProps) {
   const reducedMotion = usePrefersReducedMotion();
   const phase: ChatLoaderPhase = reducedMotion ? "idle" : "active";
 

@@ -372,7 +372,9 @@ function resolveLocalImport(fromFile, specifier) {
     ...extensions.map((extension) => path.join(basePath, `index${extension}`)),
   ];
 
-  return candidates.find((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile());
+  return candidates.find(
+    (candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile(),
+  );
 }
 
 function resolveTargetImport(fromTarget, specifier, declaredTargets) {
@@ -380,7 +382,9 @@ function resolveTargetImport(fromTarget, specifier, declaredTargets) {
     return null;
   }
 
-  const baseTarget = path.posix.normalize(path.posix.join(path.posix.dirname(fromTarget), specifier));
+  const baseTarget = path.posix.normalize(
+    path.posix.join(path.posix.dirname(fromTarget), specifier),
+  );
   const extensions = [".ts", ".tsx", ".js", ".jsx", ".css"];
   const candidates = [
     baseTarget,

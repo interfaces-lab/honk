@@ -261,9 +261,7 @@ describe("projectThreadTimeline", () => {
         kind: "message",
       }),
       expect.objectContaining({
-        id: timelineRuntimeThinkingFallbackEntryId(
-          "message:timeline-projector:assistant-thinking",
-        ),
+        id: timelineRuntimeThinkingFallbackEntryId("message:timeline-projector:assistant-thinking"),
         kind: "runtime-thinking",
         message: expect.objectContaining({
           role: "assistant",

@@ -16,7 +16,8 @@ export const UPDATE_CHECK_CHANNEL = "desktop:update-check";
 export const GET_APP_BRANDING_CHANNEL = "desktop:get-app-branding";
 export const GET_BROWSER_WEBVIEW_PRELOAD_PATH_CHANNEL = "desktop:get-browser-webview-preload-path";
 export const REGISTER_BROWSER_AUTOMATION_HOST_CHANNEL = "desktop:register-browser-automation-host";
-export const UNREGISTER_BROWSER_AUTOMATION_HOST_CHANNEL = "desktop:unregister-browser-automation-host";
+export const UNREGISTER_BROWSER_AUTOMATION_HOST_CHANNEL =
+  "desktop:unregister-browser-automation-host";
 export const BROWSER_AUTOMATION_OPEN_CHANNEL = "desktop:browser-automation-open";
 export const DETECT_LOCALHOST_PORTS_CHANNEL = "desktop:detect-localhost-ports";
 export const CLEAR_BROWSER_PARTITION_STORAGE_CHANNEL = "desktop:clear-browser-partition-storage";

@@ -105,7 +105,13 @@ import { Kbd, KbdGroup } from "@honk/honkkit/kbd";
 import { Label } from "@honk/honkkit/label";
 import { Grid, Row, Spacer, Stack } from "@honk/honkkit/layout";
 import { Link } from "@honk/honkkit/link";
-import { Marker, MarkerAction, MarkerContent, MarkerIcon, StatusNotice } from "@honk/honkkit/marker";
+import {
+  Marker,
+  MarkerAction,
+  MarkerContent,
+  MarkerIcon,
+  StatusNotice,
+} from "@honk/honkkit/marker";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -408,7 +414,11 @@ function ComponentSystemPreview() {
                   </Text>
                 </CardHeader>
                 <CardBody className="grid gap-2 pt-2">
-                  <TokenReadout name="radius" value={`${params.radius}px`} token="--honk-dialog-radius" />
+                  <TokenReadout
+                    name="radius"
+                    value={`${params.radius}px`}
+                    token="--honk-dialog-radius"
+                  />
                   <TokenReadout
                     name="padding x"
                     value={`${params.paddingInline}px`}
@@ -1904,35 +1914,35 @@ function CommandPreview() {
       <PreviewFrame>
         <div className="w-80">
           <Autocomplete
-          open
-          items={searchItems}
-          filteredItems={searchItems}
-          filter={null}
-          mode="none"
-          value={params.searchQuery}
-          autoHighlight
-        >
-          <CommandSearchInput
-            placeholder={params.placeholder}
-            startAddon={<IconMagnifyingGlass aria-hidden />}
-            aria-label="Command search preview"
-          />
-          <CommandSearchPopup side="bottom" align="start" sideOffset={4}>
-            <CommandSearchList>
-              {searchItems.map((item) => (
-                <CommandSearchItem
-                  key={item.id}
-                  value={item.id}
-                  title={item.title}
-                  description={item.description}
-                />
-              ))}
-              {searchItems.length === 0 ? (
-                <CommandSearchEmpty>No matching settings.</CommandSearchEmpty>
-              ) : null}
-            </CommandSearchList>
-          </CommandSearchPopup>
-        </Autocomplete>
+            open
+            items={searchItems}
+            filteredItems={searchItems}
+            filter={null}
+            mode="none"
+            value={params.searchQuery}
+            autoHighlight
+          >
+            <CommandSearchInput
+              placeholder={params.placeholder}
+              startAddon={<IconMagnifyingGlass aria-hidden />}
+              aria-label="Command search preview"
+            />
+            <CommandSearchPopup side="bottom" align="start" sideOffset={4}>
+              <CommandSearchList>
+                {searchItems.map((item) => (
+                  <CommandSearchItem
+                    key={item.id}
+                    value={item.id}
+                    title={item.title}
+                    description={item.description}
+                  />
+                ))}
+                {searchItems.length === 0 ? (
+                  <CommandSearchEmpty>No matching settings.</CommandSearchEmpty>
+                ) : null}
+              </CommandSearchList>
+            </CommandSearchPopup>
+          </Autocomplete>
         </div>
       </PreviewFrame>
     );

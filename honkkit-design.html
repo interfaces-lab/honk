@@ -549,7 +549,9 @@
         <header>
           <h1>One compact map for Honk surfaces.</h1>
           <p class="lede">
-            This page imports the live CSS token files and renders computed values. It is a consolidation aid: when a new color or shadow looks close to one here, use the existing token.
+            This page imports the live CSS token files and renders computed values. It is a
+            consolidation aid: when a new color or shadow looks close to one here, use the existing
+            token.
           </p>
         </header>
 
@@ -559,7 +561,10 @@
               <p class="eyebrow">Colors</p>
               <h2>Canonical roles</h2>
             </div>
-            <p class="section-copy">Primitive bases feed semantic surface, foreground, background, stroke, status, and diff roles.</p>
+            <p class="section-copy">
+              Primitive bases feed semantic surface, foreground, background, stroke, status, and
+              diff roles.
+            </p>
           </div>
           <div class="grid colors" id="color-grid"></div>
         </section>
@@ -570,7 +575,10 @@
               <p class="eyebrow">Color staircases</p>
               <h2>100–1000 ramps</h2>
             </div>
-            <p class="section-copy">Vercel-style intent steps rendered from Honk's live tokens. These are documentation scales, not new overlapping CSS variables.</p>
+            <p class="section-copy">
+              Vercel-style intent steps rendered from Honk's live tokens. These are documentation
+              scales, not new overlapping CSS variables.
+            </p>
           </div>
           <div class="staircase-grid" id="staircase-grid"></div>
         </section>
@@ -581,7 +589,9 @@
               <p class="eyebrow">Typography</p>
               <h2>Type scale</h2>
             </div>
-            <p class="section-copy">The app scale follows the user font-size preference; workbench chrome stays fixed.</p>
+            <p class="section-copy">
+              The app scale follows the user font-size preference; workbench chrome stays fixed.
+            </p>
           </div>
           <div class="spec-table" id="type-table"></div>
         </section>
@@ -592,7 +602,9 @@
               <p class="eyebrow">Geometry</p>
               <h2>Radius and spacing</h2>
             </div>
-            <p class="section-copy">Use the shared scales before adding component-specific dimensions.</p>
+            <p class="section-copy">
+              Use the shared scales before adding component-specific dimensions.
+            </p>
           </div>
           <div class="grid two">
             <div class="spec-table" id="radius-table"></div>
@@ -606,7 +618,9 @@
               <p class="eyebrow">Elevation</p>
               <h2>Shadow ladder</h2>
             </div>
-            <p class="section-copy">These are the only intended elevation tiers. Dark mode collapses many tiers by design.</p>
+            <p class="section-copy">
+              These are the only intended elevation tiers. Dark mode collapses many tiers by design.
+            </p>
           </div>
           <div class="grid three" id="shadow-grid"></div>
         </section>
@@ -617,7 +631,10 @@
               <p class="eyebrow">Components</p>
               <h2>Token-only cases</h2>
             </div>
-            <p class="section-copy">Static HTML approximations of HonkKit roles. Product code should use `@honk/honkkit/*` primitives.</p>
+            <p class="section-copy">
+              Static HTML approximations of HonkKit roles. Product code should use `@honk/honkkit/*`
+              primitives.
+            </p>
           </div>
 
           <div class="grid two">
@@ -635,15 +652,42 @@
               <h3>Badges and status</h3>
               <div class="component-stack" style="margin-top: var(--honk-spacing-3)">
                 <span class="badge">Neutral</span>
-                <span class="badge" style="--badge-bg: var(--honk-bg-green-secondary); --badge-border: var(--honk-stroke-green-primary); --badge-fg: var(--honk-fg-green-primary)">Success</span>
-                <span class="badge" style="--badge-bg: var(--honk-bg-yellow-secondary); --badge-border: var(--honk-stroke-yellow-primary); --badge-fg: var(--honk-tone-yellow)">Plan</span>
-                <span class="badge" style="--badge-bg: var(--honk-bg-red-secondary); --badge-border: var(--honk-stroke-red-primary); --badge-fg: var(--honk-fg-red-primary)">Debug</span>
+                <span
+                  class="badge"
+                  style="
+                    --badge-bg: var(--honk-bg-green-secondary);
+                    --badge-border: var(--honk-stroke-green-primary);
+                    --badge-fg: var(--honk-fg-green-primary);
+                  "
+                  >Success</span
+                >
+                <span
+                  class="badge"
+                  style="
+                    --badge-bg: var(--honk-bg-yellow-secondary);
+                    --badge-border: var(--honk-stroke-yellow-primary);
+                    --badge-fg: var(--honk-tone-yellow);
+                  "
+                  >Plan</span
+                >
+                <span
+                  class="badge"
+                  style="
+                    --badge-bg: var(--honk-bg-red-secondary);
+                    --badge-border: var(--honk-stroke-red-primary);
+                    --badge-fg: var(--honk-fg-red-primary);
+                  "
+                  >Debug</span
+                >
               </div>
             </div>
 
             <div class="component-stage">
               <h3>Tabs and menus</h3>
-              <div class="component-stack" style="align-items: flex-start; margin-top: var(--honk-spacing-3)">
+              <div
+                class="component-stack"
+                style="align-items: flex-start; margin-top: var(--honk-spacing-3)"
+              >
                 <div class="tabs" role="tablist" aria-label="Example tabs">
                   <span class="tab active">Preview</span>
                   <span class="tab">Tokens</span>
@@ -664,23 +708,48 @@
                   <span class="badge">Files</span>
                   <span class="muted">src/styles/tokens.css</span>
                 </div>
-                <div class="workbench-body">Panel, toolbar, and editor surfaces share workbench tokens.</div>
+                <div class="workbench-body">
+                  Panel, toolbar, and editor surfaces share workbench tokens.
+                </div>
               </div>
             </div>
 
             <div class="component-stage">
               <h3>Feedback</h3>
               <div class="grid" style="margin-top: var(--honk-spacing-3)">
-                <div class="alert" style="--alert-bg: var(--honk-bg-green-secondary); --alert-border: var(--honk-stroke-green-primary); --alert-fg: var(--honk-fg-green-primary)">Success maps to semantic green roles.</div>
-                <div class="alert" style="--alert-bg: var(--honk-bg-red-secondary); --alert-border: var(--honk-stroke-red-primary); --alert-fg: var(--honk-fg-red-primary)">Destructive maps to red roles.</div>
+                <div
+                  class="alert"
+                  style="
+                    --alert-bg: var(--honk-bg-green-secondary);
+                    --alert-border: var(--honk-stroke-green-primary);
+                    --alert-fg: var(--honk-fg-green-primary);
+                  "
+                >
+                  Success maps to semantic green roles.
+                </div>
+                <div
+                  class="alert"
+                  style="
+                    --alert-bg: var(--honk-bg-red-secondary);
+                    --alert-border: var(--honk-stroke-red-primary);
+                    --alert-fg: var(--honk-fg-red-primary);
+                  "
+                >
+                  Destructive maps to red roles.
+                </div>
               </div>
             </div>
 
             <div class="component-stage">
               <h3>Terminal</h3>
               <div class="terminal" style="margin-top: var(--honk-spacing-3)">
-                <div><span style="color: var(--honk-terminal-ansi-green, var(--success))">➜</span> pnpm run typecheck</div>
-                <div class="muted">Terminal colors are feature-owned and still alias shared foreground/border roles.</div>
+                <div>
+                  <span style="color: var(--honk-terminal-ansi-green, var(--success))">➜</span> pnpm
+                  run typecheck
+                </div>
+                <div class="muted">
+                  Terminal colors are feature-owned and still alias shared foreground/border roles.
+                </div>
               </div>
             </div>
           </div>
@@ -692,7 +761,10 @@
               <p class="eyebrow">Audit</p>
               <h2>Integration checks</h2>
             </div>
-            <p class="section-copy">This page imports live CSS. The Markdown contract mirrors the same tokens for agents and documentation.</p>
+            <p class="section-copy">
+              This page imports live CSS. The Markdown contract mirrors the same tokens for agents
+              and documentation.
+            </p>
           </div>
           <div class="grid two">
             <div class="card">
@@ -726,9 +798,15 @@
           <div class="card">
             <ul class="token-policy">
               <li>Use semantic roles before literal values or local color-mix formulas.</li>
-              <li>Add feature-owned variables only in the feature stylesheet, and alias shared roles when possible.</li>
+              <li>
+                Add feature-owned variables only in the feature stylesheet, and alias shared roles
+                when possible.
+              </li>
               <li>Do not introduce near-duplicate shadow tiers; use the ladder above.</li>
-              <li>Expose new reusable tokens through `packages/app/src/index.css` only after they exist in `tokens.css`.</li>
+              <li>
+                Expose new reusable tokens through `packages/app/src/index.css` only after they
+                exist in `tokens.css`.
+              </li>
             </ul>
           </div>
         </section>
@@ -737,14 +815,99 @@
 
     <script>
       const groups = [
-        ["Primitive bases", ["--honk-base-sidebar", "--honk-base-chrome", "--honk-base-editor", "--honk-base-accent", "--honk-base-focus", "--honk-base-foreground"]],
-        ["Surfaces", ["--honk-color-sidebar", "--honk-color-chat", "--honk-color-editor", "--honk-color-surface", "--honk-color-elevated", "--honk-menu-surface-background", "--honk-message-bubble-background"]],
-        ["Foreground", ["--honk-fg-primary", "--honk-fg-secondary", "--honk-fg-tertiary", "--honk-fg-quaternary", "--honk-fg-active", "--honk-fg-focused"]],
-        ["Background", ["--honk-bg-primary", "--honk-bg-secondary", "--honk-bg-tertiary", "--honk-bg-quaternary", "--honk-bg-quinary", "--honk-bg-active", "--honk-bg-focused", "--honk-bg-elevated"]],
-        ["Stroke", ["--honk-stroke-primary", "--honk-stroke-secondary", "--honk-stroke-tertiary", "--honk-stroke-quaternary", "--honk-stroke-focused"]],
-        ["Status", ["--primary", "--success", "--warning", "--destructive", "--honk-diff-addition", "--honk-diff-deletion", "--honk-bg-green-secondary", "--honk-bg-yellow-secondary", "--honk-bg-red-secondary"]],
-        ["Workbench", ["--honk-workbench-panel-background", "--honk-workbench-editor-surface-background", "--honk-workbench-card-background", "--honk-workbench-card-selected-background", "--honk-workbench-toolbar-hover-background"]],
-        ["Terminal", ["--honk-terminal-background", "--honk-terminal-foreground", "--honk-terminal-border", "--honk-terminal-ansi-green", "--honk-terminal-ansi-red", "--honk-terminal-ansi-yellow", "--honk-terminal-ansi-blue"]],
+        [
+          "Primitive bases",
+          [
+            "--honk-base-sidebar",
+            "--honk-base-chrome",
+            "--honk-base-editor",
+            "--honk-base-accent",
+            "--honk-base-focus",
+            "--honk-base-foreground",
+          ],
+        ],
+        [
+          "Surfaces",
+          [
+            "--honk-color-sidebar",
+            "--honk-color-chat",
+            "--honk-color-editor",
+            "--honk-color-surface",
+            "--honk-color-elevated",
+            "--honk-menu-surface-background",
+            "--honk-message-bubble-background",
+          ],
+        ],
+        [
+          "Foreground",
+          [
+            "--honk-fg-primary",
+            "--honk-fg-secondary",
+            "--honk-fg-tertiary",
+            "--honk-fg-quaternary",
+            "--honk-fg-active",
+            "--honk-fg-focused",
+          ],
+        ],
+        [
+          "Background",
+          [
+            "--honk-bg-primary",
+            "--honk-bg-secondary",
+            "--honk-bg-tertiary",
+            "--honk-bg-quaternary",
+            "--honk-bg-quinary",
+            "--honk-bg-active",
+            "--honk-bg-focused",
+            "--honk-bg-elevated",
+          ],
+        ],
+        [
+          "Stroke",
+          [
+            "--honk-stroke-primary",
+            "--honk-stroke-secondary",
+            "--honk-stroke-tertiary",
+            "--honk-stroke-quaternary",
+            "--honk-stroke-focused",
+          ],
+        ],
+        [
+          "Status",
+          [
+            "--primary",
+            "--success",
+            "--warning",
+            "--destructive",
+            "--honk-diff-addition",
+            "--honk-diff-deletion",
+            "--honk-bg-green-secondary",
+            "--honk-bg-yellow-secondary",
+            "--honk-bg-red-secondary",
+          ],
+        ],
+        [
+          "Workbench",
+          [
+            "--honk-workbench-panel-background",
+            "--honk-workbench-editor-surface-background",
+            "--honk-workbench-card-background",
+            "--honk-workbench-card-selected-background",
+            "--honk-workbench-toolbar-hover-background",
+          ],
+        ],
+        [
+          "Terminal",
+          [
+            "--honk-terminal-background",
+            "--honk-terminal-foreground",
+            "--honk-terminal-border",
+            "--honk-terminal-ansi-green",
+            "--honk-terminal-ansi-red",
+            "--honk-terminal-ansi-yellow",
+            "--honk-terminal-ansi-blue",
+          ],
+        ],
       ];
 
       const typography = [
@@ -757,9 +920,39 @@
         ["workbench chrome", "--honk-text-chrome", "--honk-leading-chrome"],
       ];
 
-      const radii = ["--honk-radius-xs", "--honk-radius-sm", "--honk-radius-base", "--honk-radius-lg", "--honk-radius-xl", "--honk-radius-control", "--honk-radius-card", "--honk-radius-chip", "--honk-radius-pill"];
-      const spacing = ["--honk-spacing-0-25", "--honk-spacing-0-5", "--honk-spacing-1", "--honk-spacing-1-5", "--honk-spacing-2", "--honk-spacing-2-5", "--honk-spacing-3", "--honk-spacing-4", "--honk-spacing-7"];
-      const shadows = ["--honk-shadow-soft", "--honk-shadow-sm", "--honk-shadow-base", "--honk-shadow-lg", "--honk-shadow-xl", "--honk-shadow-card", "--honk-shadow-popup", "--honk-shadow-toolbar", "--honk-shadow-flat-ring"];
+      const radii = [
+        "--honk-radius-xs",
+        "--honk-radius-sm",
+        "--honk-radius-base",
+        "--honk-radius-lg",
+        "--honk-radius-xl",
+        "--honk-radius-control",
+        "--honk-radius-card",
+        "--honk-radius-chip",
+        "--honk-radius-pill",
+      ];
+      const spacing = [
+        "--honk-spacing-0-25",
+        "--honk-spacing-0-5",
+        "--honk-spacing-1",
+        "--honk-spacing-1-5",
+        "--honk-spacing-2",
+        "--honk-spacing-2-5",
+        "--honk-spacing-3",
+        "--honk-spacing-4",
+        "--honk-spacing-7",
+      ];
+      const shadows = [
+        "--honk-shadow-soft",
+        "--honk-shadow-sm",
+        "--honk-shadow-base",
+        "--honk-shadow-lg",
+        "--honk-shadow-xl",
+        "--honk-shadow-card",
+        "--honk-shadow-popup",
+        "--honk-shadow-toolbar",
+        "--honk-shadow-flat-ring",
+      ];
 
       const staircaseSteps = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
       const staircases = [
@@ -827,7 +1020,8 @@
           .flatMap(([label, tokens]) => [
             `<article class="card"><p class="eyebrow">${label}</p><h3>${tokens.length} roles</h3></article>`,
             ...tokens.map(
-              (token) => `<article class="card token-card"><div class="swatch" style="--swatch: var(${token})"></div><div class="token-meta"><code class="token-name">${token}</code><code class="token-value">${valueOf(token)}</code></div></article>`,
+              (token) =>
+                `<article class="card token-card"><div class="swatch" style="--swatch: var(${token})"></div><div class="token-meta"><code class="token-name">${token}</code><code class="token-value">${valueOf(token)}</code></div></article>`,
             ),
           ])
           .join("");
@@ -836,30 +1030,46 @@
       function renderStaircases() {
         document.getElementById("staircase-grid").innerHTML = staircases
           .map(
-            (scale) => `<article class="card staircase-card"><div class="staircase-head"><h3>${scale.label}</h3><span class="muted">${scale.note}</span></div><div class="staircase-track">${scale.values
-              .map((value, index) => `<div class="stair-step" style="--step-color: ${value}"><span class="stair-step-label">${staircaseSteps[index]}</span></div>`)
-              .join("")}</div><div class="staircase-meta">${scale.values
-              .map((value, index) => `<div class="staircase-meta-row"><code>${staircaseSteps[index]}</code><code class="token-value">${value}</code></div>`)
-              .join("")}</div></article>`,
+            (scale) =>
+              `<article class="card staircase-card"><div class="staircase-head"><h3>${scale.label}</h3><span class="muted">${scale.note}</span></div><div class="staircase-track">${scale.values
+                .map(
+                  (value, index) =>
+                    `<div class="stair-step" style="--step-color: ${value}"><span class="stair-step-label">${staircaseSteps[index]}</span></div>`,
+                )
+                .join("")}</div><div class="staircase-meta">${scale.values
+                .map(
+                  (value, index) =>
+                    `<div class="staircase-meta-row"><code>${staircaseSteps[index]}</code><code class="token-value">${value}</code></div>`,
+                )
+                .join("")}</div></article>`,
           )
           .join("");
       }
 
       function renderType() {
         document.getElementById("type-table").innerHTML = typography
-          .map(([name, size, line]) => `<div class="spec-row"><strong>${name}</strong><code>${size}<br />${line}</code><span style="font-size: var(${size}); line-height: var(${line})">Sample text</span></div>`)
+          .map(
+            ([name, size, line]) =>
+              `<div class="spec-row"><strong>${name}</strong><code>${size}<br />${line}</code><span style="font-size: var(${size}); line-height: var(${line})">Sample text</span></div>`,
+          )
           .join("");
       }
 
       function renderScale(target, tokens, sample) {
         document.getElementById(target).innerHTML = tokens
-          .map((token) => `<div class="spec-row"><strong>${token.replace("--honk-", "")}</strong><code>${token}</code>${sample(token)}</div>`)
+          .map(
+            (token) =>
+              `<div class="spec-row"><strong>${token.replace("--honk-", "")}</strong><code>${token}</code>${sample(token)}</div>`,
+          )
           .join("");
       }
 
       function renderShadows() {
         document.getElementById("shadow-grid").innerHTML = shadows
-          .map((token) => `<article class="card"><div class="shadow-sample" style="--sample-shadow: var(${token})"></div><div class="token-meta"><code class="token-name">${token}</code><code class="token-value">${valueOf(token)}</code></div></article>`)
+          .map(
+            (token) =>
+              `<article class="card"><div class="shadow-sample" style="--sample-shadow: var(${token})"></div><div class="token-meta"><code class="token-name">${token}</code><code class="token-value">${valueOf(token)}</code></div></article>`,
+          )
           .join("");
       }
 
@@ -867,8 +1077,16 @@
         renderColors();
         renderStaircases();
         renderType();
-        renderScale("radius-table", radii, (token) => `<span class="radius-sample" style="border-radius: var(${token})"></span>`);
-        renderScale("spacing-table", spacing, (token) => `<span class="muted">${valueOf(token)}</span>`);
+        renderScale(
+          "radius-table",
+          radii,
+          (token) => `<span class="radius-sample" style="border-radius: var(${token})"></span>`,
+        );
+        renderScale(
+          "spacing-table",
+          spacing,
+          (token) => `<span class="muted">${valueOf(token)}</span>`,
+        );
         renderShadows();
       }
 
@@ -878,7 +1096,11 @@
 
       document.getElementById("theme-toggle").addEventListener("click", () => {
         root.classList.toggle("dark");
-        history.replaceState(null, "", root.classList.contains("dark") ? "#dark" : location.pathname);
+        history.replaceState(
+          null,
+          "",
+          root.classList.contains("dark") ? "#dark" : location.pathname,
+        );
         renderAll();
       });
 
