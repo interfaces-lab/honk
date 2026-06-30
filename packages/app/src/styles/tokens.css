@@ -111,6 +111,7 @@
   --honk-base-accent: #599ce7;
   --honk-base-focus: #141414;
   --honk-shadow-primary: color-mix(in srgb, #000 6%, transparent);
+  --honk-widget-shadow: color-mix(in srgb, var(--foreground) 18%, transparent);
 
   --accent: var(--honk-bg-secondary);
   --accent-foreground: var(--foreground);
@@ -190,6 +191,7 @@
   --honk-base-accent: #599ce7;
   --honk-base-focus: #f0f0f0;
   --honk-shadow-primary: transparent;
+  --honk-widget-shadow: rgb(0 0 0 / 60%);
 
   --accent: var(--honk-bg-secondary);
   --accent-foreground: var(--foreground);
@@ -363,6 +365,20 @@ html {
   --honk-command-palette-surface-background: var(--honk-menu-surface-background);
   --honk-bg-active: color-mix(in srgb, var(--foreground) 16%, transparent);
   --honk-bg-focused: color-mix(in srgb, var(--foreground) 22%, transparent);
+  --honk-menu-min-width: 120px;
+  --honk-menu-max-width: 320px;
+  --honk-menu-available-height: var(--available-height);
+  --honk-menu-bg: var(--honk-menu-surface-background, var(--honk-bg-elevated));
+  --honk-menu-shadow-color: var(--honk-widget-shadow, var(--honk-shadow-secondary));
+  --honk-menu-shadow: 0 8px 16px var(--honk-menu-shadow-color);
+  --honk-menu-ring-outer: var(--honk-stroke-tertiary);
+  --honk-menu-ring-inner: color-mix(in srgb, var(--foreground) 6%, transparent);
+  --honk-menu-focus-bg: var(--honk-bg-quaternary);
+  --honk-menu-selected-bg: var(--honk-bg-tertiary);
+  --honk-menu-scroll-padding: 4px;
+  --honk-menu-scrollbar-size: 6px;
+  --honk-menu-motion-duration: 100ms;
+  --honk-menu-motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
   --vscode-editor-background: var(--background);
   --vscode-foreground: var(--foreground);
   --vscode-sideBar-background: var(--honk-color-sidebar-opaque);
@@ -532,9 +548,24 @@ html {
   );
 }
 
+body[data-honk-glass-mode="true"] {
+  --honk-pane-surface-background: color-mix(
+    in srgb,
+    var(--honk-base-chrome) var(--honk-vibrancy-chat-mix),
+    transparent
+  );
+  /* Vibrant menu surface is OPAQUE (editor base); only the hairline ring and
+     row hover/selected fills blend over it. */
+  --honk-menu-surface-background: var(--honk-color-editor-opaque);
+  /* Composer popup + command palette keep their vibrancy: decouple from the
+     now-opaque menu and ride the translucent pane. */
+  --honk-composer-popup-surface-background: var(--honk-pane-surface-background);
+  --honk-command-palette-surface-background: var(--honk-pane-surface-background);
+}
+
 html.dark {
-  --honk-vibrancy-sidebar-mix: 36%;
-  --honk-vibrancy-chat-mix: 72%;
+  --honk-vibrancy-sidebar-mix: 28%;
+  --honk-vibrancy-chat-mix: 64%;
   --honk-vibrancy-editor-mix: var(--honk-vibrancy-chat-mix);
   --honk-pane-surface-background: var(--honk-bg-elevated);
   --honk-menu-surface-background: var(--honk-pane-surface-background);

@@ -8,6 +8,7 @@ import {
   uiFontSizeToNormalizedLineHeight,
   uiFontSizeToZoomFactor,
 } from "./display-zoom";
+import { windowGlassFor } from "./surface-theme";
 
 export const STORAGE_REDUCE_TRANSPARENCY = "honk:reduce-transparency";
 export const STORAGE_TINT_HUE = "honk:accent-hue";
@@ -79,10 +80,16 @@ function emitAppearanceSettingsChanged() {
   window.dispatchEvent(new CustomEvent(APPEARANCE_SETTINGS_CHANGED));
 }
 
+function supportsOsVibrancy() {
+  return isElectron && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+}
+
 function wantsOsVibrancy() {
-  if (getLiveAppearance().reduceTransparency) return false;
-  if (!isElectron) return false;
-  return /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+  return windowGlassFor({
+    osVibrancy: supportsOsVibrancy(),
+    reduceTransparency: getLiveAppearance().reduceTransparency,
+    highContrast: false,
+  }).vibrancy;
 }
 
 function syncVibrancy() {

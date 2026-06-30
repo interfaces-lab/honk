@@ -1,7 +1,9 @@
 "use client";
 
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
+import * as stylex from "@stylexjs/stylex";
 
+import { honkMenuStyles } from "./menu-styles";
 import { cn, honkMenuPickerShellClasses } from "./utils";
 
 const PopoverCreateHandle = PopoverPrimitive.createHandle;
@@ -58,6 +60,10 @@ function PopoverPopup({
 }) {
   const positionerLayerClassName =
     variant === "workbench" ? "z-(--z-index-workbench-popover)" : "z-(--z-index-popover)";
+  const workbenchSurfaceProps = stylex.props(
+    honkMenuStyles.surface,
+    honkMenuStyles.surfaceStarting,
+  );
 
   return (
     <PopoverPrimitive.Portal>
@@ -85,6 +91,7 @@ function PopoverPopup({
           className={cn(
             variant === "workbench"
               ? cn(
+                  workbenchSurfaceProps.className,
                   "honk-slash-menu-popup relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) transition-[width,height,scale,opacity] duration-(--motion-duration-ui) ease-(--ease-shell) data-starting-style:scale-98 data-starting-style:opacity-0 data-instant:!transition-none data-instant:data-starting-style:opacity-100 data-instant:data-starting-style:scale-100",
                   honkMenuPickerShellClasses,
                   "rounded-honk-xl",
@@ -94,6 +101,7 @@ function PopoverPopup({
               "w-fit text-balance rounded-md text-xs shadow-md/5 before:rounded-[calc(var(--radius-md)-1px)]",
             className,
           )}
+          style={variant === "workbench" ? workbenchSurfaceProps.style : undefined}
           data-slot="popover-popup"
           {...props}
           {...(instant ? ({ "data-instant": "" } as const) : {})}

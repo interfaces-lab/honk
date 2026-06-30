@@ -110,7 +110,7 @@ function SidebarItem({
   ...rest
 }: SidebarItemProps) {
   const itemClassName = cn(
-    "flex min-h-sidebar-item w-full min-w-0 select-none items-center justify-start !gap-sidebar-item-gap rounded-honk-control border border-transparent px-1.5 py-1 text-left transition-none [-webkit-user-drag:none]",
+    "flex min-h-sidebar-item w-full min-w-0 select-none items-center justify-start gap-(--honk-sidebar-item-gap) rounded-honk-control border border-transparent px-(--honk-sidebar-row-padding-inline) py-(--honk-sidebar-row-padding-block) text-left transition-none [-webkit-user-drag:none]",
     interactive &&
       cn(
         "outline-none ring-offset-0 hover:bg-honk-bg-quaternary data-[highlighted=true]:bg-honk-bg-secondary data-[highlighted=true]:outline data-[highlighted=true]:outline-1 data-[highlighted=true]:-outline-offset-1 data-[highlighted=true]:outline-honk-stroke-focused focus-visible:ring-offset-0",
@@ -126,7 +126,7 @@ function SidebarItem({
         data-selected={selected}
         data-slot="sidebar-item"
         draggable={draggable}
-        className={cn("h-sidebar-item text-sidebar-label font-normal", itemClassName)}
+        className={cn("text-sidebar-label font-normal", itemClassName)}
         {...(rest as ComponentProps<"div">)}
       />
     );
@@ -173,7 +173,7 @@ function SidebarButton(
       className={cn(
         variant === "chrome"
           ? cn(
-              "flex min-h-sidebar-item w-full select-none items-center justify-start !gap-sidebar-item-gap rounded-honk-control border border-transparent px-1.5 py-1 text-left text-muted-foreground transition-colors [-webkit-user-drag:none]",
+              "flex min-h-sidebar-item w-full select-none items-center justify-start gap-(--honk-sidebar-item-gap) rounded-honk-control border border-transparent px-(--honk-sidebar-row-padding-inline) py-(--honk-sidebar-row-padding-block) text-left text-muted-foreground transition-colors [-webkit-user-drag:none]",
               interactiveControlCursorVariants(),
               controlTransitionVariants(),
             )

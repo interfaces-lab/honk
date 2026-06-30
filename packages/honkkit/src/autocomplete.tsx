@@ -1,8 +1,10 @@
 "use client";
 
 import { Autocomplete as AutocompletePrimitive } from "@base-ui/react/autocomplete";
+import * as stylex from "@stylexjs/stylex";
 import { IconChevronRightMedium, IconCrossMediumDefault } from "central-icons";
 
+import { honkMenuStyles } from "./menu-styles";
 import {
   cn,
   honkMenuPickerShellClasses,
@@ -100,6 +102,7 @@ function AutocompletePopup({
   side?: AutocompletePrimitive.Positioner.Props["side"];
   anchor?: AutocompletePrimitive.Positioner.Props["anchor"];
 }) {
+  const surfaceProps = stylex.props(honkMenuStyles.surface, honkMenuStyles.surfaceStarting);
   return (
     <AutocompletePrimitive.Portal>
       <AutocompletePrimitive.Positioner
@@ -113,13 +116,15 @@ function AutocompletePopup({
       >
         <span
           className={cn(
+            surfaceProps.className,
             "honk-workbench-menu-popup relative flex max-h-full min-w-(--anchor-width) max-w-(--available-width) origin-(--transform-origin) outline-none transition-[scale,opacity] duration-(--motion-duration-ui) ease-(--ease-shell) data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none",
             honkMenuPickerShellClasses,
             className,
           )}
+          style={surfaceProps.style}
         >
           <AutocompletePrimitive.Popup
-            className="flex max-h-[min(var(--available-height),23rem)] flex-1 flex-col text-foreground"
+            className="flex max-h-(--honk-menu-available-height) flex-1 flex-col text-foreground"
             data-slot="autocomplete-popup"
             {...props}
           >
@@ -135,7 +140,7 @@ function AutocompleteItem({ className, children, ...props }: AutocompletePrimiti
   return (
     <AutocompletePrimitive.Item
       className={cn(
-        "flex min-h-7 cursor-default select-none items-center rounded-honk-control px-2 py-1 font-honk text-body outline-none hover:bg-honk-hover data-disabled:pointer-events-none data-selected:bg-honk-hover/60 data-selected:text-foreground data-highlighted:bg-honk-hover data-highlighted:text-foreground [&[data-highlighted][data-selected]]:bg-honk-hover [&[data-highlighted][data-selected]]:text-foreground data-disabled:opacity-40",
+        "honk-menu__item flex font-honk text-body",
         className,
       )}
       data-slot="autocomplete-item"
@@ -203,7 +208,7 @@ function AutocompleteList({ className, ...props }: AutocompletePrimitive.List.Pr
   return (
     <ScrollArea scrollbarGutter scrollFade>
       <AutocompletePrimitive.List
-        className={cn("not-empty:scroll-py-1 not-empty:p-1 in-data-has-overflow-y:pe-3", className)}
+        className={cn("honk-menu__viewport not-empty:scroll-py-1", className)}
         data-slot="autocomplete-list"
         {...props}
       />

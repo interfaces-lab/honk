@@ -470,13 +470,23 @@
       "type": "registry:ui",
       "title": "Switch",
       "description": "Binary switch control.",
-      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "dependencies": [
+        "@base-ui/react",
+        "@stylexjs/stylex",
+        "class-variance-authority",
+        "tailwind-merge"
+      ],
       "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/switch.tsx",
           "type": "registry:ui",
           "target": "components/ui/switch.tsx"
+        },
+        {
+          "path": "src/switch-styles.ts",
+          "type": "registry:lib",
+          "target": "components/ui/switch-styles.ts"
         },
         {
           "path": "src/utils.ts",
@@ -487,6 +497,21 @@
           "path": "src/utils/mergeProps.ts",
           "type": "registry:lib",
           "target": "components/ui/utils/mergeProps.ts"
+        },
+        {
+          "path": "src/utils/themeProps.ts",
+          "type": "registry:lib",
+          "target": "components/ui/utils/themeProps.ts"
+        },
+        {
+          "path": "src/naming.ts",
+          "type": "registry:lib",
+          "target": "components/ui/naming.ts"
+        },
+        {
+          "path": "src/theme/tokens.stylex.ts",
+          "type": "registry:lib",
+          "target": "components/ui/theme/tokens.stylex.ts"
         }
       ]
     },
@@ -590,13 +615,19 @@
       "type": "registry:ui",
       "title": "Tooltip",
       "description": "Tooltip root, trigger, provider, and popup primitives.",
-      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "dependencies": ["@base-ui/react",
+        "@stylexjs/stylex", "class-variance-authority", "tailwind-merge"],
       "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/tooltip.tsx",
           "type": "registry:ui",
           "target": "components/ui/tooltip.tsx"
+        },
+        {
+          "path": "src/menu-styles.ts",
+          "type": "registry:lib",
+          "target": "components/ui/menu-styles.ts"
         },
         {
           "path": "src/utils.ts",
@@ -615,13 +646,19 @@
       "type": "registry:ui",
       "title": "Popover",
       "description": "Popover root, trigger, popup, close, title, and description primitives.",
-      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "dependencies": ["@base-ui/react",
+        "@stylexjs/stylex", "class-variance-authority", "tailwind-merge"],
       "registryDependencies": ["@honkkit/styles"],
       "files": [
         {
           "path": "src/popover.tsx",
           "type": "registry:ui",
           "target": "components/ui/popover.tsx"
+        },
+        {
+          "path": "src/menu-styles.ts",
+          "type": "registry:lib",
+          "target": "components/ui/menu-styles.ts"
         },
         {
           "path": "src/utils.ts",
@@ -1306,6 +1343,7 @@
       "description": "Dropdown menu root, trigger, popup, items, groups, radios, checkboxes, and submenus.",
       "dependencies": [
         "@base-ui/react",
+        "@stylexjs/stylex",
         "central-icons@npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
         "class-variance-authority",
         "tailwind-merge"
@@ -1316,6 +1354,21 @@
           "path": "src/menu.tsx",
           "type": "registry:ui",
           "target": "components/ui/menu.tsx"
+        },
+        {
+          "path": "src/menu-styles.ts",
+          "type": "registry:lib",
+          "target": "components/ui/menu-styles.ts"
+        },
+        {
+          "path": "src/switch-styles.ts",
+          "type": "registry:lib",
+          "target": "components/ui/switch-styles.ts"
+        },
+        {
+          "path": "src/theme/tokens.stylex.ts",
+          "type": "registry:lib",
+          "target": "components/ui/theme/tokens.stylex.ts"
         },
         {
           "path": "src/utils.ts",
@@ -1334,13 +1387,19 @@
       "type": "registry:ui",
       "title": "Context Menu",
       "description": "Workbench context menu root, trigger, popup, item, and separator primitives.",
-      "dependencies": ["@base-ui/react", "class-variance-authority", "tailwind-merge"],
+      "dependencies": ["@base-ui/react",
+        "@stylexjs/stylex", "class-variance-authority", "tailwind-merge"],
       "registryDependencies": ["@honkkit/menu", "@honkkit/styles"],
       "files": [
         {
           "path": "src/context-menu.tsx",
           "type": "registry:ui",
           "target": "components/ui/context-menu.tsx"
+        },
+        {
+          "path": "src/menu-styles.ts",
+          "type": "registry:lib",
+          "target": "components/ui/menu-styles.ts"
         },
         {
           "path": "src/utils.ts",
@@ -1361,6 +1420,7 @@
       "description": "Select root, trigger, popup, item, group, separator, and simple select primitives.",
       "dependencies": [
         "@base-ui/react",
+        "@stylexjs/stylex",
         "central-icons@npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
         "class-variance-authority",
         "tailwind-merge"
@@ -1371,6 +1431,11 @@
           "path": "src/select.tsx",
           "type": "registry:ui",
           "target": "components/ui/select.tsx"
+        },
+        {
+          "path": "src/menu-styles.ts",
+          "type": "registry:lib",
+          "target": "components/ui/menu-styles.ts"
         },
         {
           "path": "src/utils.ts",
@@ -1390,6 +1455,7 @@
       "title": "Split Button",
       "description": "Split action button with menu trigger and popup slots.",
       "dependencies": [
+        "@stylexjs/stylex",
         "central-icons@npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
         "class-variance-authority",
         "tailwind-merge"
@@ -1425,6 +1491,7 @@
       "description": "Autocomplete root, input, popup, list, item, group, status, and collection primitives.",
       "dependencies": [
         "@base-ui/react",
+        "@stylexjs/stylex",
         "central-icons@npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
         "class-variance-authority",
         "tailwind-merge"
@@ -1435,6 +1502,11 @@
           "path": "src/autocomplete.tsx",
           "type": "registry:ui",
           "target": "components/ui/autocomplete.tsx"
+        },
+        {
+          "path": "src/menu-styles.ts",
+          "type": "registry:lib",
+          "target": "components/ui/menu-styles.ts"
         },
         {
           "path": "src/utils.ts",
@@ -1455,6 +1527,7 @@
       "description": "Combobox root, input, popup, virtualized list, chip, item, group, and collection primitives.",
       "dependencies": [
         "@base-ui/react",
+        "@stylexjs/stylex",
         "central-icons@npm:@central-icons-react/round-outlined-radius-2-stroke-1.5@^1.1.280",
         "class-variance-authority",
         "tailwind-merge"
@@ -1465,6 +1538,11 @@
           "path": "src/combobox.tsx",
           "type": "registry:ui",
           "target": "components/ui/combobox.tsx"
+        },
+        {
+          "path": "src/menu-styles.ts",
+          "type": "registry:lib",
+          "target": "components/ui/menu-styles.ts"
         },
         {
           "path": "src/utils.ts",
@@ -1495,6 +1573,11 @@
           "path": "src/command.tsx",
           "type": "registry:ui",
           "target": "components/ui/command.tsx"
+        },
+        {
+          "path": "src/menu-styles.ts",
+          "type": "registry:lib",
+          "target": "components/ui/menu-styles.ts"
         },
         {
           "path": "src/utils.ts",

@@ -42,7 +42,7 @@ import {
 } from "~/stores/workspace-editor-store";
 import { type WorkbenchTab } from "~/lib/workbench-tabs";
 import { cn } from "~/lib/utils";
-import { surfaceThemeFor } from "~/lib/surface-theme";
+import { surfaceThemeFor, windowGlassFor } from "~/lib/surface-theme";
 import { useAppearanceSettingsSnapshot } from "~/stores/appearance-store";
 import { RightWorkbenchHeader, type WorkbenchTabMeta } from "./right-workbench-header";
 import {
@@ -768,11 +768,14 @@ export function AppShell(props: {
   const electron = isElectronHost();
   const appearance = useAppearanceSettingsSnapshot();
   const { resolvedTheme: themeMode } = useTheme();
-  const osVibrancy =
-    electron &&
-    !appearance.reduceTransparency &&
-    typeof navigator !== "undefined" &&
-    /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+  const osVibrancy = windowGlassFor({
+    osVibrancy:
+      electron &&
+      typeof navigator !== "undefined" &&
+      /Mac|iPhone|iPad|iPod/.test(navigator.platform),
+    reduceTransparency: appearance.reduceTransparency,
+    highContrast: false,
+  }).vibrancy;
   const surfaceTheme = surfaceThemeFor({
     appearance: themeMode,
     osVibrancy,

@@ -54,6 +54,13 @@
   --honk-composer-chip-line-height: var(--honk-composer-editor-line-height);
   --honk-composer-chip-line-range-font-size: calc(var(--honk-composer-editor-font-size) - 1px);
   --honk-composer-chip-icon-size: 12px;
+  --honk-composer-chip-padding-block: 1px;
+  --honk-composer-chip-padding-inline: 4px;
+  /* Nudge that seats the inline chip on the editor text baseline. NOTE: these
+   * are fixed pixels and do NOT scale with --honk-ui-font-size-user, so the
+   * chip can drift vertically at larger user font sizes — revisit if so. */
+  --honk-composer-chip-offset-x: -1px;
+  --honk-composer-chip-offset-y: -3px;
   --honk-composer-mention-text: var(--honk-fg-cyan-primary);
   --honk-composer-mention-background: var(--honk-bg-cyan-secondary);
   --honk-composer-mention-line-range-text: color-mix(
@@ -542,10 +549,10 @@ body.honk-reduce-transparency[data-honk-glass-mode="true"]
   background-color: var(--honk-menu-surface-background);
 }
 
-html.dark [data-testid="command-palette"] {
+html [data-testid="command-palette"] {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
-  background-color: var(--honk-menu-surface-background);
+  background-color: var(--honk-command-palette-surface-background);
 }
 
 /* Cursor parity: 16px column padding (timeline px-4) + per-row text/block inset. */

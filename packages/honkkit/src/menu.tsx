@@ -1,13 +1,15 @@
 "use client";
 
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
+import * as stylex from "@stylexjs/stylex";
 import { cva, type VariantProps } from "class-variance-authority";
 import { IconCheckmark1, IconChevronRightMedium } from "central-icons";
 import type * as React from "react";
 
+import { honkMenuClassName, honkMenuClassNames, honkMenuStyles } from "./menu-styles";
+import { switchStyles } from "./switch-styles";
 import {
   cn,
-  controlTransitionVariants,
   honkMenuPickerShellClasses,
   honkMenuSeparatorClasses,
   interactiveControlCursorVariants,
@@ -28,7 +30,7 @@ const menuPopupVariants = cva("", {
       default:
         "relative flex not-[class*='w-']:min-w-32 origin-(--transform-origin) rounded-lg border bg-popover not-dark:bg-clip-padding shadow-lg/5 outline-hidden before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] focus:outline-hidden dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
       workbench: cn(
-        "honk-workbench-menu-popup flex max-h-[min(var(--available-height),20rem)] min-w-48 flex-col origin-(--transform-origin)",
+        "honk-menu honk-menu__surface honk-workbench-menu-popup flex flex-col origin-(--transform-origin)",
         honkMenuPickerShellClasses,
       ),
     },
@@ -37,27 +39,21 @@ const menuPopupVariants = cva("", {
 
 type MenuPopupVariant = NonNullable<VariantProps<typeof menuPopupVariants>["variant"]>;
 
-const workbenchMenuItemVariants = cva(
-  cn(
-    "flex min-h-6 select-none items-center gap-1.5 rounded-honk-sm px-(--honk-spacing-1) py-[3px] text-honk-chrome text-honk-fg-secondary outline-hidden transition-colors hover:bg-honk-bg-quaternary hover:text-honk-fg-primary hover:[--truncate-marker-background-color:var(--honk-bg-quaternary)] data-disabled:pointer-events-none data-highlighted:bg-honk-bg-tertiary data-highlighted:text-honk-fg-primary data-highlighted:[--truncate-marker-background-color:var(--honk-bg-tertiary)] data-disabled:opacity-40 [&>svg:not([class*='size-'])]:size-3 [&>svg]:pointer-events-none [&>svg]:shrink-0",
-    interactiveControlCursorVariants(),
-    controlTransitionVariants(),
-  ),
+const workbenchMenuItemClasses = cn(
+  "honk-menu__item flex [&>svg:not([class*='size-'])]:size-3 [&>svg]:pointer-events-none [&>svg]:shrink-0",
+  interactiveControlCursorVariants(),
 );
 
-const workbenchMenuRadioItemVariants = cva(
-  cn(
-    "grid min-h-6 select-none grid-cols-[1rem_1fr] items-center gap-1.5 rounded-[4px] py-[3px] ps-1 pe-2 text-body text-honk-fg-secondary outline-hidden transition-colors hover:bg-honk-bg-quaternary hover:text-honk-fg-primary hover:[--truncate-marker-background-color:var(--honk-bg-quaternary)] data-disabled:pointer-events-none data-highlighted:bg-honk-bg-tertiary data-highlighted:text-honk-fg-primary data-highlighted:[--truncate-marker-background-color:var(--honk-bg-tertiary)] data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-    interactiveControlCursorVariants(),
-    controlTransitionVariants(),
-  ),
+const workbenchMenuRadioItemClasses = cn(
+  "honk-menu__item grid grid-cols-[1rem_1fr] pe-2 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  interactiveControlCursorVariants(),
 );
 
 function WorkbenchMenuIconSlot({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       className={cn(
-        "inline-flex h-4 w-4 shrink-0 items-center justify-center text-honk-fg-tertiary [&>svg]:size-3 [&>svg]:shrink-0",
+        "honk-menu__slot-leading [&>svg]:size-3 [&>svg]:shrink-0",
         className,
       )}
       {...props}
@@ -66,12 +62,12 @@ function WorkbenchMenuIconSlot({ className, ...props }: React.ComponentProps<"sp
 }
 
 function WorkbenchMenuPrimaryText({ className, ...props }: React.ComponentProps<"span">) {
-  return <span className={cn("truncate text-body text-honk-fg-primary", className)} {...props} />;
+  return <span className={cn("honk-menu__slot-label", className)} {...props} />;
 }
 
 function WorkbenchMenuMetaText({ className, ...props }: React.ComponentProps<"span">) {
   return (
-    <span className={cn("truncate text-detail text-honk-fg-tertiary", className)} {...props} />
+    <span className={cn("honk-menu__slot-trailing", className)} {...props} />
   );
 }
 
@@ -79,7 +75,7 @@ function WorkbenchMenuLabel({ className, ...props }: React.ComponentProps<"div">
   return (
     <div
       className={cn(
-        "px-1 pt-1.5 pb-0.5 font-normal text-detail text-honk-fg-tertiary first:pt-0.5",
+        "honk-menu__label first:pt-0.5",
         className,
       )}
       {...props}
@@ -120,6 +116,12 @@ function MenuPopup({
   anchor?: MenuPrimitive.Positioner.Props["anchor"];
   positionerClassName?: string | undefined;
 }) {
+  const workbenchSurfaceProps = stylex.props(
+    honkMenuStyles.surface,
+    honkMenuStyles.surfaceStarting,
+  );
+  const workbenchViewportProps = stylex.props(honkMenuStyles.viewport);
+
   return (
     <MenuPrimitive.Portal>
       <MenuPrimitive.Positioner
@@ -136,11 +138,30 @@ function MenuPopup({
         sideOffset={sideOffset}
       >
         <MenuPrimitive.Popup
-          className={cn("pointer-events-auto", menuPopupVariants({ variant }), className)}
+          className={
+            variant === "workbench"
+              ? cn(
+                  "pointer-events-auto",
+                  workbenchSurfaceProps.className,
+                  menuPopupVariants({ variant }),
+                  className,
+                )
+              : cn("pointer-events-auto", menuPopupVariants({ variant }), className)
+          }
+          style={variant === "workbench" ? workbenchSurfaceProps.style : undefined}
           data-slot="menu-popup"
           {...props}
         >
-          <div className="max-h-(--available-height) w-full overflow-y-auto p-1">{children}</div>
+          <div
+            className={cn(
+              variant === "workbench"
+                ? cn(workbenchViewportProps.className, "honk-menu__viewport")
+                : "max-h-(--available-height) w-full overflow-y-auto p-1",
+            )}
+            style={variant === "workbench" ? workbenchViewportProps.style : undefined}
+          >
+            {children}
+          </div>
         </MenuPrimitive.Popup>
       </MenuPrimitive.Positioner>
     </MenuPrimitive.Portal>
@@ -164,7 +185,7 @@ function MenuItem({
     <MenuPrimitive.Item
       className={cn(
         variant === "workbench"
-          ? workbenchMenuItemVariants()
+          ? workbenchMenuItemClasses
           : "[&>svg]:-mx-0.5 flex min-h-8 cursor-default select-none items-center gap-2 rounded-xs px-2 py-1 text-base text-foreground outline-hidden data-disabled:pointer-events-none data-highlighted:bg-accent data-inset:ps-8 data-[variant=destructive]:text-destructive-foreground data-highlighted:text-accent-foreground data-disabled:opacity-64 sm:min-h-7 sm:text-sm [&>svg:not([class*='opacity-'])]:opacity-80 [&>svg:not([class*='size-'])]:size-4.5 sm:[&>svg:not([class*='size-'])]:size-4 [&>svg]:pointer-events-none [&>svg]:shrink-0",
         className,
       )}
@@ -204,14 +225,13 @@ function MenuCheckboxItem({
       className={cn(
         variant === "workbench"
           ? cn(
-              workbenchMenuRadioItemVariants(),
+              workbenchMenuRadioItemClasses,
               indicatorPosition === "end" && "grid-cols-[1fr_1rem]",
             )
           : variant === "workbench-switch"
             ? cn(
-                "grid min-h-6 cursor-default items-center rounded-[4px] py-[3px] ps-1 text-body text-honk-fg-secondary outline-hidden transition-colors data-disabled:pointer-events-none data-highlighted:bg-honk-bg-tertiary data-highlighted:text-honk-fg-primary data-highlighted:[--truncate-marker-background-color:var(--honk-bg-tertiary)] data-disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+                "honk-menu__item grid ps-1 text-body [&_svg]:pointer-events-none [&_svg]:shrink-0",
                 interactiveControlCursorVariants(),
-                controlTransitionVariants(),
               )
             : "grid min-h-8 in-data-[side=none]:min-w-[calc(var(--anchor-width)+1.25rem)] cursor-default items-center gap-2 rounded-xs py-1 ps-2 text-base text-foreground outline-hidden data-disabled:pointer-events-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:opacity-64 sm:min-h-7 sm:text-sm [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         variant !== "workbench" &&
@@ -224,29 +244,40 @@ function MenuCheckboxItem({
       {variant === "workbench" ? (
         indicatorPosition === "end" ? (
           <>
-            <span className="min-w-0 truncate text-honk-fg-primary">{children}</span>
+            <span className="honk-menu__slot-label">{children}</span>
             {workbenchIndicator}
           </>
         ) : (
           <>
             {workbenchIndicator}
-            <span className="min-w-0 truncate text-honk-fg-primary">{children}</span>
+            <span className="honk-menu__slot-label">{children}</span>
           </>
         )
       ) : isSwitch ? (
         <>
           <span className="col-start-1">{children}</span>
           <MenuPrimitive.CheckboxItemIndicator
-            className={cn(
-              "inset-shadow-[0_1px_--theme(--color-black/4%)] inline-flex h-[calc(var(--thumb-size)+2px)] w-[calc(var(--thumb-size)*2-2px)] shrink-0 items-center rounded-full p-px outline-hidden transition-[background-color,box-shadow] [--thumb-size:--spacing(4)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background data-checked:bg-primary data-unchecked:bg-input data-disabled:opacity-64 sm:[--thumb-size:--spacing(3)]",
-              variant === "workbench-switch" &&
-                "border border-honk-stroke-tertiary data-checked:border-primary data-unchecked:bg-honk-bg-quinary",
-              controlTransitionVariants(),
-            )}
             keepMounted
-          >
-            <span className="pointer-events-none block aspect-square h-full in-[[data-slot=menu-checkbox-item][data-checked]]:origin-(--thumb-size_50%) origin-left in-[[data-slot=menu-checkbox-item][data-checked]]:translate-x-[calc(var(--thumb-size)-4px)] in-[[data-slot=menu-checkbox-item]:active]:not-data-disabled:scale-x-110 in-[[data-slot=menu-checkbox-item]:active]:rounded-[var(--thumb-size)/calc(var(--thumb-size)*1.10)] rounded-(--thumb-size) bg-background shadow-xs/5 will-change-transform [transition:translate_150ms_ease-out,border-radius_150ms_ease-out,scale_150ms_ease-out,transform-origin_150ms_ease-out] motion-reduce:transition-none" />
-          </MenuPrimitive.CheckboxItemIndicator>
+            render={(indicatorProps, state) => {
+              const switchRootProps = stylex.props(switchStyles.root, switchStyles.menuRoot);
+              const switchThumbProps = stylex.props(switchStyles.thumb);
+
+              return (
+                <span
+                  {...indicatorProps}
+                  className={cn(indicatorProps.className, switchRootProps.className)}
+                  style={{ ...switchRootProps.style, ...indicatorProps.style }}
+                >
+                  <span
+                    {...switchThumbProps}
+                    data-checked={state.checked ? "" : undefined}
+                    data-slot="switch-thumb"
+                    data-unchecked={state.checked ? undefined : ""}
+                  />
+                </span>
+              );
+            }}
+          />
         </>
       ) : (
         <>
@@ -274,7 +305,7 @@ function MenuRadioItem({
     <MenuPrimitive.RadioItem
       className={cn(
         variant === "workbench"
-          ? workbenchMenuRadioItemVariants()
+          ? workbenchMenuRadioItemClasses
           : "grid min-h-8 in-data-[side=none]:min-w-[calc(var(--anchor-width)+1.25rem)] cursor-default grid-cols-[1rem_1fr] items-center gap-2 rounded-xs py-1 ps-2 pe-4 text-base text-foreground outline-hidden data-disabled:pointer-events-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:opacity-64 sm:min-h-7 sm:text-sm [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         className,
       )}
@@ -291,7 +322,7 @@ function MenuRadioItem({
               <IconCheckmark1 />
             </MenuPrimitive.RadioItemIndicator>
           </span>
-          <span className="min-w-0 truncate text-honk-fg-primary">{children}</span>
+          <span className="honk-menu__slot-label">{children}</span>
         </>
       ) : (
         <>
@@ -318,7 +349,7 @@ function MenuGroupLabel({
     <MenuPrimitive.GroupLabel
       className={cn(
         variant === "workbench"
-          ? "px-1 pt-1.5 pb-0.5 font-normal text-detail text-honk-fg-tertiary first:pt-0.5"
+          ? "honk-menu__label first:pt-0.5"
           : "px-2 py-1.5 font-medium text-muted-foreground text-xs data-inset:ps-9 sm:data-inset:ps-8",
         className,
       )}
@@ -355,7 +386,7 @@ function MenuShortcut({
     <kbd
       className={cn(
         variant === "workbench"
-          ? "ms-auto shrink-0 font-honk text-body font-normal tracking-normal text-honk-fg-tertiary"
+          ? "honk-menu__shortcut honk-menu__slot-trailing"
           : "ms-auto font-medium font-sans text-muted-foreground/72 text-xs tracking-widest",
         className,
       )}
@@ -383,7 +414,7 @@ function MenuSubTrigger({
     <MenuPrimitive.SubmenuTrigger
       className={cn(
         variant === "workbench"
-          ? workbenchMenuItemVariants()
+          ? workbenchMenuItemClasses
           : "flex min-h-8 items-center gap-2 rounded-xs px-2 py-1 text-base text-foreground outline-hidden data-disabled:pointer-events-none data-highlighted:bg-accent data-popup-open:bg-accent data-inset:ps-8 data-highlighted:text-accent-foreground data-popup-open:text-accent-foreground data-disabled:opacity-64 sm:min-h-7 sm:text-sm [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none",
         className,
       )}
@@ -471,7 +502,10 @@ export {
   WorkbenchMenuLabel,
   WorkbenchMenuMetaText,
   WorkbenchMenuPrimaryText,
+  honkMenuClassName,
+  honkMenuClassNames,
+  honkMenuStyles,
   menuPopupVariants,
-  workbenchMenuItemVariants,
-  workbenchMenuRadioItemVariants,
+  workbenchMenuItemClasses,
+  workbenchMenuRadioItemClasses,
 };

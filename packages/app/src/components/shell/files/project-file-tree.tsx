@@ -25,7 +25,9 @@ import {
   AlertDialogTitle,
 } from "@honk/honkkit/alert-dialog";
 import { Button } from "@honk/honkkit/button";
+import { honkMenuStyles } from "@honk/honkkit/menu";
 import { normalizePathSeparators as normalizeTreePath } from "@honk/shared/paths";
+import * as stylex from "@stylexjs/stylex";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import {
   type CSSProperties,
@@ -328,9 +330,9 @@ type PendingCompositionEntry = {
 };
 
 const FILE_TREE_MENU_ITEM_CLASS =
-  "flex min-h-6 w-full items-center rounded-xs px-2 text-left text-muted-foreground outline-hidden hover:bg-honk-hover hover:text-foreground focus-visible:bg-honk-hover focus-visible:text-foreground";
+  "honk-menu__item flex min-h-6 text-left";
 
-const FILE_TREE_CONTEXT_MENU_SEPARATOR_CLASS = "my-1 h-px bg-honk-border/70";
+const FILE_TREE_CONTEXT_MENU_SEPARATOR_CLASS = "honk-menu__separator";
 
 async function copyPathToClipboard(path: string, successTitle: string): Promise<void> {
   if (!navigator.clipboard?.writeText) {
@@ -415,15 +417,19 @@ function FileTreeContextMenu(props: {
     left: position.left,
     top: position.top,
   };
+  const surfaceProps = stylex.props(honkMenuStyles.surface);
 
   return (
     <div
       ref={containerRef}
       role="menu"
       aria-label={`Actions for ${props.item.name}`}
-      className="fixed z-(--z-index-workbench-menu) min-w-32 max-w-[calc(100vw-16px)] rounded-honk-control border border-honk-border/70 bg-honk-bubble-opaque p-1 font-honk text-honk-chrome text-foreground shadow-honk-sm"
+      className={cn(
+        surfaceProps.className,
+        "honk-menu honk-menu__surface honk-menu__viewport fixed! z-(--z-index-workbench-menu) max-w-[calc(100vw-16px)]",
+      )}
       data-file-tree-context-menu-root="true"
-      style={menuStyle}
+      style={{ ...surfaceProps.style, ...menuStyle }}
     >
       <button
         type="button"

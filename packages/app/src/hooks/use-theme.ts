@@ -6,6 +6,7 @@ import {
   applyAppearanceBoot,
   readAppearanceSnapshot,
 } from "../lib/appearance-settings";
+import { windowGlassFor } from "../lib/surface-theme";
 
 type Theme = "light" | "dark" | "system";
 type ThemeSnapshot = {
@@ -83,8 +84,26 @@ function resolveBrowserChromeSurface(): HTMLElement {
   );
 }
 
+function supportsOsVibrancy() {
+  return (
+    isElectron &&
+    typeof navigator !== "undefined" &&
+    /Mac|iPhone|iPad|iPod/.test(navigator.platform)
+  );
+}
+
 function wantsElectronGlassBackground() {
-  return isElectron && !readAppearanceSnapshot().reduceTransparency;
+  return windowGlassFor({
+    osVibrancy: supportsOsVibrancy(),
+    reduceTransparency: readAppearanceSnapshot().reduceTransparency,
+    highContrast: false,
+  }).vibrancy;
+}
+
+function syncGlassModeDomFlags(wantsGlassBackground: boolean) {
+  const appearance = readAppearanceSnapshot();
+  document.body.dataset.honkGlassMode = wantsGlassBackground ? "true" : "false";
+  document.body.classList.toggle("honk-reduce-transparency", appearance.reduceTransparency);
 }
 
 function getElectronGlassBackgroundColor() {
@@ -96,6 +115,7 @@ function getElectronGlassBackgroundColor() {
 export function syncBrowserChromeTheme() {
   if (typeof document === "undefined" || typeof getComputedStyle === "undefined") return;
   const wantsGlassBackground = wantsElectronGlassBackground();
+  syncGlassModeDomFlags(wantsGlassBackground);
   const surfaceColor = normalizeThemeColor(
     getComputedStyle(resolveBrowserChromeSurface()).backgroundColor,
   );

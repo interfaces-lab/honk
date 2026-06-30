@@ -1,9 +1,11 @@
 "use client";
 
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
+import * as stylex from "@stylexjs/stylex";
 import { IconCheckmark1, IconChevronRightMedium, IconCrossMediumDefault } from "central-icons";
 import * as React from "react";
 
+import { honkMenuStyles } from "./menu-styles";
 import {
   cn,
   honkMenuPickerShellClasses,
@@ -167,6 +169,7 @@ function ComboboxPopup({
 }) {
   const chipsRef = React.useContext(ComboboxChipsRefContext);
   const anchor = anchorProp ?? chipsRef;
+  const surfaceProps = stylex.props(honkMenuStyles.surface, honkMenuStyles.surfaceStarting);
 
   return (
     <ComboboxPrimitive.Portal>
@@ -181,13 +184,15 @@ function ComboboxPopup({
       >
         <span
           className={cn(
+            surfaceProps.className,
             "honk-workbench-menu-popup relative flex max-h-full min-w-(--anchor-width) max-w-(--available-width) origin-(--transform-origin) outline-none transition-[scale,opacity] duration-(--motion-duration-ui) ease-(--ease-shell) data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none",
             honkMenuPickerShellClasses,
             className,
           )}
+          style={surfaceProps.style}
         >
           <ComboboxPrimitive.Popup
-            className="flex max-h-[min(var(--available-height),23rem)] flex-1 flex-col text-foreground"
+            className="flex max-h-(--honk-menu-available-height) flex-1 flex-col text-foreground"
             data-slot="combobox-popup"
             {...props}
           >
@@ -212,7 +217,7 @@ function ComboboxItem({
   return (
     <ComboboxPrimitive.Item
       className={cn(
-        "flex min-h-8 in-data-[side=none]:min-w-[calc(var(--anchor-width)+1.25rem)] cursor-default items-center gap-2 rounded-sm py-1 text-base outline-none hover:bg-accent data-disabled:pointer-events-none data-selected:bg-accent/50 data-selected:text-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground [&[data-highlighted][data-selected]]:bg-accent [&[data-highlighted][data-selected]]:text-accent-foreground data-disabled:opacity-64 sm:min-h-7 sm:text-sm [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "honk-menu__item flex in-data-[side=none]:min-w-[calc(var(--anchor-width)+1.25rem)] text-base sm:text-sm [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         hideIndicator ? "ps-3 pe-3" : "ps-2 pe-4",
         className,
       )}
@@ -229,7 +234,7 @@ function ComboboxItem({
           </ComboboxPrimitive.ItemIndicator>
         </span>
       ) : null}
-      <div className={cn("min-w-0 flex-1", contentClassName)}>{children}</div>
+      <div className={cn("honk-menu__slot-label flex-1", contentClassName)}>{children}</div>
     </ComboboxPrimitive.Item>
   );
 }

@@ -18,7 +18,7 @@ import { useSettingsSearch } from "~/components/settings/settings-search-context
 import { SETTINGS_SECTIONS } from "~/components/settings/settings-sections";
 import { isElectron } from "~/env";
 import { agentModeSupportsThinkingLevelSelection } from "~/lib/agent-mode-options";
-import { cn, isMacPlatform } from "~/lib/utils";
+import { isMacPlatform } from "~/lib/utils";
 import { useAgentRuntimeStore } from "~/stores/agent-runtime-store";
 import { SettingsSearchResults } from "./settings-search-results";
 
@@ -54,7 +54,7 @@ export function SettingsNavRail(props: { onBack: () => void }) {
 
   return (
     <div className="flex min-h-0 flex-1 select-none flex-col">
-      <div className={cn("shrink-0", isElectron && "no-drag")}>
+      <div className="shrink-0" data-shell-drag-region={isElectron ? "" : undefined}>
         <div className="flex flex-col gap-2 px-2 pt-2 pb-1.5">
           <SidebarItem
             type="button"

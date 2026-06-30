@@ -216,7 +216,7 @@ export function AgentSidebarSection(props: {
               aria-expanded={open}
               aria-controls={open ? panelId : undefined}
               onClick={toggleOpen}
-              className="relative m-0 flex min-h-sidebar-item w-auto min-w-0 flex-1 cursor-(--honk-button-cursor) touch-manipulation items-center justify-start gap-sidebar-item-gap border-0 bg-transparent p-0 text-inherit shadow-none outline-hidden focus-visible:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--honk-stroke-focused)_92%,transparent)]"
+              className="relative m-0 flex min-h-0 w-auto min-w-0 flex-1 cursor-(--honk-button-cursor) touch-manipulation items-center justify-start gap-sidebar-item-gap border-0 bg-transparent p-0 text-inherit shadow-none outline-hidden focus-visible:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--honk-stroke-focused)_92%,transparent)]"
             >
               <span
                 className="relative flex size-4 shrink-0 items-center justify-center text-honk-icon-tertiary"

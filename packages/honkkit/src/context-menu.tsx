@@ -1,10 +1,12 @@
 "use client";
 
 import { ContextMenu as ContextMenuPrimitive } from "@base-ui/react/context-menu";
+import * as stylex from "@stylexjs/stylex";
 import { forwardRef, type ReactNode } from "react";
 
+import { honkMenuStyles } from "./menu-styles";
 import { cn, honkMenuPickerShellClasses, honkMenuSeparatorClasses } from "./utils";
-import { workbenchMenuItemVariants } from "./menu";
+import { workbenchMenuItemClasses } from "./menu";
 
 const ContextMenu = ContextMenuPrimitive.Root;
 
@@ -30,6 +32,9 @@ function WorkbenchContextMenuPopup({
   positionerClassName?: string | undefined;
   sideOffset?: ContextMenuPrimitive.Positioner.Props["sideOffset"];
 }) {
+  const surfaceProps = stylex.props(honkMenuStyles.surface, honkMenuStyles.surfaceStarting);
+  const viewportProps = stylex.props(honkMenuStyles.viewport);
+
   return (
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Positioner
@@ -40,13 +45,20 @@ function WorkbenchContextMenuPopup({
         <ContextMenuPrimitive.Popup
           data-slot="context-menu-popup"
           className={cn(
-            "honk-workbench-menu-popup w-60 max-w-[calc(100vw-16px)] origin-(--transform-origin) select-none",
+            surfaceProps.className,
+            "honk-workbench-menu-popup max-w-[calc(100vw-16px)] origin-(--transform-origin) select-none",
             honkMenuPickerShellClasses,
             className,
           )}
+          style={surfaceProps.style}
           {...props}
         >
-          <div className="max-h-72 w-full overflow-y-auto overscroll-contain p-1">{children}</div>
+          <div
+            className={cn(viewportProps.className, "honk-menu__viewport overscroll-contain")}
+            style={viewportProps.style}
+          >
+            {children}
+          </div>
         </ContextMenuPrimitive.Popup>
       </ContextMenuPrimitive.Positioner>
     </ContextMenuPrimitive.Portal>
@@ -62,13 +74,13 @@ function WorkbenchContextMenuItem({
   icon?: ReactNode;
 }) {
   return (
-    <ContextMenuPrimitive.Item className={cn(workbenchMenuItemVariants(), className)} {...props}>
+    <ContextMenuPrimitive.Item className={cn(workbenchMenuItemClasses, className)} {...props}>
       {icon ? (
-        <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-honk-fg-tertiary [&>svg]:size-3 [&>svg]:shrink-0">
+        <span className="honk-menu__slot-leading [&>svg]:size-3 [&>svg]:shrink-0">
           {icon}
         </span>
       ) : null}
-      <span className="min-w-0 flex-1 truncate text-body">{children}</span>
+      <span className="honk-menu__slot-label flex-1">{children}</span>
     </ContextMenuPrimitive.Item>
   );
 }
@@ -91,5 +103,5 @@ export {
   WorkbenchContextMenuItem,
   WorkbenchContextMenuPopup,
   WorkbenchContextMenuSeparator,
-  workbenchMenuItemVariants as workbenchContextMenuItemVariants,
+  workbenchMenuItemClasses as workbenchContextMenuItemClasses,
 };

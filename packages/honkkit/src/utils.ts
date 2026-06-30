@@ -56,44 +56,41 @@ export function cn(...inputs: CxOptions) {
   return twMerge(cx(inputs));
 }
 
+const honkMenuClassNames = {
+  root: "honk-menu",
+  surface: "honk-menu__surface",
+  separator: "honk-menu__separator",
+} as const;
+
+const honkMenuClassName = (...names: Array<string | false | null | undefined>) =>
+  names.filter(Boolean).join(" ");
+
 export const controlTransitionVariants = cva(
   "duration-(--motion-duration-ui) ease-(--ease-shell) motion-reduce:transition-none",
 );
 export const interactiveControlCursorVariants = cva("cursor-(--honk-button-cursor)");
 export const interactiveHostCursorVariants = cva("[button&,a&]:cursor-(--honk-button-cursor)");
 
-/** Portaled menu/popup shells read `--honk-menu-surface-background` from `html`. */
-export const honkMenuPopupSurfaceClasses =
-  "bg-(--honk-menu-surface-background) [--truncate-marker-background-color:var(--honk-menu-surface-background)]";
+/** Portaled menu/popup shells read `--honk-menu-bg` from `html`. */
+export const honkMenuPopupSurfaceClasses = honkMenuClassNames.surface;
 
-export const honkMenuPopupFontClasses = "font-honk text-honk-chrome text-honk-fg-primary";
+export const honkMenuPopupFontClasses = honkMenuClassNames.root;
 
-export const honkMenuPopupTypographyClasses = cn(
+export const honkMenuPopupTypographyClasses = honkMenuClassName(
   honkMenuPopupFontClasses,
-  "backdrop-blur-[length:var(--honk-glass-blur-surface)] dark:backdrop-blur-none",
 );
 
-export const honkMenuPopupShellClasses = cn(
+export const honkMenuPopupShellClasses = honkMenuClassName(
   honkMenuPopupSurfaceClasses,
   honkMenuPopupTypographyClasses,
 );
 
-/** Cursor picker-menu edge: one hairline via shadow-sm, not border + shadow + inset ring. */
-export const honkMenuPickerChromeClasses = "border-0 shadow-honk-sm outline-hidden";
+/** StyleX owns picker-menu chrome; these remain as stable compatibility hooks. */
+export const honkMenuPickerChromeClasses = "";
 
-/** Workbench picker menu shell: surface + typography + single outer hairline. */
-export const honkMenuPickerLayoutClasses =
-  "overflow-hidden rounded-honk-lg focus:outline-hidden focus-visible:outline-hidden";
+export const honkMenuPickerLayoutClasses = "";
 
-export const honkMenuPickerShellClasses = cn(
-  honkMenuPopupShellClasses,
-  honkMenuPickerChromeClasses,
-  honkMenuPickerLayoutClasses,
-);
+export const honkMenuPickerShellClasses = honkMenuPopupShellClasses;
 
-/** Command palette shell: border-none + shadow-xl hairline (Cursor quick-input-widget). */
-export const honkCommandPaletteChromeClasses =
-  "border-0 shadow-honk-xl outline-hidden dark:backdrop-blur-none";
-
-/** Match menu popup hairline (`shadow-honk-sm` / stroke-tertiary) on workbench surfaces. */
-export const honkMenuSeparatorClasses = "mx-0 my-1 h-px shrink-0 bg-honk-stroke-tertiary";
+/** Cursor-parity section divider with a slight horizontal inset. */
+export const honkMenuSeparatorClasses = honkMenuClassNames.separator;

@@ -5,6 +5,7 @@ import {
   type ThreadId,
 } from "@honk/contracts";
 import { Button } from "@honk/honkkit/button";
+import * as stylex from "@stylexjs/stylex";
 import { IconBubbleQuestion, IconChevronRightMedium, IconSummary } from "central-icons";
 import { type KeyboardEvent, type MouseEvent } from "react";
 import {
@@ -49,6 +50,34 @@ function stopSubagentStatusRowKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
 }
 
 const PENDING_TOOL_CALL_APPROVAL: ToolCallApproval = { status: "pending" };
+
+const styles = stylex.create({
+  subagentStatusRow: {
+    alignItems: "flex-start",
+    backgroundColor: {
+      default: "transparent",
+      ":hover": "transparent",
+      ":active": "transparent",
+      "[data-pressed]": "transparent",
+      "[data-highlighted]": "transparent",
+      "[data-selected]": "transparent",
+    },
+    borderColor: "transparent",
+    borderWidth: 0,
+    boxShadow: "none",
+    display: "flex",
+    flexDirection: "column",
+    gap: "var(--honk-spacing-0-5)",
+    height: "auto",
+    justifyContent: "flex-start",
+    minHeight: 24,
+    padding: 0,
+    textAlign: "left",
+    "::before": {
+      display: "none",
+    },
+  },
+});
 
 interface ToolCallMessageProps {
   workEntry: WorkLogEntry;
@@ -809,6 +838,7 @@ function SubagentStatusRow({
     <Button
       type="button"
       variant="ghost"
+      xstyle={styles.subagentStatusRow}
       className={cn(
         "group/subagent-row flex min-h-6 w-fit max-w-full min-w-0 flex-col items-start gap-0.5 overflow-hidden",
         "h-auto border-0 bg-transparent p-0 text-left text-conversation text-honk-fg-secondary shadow-none before:hidden hover:bg-transparent data-pressed:bg-transparent disabled:opacity-100",
@@ -825,7 +855,7 @@ function SubagentStatusRow({
       onClick={handleOpenTray}
       onKeyDown={stopSubagentStatusRowKeyDown}
     >
-      <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden">
+      <span className="inline-flex min-w-0 max-w-full items-center justify-start gap-1.5 overflow-hidden text-left">
         <span className="inline-flex w-3 shrink-0 items-center justify-center">
           <SubagentStatusIndicator subagent={subagent} />
         </span>

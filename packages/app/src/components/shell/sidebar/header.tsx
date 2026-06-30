@@ -61,6 +61,19 @@ export function ShellSidebarHeader(props: { onNewChat: () => void; onAddProject?
       <div className="flex min-h-[22px] min-w-0 flex-col items-stretch gap-px">
         <SidebarButton
           variant="chrome"
+          draggable
+          onClick={props.onNewChat}
+          onDragStart={writeNewAgentDragPayload}
+          className="min-w-0 text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary [-webkit-user-drag:element]"
+          data-agent-sidebar-cell=""
+          data-testid="new-thread-button"
+        >
+          <IconCollaborationPointerRight className="size-4 shrink-0 opacity-65" />
+          <span className="min-w-0 flex-1 truncate">New Agent</span>
+          <span className="shrink-0 text-right text-caption text-honk-fg-quaternary">⌘N</span>
+        </SidebarButton>
+        <SidebarButton
+          variant="chrome"
           onClick={() => setCommandPaletteOpen(true)}
           className="min-w-0 text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary"
           aria-label="Search"
@@ -72,19 +85,6 @@ export function ShellSidebarHeader(props: { onNewChat: () => void; onAddProject?
               {commandPaletteShortcutLabel}
             </span>
           ) : null}
-        </SidebarButton>
-        <SidebarButton
-          variant="chrome"
-          draggable
-          onClick={props.onNewChat}
-          onDragStart={writeNewAgentDragPayload}
-          className="min-w-0 text-honk-fg-secondary hover:bg-honk-bg-quaternary hover:text-honk-fg-primary [-webkit-user-drag:element]"
-          data-agent-sidebar-cell=""
-          data-testid="new-thread-button"
-        >
-          <IconCollaborationPointerRight className="size-4 shrink-0 opacity-65" />
-          <span className="min-w-0 flex-1 truncate">New Agent</span>
-          <span className="shrink-0 text-right text-caption text-honk-fg-quaternary">⌘N</span>
         </SidebarButton>
       </div>
       {props.onAddProject ? (

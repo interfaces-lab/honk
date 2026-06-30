@@ -366,7 +366,8 @@ function SettingsShellHost(props: { children?: ReactNode }) {
   const settingsLeft = (
     <div className="thread-rail-pad relative flex min-h-0 flex-1 flex-col px-0">
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-(--honk-shell-sidebar-content-top-offset,var(--honk-electron-traffic-padding-top))"
+        className="absolute inset-x-0 top-0 h-(--honk-shell-sidebar-content-top-offset,var(--honk-electron-traffic-padding-top))"
+        data-shell-drag-region=""
         aria-hidden="true"
       />
       <SettingsNavRail onBack={backToChat} />
@@ -1113,10 +1114,11 @@ function ChatShellHost(props: { children?: ReactNode }) {
   const chatLeft = (
     <div className="thread-rail-pad relative flex min-h-0 flex-1 flex-col px-0">
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-(--honk-shell-sidebar-content-top-offset,var(--honk-electron-traffic-padding-top))"
+        className="absolute inset-x-0 top-0 h-(--honk-shell-sidebar-content-top-offset,var(--honk-electron-traffic-padding-top))"
+        data-shell-drag-region=""
         aria-hidden="true"
       />
-      <div className={cn("shrink-0", isElectron && "no-drag")}>
+      <div className="shrink-0" data-shell-drag-region={isElectron ? "" : undefined}>
         <ShellSidebarHeader onNewChat={sidebarModel.create} />
       </div>
       <AgentSidebar

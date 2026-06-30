@@ -20,12 +20,13 @@ import {
   IconSquareChecklist,
   IconTargetArrow,
 } from "central-icons";
+import * as stylex from "@stylexjs/stylex";
 import { useMemo, type ComponentProps } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { Popover, PopoverPopup } from "@honk/honkkit/popover";
+import { honkMenuStyles } from "@honk/honkkit/menu";
 import {
-  honkMenuPickerChromeClasses,
   honkMenuPopupFontClasses,
   honkMenuPopupSurfaceClasses,
 } from "@honk/honkkit/utils";
@@ -685,6 +686,7 @@ export function ComposerCommandMenu(props: {
     props.isSearching ?? false,
   );
   const activePathPreview = props.activePathPreview ?? null;
+  const surfaceProps = stylex.props(honkMenuStyles.surface, honkMenuStyles.surfaceStarting);
 
   return (
     <Command
@@ -699,16 +701,17 @@ export function ComposerCommandMenu(props: {
     >
       <div
         className={cn(
-          "relative w-full max-w-full min-w-0 overflow-hidden rounded-lg backdrop-blur-[length:var(--honk-glass-blur-floating)] dark:backdrop-blur-none motion-reduce:animate-none motion-reduce:transition-none",
+          surfaceProps.className,
+          "relative w-full max-w-full min-w-0 overflow-hidden rounded-lg motion-reduce:animate-none motion-reduce:transition-none",
           honkMenuPopupSurfaceClasses,
           honkMenuPopupFontClasses,
-          honkMenuPickerChromeClasses,
         )}
+        style={surfaceProps.style}
         data-menu-kind={props.menuKind}
         data-variant="surface"
       >
-        {/* 340px max height matches the popup shell cap (shadow hairline, no CSS border). */}
-        <CommandList className="max-h-[min(340px,var(--available-height))] overflow-x-hidden overflow-y-auto">
+        {/* 340px max height matches the popup shell cap. */}
+        <CommandList className="honk-menu__viewport max-h-[min(340px,var(--honk-menu-available-height))]">
           {groups.map((group, groupIndex) => (
             <div key={group.id}>
               {groupIndex > 0 ? <CommandSeparator className="my-px" /> : null}
@@ -775,7 +778,7 @@ const ComposerCommandMenuItem = function ComposerCommandMenuItem(props: {
         data-composer-item-id={props.item.id}
         data-is-selected={props.isActive ? "" : undefined}
         data-menu-item-type={props.item.type}
-        className="flex min-h-[22px] cursor-pointer items-center rounded-honk-control px-1.5 py-1 text-detail text-honk-fg-tertiary select-none hover:bg-honk-bg-quaternary data-highlighted:bg-honk-bg-quaternary data-[is-selected]:bg-honk-bg-quaternary"
+        className="honk-menu__item flex min-h-[22px] cursor-pointer px-1.5 py-1 text-detail text-honk-fg-tertiary"
         onMouseMove={() => {
           if (!props.isActive) props.onHighlight(props.item.id);
         }}
@@ -815,7 +818,7 @@ const ComposerCommandMenuItem = function ComposerCommandMenuItem(props: {
       data-composer-item-id={props.item.id}
       data-is-selected={props.isActive ? "" : undefined}
       data-menu-item-type={props.item.type}
-      className="flex min-h-[22px] cursor-pointer items-center gap-1.5 rounded-honk-control px-1.5 py-1 text-body text-honk-fg-primary select-none hover:bg-honk-bg-quaternary data-highlighted:bg-honk-bg-quaternary data-[is-selected]:bg-honk-bg-quaternary"
+      className="honk-menu__item flex min-h-[22px] cursor-pointer px-1.5 py-1 text-body"
       onMouseMove={() => {
         if (!props.isActive) props.onHighlight(props.item.id);
       }}
@@ -835,7 +838,7 @@ const ComposerCommandMenuItem = function ComposerCommandMenuItem(props: {
       ) : null}
       {itemIcon}
       <span className="flex min-w-0 flex-1 items-baseline gap-2">
-        <span className="min-w-0 shrink truncate text-body font-medium text-honk-fg-primary">
+        <span className="honk-menu__slot-label shrink text-body font-medium">
           {label}
         </span>
         <span className="min-w-0 flex-1 truncate text-detail text-honk-fg-tertiary">
@@ -843,7 +846,7 @@ const ComposerCommandMenuItem = function ComposerCommandMenuItem(props: {
         </span>
       </span>
       {tertiaryText ? (
-        <span className="flex-none whitespace-nowrap rounded-full border border-honk-stroke-secondary bg-honk-bg-tertiary/70 px-1.5 py-0 text-caption text-honk-fg-tertiary">
+        <span className="honk-menu__slot-trailing whitespace-nowrap text-caption text-honk-fg-tertiary">
           {tertiaryText}
         </span>
       ) : null}

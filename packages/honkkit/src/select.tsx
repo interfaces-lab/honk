@@ -3,11 +3,13 @@
 import { mergeProps } from "@base-ui/react/merge-props";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
 import { useRender } from "@base-ui/react/use-render";
+import * as stylex from "@stylexjs/stylex";
 import { cva, type VariantProps } from "class-variance-authority";
 import { IconCheckmark1, IconChevronRightMedium } from "central-icons";
 import type * as React from "react";
 
-import { menuPopupVariants, workbenchMenuItemVariants } from "./menu";
+import { honkMenuStyles } from "./menu-styles";
+import { menuPopupVariants, workbenchMenuItemClasses } from "./menu";
 import {
   cn,
   controlTransitionVariants,
@@ -139,6 +141,7 @@ function SelectPopup({
   alignItemWithTrigger?: SelectPrimitive.Positioner.Props["alignItemWithTrigger"];
   anchor?: SelectPrimitive.Positioner.Props["anchor"];
 }) {
+  const surfaceProps = stylex.props(honkMenuStyles.surface, honkMenuStyles.surfaceStarting);
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
@@ -163,10 +166,15 @@ function SelectPopup({
             <IconChevronRightMedium className="relative size-4.5 -rotate-90 sm:size-4" />
           </SelectPrimitive.ScrollUpArrow>
           <div
-            className={cn(menuPopupVariants({ variant: "workbench" }), "min-w-(--anchor-width)")}
+            className={cn(
+              surfaceProps.className,
+              menuPopupVariants({ variant: "workbench" }),
+              "min-w-(--anchor-width)",
+            )}
+            style={surfaceProps.style}
           >
             <SelectPrimitive.List
-              className={cn("max-h-(--available-height) w-full overflow-y-auto p-1", className)}
+              className={cn("honk-menu__viewport", className)}
               data-slot="select-list"
             >
               {children}
@@ -195,7 +203,7 @@ function SelectItem({
   return (
     <SelectPrimitive.Item
       className={cn(
-        workbenchMenuItemVariants(),
+        workbenchMenuItemClasses,
         hideIndicator ? "px-1" : "grid grid-cols-[1rem_1fr] ps-1 pe-2",
         className,
       )}
@@ -215,7 +223,7 @@ function SelectItem({
         </SelectPrimitive.ItemIndicator>
       )}
       <SelectPrimitive.ItemText
-        className={cn("min-w-0", hideIndicator ? "col-start-1" : "col-start-2", "truncate")}
+        className={cn("honk-menu__slot-label", hideIndicator ? "col-start-1" : "col-start-2")}
         data-slot="select-item-text"
       >
         {children}

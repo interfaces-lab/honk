@@ -1,5 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import * as stylex from "@stylexjs/stylex";
 
+import { honkMenuStyles } from "@honk/honkkit/menu";
 import {
   honkMenuPickerChromeClasses,
   honkMenuPopupFontClasses,
@@ -192,6 +194,7 @@ export function ComposerPathPreviewPanel(props: {
     PREVIEW_TREE_MAX_HEIGHT_PX,
   );
   const fullDirectoryPath = props.path !== null ? previewPathFullDirectory(props.path) : null;
+  const surfaceProps = stylex.props(honkMenuStyles.surface);
 
   return (
     <div
@@ -200,14 +203,19 @@ export function ComposerPathPreviewPanel(props: {
       data-composer-menu-preview=""
       data-preview-side={placement.side}
       data-variant="surface"
-      style={placement.side === "hidden" ? undefined : { left: placement.left, top: placement.top }}
       className={cn(
+        surfaceProps.className,
         "pointer-events-auto absolute max-h-[342px] w-[320px] overflow-hidden rounded-lg",
         honkMenuPopupSurfaceClasses,
         honkMenuPopupFontClasses,
         honkMenuPickerChromeClasses,
         placement.side === "hidden" && "hidden",
       )}
+      style={
+        placement.side === "hidden"
+          ? surfaceProps.style
+          : { ...surfaceProps.style, left: placement.left, top: placement.top }
+      }
       onMouseDown={(event) => {
         // Keep focus in the Lexical editor (menu rows do the same).
         event.preventDefault();

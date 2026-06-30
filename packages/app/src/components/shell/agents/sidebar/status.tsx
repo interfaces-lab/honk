@@ -21,6 +21,14 @@ function sidebarDotStateForItem(item: SidebarChatItem): UiStatusDotState {
   return item.unread ? "doneUnseen" : "doneSeen";
 }
 
+function shouldShowStatusSlot(item: SidebarChatItem, finishing: boolean): boolean {
+  if (finishing) return true;
+  if (item.kind === "draft") return true;
+  if (item.archived) return true;
+  if (item.unread) return true;
+  return item.state !== "idle";
+}
+
 export function StatusDot(props: { finishing?: boolean | undefined; item: SidebarChatItem }) {
   if (props.item.kind === "thread" && props.item.archived) {
     return <IconArchive1 className="size-4 shrink-0 text-honk-icon-tertiary" aria-hidden />;
@@ -82,9 +90,13 @@ export function StatusSlot(props: { item: SidebarChatItem }) {
     };
   }, [props.item.id, running]);
 
+  if (!shouldShowStatusSlot(props.item, finishing)) {
+    return null;
+  }
+
   return (
     <span
-      className="flex size-4 shrink-0 items-center justify-center text-honk-icon-secondary"
+      className="flex h-(--honk-sidebar-label-leading) w-4 shrink-0 items-center justify-center self-start text-honk-icon-secondary"
       data-agent-sidebar-status=""
       data-agent-sidebar-status-finishing={finishing ? "true" : undefined}
     >

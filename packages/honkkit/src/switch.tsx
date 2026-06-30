@@ -1,29 +1,52 @@
 "use client";
 
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
+import * as stylex from "@stylexjs/stylex";
 
-import { cn, controlTransitionVariants, interactiveControlCursorVariants } from "./utils";
+import { switchStyles } from "./switch-styles";
+import { mergeProps } from "./utils/mergeProps";
+import { themeProps } from "./utils/themeProps";
 
-function Switch({ className, ...props }: SwitchPrimitive.Root.Props) {
+interface SwitchProps extends SwitchPrimitive.Root.Props {
+  xstyle?: stylex.StyleXStyles;
+}
+
+function Switch({ className, style, xstyle, ...props }: SwitchProps) {
+  const mergedProps = mergeProps(
+    themeProps("switch"),
+    stylex.props(switchStyles.root, xstyle),
+    typeof className === "function" ? undefined : className,
+    typeof style === "function" ? undefined : style,
+  );
+  const mergedClassName =
+    typeof mergedProps.className === "string" ? mergedProps.className : undefined;
+  const classNameProp: SwitchPrimitive.Root.Props["className"] =
+    typeof className === "function"
+      ? (state) => [mergedClassName, className(state)].filter(Boolean).join(" ") || undefined
+      : mergedClassName;
+  const mergedStyle = mergedProps.style;
+  const styleProp: SwitchPrimitive.Root.Props["style"] =
+    typeof style === "function"
+      ? (state) => {
+          const resolvedStyle = style(state);
+          return mergedStyle && resolvedStyle
+            ? { ...mergedStyle, ...resolvedStyle }
+            : (resolvedStyle ?? mergedStyle);
+        }
+      : mergedStyle;
+
   return (
     <SwitchPrimitive.Root
-      className={cn(
-        "inline-flex h-[calc(var(--thumb-size)+2px)] w-[calc(var(--thumb-size)*2-2px)] shrink-0 items-center rounded-full p-px outline-none transition-[background-color,box-shadow] [--thumb-size:--spacing(5)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background data-checked:bg-primary data-unchecked:bg-input data-disabled:cursor-not-allowed data-disabled:opacity-64 sm:[--thumb-size:--spacing(4)]",
-        interactiveControlCursorVariants(),
-        controlTransitionVariants(),
-        className,
-      )}
+      {...mergedProps}
+      className={classNameProp}
       data-slot="switch"
+      style={styleProp}
       {...props}
     >
-      <SwitchPrimitive.Thumb
-        className={cn(
-          "pointer-events-none block aspect-square h-full origin-left in-[[role=switch]:active,[data-slot=label]:active,[data-slot=field-label]:active]:not-data-disabled:scale-x-110 in-[[role=switch]:active,[data-slot=label]:active,[data-slot=field-label]:active]:rounded-[var(--thumb-size)/calc(var(--thumb-size)*1.1)] rounded-(--thumb-size) bg-background shadow-sm/5 will-change-transform [transition:translate_var(--motion-duration-ui)_var(--ease-shell),border-radius_var(--motion-duration-ui)_var(--ease-shell),scale_var(--motion-duration-ui)_var(--ease-shell),transform-origin_var(--motion-duration-ui)_var(--ease-shell)] data-checked:origin-(--thumb-size_50%) data-checked:translate-x-[calc(var(--thumb-size)-4px)] motion-reduce:transition-none",
-        )}
-        data-slot="switch-thumb"
-      />
+      <SwitchPrimitive.Thumb {...stylex.props(switchStyles.thumb)} data-slot="switch-thumb" />
     </SwitchPrimitive.Root>
   );
 }
 
 export { Switch };
+export type { SwitchProps };

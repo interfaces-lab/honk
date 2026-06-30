@@ -6,10 +6,10 @@ import * as stylex from "@stylexjs/stylex";
 import type * as React from "react";
 import {
   cn,
-  honkCommandPaletteChromeClasses,
   honkMenuPopupFontClasses,
   honkMenuSeparatorClasses,
 } from "./utils";
+import { honkMenuStyles } from "./menu-styles";
 import {
   Autocomplete,
   AutocompleteCollection,
@@ -296,11 +296,10 @@ function CommandDialogPopup({
           {...mergeStatefulProps(
             mergeProps(
               cn(
-                "relative flex max-h-[min(26rem,calc(100dvh-5rem))] min-h-0 w-[calc(100vw-1rem)] min-w-0 max-w-[720px] flex-col overflow-hidden rounded-honk-xl bg-(--honk-command-palette-surface-background) backdrop-blur-[length:var(--honk-glass-blur-floating)] transition-[scale,opacity,translate] duration-(--motion-duration-ui) ease-(--ease-shell) data-ending-style:-translate-y-4 data-ending-style:scale-[0.98] data-ending-style:opacity-0 data-starting-style:-translate-y-4 data-starting-style:scale-[0.98] data-starting-style:opacity-0 **:data-[slot=scroll-area-viewport]:data-has-overflow-y:pe-1",
+                "**:data-[slot=scroll-area-viewport]:data-has-overflow-y:pe-1",
                 honkMenuPopupFontClasses,
-                honkCommandPaletteChromeClasses,
               ),
-              stylex.props(styles.popup),
+              stylex.props(honkMenuStyles.surface, honkMenuStyles.surfaceStarting, styles.popup),
             ),
             className,
             style,
@@ -438,7 +437,7 @@ function CommandItem({
     <AutocompleteItem
       {...mergeStatefulProps(
         mergeProps(
-          "text-honk-fg-primary transition-[background-color,color] hover:bg-honk-bg-quaternary data-highlighted:bg-honk-bg-tertiary data-selected:bg-honk-bg-tertiary [&_svg]:shrink-0 [&_svg]:text-honk-icon-tertiary [&[data-highlighted][data-selected]]:bg-honk-bg-tertiary",
+          "honk-menu__item flex text-honk-fg-primary [&_svg]:shrink-0 [&_svg]:text-honk-icon-tertiary",
           stylex.props(styles.item),
         ),
         className,
@@ -605,7 +604,7 @@ function CommandSearchItem({
         mergeProps(
           themeProps("command-search-item"),
           stylex.props(styles.searchItem, xstyle),
-          "text-honk-fg-primary outline-none transition-[background-color,color] hover:bg-honk-bg-quaternary data-disabled:pointer-events-none data-disabled:opacity-40 data-highlighted:bg-honk-bg-tertiary data-selected:bg-honk-bg-tertiary [&[data-highlighted][data-selected]]:bg-honk-bg-tertiary",
+          "honk-menu__item text-honk-fg-primary outline-none",
         ),
         className,
         style,

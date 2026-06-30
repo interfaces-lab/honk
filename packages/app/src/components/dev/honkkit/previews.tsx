@@ -122,6 +122,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  honkMenuStyles,
 } from "@honk/honkkit/menu";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@honk/honkkit/empty";
 import {
@@ -192,6 +193,7 @@ import {
   IconWarningSign,
 } from "central-icons";
 import { useDialKit } from "dialkit";
+import * as stylex from "@stylexjs/stylex";
 import { useState, type ComponentProps, type CSSProperties, type ReactNode } from "react";
 
 import { dialSelect, dialText, pickDialSelect } from "./dialkit-helpers";
@@ -1962,16 +1964,25 @@ function CommandPreview() {
           0,
           state === "loading" ? 0 : params.itemCount,
         );
+  const surfaceProps = stylex.props(honkMenuStyles.surface, honkMenuStyles.surfaceStarting);
   const panel = (
     <Command aria-label="Command preview" items={items} mode="none">
       <div
         className={cn(
-          "relative w-96 max-w-full overflow-hidden rounded-lg border border-honk-stroke-secondary bg-honk-bg-elevated font-honk text-honk-chrome text-honk-fg-primary shadow-honk-xl backdrop-blur-[length:var(--honk-glass-blur-floating)]",
-          mode !== "palette" && "max-w-sm bg-honk-bg-quinary",
+          surfaceProps.className,
+          "relative w-96 max-w-full overflow-hidden rounded-lg",
+          mode !== "palette" && "max-w-sm",
         )}
+        style={surfaceProps.style}
       >
         <CommandInput placeholder={params.placeholder} />
-        <CommandPanel className={mode === "palette" ? "max-h-72" : "max-h-56"}>
+        <CommandPanel
+          className={
+            mode === "palette"
+              ? "max-h-[min(18rem,var(--honk-menu-available-height))]"
+              : "max-h-[min(14rem,var(--honk-menu-available-height))]"
+          }
+        >
           <CommandList>
             <CommandGroup>
               <CommandGroupLabel>
