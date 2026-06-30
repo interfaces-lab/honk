@@ -69,6 +69,7 @@ import {
 } from "./display-timeline-projection";
 import { toWireRuntimeEvent } from "./runtime-event-wire";
 import { registerCursorComposerProvider } from "./cursor-composer-provider";
+import { registerClaudeAgentProvider } from "./claude-agent-provider";
 import { createHonkPiModelRegistry, isHonkPiSupportedProviderId } from "./honk-pi-models";
 
 const MAX_RUNTIME_EVENTS_IN_SNAPSHOT = 500;
@@ -208,6 +209,10 @@ export class DesktopRuntimeHost implements HonkRuntimeApi {
       : null;
     if (this.modelRegistry) {
       registerCursorComposerProvider(this.modelRegistry, { cwd: this.agentDir });
+      registerClaudeAgentProvider(this.modelRegistry, {
+        cwd: this.agentDir,
+        authStorage: this.authStorage ?? undefined,
+      });
     }
     this.extensionPaths = options.extensionPaths ?? defaultExtensionPaths(this.agentDir);
     this.browserAutomation = options.browserAutomation ?? null;

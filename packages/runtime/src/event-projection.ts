@@ -19,6 +19,8 @@ import { makeRuntimeEventId } from "./ids";
 
 const CURSOR_SYNTHETIC_TOOL_EVENT_ARG = "__honkCursorSyntheticToolEvent";
 const CURSOR_SYNTHETIC_TOOL_RESULT_ARG = "__honkCursorResult";
+const CLAUDE_SYNTHETIC_TOOL_EVENT_ARG = "__honkClaudeSyntheticToolEvent";
+const CLAUDE_SYNTHETIC_TOOL_RESULT_ARG = "__honkClaudeResult";
 
 export interface RuntimeEventProjectionContext {
   readonly threadId: ThreadId;
@@ -28,7 +30,7 @@ export interface RuntimeEventProjectionContext {
   readonly now?: Date;
 }
 
-interface CursorSyntheticToolEvent {
+interface SyntheticToolEvent {
   readonly type: Extract<AgentRuntimeEventType, "tool.started" | "tool.completed">;
   readonly summary: string;
   readonly data: Record<string, unknown>;
@@ -74,7 +76,15 @@ function eventTypeForPiEvent(event: AgentSessionEvent): AgentRuntimeEventType {
   }
 }
 
-function cursorSyntheticToolEvent(event: AgentSessionEvent): CursorSyntheticToolEvent | null {
+/**
+ * Recognizes the synthetic tool-call content blocks emitted by external-agent
+ * providers (Cursor, Claude Agent SDK) and projects them to normalized
+ * `tool.started`/`tool.completed` events. Both providers run their own tools and
+ * surface them as synthetic blocks tagged with a provider-specific marker; the
+ * blocks are stripped before the assistant message is persisted, so this is the
+ * only place they become events.
+ */
+function extractSyntheticToolEvent(event: AgentSessionEvent): SyntheticToolEvent | null {
   if (event.type !== "message_update") {
     return null;
   }
@@ -86,14 +96,26 @@ function cursorSyntheticToolEvent(event: AgentSessionEvent): CursorSyntheticTool
     return null;
   }
   const toolCall = toolCallFromAssistantMessageEvent(assistantMessageEvent);
-  if (!toolCall || toolCall.arguments[CURSOR_SYNTHETIC_TOOL_EVENT_ARG] !== true) {
+  if (!toolCall) {
     return null;
   }
+  const type = assistantMessageEvent.type === "toolcall_start" ? "tool.started" : "tool.completed";
+  if (toolCall.arguments[CURSOR_SYNTHETIC_TOOL_EVENT_ARG] === true) {
+    return cursorSyntheticToolEvent(toolCall, type);
+  }
+  if (toolCall.arguments[CLAUDE_SYNTHETIC_TOOL_EVENT_ARG] === true) {
+    return claudeSyntheticToolEvent(toolCall, type);
+  }
+  return null;
+}
 
+function cursorSyntheticToolEvent(
+  toolCall: ToolCall,
+  type: SyntheticToolEvent["type"],
+): SyntheticToolEvent {
   const args = publicCursorToolArguments(toolCall.arguments);
   const rawResult = toolCall.arguments[CURSOR_SYNTHETIC_TOOL_RESULT_ARG];
   const isError = cursorToolResultIsError(rawResult);
-  const type = assistantMessageEvent.type === "toolcall_start" ? "tool.started" : "tool.completed";
   return {
     type,
     summary: cursorToolSummary(type, toolCall.name, isError),
@@ -102,6 +124,31 @@ function cursorSyntheticToolEvent(event: AgentSessionEvent): CursorSyntheticTool
       toolName: toolCall.name,
       args,
       ...(type === "tool.completed" ? { result: cursorToolResult(rawResult), isError } : {}),
+    },
+  };
+}
+
+function claudeSyntheticToolEvent(
+  toolCall: ToolCall,
+  type: SyntheticToolEvent["type"],
+): SyntheticToolEvent {
+  const args = publicSyntheticToolArguments(
+    toolCall.arguments,
+    CLAUDE_SYNTHETIC_TOOL_EVENT_ARG,
+    CLAUDE_SYNTHETIC_TOOL_RESULT_ARG,
+  );
+  // The Claude provider already normalizes the result to `{ content, details }`
+  // and wraps it as `{ result, isError }`; pass it straight through.
+  const wrapper = toUnknownRecord(toolCall.arguments[CLAUDE_SYNTHETIC_TOOL_RESULT_ARG]);
+  const isError = wrapper?.isError === true;
+  return {
+    type,
+    summary: cursorToolSummary(type, toolCall.name, isError),
+    data: {
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      args,
+      ...(type === "tool.completed" ? { result: wrapper?.result, isError } : {}),
     },
   };
 }
@@ -118,9 +165,21 @@ function toolCallFromAssistantMessageEvent(event: AssistantMessageEvent): ToolCa
 }
 
 function publicCursorToolArguments(input: Record<string, unknown>): Record<string, unknown> {
+  return publicSyntheticToolArguments(
+    input,
+    CURSOR_SYNTHETIC_TOOL_EVENT_ARG,
+    CURSOR_SYNTHETIC_TOOL_RESULT_ARG,
+  );
+}
+
+function publicSyntheticToolArguments(
+  input: Record<string, unknown>,
+  eventArg: string,
+  resultArg: string,
+): Record<string, unknown> {
   const args: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
-    if (key === CURSOR_SYNTHETIC_TOOL_EVENT_ARG || key === CURSOR_SYNTHETIC_TOOL_RESULT_ARG) {
+    if (key === eventArg || key === resultArg) {
       continue;
     }
     args[key] = value;
@@ -129,7 +188,7 @@ function publicCursorToolArguments(input: Record<string, unknown>): Record<strin
 }
 
 function cursorToolSummary(
-  type: CursorSyntheticToolEvent["type"],
+  type: SyntheticToolEvent["type"],
   toolName: string,
   isError: boolean,
 ): string {
@@ -249,7 +308,7 @@ function providerFailureForPiEvent(event: AgentSessionEvent): string | undefined
 
 function dataForPiEvent(input: {
   readonly event: AgentSessionEvent;
-  readonly syntheticToolEvent: CursorSyntheticToolEvent | null;
+  readonly syntheticToolEvent: SyntheticToolEvent | null;
   readonly providerFailure: string | undefined;
 }): Record<string, unknown> {
   if (input.syntheticToolEvent) {
@@ -274,7 +333,7 @@ export function projectPiAgentSessionEvent(
   event: AgentSessionEvent,
   context: RuntimeEventProjectionContext,
 ): AgentRuntimeEvent {
-  const syntheticToolEvent = cursorSyntheticToolEvent(event);
+  const syntheticToolEvent = extractSyntheticToolEvent(event);
   const providerFailure = syntheticToolEvent ? undefined : providerFailureForPiEvent(event);
   const summary = syntheticToolEvent?.summary ?? summarizePiEvent(event);
   const text = syntheticToolEvent ? undefined : textForPiEvent(event);

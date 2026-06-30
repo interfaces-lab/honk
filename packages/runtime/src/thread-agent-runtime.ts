@@ -83,6 +83,7 @@ import {
   type RuntimeCanonicalThread,
 } from "./runtime-canonical-projection";
 import { registerCursorComposerProvider } from "./cursor-composer-provider";
+import { registerClaudeAgentProvider } from "./claude-agent-provider";
 import { cursorComposerFastEnabled } from "@honk/shared/cursor-composer";
 import { createHonkPiModelRegistry } from "./honk-pi-models";
 import {
@@ -298,6 +299,10 @@ export class ThreadAgentRuntime implements BackgroundSubagentController {
     registerCursorComposerProvider(modelRegistry, {
       cwd: options.cwd,
       fastEnabled: cursorComposerFastEnabled(options.policy.modelSelection),
+    });
+    registerClaudeAgentProvider(modelRegistry, {
+      cwd: options.cwd,
+      authStorage,
     });
     const interactionModeQueue = createInteractionModeQueue();
     const contextUsageSink = createBindableContextUsageSink();
