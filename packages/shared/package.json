@@ -12,6 +12,30 @@
       "types": "./src/base-schemas.ts",
       "import": "./src/base-schemas.ts"
     },
+    "./auth": {
+      "types": "./src/auth.ts",
+      "import": "./src/auth.ts"
+    },
+    "./orchestration": {
+      "types": "./src/orchestration.ts",
+      "import": "./src/orchestration.ts"
+    },
+    "./runtime": {
+      "types": "./src/runtime.ts",
+      "import": "./src/runtime.ts"
+    },
+    "./runtime-events": {
+      "types": "./src/runtime-events.ts",
+      "import": "./src/runtime-events.ts"
+    },
+    "./thread-tree": {
+      "types": "./src/thread-tree.ts",
+      "import": "./src/thread-tree.ts"
+    },
+    "./server-config": {
+      "types": "./src/server-config.ts",
+      "import": "./src/server-config.ts"
+    },
     "./interaction-mode": {
       "types": "./src/interaction-mode.ts",
       "import": "./src/interaction-mode.ts"
