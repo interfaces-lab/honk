@@ -1,8 +1,6 @@
 import type {
   DesktopExtensionUiRequest,
-  EnvironmentId,
   AgentRuntimeEvent,
-  ModelSelection,
   OrchestrationEvent,
   OrchestrationLatestTurn,
   OrchestrationMessage,
@@ -17,18 +15,17 @@ import type {
   SourceProposedPlanReference,
   SessionTreeProjection,
   OrchestrationThreadActivity,
-  ScopedThreadRef,
-  ProjectId,
   ThreadEntryId,
   CanonicalItemType,
   ToolLifecycleItemType,
 } from "@honk/contracts";
+import type { EnvironmentId, ScopedThreadRef } from "@honk/shared/environment";
+import type { ModelSelection } from "@honk/shared/model";
+import type { ProjectId } from "@honk/shared/base-schemas";
+import { DEFAULT_AGENT_INTERACTION_MODE } from "@honk/shared/interaction-mode";
 import {
-  DEFAULT_AGENT_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
-  DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
   EventId,
-  ThreadId,
   MessageId,
   RuntimeItemId,
   RuntimeTaskId,
@@ -39,6 +36,8 @@ import {
   ThreadTokenUsageSnapshot,
   TurnId,
 } from "@honk/contracts";
+import { DEFAULT_TEXT_GENERATION_MODEL_SELECTION } from "@honk/shared/server-settings";
+import { ThreadId } from "@honk/shared/base-schemas";
 import { Schema } from "effect";
 import { normalizeModelSlug } from "@honk/shared/model";
 import { toJsonValue, type JsonValue } from "@honk/shared/schema-json";
@@ -3206,6 +3205,25 @@ export function syncServerThreadDetail(
     previousThread,
   );
   return commitEnvironmentState(state, environmentId, nextEnvironmentState);
+}
+
+export function syncCoreThreadDetail(
+  state: AppState,
+  thread: Thread,
+  environmentId: EnvironmentId,
+): AppState {
+  const environmentState = getStoredEnvironmentState(state, environmentId);
+  const previousThread = getThreadFromEnvironmentState(environmentState, thread.id);
+  const nextEnvironmentState = writeThreadState(
+    clearLiveAssistantTurnsForThread(environmentState, thread.id),
+    thread,
+    previousThread,
+  );
+  return commitEnvironmentState(state, environmentId, {
+    ...nextEnvironmentState,
+    snapshotSource: "server",
+    bootstrapComplete: true,
+  });
 }
 
 export function applyThreadDetailEvent(

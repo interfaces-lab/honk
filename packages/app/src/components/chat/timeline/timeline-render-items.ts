@@ -4,7 +4,7 @@ import {
   type RuntimeDisplayTimelineMessageItem,
   type RuntimeDisplayTimelineToolItem,
 } from "@honk/contracts";
-import { DEFAULT_CONVERSATION_DENSITY, type ConversationDensity } from "@honk/contracts/settings";
+import { DEFAULT_CONVERSATION_DENSITY, type ConversationDensity } from "@honk/shared/conversation-density";
 import {
   shouldGroupEdits,
   shouldGroupShells,

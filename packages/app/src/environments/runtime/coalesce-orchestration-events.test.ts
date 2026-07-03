@@ -1,10 +1,10 @@
 import {
   EventId,
-  ThreadId,
   TurnId,
   type OrchestrationEvent,
   type OrchestrationThreadActivity,
 } from "@honk/contracts";
+import { ThreadId } from "@honk/shared/base-schemas";
 import { describe, expect, it } from "vitest";
 
 import { coalesceOrchestrationUiEvents } from "./coalesce-orchestration-events";

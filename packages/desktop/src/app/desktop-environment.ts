@@ -1,4 +1,7 @@
-import type { DesktopAppBranding, DesktopRuntimeInfo } from "@honk/contracts";
+import type {
+  DesktopAppBranding,
+  DesktopRuntimeInfo,
+} from "@honk/shared/desktop-api";
 import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -48,6 +51,7 @@ export interface DesktopEnvironmentShape {
   readonly rootDir: string;
   readonly appRoot: string;
   readonly backendEntryPath: string;
+  readonly coreEntryPath: string;
   readonly backendCwd: string;
   readonly preloadPath: string;
   readonly browserWebviewPreloadPath: string;
@@ -113,6 +117,9 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
   const backendEntryPath = input.isPackaged
     ? path.join(input.appPath, "out/server/bin.mjs")
     : path.join(rootDir, "packages/server/dist/bin.mjs");
+  const coreEntryPath = input.isPackaged
+    ? path.join(input.appPath, "out/core/main.mjs")
+    : path.join(rootDir, "packages/core/dist/main.mjs");
 
   return DesktopEnvironment.of({
     path,
@@ -135,6 +142,7 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
     rootDir,
     appRoot,
     backendEntryPath,
+    coreEntryPath,
     backendCwd: defaultBackendCwd,
     preloadPath: path.join(input.dirname, "../preload/index.js"),
     browserWebviewPreloadPath: path.join(input.dirname, "../preload/browser-webview.js"),

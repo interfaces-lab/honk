@@ -1,5 +1,6 @@
 import { Effect, Schema } from "effect";
-import { ModelOptionSelections } from "./model";
+import { ModelSelection } from "@honk/shared/model";
+import { ProjectScript } from "@honk/shared/project-scripts";
 import { RepositoryIdentity } from "./environment";
 import { AgentInteractionMode, DEFAULT_AGENT_INTERACTION_MODE } from "./interaction-mode";
 import {
@@ -26,6 +27,9 @@ import {
   UserInputQuestion,
 } from "./runtime-events";
 
+export { ModelSelection, ModelSelectionInstanceId } from "@honk/shared/model";
+export { ProjectScript, ProjectScriptIcon } from "@honk/shared/project-scripts";
+
 export const ORCHESTRATION_WS_METHODS = {
   dispatchCommand: "orchestration.dispatchCommand",
   replayEvents: "orchestration.replayEvents",
@@ -46,16 +50,6 @@ export const RuntimeSandboxMode = Schema.Literals([
   "danger-full-access",
 ]);
 export type RuntimeSandboxMode = typeof RuntimeSandboxMode.Type;
-
-export const ModelSelectionInstanceId = TrimmedNonEmptyString;
-export type ModelSelectionInstanceId = typeof ModelSelectionInstanceId.Type;
-
-export const ModelSelection = Schema.Struct({
-  instanceId: ModelSelectionInstanceId,
-  model: TrimmedNonEmptyString,
-  options: Schema.optionalKey(ModelOptionSelections),
-});
-export type ModelSelection = typeof ModelSelection.Type;
 
 export const RuntimeMode = Schema.Literals([
   "approval-required",
@@ -123,25 +117,6 @@ export const ChatAttachment = Schema.Union([ChatImageAttachment]);
 export type ChatAttachment = typeof ChatAttachment.Type;
 const UploadChatAttachment = Schema.Union([UploadChatImageAttachment]);
 export type UploadChatAttachment = typeof UploadChatAttachment.Type;
-
-export const ProjectScriptIcon = Schema.Literals([
-  "play",
-  "test",
-  "lint",
-  "configure",
-  "build",
-  "debug",
-]);
-export type ProjectScriptIcon = typeof ProjectScriptIcon.Type;
-
-export const ProjectScript = Schema.Struct({
-  id: TrimmedNonEmptyString,
-  name: TrimmedNonEmptyString,
-  command: TrimmedNonEmptyString,
-  icon: ProjectScriptIcon,
-  runOnWorktreeCreate: Schema.Boolean,
-});
-export type ProjectScript = typeof ProjectScript.Type;
 
 export const OrchestrationProject = Schema.Struct({
   id: ProjectId,

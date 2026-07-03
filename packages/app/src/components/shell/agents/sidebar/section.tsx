@@ -1,5 +1,5 @@
 import { scopedThreadKey } from "~/lib/environment-scope";
-import type { ScopedProjectRef, ScopedThreadRef } from "@honk/contracts";
+import type { ScopedProjectRef, ScopedThreadRef } from "@honk/shared/environment";
 import { SidebarItem } from "@honk/honkkit/sidebar";
 import { IconChevronRightMedium, IconFolder1, IconFolderOpen } from "central-icons";
 import { type DragEvent, useState } from "react";

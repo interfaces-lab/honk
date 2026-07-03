@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { AuthProviderId } from "@honk/contracts";
+import { AuthProviderId } from "@honk/shared/base-schemas";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it } from "vitest";
 

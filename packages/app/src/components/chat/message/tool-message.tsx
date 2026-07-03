@@ -1,9 +1,9 @@
-import {
-  type EnvironmentId,
-  type RuntimeDisplayTimelineExtensionUiRequestItem,
-  type RuntimeDisplayTimelineToolItem,
-  type ThreadId,
+import type { EnvironmentId } from "@honk/shared/environment";
+import type {
+  RuntimeDisplayTimelineExtensionUiRequestItem,
+  RuntimeDisplayTimelineToolItem,
 } from "@honk/contracts";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import { Button } from "@honk/honkkit/button";
 import * as stylex from "@stylexjs/stylex";
 import { IconBubbleQuestion, IconChevronRightMedium, IconSummary } from "central-icons";

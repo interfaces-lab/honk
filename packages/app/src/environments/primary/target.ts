@@ -1,4 +1,4 @@
-import type { DesktopEnvironmentBootstrap } from "@honk/contracts";
+import type { DesktopEnvironmentBootstrap } from "@honk/shared/desktop-api";
 import type { KnownEnvironment } from "~/lib/environment-scope";
 
 export interface PrimaryEnvironmentTarget {

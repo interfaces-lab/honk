@@ -1,4 +1,5 @@
-import { EnvironmentId, ProjectId } from "@honk/contracts";
+import { EnvironmentId } from "@honk/shared/environment";
+import { ProjectId } from "@honk/shared/base-schemas";
 import { describe, expect, it } from "vitest";
 
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "~/lib/environment-scope";

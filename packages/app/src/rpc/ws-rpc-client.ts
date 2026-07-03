@@ -1,14 +1,16 @@
+import type {
+  GitActionProgressEvent,
+  GitRunStackedActionInput,
+  GitRunStackedActionResult,
+  GitStatusResult,
+  GitStatusStreamEvent,
+} from "@honk/shared/git";
 import {
-  type GitActionProgressEvent,
-  type GitRunStackedActionInput,
-  type GitRunStackedActionResult,
-  type GitStatusResult,
-  type GitStatusStreamEvent,
   type LocalApi,
   ORCHESTRATION_WS_METHODS,
-  type ServerSettingsPatch,
   WS_METHODS,
 } from "@honk/contracts";
+import type { ServerSettingsPatch } from "@honk/shared/server-settings";
 import { applyGitStatusStreamEvent } from "@honk/shared/git";
 import { Effect, Stream } from "effect";
 

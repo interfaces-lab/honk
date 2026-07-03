@@ -1,6 +1,8 @@
 import * as NodeOS from "node:os";
-
-import type { DesktopServerExposureMode, DesktopServerExposureState } from "@honk/contracts";
+import type {
+  DesktopServerExposureMode,
+  DesktopServerExposureState,
+} from "@honk/shared/desktop-api";
 import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";

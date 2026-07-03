@@ -1,4 +1,5 @@
-import { EnvironmentId, ProjectId } from "@honk/contracts";
+import { EnvironmentId } from "@honk/shared/environment";
+import { ProjectId } from "@honk/shared/base-schemas";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {

@@ -1,12 +1,11 @@
 import {
   type EnvironmentId,
   EnvironmentId as EnvironmentIdSchema,
-  ProjectId,
-  AgentInteractionMode,
   type ScopedProjectRef,
   type ScopedThreadRef,
-  ThreadId,
-} from "@honk/contracts";
+} from "@honk/shared/environment";
+import { ProjectId, ThreadId } from "@honk/shared/base-schemas";
+import { AgentInteractionMode } from "@honk/shared/interaction-mode";
 import {
   scopedProjectKey,
   scopeProjectRef,

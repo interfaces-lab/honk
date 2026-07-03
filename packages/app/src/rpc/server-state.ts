@@ -1,12 +1,11 @@
 import { useAtomSubscribe, useAtomValue } from "@effect/atom-react";
-import {
-  DEFAULT_SERVER_SETTINGS,
-  type EditorId,
-  type ServerConfig,
-  type ServerConfigStreamEvent,
-  type ServerConfigUpdatedPayload,
-  type ServerLifecycleWelcomePayload,
-  type ServerSettings,
+import { DEFAULT_SERVER_SETTINGS, type ServerSettings } from "@honk/shared/server-settings";
+import type { EditorId } from "@honk/shared/editor";
+import type {
+  ServerConfig,
+  ServerConfigStreamEvent,
+  ServerConfigUpdatedPayload,
+  ServerLifecycleWelcomePayload,
 } from "@honk/contracts";
 import { Atom } from "effect/unstable/reactivity";
 import { useRef } from "react";

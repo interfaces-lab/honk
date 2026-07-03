@@ -1,4 +1,5 @@
-import type { EnvironmentId, ProjectReadFileResult } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { ProjectReadFileResult } from "@honk/shared/project";
 import { getFiletypeFromFileName } from "@pierre/diffs";
 import * as monaco from "monaco-editor";
 import { useEffect, useLayoutEffect, useRef } from "react";

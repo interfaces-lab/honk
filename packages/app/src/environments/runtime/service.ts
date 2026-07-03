@@ -1,11 +1,11 @@
+import type { EnvironmentId } from "@honk/shared/environment";
 import {
-  type EnvironmentId,
   type OrchestrationEvent,
   type OrchestrationShellSnapshot,
   type OrchestrationShellStreamEvent,
   ORCHESTRATION_REPLAY_EVENTS_DEFAULT_LIMIT,
-  ThreadId,
 } from "@honk/contracts";
+import { ThreadId } from "@honk/shared/base-schemas";
 import { type QueryClient } from "@tanstack/react-query";
 import {
   getKnownEnvironmentWsBaseUrl,

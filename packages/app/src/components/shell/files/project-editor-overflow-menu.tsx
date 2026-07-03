@@ -1,4 +1,4 @@
-import type { EditorId } from "@honk/contracts";
+import type { EditorId } from "@honk/shared/editor";
 import {
   Menu,
   MenuCheckboxItem,

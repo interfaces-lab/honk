@@ -1,4 +1,5 @@
-import type { ThreadAgentRuntimeQueuedFollowUp, ThreadId } from "@honk/contracts";
+import type { ThreadAgentRuntimeQueuedFollowUp } from "@honk/contracts";
+import type { ThreadId } from "@honk/shared/base-schemas";
 
 import { useAgentRuntimeStore } from "../../../stores/agent-runtime-store";
 import { useComposerQueueStore, type QueuedComposerItem } from "../../../stores/chat-send-queue";

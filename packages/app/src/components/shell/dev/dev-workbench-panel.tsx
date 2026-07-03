@@ -6,8 +6,8 @@ import type {
   RuntimeDisplayTimelineProjection,
   SessionTreeEntry,
   SessionTreeProjection,
-  ThreadId,
 } from "@honk/contracts";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import { ScrollArea } from "@honk/honkkit/scroll-area";
 import { WorkbenchChromeRow } from "@honk/honkkit/workbench-chrome-row";
 import {

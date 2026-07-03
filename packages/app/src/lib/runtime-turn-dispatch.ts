@@ -1,14 +1,14 @@
+import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
+import type { AgentModelPolicy } from "@honk/shared/agent-model-policy";
 import type {
-  AgentInteractionMode,
-  AgentModelPolicy,
   MessageId,
-  ModelSelection,
   HonkRuntimeApi,
   SourceProposedPlanReference,
   ThreadAgentRuntimeImageAttachment,
   ThreadEntryId,
-  ThreadId,
 } from "@honk/contracts";
+import type { ModelSelection } from "@honk/shared/model";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import { createAgentModelPolicy } from "@honk/shared/agent-model-policy";
 
 import {

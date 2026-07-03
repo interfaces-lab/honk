@@ -1,5 +1,5 @@
+import { EnvironmentId } from "@honk/shared/environment";
 import {
-  EnvironmentId,
   IsoDateTime,
   OrchestrationShellSnapshot,
   type OrchestrationLatestTurn,

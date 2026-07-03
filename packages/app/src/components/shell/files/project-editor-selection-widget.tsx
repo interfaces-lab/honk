@@ -1,4 +1,4 @@
-import type { ResolvedKeybindingsConfig } from "@honk/contracts";
+import type { ResolvedKeybindingsConfig } from "@honk/shared/keybindings";
 import * as monaco from "monaco-editor";
 import { useEffect } from "react";
 

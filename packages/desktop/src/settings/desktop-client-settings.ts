@@ -1,4 +1,7 @@
-import { ClientSettingsSchema, type ClientSettings } from "@honk/contracts";
+import {
+  ClientSettingsSchema,
+  type ClientSettings,
+} from "@honk/shared/client-settings";
 import { fromLenientJson } from "@honk/shared/schema-json";
 import * as Context from "effect/Context";
 import * as Data from "effect/Data";

@@ -1,5 +1,5 @@
 import { getKnownEnvironmentHttpBaseUrl } from "~/lib/environment-scope";
-import type { EnvironmentId } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
 
 import { getPrimaryKnownEnvironment } from "../primary";
 

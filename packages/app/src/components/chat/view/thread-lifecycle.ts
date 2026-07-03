@@ -1,11 +1,7 @@
-import {
-  type EnvironmentId,
-  ProjectId,
-  type ModelSelection,
-  type ScopedThreadRef,
-  type ThreadId,
-  type TurnId,
-} from "@honk/contracts";
+import type { EnvironmentId, ScopedThreadRef } from "@honk/shared/environment";
+import { ProjectId, type ThreadId } from "@honk/shared/base-schemas";
+import type { ModelSelection } from "@honk/shared/model";
+import type { TurnId } from "@honk/contracts";
 import { Schema } from "effect";
 import { type DraftId as DraftIdType, type DraftThreadState } from "../../../stores/chat-drafts";
 import { useStore } from "../../../stores/thread-store";

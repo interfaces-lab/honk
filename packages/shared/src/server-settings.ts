@@ -1,8 +1,75 @@
-import { ServerSettings, type ServerSettingsPatch } from "@honk/contracts";
-import { Result, Schema } from "effect";
+import { Effect, Result, Schema } from "effect";
 import { deepMerge } from "./Struct";
+import { TrimmedNonEmptyString, TrimmedString } from "./base-schemas";
+import {
+  createModelSelection,
+  ModelOptionSelections,
+  ModelSelection,
+  ModelSelectionInstanceId,
+} from "./model";
 import { fromLenientJson } from "./schema-json";
-import { createModelSelection } from "./model";
+
+export const DEFAULT_TEXT_GENERATION_MODEL_SELECTION: ModelSelection = {
+  instanceId: "codex",
+  model: "gpt-5.5",
+};
+
+export const ThreadEnvMode = Schema.Literals(["local", "worktree"]);
+export type ThreadEnvMode = typeof ThreadEnvMode.Type;
+
+export const ObservabilitySettings = Schema.Struct({
+  otlpTracesUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  otlpMetricsUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+});
+export type ObservabilitySettings = typeof ObservabilitySettings.Type;
+
+export const ServerSettings = Schema.Struct({
+  enableAssistantStreaming: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  defaultThreadEnvMode: ThreadEnvMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed("local" as const satisfies ThreadEnvMode)),
+  ),
+  addProjectBaseDirectory: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  textGenerationModelSelection: ModelSelection.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_TEXT_GENERATION_MODEL_SELECTION)),
+  ),
+  observability: ObservabilitySettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+});
+export type ServerSettings = typeof ServerSettings.Type;
+
+export const DEFAULT_SERVER_SETTINGS: ServerSettings = Schema.decodeSync(ServerSettings)({});
+
+export class ServerSettingsError extends Schema.TaggedErrorClass<ServerSettingsError>()(
+  "ServerSettingsError",
+  {
+    settingsPath: Schema.String,
+    detail: Schema.String,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {
+  override get message(): string {
+    return `Server settings error at ${this.settingsPath}: ${this.detail}`;
+  }
+}
+
+const ModelSelectionPatch = Schema.Struct({
+  instanceId: Schema.optionalKey(ModelSelectionInstanceId),
+  model: Schema.optionalKey(TrimmedNonEmptyString),
+  options: Schema.optionalKey(ModelOptionSelections),
+});
+
+export const ServerSettingsPatch = Schema.Struct({
+  enableAssistantStreaming: Schema.optionalKey(Schema.Boolean),
+  defaultThreadEnvMode: Schema.optionalKey(ThreadEnvMode),
+  addProjectBaseDirectory: Schema.optionalKey(Schema.String),
+  textGenerationModelSelection: Schema.optionalKey(ModelSelectionPatch),
+  observability: Schema.optionalKey(
+    Schema.Struct({
+      otlpTracesUrl: Schema.optionalKey(Schema.String),
+      otlpMetricsUrl: Schema.optionalKey(Schema.String),
+    }),
+  ),
+});
+export type ServerSettingsPatch = typeof ServerSettingsPatch.Type;
 
 const ServerSettingsJson = fromLenientJson(ServerSettings);
 const decodeServerSettingsJsonSync = Schema.decodeUnknownSync(ServerSettingsJson);

@@ -1,9 +1,6 @@
 import {
   EventId,
-  EnvironmentId,
   MessageId,
-  ProjectId,
-  ThreadId,
   TurnId,
   threadEntryIdForMessageId,
   type EnvironmentApi,
@@ -12,6 +9,8 @@ import {
   type HonkRuntimeHostSnapshot,
   type ThreadAgentRuntimeSendTurnInput,
 } from "@honk/contracts";
+import { EnvironmentId } from "@honk/shared/environment";
+import { ProjectId, ThreadId } from "@honk/shared/base-schemas";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { __resetEnvironmentApiOverridesForTests } from "~/environment-api";

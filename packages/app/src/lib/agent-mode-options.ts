@@ -1,11 +1,11 @@
 import {
   AGENT_CONFIGURABLE_THINKING_LEVELS,
   AGENT_MODES,
-  type AgentAuthStatus,
   type AgentMode,
   type AgentThinkingLevel,
-  type ModelSelection,
-} from "@honk/contracts";
+} from "@honk/shared/agent-model-policy";
+import type { AgentAuthStatus } from "@honk/contracts";
+import type { ModelSelection } from "@honk/shared/model";
 import { authProviderIdForModelSelection } from "@honk/shared/agent-model-policy";
 
 export interface AgentModeAvailability {

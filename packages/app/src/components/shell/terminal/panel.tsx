@@ -1,6 +1,7 @@
 "use client";
 
-import { type EnvironmentId, DEFAULT_TERMINAL_ID, type TerminalEvent } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
+import { DEFAULT_TERMINAL_ID, type TerminalEvent } from "@honk/shared/terminal";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef, useState } from "react";

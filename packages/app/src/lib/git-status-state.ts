@@ -1,10 +1,10 @@
 import { useAtomValue } from "@effect/atom-react";
+import type { EnvironmentId } from "@honk/shared/environment";
 import {
-  type EnvironmentId,
   GitManagerError,
   type GitManagerServiceError,
   type GitStatusResult,
-} from "@honk/contracts";
+} from "@honk/shared/git";
 import { Cause } from "effect";
 import { Atom } from "effect/unstable/reactivity";
 import { useSyncExternalStore } from "react";

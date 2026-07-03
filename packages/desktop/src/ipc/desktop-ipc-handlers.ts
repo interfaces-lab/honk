@@ -1,6 +1,7 @@
 import * as Effect from "effect/Effect";
 
 import * as DesktopIpc from "./desktop-ipc";
+import { getAuxEndpoint } from "./methods/aux-endpoint";
 import { getClientSettings, setClientSettings } from "./methods/client-settings";
 import {
   abortRuntimeThread,
@@ -56,6 +57,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
 
   yield* ipc.handle(getClientSettings);
   yield* ipc.handle(setClientSettings);
+  yield* ipc.handle(getAuxEndpoint);
 
   yield* ipc.handle(getRuntimeHostSnapshot);
   yield* ipc.handle(getRuntimePreferences);

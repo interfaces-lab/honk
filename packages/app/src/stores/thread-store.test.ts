@@ -1,14 +1,14 @@
+import { DEFAULT_TEXT_GENERATION_MODEL_SELECTION } from "@honk/shared/server-settings";
+import { EnvironmentId } from "@honk/shared/environment";
 import {
-  DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
-  EnvironmentId,
   EventId,
   RuntimeSessionId,
-  ThreadId,
   TurnId,
   type AgentRuntimeEvent,
   type OrchestrationEvent,
   type OrchestrationShellSnapshot,
 } from "@honk/contracts";
+import { ThreadId } from "@honk/shared/base-schemas";
 import { describe, expect, it } from "vitest";
 
 import { scopeThreadRef } from "~/lib/environment-scope";

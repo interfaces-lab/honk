@@ -1,27 +1,27 @@
 import {
   type ApprovalRequestId,
   type DesktopExtensionUiRequest,
-  type EnvironmentId,
-  type GitBranch,
   MessageId,
-  type ModelSelection,
-  type ProjectScript,
-  type ProjectId,
-  type ScopedProjectRef,
   type RuntimeApprovalDecision,
-  type ScopedThreadRef,
-  type ThreadId,
   type ThreadAgentRuntimeImageAttachment,
   type ThreadAgentRuntimeQueuedFollowUp,
-  type KeybindingCommand,
-  type ResolvedKeybindingsConfig,
   type OrchestrationThreadActivity,
   type SourceProposedPlanReference,
-  type AgentInteractionMode,
-  type AgentPreferences,
   type AgentRuntimeModelDescriptor,
-  DEFAULT_PROJECTLESS_CWD,
 } from "@honk/contracts";
+import type {
+  EnvironmentId,
+  ScopedProjectRef,
+  ScopedThreadRef,
+} from "@honk/shared/environment";
+import type { GitBranch } from "@honk/shared/git";
+import type { ModelSelection } from "@honk/shared/model";
+import type { ProjectScript } from "@honk/shared/project-scripts";
+import type { ProjectId, ThreadId } from "@honk/shared/base-schemas";
+import type { KeybindingCommand, ResolvedKeybindingsConfig } from "@honk/shared/keybindings";
+import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
+import type { AgentPreferences } from "@honk/shared/agent-model-policy";
+import { DEFAULT_PROJECTLESS_CWD } from "@honk/shared/project";
 import { scopedThreadKey, scopeProjectRef, scopeThreadRef } from "~/lib/environment-scope";
 import { projectScriptRuntimeEnv } from "@honk/shared/project-scripts";
 import { useMutation, useQueryClient } from "@tanstack/react-query";

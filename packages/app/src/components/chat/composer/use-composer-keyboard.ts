@@ -1,4 +1,4 @@
-import type { KeybindingShortcut, ResolvedKeybindingsConfig } from "@honk/contracts";
+import type { KeybindingShortcut, ResolvedKeybindingsConfig } from "@honk/shared/keybindings";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import type { RefObject } from "react";
 

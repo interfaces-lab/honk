@@ -14,9 +14,11 @@ import * as ElectronProtocol from "../electron/electron-protocol";
 import * as ElectronTheme from "../electron/electron-theme";
 import { installDesktopIpcHandlers } from "../ipc/desktop-ipc-handlers";
 import { installRuntimeHostEventBridge, installRuntimeIngestion } from "../ipc/methods/runtime";
+import * as DesktopAuxEndpoint from "./desktop-aux-endpoint";
 import * as DesktopAppIdentity from "./desktop-app-identity";
 import * as DesktopApplicationMenu from "../window/desktop-application-menu";
 import * as DesktopBackendManager from "../backend/desktop-backend-manager";
+import * as DesktopCoreManager from "../backend/desktop-core-manager";
 import * as DesktopEnvironment from "./desktop-environment";
 import * as DesktopLifecycle from "./desktop-lifecycle";
 import * as DesktopObservability from "./desktop-observability";
@@ -26,8 +28,10 @@ import * as DesktopAppSettings from "../settings/desktop-app-settings";
 import * as DesktopShellEnvironment from "../shell/desktop-shell-environment";
 import * as DesktopState from "./desktop-state";
 import * as DesktopUpdates from "../updates/desktop-updates";
+import { createDesktopAuxServer } from "../aux/server";
 
 const DESKTOP_BACKEND_SHUTDOWN_TIMEOUT = Duration.seconds(5);
+const DESKTOP_CORE_SHUTDOWN_TIMEOUT = Duration.seconds(5);
 
 class DesktopBackendPortUnavailableError extends Data.TaggedError(
   "DesktopBackendPortUnavailableError",
@@ -54,6 +58,12 @@ class DesktopDevelopmentBackendPortRequiredError extends Data.TaggedError(
 
 const bootstrapLog = EffectLogger.create({ service: "desktop-bootstrap" });
 const startupLog = EffectLogger.create({ service: "desktop-startup" });
+
+const optionStringOrUndefined = (value: Option.Option<string>): string | undefined =>
+  Option.match(value, {
+    onNone: () => undefined,
+    onSome: (some) => some,
+  });
 
 function reserveLoopbackPort(port: number): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -150,6 +160,7 @@ const fatalStartupCause = <E>(stage: string, cause: Cause.Cause<E>) =>
 
 const bootstrap = Effect.gen(function* () {
   const backendManager = yield* DesktopBackendManager.DesktopBackendManager;
+  const coreManager = yield* DesktopCoreManager.DesktopCoreManager;
   const state = yield* DesktopState.DesktopState;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const desktopSettings = yield* DesktopAppSettings.DesktopAppSettings;
@@ -204,7 +215,12 @@ const bootstrap = Effect.gen(function* () {
   yield* bootstrapLog.info("bootstrap ipc handlers registered");
 
   if (!(yield* Ref.get(state.quitting))) {
-    yield* backendManager.start;
+    const startCore = process.env.HONK_CORE_APP === "1"
+      ? coreManager.start.pipe(
+          Effect.tap(() => bootstrapLog.info("bootstrap Core start requested")),
+        )
+      : Effect.void;
+    yield* Effect.all([backendManager.start, startCore], { concurrency: "unbounded" });
     yield* bootstrapLog.info("bootstrap backend start requested");
     yield* installRuntimeIngestion;
     yield* installRuntimeHostEventBridge;
@@ -224,6 +240,7 @@ const startup = Effect.gen(function* () {
   const desktopSettings = yield* DesktopAppSettings.DesktopAppSettings;
   const updates = yield* DesktopUpdates.DesktopUpdates;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
+  const desktopAuxEndpoint = yield* DesktopAuxEndpoint.DesktopAuxEndpoint;
 
   yield* electronApp.setName(environment.displayName);
   yield* shellEnvironment.installIntoProcess;
@@ -233,6 +250,33 @@ const startup = Effect.gen(function* () {
   yield* electronApp.appendCommandLineSwitch("user-data-dir", userDataPath);
   yield* electronApp.setPath("userData", userDataPath);
   yield* electronApp.setPath("sessionData", userDataPath);
+  if (process.env.HONK_AUX_SERVICES === "1") {
+    const otlpTracesUrl = optionStringOrUndefined(environment.otlpTracesUrl);
+    const auxServer = createDesktopAuxServer({
+      userDataDir: userDataPath,
+      worktreesDir: environment.path.join(environment.stateDir, "worktrees"),
+      defaultCwd: environment.backendCwd,
+      appVersion: environment.appVersion,
+      platform: environment.platform,
+      processArch: environment.processArch,
+      logsDirectoryPath: environment.logDir,
+      ...(otlpTracesUrl ? { otlpTracesUrl } : {}),
+    });
+    yield* Effect.promise(() => auxServer.start());
+    const snapshot = auxServer.getSnapshot();
+    yield* desktopAuxEndpoint.set(
+      snapshot ? { baseUrl: snapshot.baseUrl, bearer: snapshot.bearerToken } : null,
+    );
+    yield* Effect.addFinalizer(() =>
+      Effect.gen(function* () {
+        yield* desktopAuxEndpoint.set(null);
+        yield* Effect.promise(() => auxServer.dispose());
+      }),
+    );
+    yield* startupLog.info("desktop aux services started", {
+      baseUrl: auxServer.getBaseUrl() ?? "",
+    });
+  }
   yield* startupLog.info("runtime logging configured", { logDir: environment.logDir });
   const settings = yield* desktopSettings.load;
   yield* electronTheme.setSource(settings.themeSource);
@@ -264,11 +308,16 @@ const scopedProgram = Effect.scoped(
 
     const shutdown = yield* DesktopLifecycle.DesktopShutdown;
     const backendManager = yield* DesktopBackendManager.DesktopBackendManager;
+    const coreManager = yield* DesktopCoreManager.DesktopCoreManager;
 
     yield* Effect.addFinalizer(() =>
-      backendManager
-        .stop({ timeout: DESKTOP_BACKEND_SHUTDOWN_TIMEOUT })
-        .pipe(Effect.ensuring(shutdown.markComplete)),
+      Effect.all(
+        [
+          backendManager.stop({ timeout: DESKTOP_BACKEND_SHUTDOWN_TIMEOUT }),
+          coreManager.stop({ timeout: DESKTOP_CORE_SHUTDOWN_TIMEOUT }),
+        ],
+        { concurrency: "unbounded" },
+      ).pipe(Effect.asVoid, Effect.ensuring(shutdown.markComplete)),
     );
 
     yield* startup;

@@ -1,9 +1,7 @@
-import {
-  type AgentMode,
-  type EnvironmentId,
-  type ProjectEntry,
-  type ThreadId,
-} from "@honk/contracts";
+import type { AgentMode } from "@honk/shared/agent-model-policy";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { ProjectEntry } from "@honk/shared/project";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import {
   insertRankedSearchResult,
   normalizeSearchQuery,

@@ -18,9 +18,9 @@ import {
   type RuntimeRequestKind,
   type ToolLifecycleItemType,
   type UserInputQuestion,
-  type ThreadId,
   type TurnId,
 } from "@honk/contracts";
+import type { ThreadId } from "@honk/shared/base-schemas";
 
 import type { ChatMessage, ProposedPlan, SessionPhase, Thread, ThreadSession } from "./types";
 import { arePlanMarkdownTodosComplete } from "./plan/proposed-plan";

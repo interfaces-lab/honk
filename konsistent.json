@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/konsistent/konsistent.schema.json",
+  "version": "v1",
+  "conventions": [
+    {
+      "name": "shared-must-not-import-contracts",
+      "description": "Cut boundary: @honk/shared is self-contained. Contracts re-exports FROM shared, never the reverse. Guards the shared/contracts migration the cutover deletes contracts against. (oxlint enforces the same via no-restricted-imports; this keeps it visible in the structural config.)",
+      "paths": "packages/shared/src/**/*.ts",
+      "mustNot": { "importFrom": "@honk/contracts" }
+    }
+  ]
+}

@@ -20,8 +20,8 @@ import type {
   BrowserAutomationStatus,
   BrowserAutomationTypeInput,
   BrowserAutomationWaitForInput,
-  ThreadId,
-} from "@honk/contracts";
+} from "@honk/shared/browser-automation";
+import type { ThreadId } from "@honk/shared/base-schemas";
 
 import * as ElectronWindow from "../electron/electron-window";
 import * as IpcChannels from "../ipc/channels";

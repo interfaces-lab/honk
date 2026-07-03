@@ -1,11 +1,11 @@
+import { DEFAULT_TEXT_GENERATION_MODEL_SELECTION } from "@honk/shared/server-settings";
+import { EnvironmentId } from "@honk/shared/environment";
 import {
-  DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
-  EnvironmentId,
   MessageId,
   ThreadEntryId,
-  ThreadId,
   TurnId,
 } from "@honk/contracts";
+import { ThreadId } from "@honk/shared/base-schemas";
 import { describe, expect, it } from "vitest";
 
 import {

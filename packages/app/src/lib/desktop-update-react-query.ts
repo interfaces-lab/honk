@@ -1,6 +1,6 @@
 import { queryOptions, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
-import type { DesktopUpdateState } from "@honk/contracts";
+import type { DesktopUpdateState } from "@honk/shared/desktop-api";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 
 export const desktopUpdateQueryKeys = {

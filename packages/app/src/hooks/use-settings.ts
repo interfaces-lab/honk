@@ -10,13 +10,13 @@
  * store.
  */
 import { useSyncExternalStore } from "react";
-import { ServerSettings, ServerSettingsPatch } from "@honk/contracts";
+import { ServerSettings, ServerSettingsPatch } from "@honk/shared/server-settings";
 import {
   type ClientSettings,
   DEFAULT_CLIENT_SETTINGS,
   DEFAULT_UNIFIED_SETTINGS,
   UnifiedSettings,
-} from "@honk/contracts/settings";
+} from "@honk/shared/client-settings";
 import { ensureLocalApi } from "~/local-api";
 import { Struct } from "effect";
 import { deepMerge } from "@honk/shared/Struct";

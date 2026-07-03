@@ -3,7 +3,7 @@ import {
   createKnownEnvironment,
   type KnownEnvironment,
 } from "~/lib/environment-scope";
-import type { EnvironmentId, ExecutionEnvironmentDescriptor } from "@honk/contracts";
+import type { EnvironmentId, ExecutionEnvironmentDescriptor } from "@honk/shared/environment";
 import { create } from "zustand";
 
 import { BootstrapHttpError, retryTransientBootstrap } from "./auth";

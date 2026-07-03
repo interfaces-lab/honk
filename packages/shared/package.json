@@ -8,6 +8,14 @@
       "types": "./src/model.ts",
       "import": "./src/model.ts"
     },
+    "./base-schemas": {
+      "types": "./src/base-schemas.ts",
+      "import": "./src/base-schemas.ts"
+    },
+    "./interaction-mode": {
+      "types": "./src/interaction-mode.ts",
+      "import": "./src/interaction-mode.ts"
+    },
     "./agent-model-policy": {
       "types": "./src/agent-model-policy.ts",
       "import": "./src/agent-model-policy.ts"
@@ -20,9 +28,37 @@
       "types": "./src/conversation-density.ts",
       "import": "./src/conversation-density.ts"
     },
+    "./editor": {
+      "types": "./src/editor.ts",
+      "import": "./src/editor.ts"
+    },
+    "./browser-automation": {
+      "types": "./src/browser-automation.ts",
+      "import": "./src/browser-automation.ts"
+    },
+    "./client-settings": {
+      "types": "./src/client-settings.ts",
+      "import": "./src/client-settings.ts"
+    },
+    "./environment": {
+      "types": "./src/environment.ts",
+      "import": "./src/environment.ts"
+    },
+    "./terminal": {
+      "types": "./src/terminal.ts",
+      "import": "./src/terminal.ts"
+    },
+    "./desktop-api": {
+      "types": "./src/desktop-api.ts",
+      "import": "./src/desktop-api.ts"
+    },
     "./git": {
       "types": "./src/git.ts",
       "import": "./src/git.ts"
+    },
+    "./keybindings": {
+      "types": "./src/keybindings.ts",
+      "import": "./src/keybindings.ts"
     },
     "./logging": {
       "types": "./src/logging.ts",
@@ -64,6 +100,10 @@
       "types": "./src/project-scripts.ts",
       "import": "./src/project-scripts.ts"
     },
+    "./project": {
+      "types": "./src/project.ts",
+      "import": "./src/project.ts"
+    },
     "./search-ranking": {
       "types": "./src/search-ranking.ts",
       "import": "./src/search-ranking.ts"
@@ -90,7 +130,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@honk/contracts": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {

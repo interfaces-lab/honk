@@ -1,4 +1,4 @@
-import { ThreadId } from "@honk/contracts";
+import { ThreadId } from "@honk/shared/base-schemas";
 import { describe, expect, it } from "vitest";
 
 import { deriveSubagentTrayVirtualRows, shouldPresentSubagentTray } from "./subagent-tray";

@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   EventId,
   RuntimeSessionId,
-  ThreadId,
   type DesktopExtensionUiRequest,
 } from "@honk/contracts";
+import { ThreadId } from "@honk/shared/base-schemas";
 import {
   ComposerPendingExtensionUiRequestPanel,
   pendingExtensionUiRequestResponseActions,

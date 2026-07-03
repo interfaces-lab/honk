@@ -1,21 +1,21 @@
+import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
 import {
-  type AgentInteractionMode,
   type ChatAttachment,
   type ClientOrchestrationCommand,
   type EnvironmentApi,
-  type EnvironmentId,
   type MessageId,
-  type ModelSelection,
   type OrchestrationMessageRichText,
   type RuntimeMode,
   type SourceProposedPlanReference,
   type ThreadAgentRuntimeImageAttachment,
   type ThreadEntryId,
-  type ThreadId,
   type ThreadTurnStartBootstrap,
   type UploadChatAttachment,
   threadEntryIdForMessageId,
 } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { ModelSelection } from "@honk/shared/model";
+import type { ThreadId } from "@honk/shared/base-schemas";
 
 import { applyLocalThreadTurnStartRequested } from "~/stores/local-orchestration-events";
 import {

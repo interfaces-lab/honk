@@ -3,15 +3,28 @@ import type {
   BrowserAutomationOpenRequest,
   BrowserAutomationRegisterInput,
   BrowserAutomationUnregisterInput,
+} from "@honk/shared/browser-automation";
+import type {
   DesktopAppBranding,
   DesktopBridge,
   DesktopEnvironmentBootstrap,
   DesktopRendererDiagnosticInput,
   DesktopUpdateState,
   DesktopWindowChromeState,
+} from "@honk/shared/desktop-api";
+import type {
   HonkRuntimeHostEvent,
   HonkRuntimeApi,
 } from "@honk/contracts";
+
+interface DesktopAuxEndpoint {
+  readonly baseUrl: string;
+  readonly bearer: string;
+}
+
+type DesktopBridgeWithAux = DesktopBridge & {
+  readonly getAuxEndpoint: () => Promise<DesktopAuxEndpoint | null>;
+};
 
 const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
 const SET_THEME_CHANNEL = "desktop:set-theme";
@@ -36,6 +49,7 @@ const BROWSER_AUTOMATION_OPEN_CHANNEL = "desktop:browser-automation-open";
 const DETECT_LOCALHOST_PORTS_CHANNEL = "desktop:detect-localhost-ports";
 const CLEAR_BROWSER_PARTITION_STORAGE_CHANNEL = "desktop:clear-browser-partition-storage";
 const GET_LOCAL_ENVIRONMENT_BOOTSTRAP_CHANNEL = "desktop:get-local-environment-bootstrap";
+const GET_AUX_ENDPOINT_CHANNEL = "desktop:get-aux-endpoint";
 const GET_WINDOW_CHROME_STATE_CHANNEL = "desktop:get-window-chrome-state";
 const WINDOW_CHROME_STATE_CHANNEL = "desktop:window-chrome-state";
 const SET_ACTIVE_WORK_STATE_CHANNEL = "desktop:set-active-work-state";
@@ -149,6 +163,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     }
     return result as DesktopEnvironmentBootstrap;
   },
+  getAuxEndpoint: () => ipcRenderer.invoke(GET_AUX_ENDPOINT_CHANNEL),
   getWindowChromeState: readWindowChromeState,
   onWindowChromeState: (listener) => {
     const wrappedListener = (_event: IpcRendererEvent, state: DesktopWindowChromeState) => {
@@ -203,6 +218,6 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   logRendererDiagnostic: (input: DesktopRendererDiagnosticInput) =>
     ipcRenderer.invoke(LOG_RENDERER_DIAGNOSTIC_CHANNEL, input),
   runtime: desktopRuntimeApi,
-} satisfies DesktopBridge);
+} satisfies DesktopBridgeWithAux);
 
 contextBridge.exposeInMainWorld("honkRuntime", desktopRuntimeApi);

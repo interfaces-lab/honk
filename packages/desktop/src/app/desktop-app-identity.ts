@@ -1,4 +1,4 @@
-import { type AppIconVariant } from "@honk/contracts";
+import type { AppIconVariant } from "@honk/shared/client-settings";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";

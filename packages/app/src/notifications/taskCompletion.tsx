@@ -1,4 +1,5 @@
-import { type EnvironmentId, type ThreadId } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import { useRouter } from "@tanstack/react-router";
 import { useRef } from "react";
 import { toastManager } from "~/app/toast";

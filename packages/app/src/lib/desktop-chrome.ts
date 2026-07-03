@@ -1,4 +1,4 @@
-import type { DesktopWindowChromeState } from "@honk/contracts";
+import type { DesktopWindowChromeState } from "@honk/shared/desktop-api";
 
 import { isElectronHost } from "../env";
 

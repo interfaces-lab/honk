@@ -1,4 +1,5 @@
-import type { EditorId, EnvironmentId } from "@honk/contracts";
+import type { EditorId } from "@honk/shared/editor";
+import type { EnvironmentId } from "@honk/shared/environment";
 import { Button } from "@honk/honkkit/button";
 import { IconCrossSmall } from "central-icons";
 import { useRef, useState } from "react";

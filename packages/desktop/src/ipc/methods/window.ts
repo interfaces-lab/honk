@@ -1,6 +1,8 @@
 import {
   BrowserAutomationRegisterInput,
   BrowserAutomationUnregisterInput,
+} from "@honk/shared/browser-automation";
+import {
   ContextMenuItemSchema,
   DesktopActiveWorkStateSchema,
   DesktopAppBrandingSchema,
@@ -8,7 +10,7 @@ import {
   DesktopThemeSchema,
   DesktopWindowChromeStateSchema,
   PickFolderOptionsSchema,
-} from "@honk/contracts";
+} from "@honk/shared/desktop-api";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";

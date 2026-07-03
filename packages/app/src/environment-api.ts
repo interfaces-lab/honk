@@ -1,4 +1,5 @@
-import type { EnvironmentId, EnvironmentApi } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { EnvironmentApi } from "@honk/contracts";
 import { createEnvironmentClient, isDesktopRuntimeApiAvailable } from "@honk/client-runtime";
 
 import { getPrimaryKnownEnvironment } from "./environments/primary";

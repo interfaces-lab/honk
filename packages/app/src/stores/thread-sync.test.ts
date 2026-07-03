@@ -1,14 +1,11 @@
+import { EnvironmentId, type ExecutionEnvironmentDescriptor } from "@honk/shared/environment";
 import {
-  EnvironmentId,
   EventId,
   MessageId,
-  ProjectId,
   RuntimeItemId,
   RuntimeSessionId,
   type ChatAttachment,
-  type ExecutionEnvironmentDescriptor,
   ThreadEntryId,
-  ThreadId,
   TurnId,
   resolveThreadEntryPath,
   runtimeSessionEntryMessageId,
@@ -19,6 +16,7 @@ import {
   type OrchestrationThread,
   type SessionTreeProjection,
 } from "@honk/contracts";
+import { ProjectId, ThreadId } from "@honk/shared/base-schemas";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getThreadFromEnvironmentState } from "../thread-derivation";

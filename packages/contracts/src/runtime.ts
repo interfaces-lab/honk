@@ -6,6 +6,14 @@ import {
   RuntimeMode,
   SourceProposedPlanReference,
 } from "./orchestration";
+import {
+  AgentCredentialKind,
+  AgentCredentialPreference,
+  AgentModelPolicy,
+  AgentPreferences,
+  AgentPreferencesPatch,
+  AgentThinkingLevel,
+} from "@honk/shared/agent-model-policy";
 import { AgentInteractionMode } from "./interaction-mode";
 import {
   AccountId,
@@ -22,57 +30,38 @@ import {
   TrimmedNonEmptyString,
   TurnId,
 } from "./base-schemas";
-import { ModelOptionSelections } from "./model";
 
 export {
   AGENT_INTERACTION_MODES,
   AgentInteractionMode,
   DEFAULT_AGENT_INTERACTION_MODE,
 } from "./interaction-mode";
+export {
+  AGENT_CONFIGURABLE_THINKING_LEVELS,
+  AGENT_MODES,
+  AGENT_THINKING_LEVELS,
+  AgentCredentialKind,
+  AgentCredentialPreference,
+  AgentMode,
+  AgentModelPolicy,
+  AgentModelSettings,
+  AgentPolicyModelSelection,
+  AgentPreferences,
+  AgentPreferencesPatch,
+  AgentResourcePreferences,
+  AgentThinkingLevel,
+  DEFAULT_AGENT_CREDENTIAL_PREFERENCES,
+  DEFAULT_AGENT_POLICY_MODEL_SELECTION,
+  DEFAULT_AGENT_PREFERENCES,
+  DEFAULT_AGENT_RESOURCE_PREFERENCES,
+  createDefaultAgentPreferences,
+  decodeAgentPreferences,
+} from "@honk/shared/agent-model-policy";
 
 const UnknownRecord = Schema.Record(Schema.String, Schema.Unknown);
 
 export const AgentRuntime = Schema.Literal("pi");
 export type AgentRuntime = typeof AgentRuntime.Type;
-
-export const AGENT_MODES = ["rush", "smart", "deep", "composer"] as const;
-export const AgentMode = Schema.Literals(AGENT_MODES);
-export type AgentMode = typeof AgentMode.Type;
-
-export const AGENT_THINKING_LEVELS = ["off", "low", "medium", "high", "xhigh"] as const;
-export const AGENT_CONFIGURABLE_THINKING_LEVELS = ["medium", "high", "xhigh"] as const;
-export const AgentThinkingLevel = Schema.Literals(AGENT_THINKING_LEVELS);
-export type AgentThinkingLevel = typeof AgentThinkingLevel.Type;
-
-const AgentPolicyToolNames = Schema.Array(TrimmedNonEmptyString).pipe(
-  Schema.withDecodingDefault(Effect.succeed([])),
-);
-
-export const AgentPolicyModelSelection = Schema.Union([
-  Schema.Struct({
-    type: Schema.Literal("pi-managed"),
-  }),
-  Schema.Struct({
-    type: Schema.Literal("explicit"),
-    authProviderId: AuthProviderId,
-    accountId: AccountId,
-    modelId: ModelId,
-    options: Schema.optionalKey(ModelOptionSelections),
-  }),
-]).pipe(Schema.withDecodingDefault(Effect.succeed({ type: "pi-managed" as const })));
-export type AgentPolicyModelSelection = typeof AgentPolicyModelSelection.Type;
-
-export const DEFAULT_AGENT_POLICY_MODEL_SELECTION: AgentPolicyModelSelection = {
-  type: "explicit",
-  authProviderId: AuthProviderId.make("openai-codex"),
-  accountId: AccountId.make("openai-codex:default"),
-  modelId: ModelId.make("openai-codex/gpt-5.5"),
-};
-
-export const AgentModelSettings = Schema.Struct({
-  thinkingLevel: Schema.optionalKey(AgentThinkingLevel),
-});
-export type AgentModelSettings = typeof AgentModelSettings.Type;
 
 export const AgentRuntimeModelDescriptor = Schema.Struct({
   authProviderId: AuthProviderId,
@@ -88,21 +77,6 @@ export const AgentRuntimeModelDescriptor = Schema.Struct({
 });
 export type AgentRuntimeModelDescriptor = typeof AgentRuntimeModelDescriptor.Type;
 
-export const AgentModelPolicy = Schema.Struct({
-  agentMode: AgentMode.pipe(Schema.withDecodingDefault(Effect.succeed("deep" as const))),
-  interactionMode: AgentInteractionMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed("agent" as const)),
-  ),
-  modelSelection: AgentPolicyModelSelection,
-  fast: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  thinkingLevel: Schema.NullOr(AgentThinkingLevel).pipe(
-    Schema.withDecodingDefault(Effect.succeed(null)),
-  ),
-  allowedToolNames: AgentPolicyToolNames,
-  excludedToolNames: AgentPolicyToolNames,
-});
-export type AgentModelPolicy = typeof AgentModelPolicy.Type;
-
 export const AgentAuthState = Schema.Literals([
   "unknown",
   "missing",
@@ -111,14 +85,6 @@ export const AgentAuthState = Schema.Literals([
   "error",
 ]);
 export type AgentAuthState = typeof AgentAuthState.Type;
-
-export const AgentCredentialKind = Schema.Literals([
-  "claude-api-key",
-  "claude-oauth",
-  "codex-oauth",
-  "codex-api-key",
-]);
-export type AgentCredentialKind = typeof AgentCredentialKind.Type;
 
 export const AgentAuthStatus = Schema.Struct({
   authProviderId: AuthProviderId,
@@ -156,41 +122,6 @@ export const AgentCredentialAuthFlow = Schema.Struct({
   updatedAt: IsoDateTime,
 });
 export type AgentCredentialAuthFlow = typeof AgentCredentialAuthFlow.Type;
-
-export const AgentCredentialPreference = Schema.Struct({
-  kind: AgentCredentialKind,
-  label: TrimmedNonEmptyString,
-  authProviderId: AuthProviderId,
-  accountId: Schema.NullOr(AccountId).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
-});
-export type AgentCredentialPreference = typeof AgentCredentialPreference.Type;
-
-export const DEFAULT_AGENT_CREDENTIAL_PREFERENCES: readonly AgentCredentialPreference[] = [
-  {
-    kind: "claude-api-key",
-    label: "Claude API Key",
-    authProviderId: AuthProviderId.make("anthropic"),
-    accountId: null,
-  },
-  {
-    kind: "claude-oauth",
-    label: "Claude OAuth",
-    authProviderId: AuthProviderId.make("anthropic"),
-    accountId: null,
-  },
-  {
-    kind: "codex-oauth",
-    label: "Codex OAuth",
-    authProviderId: AuthProviderId.make("openai-codex"),
-    accountId: null,
-  },
-  {
-    kind: "codex-api-key",
-    label: "Codex API Key",
-    authProviderId: AuthProviderId.make("openai"),
-    accountId: null,
-  },
-];
 
 export const AgentCredentialConfigureInput = Schema.Union([
   Schema.Struct({
@@ -245,70 +176,6 @@ export function resolveAgentCredentialPreferenceForConfigure(
     ? credential
     : null;
 }
-
-export const AgentResourcePreferences = Schema.Struct({
-  workspaceFiles: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  git: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  terminal: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-});
-export type AgentResourcePreferences = typeof AgentResourcePreferences.Type;
-export const DEFAULT_AGENT_RESOURCE_PREFERENCES = {
-  workspaceFiles: true,
-  git: true,
-  terminal: true,
-} satisfies AgentResourcePreferences;
-
-export const AgentPreferences = Schema.Struct({
-  agentMode: AgentMode.pipe(Schema.withDecodingDefault(Effect.succeed("deep" as const))),
-  interactionMode: AgentInteractionMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed("agent" as const)),
-  ),
-  modelSelection: AgentPolicyModelSelection.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_POLICY_MODEL_SELECTION)),
-  ),
-  modelSettingsByModelId: Schema.Record(ModelId, AgentModelSettings).pipe(
-    Schema.withDecodingDefault(Effect.succeed({})),
-  ),
-  fast: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  thinkingLevel: AgentThinkingLevel.pipe(
-    Schema.withDecodingDefault(Effect.succeed("high" as const)),
-  ),
-  resources: AgentResourcePreferences.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_RESOURCE_PREFERENCES)),
-  ),
-  credentials: Schema.Array(AgentCredentialPreference).pipe(
-    Schema.withDecodingDefault(Effect.succeed([])),
-  ),
-});
-export type AgentPreferences = typeof AgentPreferences.Type;
-
-export function createDefaultAgentPreferences(): AgentPreferences {
-  return {
-    agentMode: "deep",
-    interactionMode: "agent",
-    modelSelection: { ...DEFAULT_AGENT_POLICY_MODEL_SELECTION },
-    modelSettingsByModelId: {},
-    fast: false,
-    thinkingLevel: "high",
-    resources: { ...DEFAULT_AGENT_RESOURCE_PREFERENCES },
-    credentials: DEFAULT_AGENT_CREDENTIAL_PREFERENCES.map((credential) => ({ ...credential })),
-  };
-}
-
-export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = createDefaultAgentPreferences();
-
-export const decodeAgentPreferences = Schema.decodeUnknownSync(AgentPreferences);
-export const AgentPreferencesPatch = Schema.Struct({
-  agentMode: Schema.optionalKey(AgentMode),
-  interactionMode: Schema.optionalKey(AgentInteractionMode),
-  modelSelection: Schema.optionalKey(AgentPolicyModelSelection),
-  modelSettingsByModelId: Schema.optionalKey(Schema.Record(ModelId, AgentModelSettings)),
-  fast: Schema.optionalKey(Schema.Boolean),
-  thinkingLevel: Schema.optionalKey(AgentThinkingLevel),
-  resources: Schema.optionalKey(AgentResourcePreferences),
-  credentials: Schema.optionalKey(Schema.Array(AgentCredentialPreference)),
-});
-export type AgentPreferencesPatch = typeof AgentPreferencesPatch.Type;
 
 export const DesktopRuntimeDiagnosticState = Schema.Literals(["ready", "warning", "error"]);
 export type DesktopRuntimeDiagnosticState = typeof DesktopRuntimeDiagnosticState.Type;

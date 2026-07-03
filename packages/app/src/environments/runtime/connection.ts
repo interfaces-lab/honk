@@ -1,5 +1,5 @@
+import type { EnvironmentId } from "@honk/shared/environment";
 import type {
-  EnvironmentId,
   OrchestrationShellSnapshot,
   OrchestrationShellStreamEvent,
   ServerConfig,

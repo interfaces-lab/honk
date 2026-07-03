@@ -47,14 +47,14 @@ import {
   IconTodos,
   type CentralIconBaseProps,
 } from "central-icons";
-import {
-  type AgentMode,
-  type AgentPreferencesPatch,
-  type AgentThinkingLevel,
-  type MessageId,
-  type AgentInteractionMode,
-} from "@honk/contracts";
-import type { UnifiedSettings } from "@honk/contracts/settings";
+import type {
+  AgentMode,
+  AgentPreferencesPatch,
+  AgentThinkingLevel,
+} from "@honk/shared/agent-model-policy";
+import type { MessageId } from "@honk/contracts";
+import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
+import type { UnifiedSettings } from "@honk/shared/client-settings";
 import {
   clampCollapsedComposerCursor,
   isComposerModeSlashCommand,

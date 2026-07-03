@@ -1,8 +1,5 @@
 import {
   AgentCredentialConfigureInput,
-  AgentPreferences,
-  AgentPreferencesPatch,
-  type BrowserAutomationController,
   DesktopExtensionUiRespondInput,
   HonkRuntimeHostEvent,
   HonkRuntimeHostSnapshot,
@@ -22,6 +19,11 @@ import {
   ThreadAgentRuntimeUpdateQueuedFollowUpInput,
   TurnId,
 } from "@honk/contracts";
+import {
+  AgentPreferences,
+  AgentPreferencesPatch,
+} from "@honk/shared/agent-model-policy";
+import type { BrowserAutomationController } from "@honk/shared/browser-automation";
 import type { DesktopRuntimeHost } from "@honk/runtime";
 import * as EffectLogger from "@honk/shared/effect-logger";
 import * as Effect from "effect/Effect";

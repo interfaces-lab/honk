@@ -1,4 +1,4 @@
-import type { EnvironmentId } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
 import { IconFolder1 } from "central-icons";
 import { useState } from "react";
 import { resolveEnvironmentHttpUrl } from "../environments/runtime";

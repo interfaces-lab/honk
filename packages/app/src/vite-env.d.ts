@@ -10,6 +10,15 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
+interface DesktopAuxEndpoint {
+  readonly baseUrl: string;
+  readonly bearer: string;
+}
+
+interface DesktopAuxBridge {
+  readonly getAuxEndpoint?: () => Promise<DesktopAuxEndpoint | null>;
+}
+
 declare global {
   interface HTMLWebViewElement extends HTMLElement {
     canGoBack: () => boolean;
@@ -29,7 +38,7 @@ declare global {
 
   interface Window {
     nativeApi?: LocalApi;
-    desktopBridge?: DesktopBridge;
+    desktopBridge?: DesktopBridge & DesktopAuxBridge;
     honkRuntime?: HonkRuntimeApi;
   }
 }

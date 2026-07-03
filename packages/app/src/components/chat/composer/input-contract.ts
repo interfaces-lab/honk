@@ -1,15 +1,14 @@
 import type {
   ApprovalRequestId,
-  EnvironmentId,
   MessageId,
   RuntimeApprovalDecision,
-  AgentInteractionMode,
-  ModelSelection,
-  ResolvedKeybindingsConfig,
-  ScopedThreadRef,
-  ThreadId,
 } from "@honk/contracts";
-import type { UnifiedSettings } from "@honk/contracts/settings";
+import type { EnvironmentId, ScopedThreadRef } from "@honk/shared/environment";
+import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
+import type { ModelSelection } from "@honk/shared/model";
+import type { ResolvedKeybindingsConfig } from "@honk/shared/keybindings";
+import type { ThreadId } from "@honk/shared/base-schemas";
+import type { UnifiedSettings } from "@honk/shared/client-settings";
 import type { RefObject, ReactNode } from "react";
 
 import type { ComposerImageAttachment, DraftId } from "../../../stores/chat-drafts";

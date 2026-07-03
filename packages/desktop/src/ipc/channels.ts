@@ -22,6 +22,7 @@ export const BROWSER_AUTOMATION_OPEN_CHANNEL = "desktop:browser-automation-open"
 export const DETECT_LOCALHOST_PORTS_CHANNEL = "desktop:detect-localhost-ports";
 export const CLEAR_BROWSER_PARTITION_STORAGE_CHANNEL = "desktop:clear-browser-partition-storage";
 export const GET_LOCAL_ENVIRONMENT_BOOTSTRAP_CHANNEL = "desktop:get-local-environment-bootstrap";
+export const GET_AUX_ENDPOINT_CHANNEL = "desktop:get-aux-endpoint";
 export const GET_CLIENT_SETTINGS_CHANNEL = "desktop:get-client-settings";
 export const SET_CLIENT_SETTINGS_CHANNEL = "desktop:set-client-settings";
 export const GET_SERVER_EXPOSURE_STATE_CHANNEL = "desktop:get-server-exposure-state";

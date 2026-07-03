@@ -1,4 +1,5 @@
-import { type EnvironmentId, type ModelSelection, type ScopedProjectRef } from "@honk/contracts";
+import type { EnvironmentId, ScopedProjectRef } from "@honk/shared/environment";
+import type { ModelSelection } from "@honk/shared/model";
 
 import { readEnvironmentApi } from "~/environment-api";
 import { scopeProjectRef } from "~/lib/environment-scope";

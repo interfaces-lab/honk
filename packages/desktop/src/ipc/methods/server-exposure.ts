@@ -1,4 +1,7 @@
-import { DesktopServerExposureModeSchema, DesktopServerExposureStateSchema } from "@honk/contracts";
+import {
+  DesktopServerExposureModeSchema,
+  DesktopServerExposureStateSchema,
+} from "@honk/shared/desktop-api";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as DesktopLifecycle from "../../app/desktop-lifecycle";

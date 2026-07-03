@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import * as Schema from "effect/Schema";
-import { ConversationDensity, USER_CONVERSATION_DENSITY_VALUES } from "@honk/contracts/settings";
 import {
+  ConversationDensity,
   shouldGroupEdits,
   shouldGroupShells,
   shouldGroupToolCalls,
   shouldUseCompactEdits,
   shouldUseCompactShells,
+  USER_CONVERSATION_DENSITY_VALUES,
 } from "../src/conversation-density";
 
 const DENSITY_CASES = [

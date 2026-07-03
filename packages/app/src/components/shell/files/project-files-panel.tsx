@@ -1,6 +1,7 @@
 "use client";
 
-import type { EditorId, EnvironmentId } from "@honk/contracts";
+import type { EditorId } from "@honk/shared/editor";
+import type { EnvironmentId } from "@honk/shared/environment";
 import { normalizeSearchQuery } from "@honk/shared/search-ranking";
 import {
   Command,

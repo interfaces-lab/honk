@@ -1,5 +1,9 @@
 import type {
   EnvironmentId,
+  ScopedProjectRef,
+  ScopedThreadRef,
+} from "@honk/shared/environment";
+import type {
   AgentRuntimeEvent,
   MessageId,
   OrchestrationThreadActivity,
@@ -9,13 +13,10 @@ import type {
   OrchestrationShellStreamEvent,
   OrchestrationThread,
   DesktopExtensionUiRequest,
-  ProjectId,
   SessionTreeProjection,
-  ScopedProjectRef,
-  ScopedThreadRef,
-  ThreadId,
   TurnId,
 } from "@honk/contracts";
+import type { ProjectId, ThreadId } from "@honk/shared/base-schemas";
 import { create } from "zustand";
 import type {
   ChatMessage,

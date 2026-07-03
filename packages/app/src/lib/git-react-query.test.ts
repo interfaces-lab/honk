@@ -1,4 +1,4 @@
-import { EnvironmentId } from "@honk/contracts";
+import { EnvironmentId } from "@honk/shared/environment";
 import { describe, expect, it } from "vitest";
 
 import { gitBranchSearchInfiniteQueryOptions } from "./git-react-query";

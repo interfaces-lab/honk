@@ -1,4 +1,4 @@
-import { ScopedThreadRef } from "@honk/contracts";
+import { ScopedThreadRef } from "@honk/shared/environment";
 import { Option, Schema } from "effect";
 
 import { DraftId } from "~/stores/chat-drafts";

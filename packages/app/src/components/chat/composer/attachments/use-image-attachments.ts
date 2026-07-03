@@ -1,9 +1,6 @@
-import {
-  RUNTIME_SEND_TURN_MAX_ATTACHMENTS,
-  RUNTIME_SEND_TURN_MAX_IMAGE_BYTES,
-  type ScopedThreadRef,
-  type ThreadId,
-} from "@honk/contracts";
+import { RUNTIME_SEND_TURN_MAX_ATTACHMENTS, RUNTIME_SEND_TURN_MAX_IMAGE_BYTES } from "@honk/contracts";
+import type { ScopedThreadRef } from "@honk/shared/environment";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import {
   useRef,
   useState,

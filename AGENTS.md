@@ -1,17 +1,11 @@
 # Agent Rules
 
-## Product Direction
-
-- Product surface first: durable backend concepts need a clear, loved UI surface.
-- Opinionated by default: keep the good parts close and delete surfaces we do not use and love.
-- Less is better: fewer panels, fewer modes, fewer contracts, and sharper orchestration.
-
 ## Style
 
 - Keep answers short, technical, and direct.
 - No emojis in commits, issues, PR comments, or code.
 - No fluff or cheerful filler.
-
+- Write comments like the reader is new to the codebase but familiar with the goal of the project
 ## Code
 
 - Read the relevant files before editing. Do not rely on search snippets for broad changes.
@@ -28,7 +22,6 @@
 ## Icons
 
 - Use `central-icons`; do not add Lucide.
-- Browse available icons in `node_modules/central-icons/icons-index.json`.
 - Import icons from `central-icons`.
 
 ## HonkKit (design system)
@@ -50,12 +43,6 @@
 
 ## Git
 
-- Multiple agents may share this worktree. Do not touch unrelated changes.
-- Only stage files you changed in this session.
-- Never use `git add -A` or `git add .`.
-- Never use destructive commands: `git reset --hard`, `git checkout .`, `git clean -fd`, or `git stash`.
-- Before committing, inspect `git status` and stage explicit paths.
-- If rebasing conflicts in files you did not edit, abort and ask.
 - Commit message format: `{feat,fix,refactor,docs,test,chore,ci}[(app,desktop,runtime,server,contracts,honkkit)]: concise summary`. Use the primary affected package as scope; keep the subject informative and one line. No `Co-authored-by` trailers unless the user asks.
 
 ## Releases
@@ -84,14 +71,3 @@ Both menus share `ComposerCommandMenuPositioned` in `packages/app/src/components
 - `command-menu/path-preview.tsx` renders a pierre-tree staircase for the active `@` path item as an absolutely positioned sibling of the menu shell inside the popup (the popup className includes `relative`). It must stay inside the `[data-composer-command-menu-root]` subtree (outside-pointer dismissal exemption) and carry `data-variant="surface"` (glass-mode CSS).
 - The panel root keeps pointer-events auto with `onMouseDown` preventDefault (clicks must not blur the Lexical editor or fall through to UI behind it); the tree content is `pointer-events-none`. It must never take focus — keyboard stays in Lexical.
 - Placement flips from `left-full` to `right-full` (class-set swap) when the viewport right edge lacks room, and hides when neither side fits; re-measure is driven by a MutationObserver on the positioner's `style` attribute.
-
-## Browser Automation
-
-Use agent-browser for web automation. Run agent-browser --help for all commands.
-
-Core workflow:
-
-agent-browser open - Navigate to page
-agent-browser snapshot -i - Get interactive elements with refs (@e1, @e2)
-agent-browser click @e1 / fill @e2 "text" - Interact using refs
-Re-snapshot after page changes

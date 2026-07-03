@@ -6,7 +6,7 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "node scripts/dev.ts",
-    "prebuild": "pnpm --filter usehonk run build",
+    "prebuild": "pnpm --filter usehonk run build && pnpm --filter @honk/core run build",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "package": "electron-builder --config electron-builder.config.ts",
@@ -25,7 +25,9 @@
     "@effect/platform-bun": "catalog:",
     "@effect/platform-node": "catalog:",
     "@effect/sql-sqlite-bun": "catalog:",
+    "@honk/core": "workspace:*",
     "@honk/runtime": "workspace:*",
+    "@honk/shared": "workspace:*",
     "@lydell/node-pty": "1.2.0-beta.12",
     "@pierre/diffs": "^1.2.11",
     "effect": "catalog:",
@@ -40,7 +42,6 @@
   "devDependencies": {
     "@honk/app": "workspace:*",
     "@honk/contracts": "workspace:*",
-    "@honk/shared": "workspace:*",
     "@rolldown/plugin-babel": "^0.2.3",
     "@stylexjs/unplugin": "0.19.0",
     "@tailwindcss/vite": "^4.3.1",

@@ -1,4 +1,4 @@
-import type { DesktopUpdateState } from "@honk/contracts";
+import type { DesktopUpdateState } from "@honk/shared/desktop-api";
 
 export function shouldBroadcastDownloadProgress(
   currentState: DesktopUpdateState,

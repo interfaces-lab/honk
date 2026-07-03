@@ -1,4 +1,4 @@
-import type { ContextMenuItem } from "@honk/contracts";
+import type { ContextMenuItem } from "@honk/shared/desktop-api";
 
 /**
  * Imperative DOM-based context menu for non-Electron environments.

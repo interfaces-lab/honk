@@ -1,4 +1,5 @@
-import { EnvironmentId, type GitStatusResult } from "@honk/contracts";
+import { EnvironmentId } from "@honk/shared/environment";
+import type { GitStatusResult } from "@honk/shared/git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { refreshGitStatus, resetGitStatusStateForTests } from "./git-status-state";

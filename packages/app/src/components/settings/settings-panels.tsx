@@ -12,23 +12,23 @@ import {
 } from "central-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import {
-  AGENT_INTERACTION_MODES,
-  type AgentAuthStatus,
-  type AgentCredentialAuthFlow,
-  type AgentCredentialKind,
-  type AgentCredentialPreference,
-  type AgentInteractionMode,
-  type AgentMode,
-  type AgentPreferencesPatch,
-  type AgentWindowSendWhileStreamingBehavior,
-  type AgentWindowUsageSummaryDisplay,
-  DEFAULT_PROJECTLESS_CWD,
-  type HonkRuntimeHostSnapshot,
-  type ScopedThreadRef,
+import { AGENT_INTERACTION_MODES, type AgentInteractionMode } from "@honk/shared/interaction-mode";
+import type {
+  AgentAuthStatus,
+  AgentCredentialAuthFlow,
+  HonkRuntimeHostSnapshot,
 } from "@honk/contracts";
+import type {
+  AgentCredentialKind,
+  AgentCredentialPreference,
+  AgentMode,
+  AgentPreferencesPatch,
+} from "@honk/shared/agent-model-policy";
+import type { AgentWindowSendWhileStreamingBehavior, AgentWindowUsageSummaryDisplay } from "@honk/shared/client-settings";
+import { DEFAULT_PROJECTLESS_CWD } from "@honk/shared/project";
+import type { ScopedThreadRef } from "@honk/shared/environment";
 import { scopeThreadRef } from "~/lib/environment-scope";
-import { DEFAULT_UNIFIED_SETTINGS } from "@honk/contracts/settings";
+import { DEFAULT_UNIFIED_SETTINGS } from "@honk/shared/client-settings";
 import { Equal } from "effect";
 import { APP_VERSION } from "~/app/branding";
 import {

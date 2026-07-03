@@ -18,6 +18,7 @@ const rendererRoot = resolve(currentDir, "src/renderer");
 const desktopOutDir = resolve(currentDir, "out");
 const serverDistDir = resolve(repoRoot, "packages/server/dist");
 const serverClientDistDir = resolve(serverDistDir, "client");
+const coreDistDir = resolve(repoRoot, "packages/core/dist");
 
 const port = Number(process.env.PORT ?? 5733);
 const host = process.env.HOST?.trim() || "localhost";
@@ -45,6 +46,10 @@ function isWithinPath(parentPath: string, candidatePath: string): boolean {
 
 function shouldCopyDesktopServerFile(source: string): boolean {
   return !isWithinPath(serverClientDistDir, source) && !source.endsWith(".map");
+}
+
+function shouldCopyDesktopCoreFile(source: string): boolean {
+  return !source.endsWith(".map");
 }
 
 function resolveDevProxyTarget(wsUrl: string | undefined): string | undefined {
@@ -91,13 +96,26 @@ export default defineConfig({
           });
         },
       },
+      {
+        name: "honk:copy-core-dist",
+        apply: "build",
+        async writeBundle() {
+          const targetDir = resolve(desktopOutDir, "core");
+          await rm(targetDir, { recursive: true, force: true });
+          await mkdir(targetDir, { recursive: true });
+          await cp(coreDistDir, targetDir, {
+            recursive: true,
+            filter: shouldCopyDesktopCoreFile,
+          });
+        },
+      },
     ],
     build: {
       outDir: "out/main",
       sourcemap: buildSourcemap,
       emptyOutDir: true,
       externalizeDeps: {
-        exclude: ["@honk/runtime"],
+        exclude: ["@honk/core", "@honk/runtime"],
         include: ["sqlite3"],
       },
       lib: {

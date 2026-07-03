@@ -1,4 +1,5 @@
-import type { OrchestrationProposedPlanId, ThreadId } from "@honk/contracts";
+import type { OrchestrationProposedPlanId } from "@honk/contracts";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import { create } from "zustand";
 
 const STORAGE_KEY = "honk:proposed-plan-lifecycle:v1";

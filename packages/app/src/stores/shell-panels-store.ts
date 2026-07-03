@@ -1,4 +1,4 @@
-import { DEFAULT_TERMINAL_ID } from "@honk/contracts";
+import { DEFAULT_TERMINAL_ID } from "@honk/shared/terminal";
 import { Option, Schema } from "effect";
 import { create } from "zustand";
 import { inferLoginShellCaption } from "~/lib/shell-caption";

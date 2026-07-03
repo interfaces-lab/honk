@@ -1,10 +1,10 @@
 import {
   isToolLifecycleItemType,
-  type EnvironmentId,
   MessageId,
-  type ThreadId,
   type ToolLifecycleItemType,
 } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { IconCrossSmall } from "central-icons";
 import {

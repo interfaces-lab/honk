@@ -1,14 +1,14 @@
 import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
-import {
-  type EditorId,
-  type EnvironmentId,
-  type MessageId,
-  type AgentInteractionMode,
-  type OrchestrationThreadActivity,
-  type SourceProposedPlanReference,
-  type ThreadId,
+import type { EditorId } from "@honk/shared/editor";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type {
+  MessageId,
+  OrchestrationThreadActivity,
+  SourceProposedPlanReference,
 } from "@honk/contracts";
-import type { TimestampFormat } from "@honk/contracts/settings";
+import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
+import type { ThreadId } from "@honk/shared/base-schemas";
+import type { TimestampFormat } from "@honk/shared/client-settings";
 import { useMutation } from "@tanstack/react-query";
 import { Outlet, useRouter } from "@tanstack/react-router";
 import { type ComponentType, type ReactNode, useEffect, useRef, useState } from "react";

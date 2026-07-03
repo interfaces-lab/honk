@@ -1,6 +1,7 @@
 import { scopeThreadRef } from "~/lib/environment-scope";
-import { EnvironmentId, ThreadId } from "@honk/contracts";
-import type { ScopedThreadRef } from "@honk/contracts";
+import { EnvironmentId } from "@honk/shared/environment";
+import { ThreadId } from "@honk/shared/base-schemas";
+import type { ScopedThreadRef } from "@honk/shared/environment";
 import {
   DraftId,
   draftIdFromNewThreadDraftThreadId,

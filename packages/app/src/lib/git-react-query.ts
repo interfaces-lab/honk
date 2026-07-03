@@ -1,16 +1,15 @@
-import {
-  type EnvironmentId,
-  type GitActionProgressEvent,
-  type GitStackedAction,
-  type ThreadId,
-} from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { GitActionProgressEvent, GitStackedAction } from "@honk/shared/git";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import {
   infiniteQueryOptions,
   mutationOptions,
   queryOptions,
   type QueryClient,
 } from "@tanstack/react-query";
-import { requireEnvironmentConnection } from "../environments/runtime";
+import { readCoreEnvironmentConnection } from "../environments/core";
+import { readEnvironmentConnection } from "../environments/runtime";
+import { DESKTOP_AUX_UNAVAILABLE_ERROR } from "../environments/core/aux";
 import { ensureEnvironmentGitApi } from "./environment-git-api";
 
 const GIT_BRANCHES_STALE_TIME_MS = 15_000;
@@ -175,17 +174,26 @@ export function gitRunStackedActionMutationOptions(input: {
       onProgress?: (event: GitActionProgressEvent) => void;
     }) => {
       if (!input.cwd || !input.environmentId) throw new Error("Git action is unavailable.");
-      return requireEnvironmentConnection(input.environmentId).client.git.runStackedAction(
-        {
-          action,
-          actionId,
-          cwd: input.cwd,
-          ...(commitMessage ? { commitMessage } : {}),
-          ...(featureBranch ? { featureBranch: true } : {}),
-          ...(filePaths && filePaths.length > 0 ? { filePaths } : {}),
-        },
-        ...(onProgress ? [{ onProgress }] : []),
-      );
+      const actionInput = {
+        action,
+        actionId,
+        cwd: input.cwd,
+        ...(commitMessage ? { commitMessage } : {}),
+        ...(featureBranch ? { featureBranch: true } : {}),
+        ...(filePaths && filePaths.length > 0 ? { filePaths } : {}),
+      };
+      const runtimeConnection = readEnvironmentConnection(input.environmentId);
+      if (runtimeConnection) {
+        return runtimeConnection.client.git.runStackedAction(
+          actionInput,
+          ...(onProgress ? [{ onProgress }] : []),
+        );
+      }
+      const aux = readCoreEnvironmentConnection(input.environmentId)?.aux();
+      if (!aux) {
+        throw new Error(DESKTOP_AUX_UNAVAILABLE_ERROR);
+      }
+      return aux.git.runStackedAction(actionInput, ...(onProgress ? [{ onProgress }] : []));
     },
     onSuccess: async () => {
       await invalidateGitBranchQueries(input.queryClient, input.environmentId, input.cwd);

@@ -1,4 +1,6 @@
-import { EnvironmentId, MessageId, ProjectId, ThreadId } from "@honk/contracts";
+import { EnvironmentId } from "@honk/shared/environment";
+import { MessageId } from "@honk/contracts";
+import { ProjectId, ThreadId } from "@honk/shared/base-schemas";
 import { describe, expect, it } from "vitest";
 
 import { initialEnvironmentState, type EnvironmentState } from "./stores/thread-store";

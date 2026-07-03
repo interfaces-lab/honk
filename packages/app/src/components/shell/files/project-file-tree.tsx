@@ -8,13 +8,10 @@ import {
   type FileTreeDirectoryHandle,
   type FileTreeItemHandle,
 } from "@pierre/trees";
-import type {
-  EditorId,
-  EnvironmentId,
-  GitStatusResult,
-  GitWorkingTreeFileStatus,
-  ProjectEntry,
-} from "@honk/contracts";
+import type { EditorId } from "@honk/shared/editor";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { GitStatusResult, GitWorkingTreeFileStatus } from "@honk/shared/git";
+import type { ProjectEntry } from "@honk/shared/project";
 import {
   AlertDialog,
   AlertDialogClose,

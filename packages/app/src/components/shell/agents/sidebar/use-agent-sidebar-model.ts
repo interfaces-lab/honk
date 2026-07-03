@@ -4,7 +4,8 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "~/lib/environment-scope";
-import type { EnvironmentId, ProjectId, ScopedProjectRef } from "@honk/contracts";
+import type { EnvironmentId, ScopedProjectRef } from "@honk/shared/environment";
+import type { ProjectId } from "@honk/shared/base-schemas";
 import { useRouter } from "@tanstack/react-router";
 import { useRef } from "react";
 import { useShallow } from "zustand/react/shallow";

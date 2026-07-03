@@ -1,10 +1,10 @@
 import {
   MessageId,
   RuntimeSessionId,
-  ThreadId,
   TurnId,
   type RuntimeDisplayTimelineProjection,
 } from "@honk/contracts";
+import { ThreadId } from "@honk/shared/base-schemas";
 import { describe, expect, it } from "vitest";
 
 import type { WorkLogEntry } from "../../../session-logic";

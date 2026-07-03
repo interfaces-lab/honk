@@ -1,4 +1,5 @@
-import type { EnvironmentApi, EnvironmentId } from "@honk/contracts";
+import type { EnvironmentApi } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
 
 import { readEnvironmentApiWithFallback } from "~/environment-api";
 

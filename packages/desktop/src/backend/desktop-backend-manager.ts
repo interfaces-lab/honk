@@ -18,11 +18,10 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
-
 import {
   DesktopBackendBootstrap,
   type DesktopBackendBootstrap as DesktopBackendBootstrapValue,
-} from "@honk/contracts";
+} from "@honk/shared/desktop-api";
 
 import * as DesktopBackendConfiguration from "./desktop-backend-configuration";
 import * as DesktopObservability from "../app/desktop-observability";

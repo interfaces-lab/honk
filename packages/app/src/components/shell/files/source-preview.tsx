@@ -1,4 +1,4 @@
-import type { EnvironmentId } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
 import type { FileContents } from "@pierre/diffs";
 import { File, type FileOptions } from "@pierre/diffs/react";
 import { useQuery } from "@tanstack/react-query";

@@ -1,4 +1,4 @@
-import type { EnvironmentId } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
 import { useSyncExternalStore } from "react";
 
 import { readEnvironmentApi } from "~/environment-api";

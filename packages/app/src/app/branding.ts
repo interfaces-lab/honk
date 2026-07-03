@@ -1,4 +1,4 @@
-import type { DesktopAppBranding } from "@honk/contracts";
+import type { DesktopAppBranding } from "@honk/shared/desktop-api";
 
 function readInjectedDesktopAppBranding(): DesktopAppBranding | null {
   return globalThis.window?.desktopBridge?.getAppBranding?.() ?? null;

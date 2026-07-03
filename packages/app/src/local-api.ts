@@ -1,11 +1,12 @@
 import {
   configureLocalApiHost,
   createLocalApi as createLocalApiFromClient,
-  ensureLocalApi,
-  readLocalApi,
+  ensureLocalApi as ensureLocalApiFromClientRuntime,
+  readLocalApi as readLocalApiFromClientRuntime,
   resetLocalApiForTests,
 } from "@honk/client-runtime";
-import { ClientSettingsSchema, type LocalApi } from "@honk/contracts";
+import { ClientSettingsSchema } from "@honk/shared/client-settings";
+import type { LocalApi } from "@honk/contracts";
 
 import { resetGitStatusStateForTests } from "./lib/git-status-state";
 import { resetRequestLatencyStateForTests } from "./rpc/request-latency-state";
@@ -17,6 +18,7 @@ import { showContextMenuFallback } from "./browser/context-menu-fallback";
 import { getLocalStorageItem, setLocalStorageItem } from "./hooks/use-local-storage";
 
 const CLIENT_SETTINGS_STORAGE_KEY = "honk:client-settings:v1";
+let localServerApiOverride: LocalApi["server"] | null = null;
 
 configureLocalApiHost({
   showContextMenuFallback,
@@ -35,9 +37,40 @@ export function createLocalApi(rpcClient: WsRpcClient): LocalApi {
   });
 }
 
-export { ensureLocalApi, readLocalApi };
+function applyLocalServerApiOverride(api: LocalApi): LocalApi {
+  if (!localServerApiOverride || api.server === localServerApiOverride) {
+    return api;
+  }
+  return {
+    ...api,
+    server: localServerApiOverride,
+  };
+}
+
+export function setLocalServerApiOverride(server: LocalApi["server"] | null): () => void {
+  localServerApiOverride = server;
+  return () => {
+    if (localServerApiOverride === server) {
+      localServerApiOverride = null;
+    }
+  };
+}
+
+export function readLocalApi(): LocalApi | undefined {
+  const api = readLocalApiFromClientRuntime();
+  return api ? applyLocalServerApiOverride(api) : undefined;
+}
+
+export function ensureLocalApi(): LocalApi {
+  const api = readLocalApi();
+  if (!api) {
+    return applyLocalServerApiOverride(ensureLocalApiFromClientRuntime());
+  }
+  return api;
+}
 
 export async function __resetLocalApiForTests() {
+  localServerApiOverride = null;
   resetLocalApiForTests();
   await resetEnvironmentServiceForTests();
   resetGitStatusStateForTests();

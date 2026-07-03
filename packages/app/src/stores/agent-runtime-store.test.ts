@@ -1,11 +1,10 @@
+import { AuthProviderId, ThreadId } from "@honk/shared/base-schemas";
 import {
-  AuthProviderId,
   EventId,
   MessageId,
   RuntimeItemId,
   RuntimeSessionId,
   ThreadEntryId,
-  ThreadId,
   TurnId,
   type AgentRuntimeEvent,
   type DesktopExtensionUiRequest,
