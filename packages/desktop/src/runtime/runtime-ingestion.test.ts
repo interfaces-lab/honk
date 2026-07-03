@@ -2,15 +2,17 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  EventId,
-  MessageId,
   RuntimeIngestionRecordId,
-  RuntimeSessionId,
-  ThreadEntryId,
-  TurnId,
   type HonkRuntimeHostEvent,
   type RuntimeIngestionRecord,
 } from "@honk/contracts";
+import {
+  EventId,
+  MessageId,
+  RuntimeSessionId,
+  ThreadEntryId,
+  TurnId,
+} from "@honk/shared/base-schemas";
 import { ThreadId } from "@honk/shared/base-schemas";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

@@ -1,4 +1,4 @@
-import { MessageId } from "@honk/contracts";
+import { MessageId } from "@honk/shared/base-schemas";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createThreadSendIntent, useThreadSendIntentStore } from "./thread-send-intent-store";

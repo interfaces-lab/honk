@@ -1,4 +1,4 @@
-import type { OrchestrationProposedPlanId } from "@honk/contracts";
+import type { OrchestrationProposedPlanId } from "@honk/shared/orchestration";
 import type { ThreadId } from "@honk/shared/base-schemas";
 import { create } from "zustand";
 

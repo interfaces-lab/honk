@@ -1,4 +1,9 @@
 import { AuthProviderId, ThreadId } from "@honk/shared/base-schemas";
+import type {
+  HonkRuntimeApi,
+  HonkRuntimeHostEvent,
+  HonkRuntimeHostSnapshot,
+} from "@honk/contracts";
 import {
   EventId,
   MessageId,
@@ -6,14 +11,13 @@ import {
   RuntimeSessionId,
   ThreadEntryId,
   TurnId,
-  type AgentRuntimeEvent,
-  type DesktopExtensionUiRequest,
-  type HonkRuntimeApi,
-  type HonkRuntimeHostEvent,
-  type HonkRuntimeHostSnapshot,
-  type SessionTreeProjection,
-  type RuntimeDisplayTimelineProjection,
-} from "@honk/contracts";
+} from "@honk/shared/base-schemas";
+import type {
+  AgentRuntimeEvent,
+  DesktopExtensionUiRequest,
+  SessionTreeProjection,
+  RuntimeDisplayTimelineProjection,
+} from "@honk/shared/runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { __resetEnvironmentApiOverridesForTests } from "../environment-api";

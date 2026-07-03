@@ -3,7 +3,10 @@ import type {
   ScopedProjectRef,
   ScopedThreadRef,
 } from "@honk/shared/environment";
-import type { OrchestrationLatestTurn, OrchestrationSessionStatus } from "@honk/contracts";
+import type {
+  OrchestrationLatestTurn,
+  OrchestrationSessionStatus,
+} from "@honk/shared/orchestration";
 import type { ProjectId, ThreadId } from "@honk/shared/base-schemas";
 
 import type { HarnessKind } from "~/lib/ui-session-types";

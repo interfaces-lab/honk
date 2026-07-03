@@ -6,9 +6,9 @@ import type {
   AuthPairingCredentialResult,
   AuthRevokeClientSessionInput,
   AuthRevokePairingLinkInput,
-  AuthSessionId,
   AuthSessionState,
 } from "@honk/contracts";
+import type { AuthSessionId } from "@honk/shared/base-schemas";
 import {
   AuthBootstrapResult as AuthBootstrapResultSchema,
   AuthClientSession,

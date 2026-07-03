@@ -1,12 +1,11 @@
 "use client";
-
 import type {
   AgentRuntimeEvent,
   RuntimeDisplayTimelineItem,
   RuntimeDisplayTimelineProjection,
   SessionTreeEntry,
   SessionTreeProjection,
-} from "@honk/contracts";
+} from "@honk/shared/runtime";
 import type { ThreadId } from "@honk/shared/base-schemas";
 import { ScrollArea } from "@honk/honkkit/scroll-area";
 import { WorkbenchChromeRow } from "@honk/honkkit/workbench-chrome-row";

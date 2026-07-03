@@ -1,15 +1,17 @@
 import {
-  type AgentRuntimeEvent,
-  type DesktopExtensionUiRequest,
   type HonkRuntimeHostEvent,
   type HonkRuntimeHostSnapshot,
   migrateLegacyRuntimeHostEventInput,
   migrateLegacyRuntimeHostSnapshotInput,
-  type RuntimeDisplayTimelineItem,
-  type RuntimeDisplayTimelineProjection,
-  type RuntimeThreadIdentity,
-  type TurnId,
 } from "@honk/contracts";
+import type { TurnId } from "@honk/shared/base-schemas";
+import type {
+  AgentRuntimeEvent,
+  DesktopExtensionUiRequest,
+  RuntimeDisplayTimelineItem,
+  RuntimeDisplayTimelineProjection,
+  RuntimeThreadIdentity,
+} from "@honk/shared/runtime";
 import { type EnvironmentId, EnvironmentId as EnvironmentIdSchema } from "@honk/shared/environment";
 import type { ThreadId } from "@honk/shared/base-schemas";
 import { create } from "zustand";

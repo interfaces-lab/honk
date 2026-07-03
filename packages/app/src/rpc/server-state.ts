@@ -6,7 +6,7 @@ import type {
   ServerConfigStreamEvent,
   ServerConfigUpdatedPayload,
   ServerLifecycleWelcomePayload,
-} from "@honk/contracts";
+} from "@honk/shared/server-config";
 import { Atom } from "effect/unstable/reactivity";
 import { useRef } from "react";
 

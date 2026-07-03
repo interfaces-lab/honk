@@ -1,11 +1,11 @@
 import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
 import type { EditorId } from "@honk/shared/editor";
 import type { EnvironmentId } from "@honk/shared/environment";
+import type { MessageId } from "@honk/shared/base-schemas";
 import type {
-  MessageId,
   OrchestrationThreadActivity,
   SourceProposedPlanReference,
-} from "@honk/contracts";
+} from "@honk/shared/orchestration";
 import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
 import type { ThreadId } from "@honk/shared/base-schemas";
 import type { TimestampFormat } from "@honk/shared/client-settings";

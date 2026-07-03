@@ -1,4 +1,4 @@
-import type { OrchestrationSessionStatus } from "@honk/contracts";
+import type { OrchestrationSessionStatus } from "@honk/shared/orchestration";
 
 /**
  * UI session types (formerly in @honk/contracts).

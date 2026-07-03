@@ -1,4 +1,5 @@
-import { type ApprovalRequestId, type RuntimeApprovalDecision } from "@honk/contracts";
+import type { ApprovalRequestId } from "@honk/shared/base-schemas";
+import type { RuntimeApprovalDecision } from "@honk/shared/orchestration";
 import { Button } from "@honk/honkkit/button";
 
 interface ComposerPendingApprovalActionsProps {

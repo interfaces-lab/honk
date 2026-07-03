@@ -1,10 +1,12 @@
 import type {
   EnvironmentApi,
   LocalApi,
+} from "@honk/contracts";
+import type { ServerConfigStreamEvent } from "@honk/shared/server-config";
+import type {
   OrchestrationEvent,
   OrchestrationShellSnapshot,
-  ServerConfigStreamEvent,
-} from "@honk/contracts";
+} from "@honk/shared/orchestration";
 import type {
   GitActionProgressEvent,
   GitRunStackedActionInput,

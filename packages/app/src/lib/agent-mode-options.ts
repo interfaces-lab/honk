@@ -4,7 +4,7 @@ import {
   type AgentMode,
   type AgentThinkingLevel,
 } from "@honk/shared/agent-model-policy";
-import type { AgentAuthStatus } from "@honk/contracts";
+import type { AgentAuthStatus } from "@honk/shared/runtime";
 import type { ModelSelection } from "@honk/shared/model";
 import { authProviderIdForModelSelection } from "@honk/shared/agent-model-policy";
 

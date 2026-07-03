@@ -2,8 +2,8 @@ import {
   MessageId,
   RuntimeSessionId,
   TurnId,
-  type RuntimeDisplayTimelineProjection,
-} from "@honk/contracts";
+} from "@honk/shared/base-schemas";
+import type { RuntimeDisplayTimelineProjection } from "@honk/shared/runtime";
 import { ThreadId } from "@honk/shared/base-schemas";
 import { describe, expect, it } from "vitest";
 

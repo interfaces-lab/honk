@@ -1,18 +1,20 @@
 import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
-import {
-  type ChatAttachment,
-  type ClientOrchestrationCommand,
-  type EnvironmentApi,
-  type MessageId,
-  type OrchestrationMessageRichText,
-  type RuntimeMode,
-  type SourceProposedPlanReference,
-  type ThreadAgentRuntimeImageAttachment,
-  type ThreadEntryId,
-  type ThreadTurnStartBootstrap,
-  type UploadChatAttachment,
-  threadEntryIdForMessageId,
-} from "@honk/contracts";
+import type { EnvironmentApi } from "@honk/contracts";
+import type {
+  MessageId,
+  ThreadEntryId,
+} from "@honk/shared/base-schemas";
+import type { ThreadAgentRuntimeImageAttachment } from "@honk/shared/runtime";
+import { threadEntryIdForMessageId } from "@honk/shared/thread-tree";
+import type {
+  ChatAttachment,
+  ClientOrchestrationCommand,
+  OrchestrationMessageRichText,
+  RuntimeMode,
+  SourceProposedPlanReference,
+  ThreadTurnStartBootstrap,
+  UploadChatAttachment,
+} from "@honk/shared/orchestration";
 import type { EnvironmentId } from "@honk/shared/environment";
 import type { ModelSelection } from "@honk/shared/model";
 import type { ThreadId } from "@honk/shared/base-schemas";

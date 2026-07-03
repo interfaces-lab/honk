@@ -1,10 +1,12 @@
 import type { EnvironmentId } from "@honk/shared/environment";
 import type {
-  OrchestrationShellSnapshot,
-  OrchestrationShellStreamEvent,
   ServerConfig,
   ServerLifecycleWelcomePayload,
-} from "@honk/contracts";
+} from "@honk/shared/server-config";
+import type {
+  OrchestrationShellSnapshot,
+  OrchestrationShellStreamEvent,
+} from "@honk/shared/orchestration";
 import type { KnownEnvironment } from "~/lib/environment-scope";
 
 import type { WsRpcClient } from "~/rpc/ws-rpc-client";

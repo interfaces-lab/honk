@@ -1,4 +1,4 @@
-import { type MessageId } from "@honk/contracts";
+import type { MessageId } from "@honk/shared/base-schemas";
 import {
   Attachment,
   AttachmentFallback,

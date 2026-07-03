@@ -1,6 +1,6 @@
 import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
 import type { EnvironmentId } from "@honk/shared/environment";
-import type { MessageId } from "@honk/contracts";
+import type { MessageId } from "@honk/shared/base-schemas";
 import type { ModelSelection } from "@honk/shared/model";
 import type { ProjectScript } from "@honk/shared/project-scripts";
 import type { ResolvedKeybindingsConfig } from "@honk/shared/keybindings";

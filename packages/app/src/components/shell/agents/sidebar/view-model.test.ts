@@ -1,6 +1,6 @@
 import { EnvironmentId } from "@honk/shared/environment";
 import { ProjectId, ThreadId } from "@honk/shared/base-schemas";
-import { TurnId } from "@honk/contracts";
+import { TurnId } from "@honk/shared/base-schemas";
 import { describe, expect, it } from "vitest";
 
 import {

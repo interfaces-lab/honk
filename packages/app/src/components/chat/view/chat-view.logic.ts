@@ -1,5 +1,6 @@
 import type { EnvironmentId } from "@honk/shared/environment";
-import type { MessageId, OrchestrationProposedPlanId } from "@honk/contracts";
+import type { MessageId } from "@honk/shared/base-schemas";
+import type { OrchestrationProposedPlanId } from "@honk/shared/orchestration";
 import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
 import type { ThreadId } from "@honk/shared/base-schemas";
 

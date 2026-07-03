@@ -2,12 +2,12 @@ import { randomUUID } from "node:crypto";
 import { watch, type FSWatcher } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import {
-  EventId,
-  type ClientOrchestrationCommand,
-  type OrchestrationEvent,
-  type OrchestrationProjectShell,
-} from "@honk/contracts";
+import { EventId } from "@honk/shared/base-schemas";
+import type {
+  ClientOrchestrationCommand,
+  OrchestrationEvent,
+  OrchestrationProjectShell,
+} from "@honk/shared/orchestration";
 import {
   ProjectId as ProjectIdSchema,
   type ProjectId,

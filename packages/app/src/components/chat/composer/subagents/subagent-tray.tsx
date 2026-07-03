@@ -1,8 +1,8 @@
+import { MessageId } from "@honk/shared/base-schemas";
 import {
   isToolLifecycleItemType,
-  MessageId,
   type ToolLifecycleItemType,
-} from "@honk/contracts";
+} from "@honk/shared/runtime-events";
 import type { EnvironmentId } from "@honk/shared/environment";
 import type { ThreadId } from "@honk/shared/base-schemas";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";

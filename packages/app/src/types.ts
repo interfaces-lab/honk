@@ -1,17 +1,19 @@
 import type { EnvironmentId, RepositoryIdentity } from "@honk/shared/environment";
 import type { ModelSelection } from "@honk/shared/model";
 import type {
+  ThreadEntryId,
+  TurnId,
+  MessageId,
+} from "@honk/shared/base-schemas";
+import type {
   OrchestrationLatestTurn,
   OrchestrationMessageRichText,
   OrchestrationProposedPlanId,
   OrchestrationSessionStatus,
   OrchestrationThreadActivity,
   OrchestrationThreadEntry,
-  ThreadEntryId,
-  TurnId,
-  MessageId,
   RuntimeMode,
-} from "@honk/contracts";
+} from "@honk/shared/orchestration";
 import type { ProjectScript as ContractProjectScript } from "@honk/shared/project-scripts";
 import type { ThreadId, ProjectId } from "@honk/shared/base-schemas";
 import type { AgentInteractionMode } from "@honk/shared/interaction-mode";

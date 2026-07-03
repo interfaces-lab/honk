@@ -1,13 +1,15 @@
 import {
   MessageId,
-  OrchestrationProposedPlanId,
+  type RuntimeSessionId,
+  type TurnId,
+} from "@honk/shared/base-schemas";
+import {
   runtimeSessionEntryMessageId,
   type RuntimeDisplayTimelineItem,
   type RuntimeDisplayTimelineMessageItem,
   type RuntimeDisplayTimelineProjection,
-  type RuntimeSessionId,
-  type TurnId,
-} from "@honk/contracts";
+} from "@honk/shared/runtime";
+import { OrchestrationProposedPlanId } from "@honk/shared/orchestration";
 
 import { shouldSuppressProviderFailureAssistantRow } from "../../../lib/turn-failure-index";
 

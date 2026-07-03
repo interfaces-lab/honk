@@ -1,8 +1,8 @@
 import type {
-  OrchestrationThreadActivity,
   ThreadTokenUsageCategory,
   ThreadTokenUsageSnapshot,
-} from "@honk/contracts";
+} from "@honk/shared/runtime-events";
+import type { OrchestrationThreadActivity } from "@honk/shared/orchestration";
 import * as Predicate from "effect/Predicate";
 
 function asRecord(value: unknown): Record<string, unknown> | null {

@@ -1,5 +1,5 @@
 import type { EnvironmentId } from "@honk/shared/environment";
-import type { MessageId } from "@honk/contracts";
+import type { MessageId } from "@honk/shared/base-schemas";
 import type { ThreadId } from "@honk/shared/base-schemas";
 import { Button } from "@honk/honkkit/button";
 import {

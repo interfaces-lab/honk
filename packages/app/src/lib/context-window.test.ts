@@ -1,8 +1,6 @@
-import {
-  EventId,
-  type OrchestrationThreadActivity,
-  type ThreadTokenUsageSnapshot,
-} from "@honk/contracts";
+import { EventId } from "@honk/shared/base-schemas";
+import type { ThreadTokenUsageSnapshot } from "@honk/shared/runtime-events";
+import type { OrchestrationThreadActivity } from "@honk/shared/orchestration";
 import { describe, expect, it } from "vitest";
 
 import { deriveLatestContextWindowSnapshot, formatContextUsageSummary } from "./context-window";

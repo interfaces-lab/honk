@@ -1,4 +1,4 @@
-import type { OrchestrationEvent } from "@honk/contracts";
+import type { OrchestrationEvent } from "@honk/shared/orchestration";
 import type { ThreadId } from "@honk/shared/base-schemas";
 
 export interface OrchestrationBatchEffects {

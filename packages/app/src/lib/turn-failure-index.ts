@@ -1,9 +1,9 @@
-import {
-  MessageId,
-  type AgentRuntimeEvent,
-  type OrchestrationLatestTurn,
-  type OrchestrationThreadActivity,
-} from "@honk/contracts";
+import { MessageId } from "@honk/shared/base-schemas";
+import type { AgentRuntimeEvent } from "@honk/shared/runtime";
+import type {
+  OrchestrationLatestTurn,
+  OrchestrationThreadActivity,
+} from "@honk/shared/orchestration";
 import { providerFailureFromAssistantMessageText } from "@honk/runtime/provider-error";
 import { useRef } from "react";
 

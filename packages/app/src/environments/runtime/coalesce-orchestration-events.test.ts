@@ -1,9 +1,11 @@
 import {
   EventId,
   TurnId,
-  type OrchestrationEvent,
-  type OrchestrationThreadActivity,
-} from "@honk/contracts";
+} from "@honk/shared/base-schemas";
+import type {
+  OrchestrationEvent,
+  OrchestrationThreadActivity,
+} from "@honk/shared/orchestration";
 import { ThreadId } from "@honk/shared/base-schemas";
 import { describe, expect, it } from "vitest";
 

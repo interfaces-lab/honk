@@ -1,4 +1,4 @@
-import type { RuntimeRequestKind } from "@honk/contracts";
+import type { RuntimeRequestKind } from "@honk/shared/orchestration";
 import type { Thread } from "../types";
 import {
   derivePendingApprovals,

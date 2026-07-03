@@ -4,10 +4,12 @@ import {
   EventId,
   RuntimeSessionId,
   TurnId,
-  type AgentRuntimeEvent,
-  type OrchestrationEvent,
-  type OrchestrationShellSnapshot,
-} from "@honk/contracts";
+} from "@honk/shared/base-schemas";
+import type { AgentRuntimeEvent } from "@honk/shared/runtime";
+import type {
+  OrchestrationEvent,
+  OrchestrationShellSnapshot,
+} from "@honk/shared/orchestration";
 import { ThreadId } from "@honk/shared/base-schemas";
 import { describe, expect, it } from "vitest";
 

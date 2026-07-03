@@ -1,12 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import * as path from "node:path";
-import {
-  CommandId,
-  type ClientOrchestrationCommand,
-  type ServerConfig,
-  type ServerConfigStreamEvent,
-} from "@honk/contracts";
+import { CommandId } from "@honk/shared/base-schemas";
+import type {
+  ServerConfig,
+  ServerConfigStreamEvent,
+} from "@honk/shared/server-config";
+import type { ClientOrchestrationCommand } from "@honk/shared/orchestration";
 import {
   EDITORS,
   type EditorId,

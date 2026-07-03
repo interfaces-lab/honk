@@ -13,11 +13,11 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AGENT_INTERACTION_MODES, type AgentInteractionMode } from "@honk/shared/interaction-mode";
+import type { HonkRuntimeHostSnapshot } from "@honk/contracts";
 import type {
   AgentAuthStatus,
   AgentCredentialAuthFlow,
-  HonkRuntimeHostSnapshot,
-} from "@honk/contracts";
+} from "@honk/shared/runtime";
 import type {
   AgentCredentialKind,
   AgentCredentialPreference,

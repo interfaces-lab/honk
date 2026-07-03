@@ -1,6 +1,6 @@
 import { EnvironmentId } from "@honk/shared/environment";
 import { ThreadId } from "@honk/shared/base-schemas";
-import type { RuntimeDisplayTimelineToolItem } from "@honk/contracts";
+import type { RuntimeDisplayTimelineToolItem } from "@honk/shared/runtime";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 

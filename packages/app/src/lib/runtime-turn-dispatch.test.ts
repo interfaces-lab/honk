@@ -1,13 +1,17 @@
+import type {
+  LocalApi,
+  HonkRuntimeApi,
+  HonkRuntimeHostSnapshot,
+} from "@honk/contracts";
 import {
   MessageId,
   ThreadEntryId,
   TurnId,
-  type LocalApi,
-  type HonkRuntimeApi,
-  type HonkRuntimeHostSnapshot,
-  type ThreadAgentRuntimeHydrateInput,
-  type ThreadAgentRuntimeSendTurnInput,
-} from "@honk/contracts";
+} from "@honk/shared/base-schemas";
+import type {
+  ThreadAgentRuntimeHydrateInput,
+  ThreadAgentRuntimeSendTurnInput,
+} from "@honk/shared/runtime";
 import { ThreadId } from "@honk/shared/base-schemas";
 import type { AgentPreferences } from "@honk/shared/agent-model-policy";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

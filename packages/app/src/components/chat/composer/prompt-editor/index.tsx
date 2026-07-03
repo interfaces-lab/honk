@@ -4,7 +4,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
-import { type OrchestrationMessageRichText } from "@honk/contracts";
+import type { OrchestrationMessageRichText } from "@honk/shared/orchestration";
 import {
   $applyNodeReplacement,
   $createLineBreakNode,

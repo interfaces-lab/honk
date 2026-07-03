@@ -4,7 +4,7 @@ import {
   MessageId,
   ThreadEntryId,
   TurnId,
-} from "@honk/contracts";
+} from "@honk/shared/base-schemas";
 import { ThreadId } from "@honk/shared/base-schemas";
 import { describe, expect, it } from "vitest";
 

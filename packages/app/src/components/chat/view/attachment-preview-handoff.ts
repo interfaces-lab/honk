@@ -1,6 +1,5 @@
 import { createElement, type RefObject, type ReactNode, useRef, useState } from "react";
-
-import type { MessageId } from "@honk/contracts";
+import type { MessageId } from "@honk/shared/base-schemas";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import type { ChatMessage } from "../../../types";
 import { preloadAuthenticatedImagePreview } from "../message/authenticated-image-preview";

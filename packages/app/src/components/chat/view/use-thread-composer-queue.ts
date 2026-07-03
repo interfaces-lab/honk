@@ -1,4 +1,4 @@
-import type { ThreadAgentRuntimeQueuedFollowUp } from "@honk/contracts";
+import type { ThreadAgentRuntimeQueuedFollowUp } from "@honk/shared/runtime";
 import type { ThreadId } from "@honk/shared/base-schemas";
 
 import { useAgentRuntimeStore } from "../../../stores/agent-runtime-store";

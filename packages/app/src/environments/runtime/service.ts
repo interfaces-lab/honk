@@ -4,7 +4,7 @@ import {
   type OrchestrationShellSnapshot,
   type OrchestrationShellStreamEvent,
   ORCHESTRATION_REPLAY_EVENTS_DEFAULT_LIMIT,
-} from "@honk/contracts";
+} from "@honk/shared/orchestration";
 import { ThreadId } from "@honk/shared/base-schemas";
 import { type QueryClient } from "@tanstack/react-query";
 import {

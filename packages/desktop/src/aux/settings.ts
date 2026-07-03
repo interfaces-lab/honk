@@ -20,7 +20,7 @@ import {
   type ResolvedKeybindingRule,
   type ResolvedKeybindingsConfig,
 } from "@honk/shared/keybindings";
-import type { ServerConfigIssue } from "@honk/contracts";
+import type { ServerConfigIssue } from "@honk/shared/server-config";
 import { applyServerSettingsPatch } from "@honk/shared/server-settings";
 
 const SETTINGS_WATCH_DEBOUNCE_MS = 100;

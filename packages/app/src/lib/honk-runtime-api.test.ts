@@ -1,9 +1,9 @@
-import {
-  TurnId,
-  type LocalApi,
-  type HonkRuntimeApi,
-  type HonkRuntimeHostSnapshot,
+import type {
+  LocalApi,
+  HonkRuntimeApi,
+  HonkRuntimeHostSnapshot,
 } from "@honk/contracts";
+import { TurnId } from "@honk/shared/base-schemas";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { __resetLocalApiForTests } from "../local-api";

@@ -1,5 +1,5 @@
 import { IconArrowUp, IconChevronDownMedium, IconPencilLine, IconTrashCan } from "central-icons";
-import type { MessageId } from "@honk/contracts";
+import type { MessageId } from "@honk/shared/base-schemas";
 import { useState, type DragEvent, type KeyboardEvent } from "react";
 
 import type { QueuedComposerItem } from "../../../../stores/chat-send-queue";

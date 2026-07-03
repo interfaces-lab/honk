@@ -2,7 +2,7 @@ import type {
   MessageId,
   ThreadEntryId,
   TurnId,
-} from "@honk/contracts";
+} from "@honk/shared/base-schemas";
 import type { ThreadId } from "@honk/shared/base-schemas";
 import type { EnvironmentState } from "./stores/thread-store";
 import type {

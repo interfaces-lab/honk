@@ -1,6 +1,14 @@
+import type { ThreadEntryId } from "@honk/shared/base-schemas";
+import type {
+  CanonicalItemType,
+  ToolLifecycleItemType,
+} from "@honk/shared/runtime-events";
 import type {
   DesktopExtensionUiRequest,
   AgentRuntimeEvent,
+  SessionTreeProjection,
+} from "@honk/shared/runtime";
+import type {
   OrchestrationEvent,
   OrchestrationLatestTurn,
   OrchestrationMessage,
@@ -13,29 +21,27 @@ import type {
   OrchestrationThread,
   OrchestrationThreadShell,
   SourceProposedPlanReference,
-  SessionTreeProjection,
   OrchestrationThreadActivity,
-  ThreadEntryId,
-  CanonicalItemType,
-  ToolLifecycleItemType,
-} from "@honk/contracts";
+} from "@honk/shared/orchestration";
 import type { EnvironmentId, ScopedThreadRef } from "@honk/shared/environment";
 import type { ModelSelection } from "@honk/shared/model";
 import type { ProjectId } from "@honk/shared/base-schemas";
 import { DEFAULT_AGENT_INTERACTION_MODE } from "@honk/shared/interaction-mode";
 import {
-  DEFAULT_RUNTIME_MODE,
   EventId,
   MessageId,
   RuntimeItemId,
   RuntimeTaskId,
+  TurnId,
+} from "@honk/shared/base-schemas";
+import { ThreadTokenUsageSnapshot } from "@honk/shared/runtime-events";
+import { runtimeSessionEntryMessageId } from "@honk/shared/runtime";
+import {
   repairThreadEntryTree,
   resolveLeafIdAfterThreadMessage,
-  runtimeSessionEntryMessageId,
   threadEntryIdForMessageId,
-  ThreadTokenUsageSnapshot,
-  TurnId,
-} from "@honk/contracts";
+} from "@honk/shared/thread-tree";
+import { DEFAULT_RUNTIME_MODE } from "@honk/shared/orchestration";
 import { DEFAULT_TEXT_GENERATION_MODEL_SELECTION } from "@honk/shared/server-settings";
 import { ThreadId } from "@honk/shared/base-schemas";
 import { Schema } from "effect";

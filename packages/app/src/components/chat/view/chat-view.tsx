@@ -1,14 +1,18 @@
 import {
   type ApprovalRequestId,
-  type DesktopExtensionUiRequest,
   MessageId,
-  type RuntimeApprovalDecision,
-  type ThreadAgentRuntimeImageAttachment,
-  type ThreadAgentRuntimeQueuedFollowUp,
-  type OrchestrationThreadActivity,
-  type SourceProposedPlanReference,
-  type AgentRuntimeModelDescriptor,
-} from "@honk/contracts";
+} from "@honk/shared/base-schemas";
+import type {
+  DesktopExtensionUiRequest,
+  ThreadAgentRuntimeImageAttachment,
+  ThreadAgentRuntimeQueuedFollowUp,
+  AgentRuntimeModelDescriptor,
+} from "@honk/shared/runtime";
+import type {
+  RuntimeApprovalDecision,
+  OrchestrationThreadActivity,
+  SourceProposedPlanReference,
+} from "@honk/shared/orchestration";
 import type {
   EnvironmentId,
   ScopedProjectRef,

@@ -1,4 +1,7 @@
-import type { MessageId, ThreadEntryId } from "@honk/contracts";
+import type {
+  MessageId,
+  ThreadEntryId,
+} from "@honk/shared/base-schemas";
 import { create } from "zustand";
 
 import type { LocalDispatchSnapshot } from "../components/chat/view/thread-lifecycle";

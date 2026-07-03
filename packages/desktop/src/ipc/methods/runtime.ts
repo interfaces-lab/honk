@@ -1,8 +1,11 @@
 import {
-  AgentCredentialConfigureInput,
-  DesktopExtensionUiRespondInput,
   HonkRuntimeHostEvent,
   HonkRuntimeHostSnapshot,
+} from "@honk/contracts";
+import { TurnId } from "@honk/shared/base-schemas";
+import {
+  AgentCredentialConfigureInput,
+  DesktopExtensionUiRespondInput,
   RuntimeGetThreadSessionFileInput,
   RuntimeGetThreadSessionFileResult,
   RuntimeListSkillsInput,
@@ -17,8 +20,7 @@ import {
   ThreadAgentRuntimeSetThreadFocusInput,
   ThreadAgentRuntimeSendTurnInput,
   ThreadAgentRuntimeUpdateQueuedFollowUpInput,
-  TurnId,
-} from "@honk/contracts";
+} from "@honk/shared/runtime";
 import {
   AgentPreferences,
   AgentPreferencesPatch,

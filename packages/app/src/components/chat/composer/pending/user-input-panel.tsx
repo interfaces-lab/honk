@@ -1,4 +1,4 @@
-import { type ApprovalRequestId } from "@honk/contracts";
+import type { ApprovalRequestId } from "@honk/shared/base-schemas";
 import { IconBubbleQuestion } from "central-icons";
 import { type KeyboardEvent } from "react";
 import { type PendingUserInput } from "../../../../session-logic";

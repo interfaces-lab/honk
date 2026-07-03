@@ -1,13 +1,13 @@
 import { EnvironmentId } from "@honk/shared/environment";
+import { IsoDateTime } from "@honk/shared/base-schemas";
 import {
-  IsoDateTime,
   OrchestrationShellSnapshot,
   type OrchestrationLatestTurn,
   type OrchestrationProjectShell,
   type OrchestrationSession,
   type OrchestrationShellStreamEvent,
   type OrchestrationThreadShell,
-} from "@honk/contracts";
+} from "@honk/shared/orchestration";
 import { Option, Schema } from "effect";
 
 const CACHE_SCHEMA_VERSION = 1;

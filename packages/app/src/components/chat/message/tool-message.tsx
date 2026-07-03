@@ -2,7 +2,7 @@ import type { EnvironmentId } from "@honk/shared/environment";
 import type {
   RuntimeDisplayTimelineExtensionUiRequestItem,
   RuntimeDisplayTimelineToolItem,
-} from "@honk/contracts";
+} from "@honk/shared/runtime";
 import type { ThreadId } from "@honk/shared/base-schemas";
 import { Button } from "@honk/honkkit/button";
 import * as stylex from "@stylexjs/stylex";

@@ -1,4 +1,7 @@
-import { CommandId, MessageId } from "@honk/contracts";
+import {
+  CommandId,
+  MessageId,
+} from "@honk/shared/base-schemas";
 import { ProjectId, ThreadId } from "@honk/shared/base-schemas";
 import { type CxOptions, cx } from "class-variance-authority";
 import { extendTailwindMerge } from "tailwind-merge";

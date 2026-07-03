@@ -4,18 +4,24 @@ import {
   MessageId,
   RuntimeItemId,
   RuntimeSessionId,
-  type ChatAttachment,
   ThreadEntryId,
   TurnId,
-  resolveThreadEntryPath,
+} from "@honk/shared/base-schemas";
+import {
   runtimeSessionEntryMessageId,
-  threadEntryIdForMessageId,
   type AgentRuntimeEvent,
   type DesktopExtensionUiRequest,
-  type OrchestrationThreadActivity,
-  type OrchestrationThread,
   type SessionTreeProjection,
-} from "@honk/contracts";
+} from "@honk/shared/runtime";
+import {
+  resolveThreadEntryPath,
+  threadEntryIdForMessageId,
+} from "@honk/shared/thread-tree";
+import type {
+  ChatAttachment,
+  OrchestrationThreadActivity,
+  OrchestrationThread,
+} from "@honk/shared/orchestration";
 import { ProjectId, ThreadId } from "@honk/shared/base-schemas";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

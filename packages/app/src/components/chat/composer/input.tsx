@@ -52,7 +52,7 @@ import type {
   AgentPreferencesPatch,
   AgentThinkingLevel,
 } from "@honk/shared/agent-model-policy";
-import type { MessageId } from "@honk/contracts";
+import type { MessageId } from "@honk/shared/base-schemas";
 import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
 import type { UnifiedSettings } from "@honk/shared/client-settings";
 import {

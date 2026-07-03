@@ -1,8 +1,8 @@
 import type {
   ApprovalRequestId,
   MessageId,
-  RuntimeApprovalDecision,
-} from "@honk/contracts";
+} from "@honk/shared/base-schemas";
+import type { RuntimeApprovalDecision } from "@honk/shared/orchestration";
 import type { EnvironmentId, ScopedThreadRef } from "@honk/shared/environment";
 import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
 import type { ModelSelection } from "@honk/shared/model";

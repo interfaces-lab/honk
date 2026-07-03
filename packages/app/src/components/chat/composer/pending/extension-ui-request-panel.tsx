@@ -1,4 +1,4 @@
-import { type DesktopExtensionUiRequest } from "@honk/contracts";
+import type { DesktopExtensionUiRequest } from "@honk/shared/runtime";
 import { IconChevronLeftMedium, IconChevronRightMedium } from "central-icons";
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ComposerFollowUpTraySurface } from "../follow-up-tray-surface";

@@ -4,18 +4,22 @@ import type {
   ScopedThreadRef,
 } from "@honk/shared/environment";
 import type {
-  AgentRuntimeEvent,
   MessageId,
-  OrchestrationThreadActivity,
   ThreadEntryId,
+  TurnId,
+} from "@honk/shared/base-schemas";
+import type {
+  AgentRuntimeEvent,
+  DesktopExtensionUiRequest,
+  SessionTreeProjection,
+} from "@honk/shared/runtime";
+import type {
+  OrchestrationThreadActivity,
   OrchestrationEvent,
   OrchestrationShellSnapshot,
   OrchestrationShellStreamEvent,
   OrchestrationThread,
-  DesktopExtensionUiRequest,
-  SessionTreeProjection,
-  TurnId,
-} from "@honk/contracts";
+} from "@honk/shared/orchestration";
 import type { ProjectId, ThreadId } from "@honk/shared/base-schemas";
 import { create } from "zustand";
 import type {

@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   EventId,
   RuntimeSessionId,
-  type DesktopExtensionUiRequest,
-} from "@honk/contracts";
+} from "@honk/shared/base-schemas";
+import type { DesktopExtensionUiRequest } from "@honk/shared/runtime";
 import { ThreadId } from "@honk/shared/base-schemas";
 import {
   ComposerPendingExtensionUiRequestPanel,

@@ -1,4 +1,4 @@
-import type { UserInputQuestion } from "@honk/contracts";
+import type { UserInputQuestion } from "@honk/shared/runtime-events";
 
 export interface PendingUserInputDraftAnswer {
   selectedOptionLabels?: string[];

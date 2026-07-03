@@ -1,5 +1,5 @@
 import type { EnvironmentId } from "@honk/shared/environment";
-import type { OrchestrationThreadActivity } from "@honk/contracts";
+import type { OrchestrationThreadActivity } from "@honk/shared/orchestration";
 import type { ThreadId } from "@honk/shared/base-schemas";
 import { create } from "zustand";
 

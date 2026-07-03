@@ -1,5 +1,5 @@
 import type { EnvironmentId } from "@honk/shared/environment";
-import type { OrchestrationShellSnapshot } from "@honk/contracts";
+import type { OrchestrationShellSnapshot } from "@honk/shared/orchestration";
 import { connect, type ConnectOptions, type HonkClient } from "@honk/sdk";
 import { getKnownEnvironmentHttpBaseUrl, type KnownEnvironment } from "~/lib/environment-scope";
 

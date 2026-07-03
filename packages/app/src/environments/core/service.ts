@@ -10,14 +10,19 @@ import {
   type SendMessageInput,
 } from "@honk/api/core/v1";
 import { DEFAULT_AGENT_INTERACTION_MODE } from "@honk/shared/interaction-mode";
+import type { EnvironmentApi } from "@honk/contracts";
 import {
-  DEFAULT_RUNTIME_MODE,
   EventId,
   MessageId,
   RuntimeTaskId,
   ThreadEntryId,
   TurnId,
-  type EnvironmentApi,
+  type ThreadEntryId as AppThreadEntryId,
+  type TurnId as AppTurnId,
+} from "@honk/shared/base-schemas";
+import type { ToolLifecycleItemType } from "@honk/shared/runtime-events";
+import {
+  DEFAULT_RUNTIME_MODE,
   type OrchestrationReplayEventsResult,
   type OrchestrationSessionStatus,
   type OrchestrationShellSnapshot,
@@ -26,10 +31,7 @@ import {
   type OrchestrationThreadActivity,
   type OrchestrationThreadStreamItem,
   type RuntimeMode,
-  type ThreadEntryId as AppThreadEntryId,
-  type ToolLifecycleItemType,
-  type TurnId as AppTurnId,
-} from "@honk/contracts";
+} from "@honk/shared/orchestration";
 import {
   ProjectId as ProjectIdSchema,
   ThreadId,

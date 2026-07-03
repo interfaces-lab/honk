@@ -1,14 +1,16 @@
 import {
   EventId,
-  threadEntryIdForMessageId,
-  type ChatAttachment,
   type MessageId,
-  type OrchestrationEvent,
-  type OrchestrationMessageRichText,
-  type RuntimeMode,
-  type SourceProposedPlanReference,
   type ThreadEntryId,
-} from "@honk/contracts";
+} from "@honk/shared/base-schemas";
+import { threadEntryIdForMessageId } from "@honk/shared/thread-tree";
+import type {
+  ChatAttachment,
+  OrchestrationEvent,
+  OrchestrationMessageRichText,
+  RuntimeMode,
+  SourceProposedPlanReference,
+} from "@honk/shared/orchestration";
 import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
 import type { EnvironmentId } from "@honk/shared/environment";
 import type { ModelSelection } from "@honk/shared/model";

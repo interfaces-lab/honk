@@ -1,5 +1,8 @@
 import { IconBranch, IconCircleCheck } from "central-icons";
-import { flattenThreadEntryTree, formatThreadEntryPathIssue } from "@honk/contracts";
+import {
+  flattenThreadEntryTree,
+  formatThreadEntryPathIssue,
+} from "@honk/shared/thread-tree";
 
 import type { Thread, ThreadTreeEntry } from "../../../types";
 import { cn } from "~/lib/utils";
