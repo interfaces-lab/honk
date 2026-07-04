@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/konsistent/konsistent.schema.json",
+  "version": "v1",
+  "conventions": [
+    {
+      "name": "app-desktop-must-not-import-contracts",
+      "description": "Post-cut boundary: app and desktop must use shared/core surfaces instead of the deleted contracts package.",
+      "paths": ["packages/app/src/**/*.{ts,tsx}", "packages/desktop/src/**/*.{ts,tsx}"],
+      "mustNot": { "importFrom": "@honk/contracts" }
+    },
+    {
+      "name": "app-desktop-must-not-import-runtime",
+      "description": "Post-cut boundary: app and desktop must not import the deleted runtime package.",
+      "paths": ["packages/app/src/**/*.{ts,tsx}", "packages/desktop/src/**/*.{ts,tsx}"],
+      "mustNot": { "importFrom": "@honk/runtime" }
+    },
+    {
+      "name": "app-desktop-must-not-import-client-runtime",
+      "description": "Post-cut boundary: app and desktop must not import the deleted client-runtime package.",
+      "paths": ["packages/app/src/**/*.{ts,tsx}", "packages/desktop/src/**/*.{ts,tsx}"],
+      "mustNot": { "importFrom": "@honk/client-runtime" }
+    }
+  ]
+}

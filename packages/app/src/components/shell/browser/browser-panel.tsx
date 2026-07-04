@@ -4,7 +4,8 @@ import { IconBrowserTabs } from "central-icons";
 import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { normalizePathSeparators } from "@honk/shared/paths";
-import type { EnvironmentId, ThreadId } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { ThreadId } from "@honk/shared/base-schemas";
 
 import { useCopyToClipboard } from "~/hooks/use-copy-to-clipboard";
 import { resolveShortcutCommand, type ShortcutEventLike } from "~/keybindings";

@@ -22,11 +22,11 @@ import * as ElectronUpdater from "../electron/electron-updater";
 import * as ElectronWindow from "../electron/electron-window";
 import * as DesktopApp from "../app/desktop-app";
 import * as DesktopActiveWork from "../app/desktop-active-work";
+import * as DesktopAuxEndpoint from "../app/desktop-aux-endpoint";
 import * as DesktopAppIdentity from "../app/desktop-app-identity";
 import * as DesktopApplicationMenu from "../window/desktop-application-menu";
 import * as DesktopAssets from "../app/desktop-assets";
-import * as DesktopBackendConfiguration from "../backend/desktop-backend-configuration";
-import * as DesktopBackendManager from "../backend/desktop-backend-manager";
+import * as DesktopCoreManager from "../backend/desktop-core-manager";
 import * as DesktopEnvironment from "../app/desktop-environment";
 import * as DesktopLifecycle from "../app/desktop-lifecycle";
 import * as DesktopObservability from "../app/desktop-observability";
@@ -86,10 +86,9 @@ const desktopServerExposureLayer = DesktopServerExposure.layer.pipe(
 
 const desktopWindowLayer = DesktopWindow.layer.pipe(Layer.provideMerge(desktopServerExposureLayer));
 
-const desktopBackendLayer = DesktopBackendManager.layer.pipe(
-  Layer.provideMerge(DesktopAppIdentity.layer),
-  Layer.provideMerge(DesktopBackendConfiguration.layer),
+const desktopCoreLayer = DesktopCoreManager.layer.pipe(
   Layer.provideMerge(desktopWindowLayer),
+  Layer.provideMerge(desktopEnvironmentLayer),
 );
 
 const desktopApplicationLayer = Layer.mergeAll(
@@ -98,7 +97,13 @@ const desktopApplicationLayer = Layer.mergeAll(
   DesktopApplicationMenu.layer,
   DesktopShellEnvironment.layer,
   DesktopBrowserAutomation.layer,
-).pipe(Layer.provideMerge(DesktopUpdates.layer), Layer.provideMerge(desktopBackendLayer));
+  DesktopAuxEndpoint.layer,
+).pipe(
+  Layer.provideMerge(DesktopUpdates.layer),
+  Layer.provideMerge(DesktopAppIdentity.layer),
+  Layer.provideMerge(desktopWindowLayer),
+  Layer.provideMerge(desktopCoreLayer),
+);
 
 const desktopRuntimeLayer = ElectronProtocol.layerSchemePrivileges.pipe(
   Layer.flatMap(() =>

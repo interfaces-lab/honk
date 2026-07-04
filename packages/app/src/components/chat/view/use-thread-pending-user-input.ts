@@ -1,10 +1,10 @@
-import {
-  type ApprovalRequestId,
-  type EnvironmentId,
-  type OrchestrationThreadActivity,
-  type ThreadId,
-  type TurnId,
-} from "@honk/contracts";
+import type {
+  ApprovalRequestId,
+  TurnId,
+} from "@honk/shared/base-schemas";
+import type { OrchestrationThreadActivity } from "@honk/shared/orchestration";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import { useState, type RefObject } from "react";
 
 import { readEnvironmentApi } from "../../../environment-api";

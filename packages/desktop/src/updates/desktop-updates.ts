@@ -3,7 +3,7 @@ import type {
   DesktopUpdateActionResult,
   DesktopUpdateCheckResult,
   DesktopUpdateState,
-} from "@honk/contracts";
+} from "@honk/shared/desktop-api";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
@@ -16,7 +16,7 @@ import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 
-import * as DesktopBackendManager from "../backend/desktop-backend-manager";
+import * as DesktopCoreManager from "../backend/desktop-core-manager";
 import * as DesktopConfig from "../app/desktop-config";
 import * as DesktopEnvironment from "../app/desktop-environment";
 import * as EffectLogger from "@honk/shared/effect-logger";
@@ -152,7 +152,7 @@ function isArm64HostRunningIntelBuild(runtimeInfo: DesktopRuntimeInfo): boolean 
 
 const make = Effect.gen(function* () {
   const config = yield* DesktopConfig.DesktopConfig;
-  const backendManager = yield* DesktopBackendManager.DesktopBackendManager;
+  const coreManager = yield* DesktopCoreManager.DesktopCoreManager;
   const desktopState = yield* DesktopState.DesktopState;
   const electronUpdater = yield* ElectronUpdater.ElectronUpdater;
   const electronWindow = yield* ElectronWindow.ElectronWindow;
@@ -316,7 +316,7 @@ const make = Effect.gen(function* () {
     return yield* Effect.gen(function* () {
       yield* setState(reduceDesktopUpdateStateOnInstallStart(state));
       yield* elog.info("installing update");
-      yield* backendManager.stop({ timeout: Duration.seconds(5) });
+      yield* coreManager.stop({ timeout: Duration.seconds(5) });
       yield* electronWindow.destroyAll;
       yield* electronUpdater.quitAndInstall({
         isSilent: true,

@@ -1,22 +1,22 @@
+import type { EnvironmentId, RepositoryIdentity } from "@honk/shared/environment";
+import type { ModelSelection } from "@honk/shared/model";
 import type {
-  EnvironmentId,
-  ModelSelection,
+  ThreadEntryId,
+  TurnId,
+  MessageId,
+} from "@honk/shared/base-schemas";
+import type {
   OrchestrationLatestTurn,
   OrchestrationMessageRichText,
   OrchestrationProposedPlanId,
-  RepositoryIdentity,
   OrchestrationSessionStatus,
   OrchestrationThreadActivity,
   OrchestrationThreadEntry,
-  ProjectScript as ContractProjectScript,
-  ThreadEntryId,
-  ThreadId,
-  ProjectId,
-  TurnId,
-  MessageId,
-  AgentInteractionMode,
   RuntimeMode,
-} from "@honk/contracts";
+} from "@honk/shared/orchestration";
+import type { ProjectScript as ContractProjectScript } from "@honk/shared/project-scripts";
+import type { ThreadId, ProjectId } from "@honk/shared/base-schemas";
+import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
 
 export type SessionPhase = "disconnected" | "connecting" | "ready" | "running";
 export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";

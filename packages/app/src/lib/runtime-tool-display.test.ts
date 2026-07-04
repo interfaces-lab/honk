@@ -1,4 +1,4 @@
-import type { RuntimeDisplayTimelineToolDisplay } from "@honk/contracts";
+import type { RuntimeDisplayTimelineToolDisplay } from "@honk/shared/runtime";
 import { describe, expect, it } from "vitest";
 
 import { runtimeToolDisplaySignature } from "./runtime-tool-display";

@@ -1,7 +1,8 @@
-import type { EnvironmentApi, GitStatusResult } from "@honk/contracts";
-import { EnvironmentId } from "@honk/contracts";
+import type { GitStatusResult } from "@honk/shared/git";
+import { EnvironmentId } from "@honk/shared/environment";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { EnvironmentApi } from "~/desktop-bridge";
 import {
   __resetEnvironmentApiOverridesForTests,
   __setEnvironmentApiOverrideForTests,

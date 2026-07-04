@@ -166,7 +166,7 @@ const authRedirectGrep: MarketingTimelineItem = {
         action: "Grepped",
         details: "callbackUrl",
         output: [
-          "packages/server/src/session.ts",
+          "packages/core/src/session.ts",
           " 18: const callbackUrl = process.env.OAUTH_CALLBACK_STAGING;",
         ].join("\n"),
         artifacts: [
@@ -175,7 +175,7 @@ const authRedirectGrep: MarketingTimelineItem = {
             flavor: "grep",
             query: "callbackUrl",
             output: [
-              "packages/server/src/session.ts",
+              "packages/core/src/session.ts",
               " 18: const callbackUrl = process.env.OAUTH_CALLBACK_STAGING;",
             ].join("\n"),
             totalMatched: 1,
@@ -197,7 +197,7 @@ const authRedirectEdit: MarketingTimelineItem = {
       value: {
         action: "Edit",
         details: "session.ts",
-        path: "packages/server/src/session.ts",
+        path: "packages/core/src/session.ts",
         stats: { additions: 2, deletions: 1 },
       },
     },
@@ -241,8 +241,8 @@ const releaseNotesAssistant: MarketingTimelineItem = {
 };
 
 const REFACTOR_REGISTRY_PATCH = [
-  "--- packages/runtime/src/tool-registry.ts",
-  "+++ packages/runtime/src/tool-registry.ts",
+  "--- packages/core/src/catalog.ts",
+  "+++ packages/core/src/catalog.ts",
   "@@ -42,3 +42,3 @@",
   '-import { everyTool } from "./tools/all";',
   '+const everyTool = () => import("./tools/all").then((m) => m.everyTool);',
@@ -252,7 +252,7 @@ const refactorRegistryDiffArtifact = {
   type: "diff",
   format: "unified",
   source: "result",
-  files: [{ path: "packages/runtime/src/tool-registry.ts", additions: 1, deletions: 1 }],
+  files: [{ path: "packages/core/src/catalog.ts", additions: 1, deletions: 1 }],
   unifiedDiff: REFACTOR_REGISTRY_PATCH,
 } as const satisfies ToolDiffArtifact;
 
@@ -275,8 +275,8 @@ const refactorRegistryEditLoading: MarketingTimelineItem = {
       case: "editToolCall",
       value: {
         action: "Edit",
-        details: "tool-registry.ts",
-        path: "packages/runtime/src/tool-registry.ts",
+        details: "catalog.ts",
+        path: "packages/core/src/catalog.ts",
       },
     },
   },
@@ -292,8 +292,8 @@ const refactorRegistryEdit: MarketingTimelineItem = {
       case: "editToolCall",
       value: {
         action: "Edit",
-        details: "tool-registry.ts",
-        path: "packages/runtime/src/tool-registry.ts",
+        details: "catalog.ts",
+        path: "packages/core/src/catalog.ts",
         stats: { additions: 1, deletions: 1 },
         artifacts: [refactorRegistryDiffArtifact],
       },
@@ -320,8 +320,8 @@ const effectStreamsReadLoading: MarketingTimelineItem = {
       case: "readToolCall",
       value: {
         action: "Read",
-        details: "stream-pipeline.ts",
-        path: "packages/runtime/src/stream-pipeline.ts",
+        details: "stream.ts",
+        path: "packages/core/src/stream.ts",
       },
     },
   },
@@ -336,8 +336,8 @@ const effectStreamsRead: MarketingTimelineItem = {
       case: "readToolCall",
       value: {
         action: "Read",
-        details: "stream-pipeline.ts",
-        path: "packages/runtime/src/stream-pipeline.ts",
+        details: "stream.ts",
+        path: "packages/core/src/stream.ts",
       },
     },
   },

@@ -270,41 +270,6 @@ jobs:
           path: release-publish/*
           if-no-files-found: error
 
-  # npm publish: job disabled (@turbo/linux-64 extract failures on release runners).
-  # Re-enable: set if: true below and add publish_cli to release.needs.
-  publish_cli:
-    if: false
-    name: Publish CLI to npm
-    needs: [preflight, build]
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.preflight.outputs.ref }}
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: package.json
-          registry-url: https://registry.npmjs.org
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Align package versions to release version
-        run: pnpm release:bump --release "${{ needs.preflight.outputs.version }}" --yes
-
-      - name: Build CLI package
-        run: pnpm run build -- --filter=@honk/app --filter=usehonk
-
-      - name: Publish CLI package
-        run: node packages/server/scripts/cli.ts publish --tag latest --app-version "${{ needs.preflight.outputs.version }}" --verbose
-
   release:
     name: Publish GitHub Release
     needs: [preflight, build]
@@ -399,7 +364,7 @@ jobs:
           RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
         run: |
           pnpm release:bump --release "$RELEASE_VERSION" --yes
-          if git diff --quiet -- packages/server/package.json packages/desktop/package.json packages/app/package.json packages/contracts/package.json; then
+          if git diff --quiet -- packages/desktop/package.json packages/app/package.json; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -407,7 +372,7 @@ jobs:
 
       - name: Format package.json files
         if: steps.update_versions.outputs.changed == 'true'
-        run: pnpx oxfmt packages/server/package.json packages/desktop/package.json packages/app/package.json packages/contracts/package.json
+        run: pnpx oxfmt packages/desktop/package.json packages/app/package.json
 
       - name: Refresh lockfile
         if: steps.update_versions.outputs.changed == 'true'
@@ -419,7 +384,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
         run: |
-          if git diff --quiet -- packages/server/package.json packages/desktop/package.json packages/app/package.json packages/contracts/package.json pnpm-lock.yaml; then
+          if git diff --quiet -- packages/desktop/package.json packages/app/package.json pnpm-lock.yaml; then
             echo "No version changes to commit."
             exit 0
           fi
@@ -427,6 +392,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add packages/server/package.json packages/desktop/package.json packages/app/package.json packages/contracts/package.json pnpm-lock.yaml
+          git add packages/desktop/package.json packages/app/package.json pnpm-lock.yaml
           git commit -m "chore(release): prepare $RELEASE_TAG"
           git push origin HEAD:main

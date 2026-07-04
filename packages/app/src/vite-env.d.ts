@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { DesktopBridge, LocalApi, HonkRuntimeApi } from "@honk/contracts";
+import type { DesktopBridge, LocalApi } from "./desktop-bridge";
 
 interface ImportMetaEnv {
   readonly APP_VERSION: string;
@@ -8,6 +8,15 @@ interface ImportMetaEnv {
 
 interface ImportMeta {
   readonly env: ImportMetaEnv;
+}
+
+interface DesktopAuxEndpoint {
+  readonly baseUrl: string;
+  readonly bearer: string;
+}
+
+interface DesktopAuxBridge {
+  readonly getAuxEndpoint?: () => Promise<DesktopAuxEndpoint | null>;
 }
 
 declare global {
@@ -29,7 +38,6 @@ declare global {
 
   interface Window {
     nativeApi?: LocalApi;
-    desktopBridge?: DesktopBridge;
-    honkRuntime?: HonkRuntimeApi;
+    desktopBridge?: DesktopBridge & DesktopAuxBridge;
   }
 }

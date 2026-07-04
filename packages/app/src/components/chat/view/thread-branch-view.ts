@@ -1,11 +1,13 @@
+import type {
+  MessageId,
+  ThreadEntryId,
+  TurnId,
+} from "@honk/shared/base-schemas";
 import {
   formatThreadEntryPathIssue,
   resolveThreadEntryPath,
-  type MessageId,
-  type OrchestrationThreadActivity,
-  type ThreadEntryId,
-  type TurnId,
-} from "@honk/contracts";
+} from "@honk/shared/thread-tree";
+import type { OrchestrationThreadActivity } from "@honk/shared/orchestration";
 
 import type { ChatMessage, Thread, ThreadTreeEntry } from "../../../types";
 

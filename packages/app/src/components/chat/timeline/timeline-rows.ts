@@ -1,5 +1,5 @@
-import { type MessageId } from "@honk/contracts";
-import type { ConversationDensity } from "@honk/contracts/settings";
+import type { MessageId } from "@honk/shared/base-schemas";
+import type { ConversationDensity } from "@honk/shared/conversation-density";
 
 import {
   type TimelineEntry,

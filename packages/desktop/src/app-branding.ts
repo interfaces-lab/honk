@@ -1,4 +1,7 @@
-import type { DesktopAppBranding, DesktopAppStageLabel } from "@honk/contracts";
+import type {
+  DesktopAppBranding,
+  DesktopAppStageLabel,
+} from "@honk/shared/desktop-api";
 
 const APP_BASE_NAME = "Honk";
 

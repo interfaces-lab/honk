@@ -1,4 +1,4 @@
-import { DesktopRendererDiagnosticInputSchema } from "@honk/contracts";
+import { DesktopRendererDiagnosticInputSchema } from "@honk/shared/desktop-api";
 import * as EffectLogger from "@honk/shared/effect-logger";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";

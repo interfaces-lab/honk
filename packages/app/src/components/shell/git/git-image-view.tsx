@@ -1,6 +1,6 @@
 "use client";
 
-import type { GitFileImageResult, GitFilePatchResult } from "@honk/contracts";
+import type { GitFileImageResult, GitFilePatchResult } from "@honk/shared/git";
 import { useEffect, useState } from "react";
 
 import { cn } from "~/lib/utils";

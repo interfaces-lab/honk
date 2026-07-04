@@ -1,5 +1,5 @@
 import { scopedProjectKey } from "~/lib/environment-scope";
-import { type ScopedProjectRef } from "@honk/contracts";
+import type { ScopedProjectRef } from "@honk/shared/environment";
 import { projectScriptCwd } from "@honk/shared/project-scripts";
 import { useRouter } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";

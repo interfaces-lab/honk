@@ -1,4 +1,6 @@
-import type { EnvironmentId, GitResolvePullRequestResult, ThreadId } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { GitResolvePullRequestResult } from "@honk/shared/git";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useId, useRef, useState } from "react";

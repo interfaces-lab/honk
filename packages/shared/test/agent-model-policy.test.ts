@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  createAgentModelPolicy,
   DEFAULT_AGENT_POLICY_MODEL_SELECTION,
   DEFAULT_AGENT_RESOURCE_PREFERENCES,
-} from "@honk/contracts";
-import { createAgentModelPolicy } from "../src/agent-model-policy";
+} from "../src/agent-model-policy";
 import {
   cursorComposerModelSelection,
   cursorComposerPolicyModelSelection,

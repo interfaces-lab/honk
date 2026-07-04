@@ -1,4 +1,5 @@
-import type { EnvironmentId, ThreadId } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import {
   insertRankedSearchResult,
   normalizeSearchQuery,

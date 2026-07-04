@@ -1,5 +1,6 @@
 import { useMatch } from "@tanstack/react-router";
-import { EnvironmentId, ThreadId, type ScopedThreadRef } from "@honk/contracts";
+import { EnvironmentId, type ScopedThreadRef } from "@honk/shared/environment";
+import { ThreadId } from "@honk/shared/base-schemas";
 
 import { scopeThreadRef } from "~/lib/environment-scope";
 import type { AppRouter } from "~/router";

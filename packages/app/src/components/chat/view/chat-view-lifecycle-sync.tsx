@@ -1,16 +1,14 @@
-import {
-  type AgentInteractionMode,
-  type EnvironmentId,
-  type MessageId,
-  type ModelSelection,
-  type ProjectScript,
-  type ResolvedKeybindingsConfig,
-  type ThreadId,
-} from "@honk/contracts";
+import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { MessageId } from "@honk/shared/base-schemas";
+import type { ModelSelection } from "@honk/shared/model";
+import type { ProjectScript } from "@honk/shared/project-scripts";
+import type { ResolvedKeybindingsConfig } from "@honk/shared/keybindings";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
-import { retainThreadDetailSubscription } from "../../../environments/runtime/service";
+import { retainCoreThreadDetailSubscription } from "../../../environments/core";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { isTerminalFocused } from "../../../lib/terminal-focus";
 import { projectScriptIdFromCommand } from "~/lib/project-scripts";
@@ -73,7 +71,7 @@ export function RetainServerThreadDetailSync({
     if (routeKind !== "server") {
       return;
     }
-    return retainThreadDetailSubscription(environmentId, threadId);
+    return retainCoreThreadDetailSubscription(environmentId, threadId);
   });
 
   return null;

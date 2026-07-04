@@ -1,4 +1,4 @@
-import { ClientSettingsSchema } from "@honk/contracts";
+import { ClientSettingsSchema } from "@honk/shared/client-settings";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";

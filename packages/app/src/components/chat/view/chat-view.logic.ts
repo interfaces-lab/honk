@@ -1,10 +1,8 @@
-import type {
-  EnvironmentId,
-  MessageId,
-  OrchestrationProposedPlanId,
-  AgentInteractionMode,
-  ThreadId,
-} from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { MessageId } from "@honk/shared/base-schemas";
+import type { OrchestrationProposedPlanId } from "@honk/shared/orchestration";
+import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
+import type { ThreadId } from "@honk/shared/base-schemas";
 
 import type { WorkLogEntry, WorkLogSubagent } from "../../../session-logic";
 import type { Thread } from "../../../types";

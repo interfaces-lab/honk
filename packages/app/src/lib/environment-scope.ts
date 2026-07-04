@@ -1,16 +1,12 @@
 import type {
   EnvironmentId,
   ExecutionEnvironmentDescriptor,
-  ProjectId,
   ScopedProjectRef,
   ScopedThreadRef,
-  ThreadId,
-} from "@honk/contracts";
-import {
-  EnvironmentId as EnvironmentIdSchema,
-  ProjectId as ProjectIdSchema,
-  ThreadId as ThreadIdSchema,
-} from "@honk/contracts";
+} from "@honk/shared/environment";
+import type { ProjectId, ThreadId } from "@honk/shared/base-schemas";
+import { EnvironmentId as EnvironmentIdSchema } from "@honk/shared/environment";
+import { ProjectId as ProjectIdSchema, ThreadId as ThreadIdSchema } from "@honk/shared/base-schemas";
 
 export const DESKTOP_RUNTIME_ENVIRONMENT_ID = EnvironmentIdSchema.make("desktop-runtime");
 

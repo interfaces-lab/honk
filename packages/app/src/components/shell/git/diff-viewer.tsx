@@ -1,4 +1,4 @@
-import type { GitFilePatchResult } from "@honk/contracts";
+import type { GitFilePatchResult } from "@honk/shared/git";
 import type { GitFileState } from "~/lib/ui-session-types";
 import { PatchDiff } from "@pierre/diffs/react";
 import type { ReactNode } from "react";

@@ -1,7 +1,7 @@
-import type { EnvironmentId } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
 import { IconFolder1 } from "central-icons";
 import { useState } from "react";
-import { resolveEnvironmentHttpUrl } from "../environments/runtime";
+import { resolveCoreEnvironmentHttpUrl } from "../environments/core";
 
 const loadedProjectFaviconSrcs = new Set<string>();
 
@@ -10,11 +10,7 @@ export function ProjectFavicon(input: {
   cwd: string;
   className?: string;
 }) {
-  const src = resolveEnvironmentHttpUrl({
-    environmentId: input.environmentId,
-    pathname: "/api/project-favicon",
-    searchParams: { cwd: input.cwd },
-  });
+  const src = resolveProjectFaviconSrc(input.environmentId, input.cwd);
   const [status, setStatus] = useState<"loading" | "loaded" | "error">(() =>
     loadedProjectFaviconSrcs.has(src) ? "loaded" : "loading",
   );
@@ -38,4 +34,16 @@ export function ProjectFavicon(input: {
       />
     </>
   );
+}
+
+function resolveProjectFaviconSrc(environmentId: EnvironmentId, cwd: string): string {
+  try {
+    return resolveCoreEnvironmentHttpUrl({
+      environmentId,
+      pathname: "/api/project-favicon",
+      searchParams: { cwd },
+    });
+  } catch {
+    return "";
+  }
 }

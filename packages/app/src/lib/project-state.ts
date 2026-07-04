@@ -1,4 +1,6 @@
-import { DEFAULT_PROJECTLESS_CWD, EnvironmentId, ProjectId } from "@honk/contracts";
+import { DEFAULT_PROJECTLESS_CWD } from "@honk/shared/project";
+import { EnvironmentId } from "@honk/shared/environment";
+import { ProjectId } from "@honk/shared/base-schemas";
 
 export const PROJECT_KEY = "honk:project-cwd";
 export const SELECTED_PROJECT_KEY = "honk:selected-project";

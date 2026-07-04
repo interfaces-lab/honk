@@ -1,4 +1,9 @@
-import { MessageId, RuntimeSessionId, ThreadId, TurnId } from "@honk/contracts";
+import {
+  MessageId,
+  RuntimeSessionId,
+  TurnId,
+} from "@honk/shared/base-schemas";
+import { ThreadId } from "@honk/shared/base-schemas";
 import { describe, expect, it } from "vitest";
 
 import type { TimelineEntry, TimelineEntryId, WorkLogEntry } from "../../../session-logic";

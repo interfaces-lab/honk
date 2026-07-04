@@ -1,4 +1,6 @@
-import type { EnvironmentId, GitBranch, ProjectId, ScopedProjectRef } from "@honk/contracts";
+import type { EnvironmentId, ScopedProjectRef } from "@honk/shared/environment";
+import type { GitBranch } from "@honk/shared/git";
+import type { ProjectId } from "@honk/shared/base-schemas";
 import { dedupeRemoteBranchesWithLocalMatches, isTemporaryWorktreeBranch } from "@honk/shared/git";
 import { normalizeSearchQuery } from "@honk/shared/search-ranking";
 import { Button } from "@honk/honkkit/button";

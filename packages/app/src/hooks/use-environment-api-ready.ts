@@ -1,8 +1,11 @@
-import type { EnvironmentId } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
 import { useSyncExternalStore } from "react";
 
 import { readEnvironmentApi } from "~/environment-api";
-import { readEnvironmentConnection, subscribeEnvironmentConnections } from "~/environments/runtime";
+import {
+  readCoreEnvironmentConnection,
+  subscribeCoreEnvironmentConnections,
+} from "~/environments/core";
 
 const NOOP = () => undefined;
 
@@ -16,7 +19,7 @@ function readEnvironmentApiReady(environmentId: EnvironmentId | null | undefined
     return false;
   }
 
-  const connection = readEnvironmentConnection(environmentId);
+  const connection = readCoreEnvironmentConnection(environmentId);
   return connection ? connection.isBootstrapped() : true;
 }
 
@@ -24,9 +27,9 @@ function subscribeEnvironmentApiReady(
   environmentId: EnvironmentId | null | undefined,
   listener: () => void,
 ): () => void {
-  const unsubscribeConnections = subscribeEnvironmentConnections(listener);
+  const unsubscribeConnections = subscribeCoreEnvironmentConnections(listener);
   const unsubscribeBootstrap = environmentId
-    ? (readEnvironmentConnection(environmentId)?.subscribeBootstrap(listener) ?? NOOP)
+    ? (readCoreEnvironmentConnection(environmentId)?.subscribeBootstrap(listener) ?? NOOP)
     : NOOP;
 
   return () => {

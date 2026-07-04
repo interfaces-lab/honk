@@ -1,8 +1,14 @@
+import type { ThreadEntryId } from "@honk/shared/base-schemas";
+import type {
+  CanonicalItemType,
+  ToolLifecycleItemType,
+} from "@honk/shared/runtime-events";
 import type {
   DesktopExtensionUiRequest,
-  EnvironmentId,
   AgentRuntimeEvent,
-  ModelSelection,
+  SessionTreeProjection,
+} from "@honk/shared/runtime";
+import type {
   OrchestrationEvent,
   OrchestrationLatestTurn,
   OrchestrationMessage,
@@ -15,30 +21,29 @@ import type {
   OrchestrationThread,
   OrchestrationThreadShell,
   SourceProposedPlanReference,
-  SessionTreeProjection,
   OrchestrationThreadActivity,
-  ScopedThreadRef,
-  ProjectId,
-  ThreadEntryId,
-  CanonicalItemType,
-  ToolLifecycleItemType,
-} from "@honk/contracts";
+} from "@honk/shared/orchestration";
+import type { EnvironmentId, ScopedThreadRef } from "@honk/shared/environment";
+import type { ModelSelection } from "@honk/shared/model";
+import type { ProjectId } from "@honk/shared/base-schemas";
+import { DEFAULT_AGENT_INTERACTION_MODE } from "@honk/shared/interaction-mode";
 import {
-  DEFAULT_AGENT_INTERACTION_MODE,
-  DEFAULT_RUNTIME_MODE,
-  DEFAULT_TEXT_GENERATION_MODEL_SELECTION,
   EventId,
-  ThreadId,
   MessageId,
   RuntimeItemId,
   RuntimeTaskId,
+  TurnId,
+} from "@honk/shared/base-schemas";
+import { ThreadTokenUsageSnapshot } from "@honk/shared/runtime-events";
+import { runtimeSessionEntryMessageId } from "@honk/shared/runtime";
+import {
   repairThreadEntryTree,
   resolveLeafIdAfterThreadMessage,
-  runtimeSessionEntryMessageId,
   threadEntryIdForMessageId,
-  ThreadTokenUsageSnapshot,
-  TurnId,
-} from "@honk/contracts";
+} from "@honk/shared/thread-tree";
+import { DEFAULT_RUNTIME_MODE } from "@honk/shared/orchestration";
+import { DEFAULT_TEXT_GENERATION_MODEL_SELECTION } from "@honk/shared/server-settings";
+import { ThreadId } from "@honk/shared/base-schemas";
 import { Schema } from "effect";
 import { normalizeModelSlug } from "@honk/shared/model";
 import { toJsonValue, type JsonValue } from "@honk/shared/schema-json";
@@ -55,7 +60,7 @@ import type {
   ThreadTurnState,
   TurnDiffSummary,
 } from "../types";
-import { resolveEnvironmentHttpUrl } from "../environments/runtime";
+import { resolveCoreEnvironmentHttpUrl } from "../environments/core";
 import { sanitizeThreadErrorMessage } from "../rpc/transport-error";
 import { getThreadFromEnvironmentState } from "../thread-derivation";
 import {
@@ -176,6 +181,21 @@ function mapSession(session: OrchestrationSession): ThreadSession {
   };
 }
 
+function resolveAttachmentPreviewUrl(
+  environmentId: EnvironmentId,
+  attachmentId: string,
+): string {
+  const pathname = attachmentPreviewRoutePath(attachmentId);
+  try {
+    return resolveCoreEnvironmentHttpUrl({
+      environmentId,
+      pathname,
+    });
+  } catch {
+    return typeof window === "undefined" ? pathname : new URL(pathname, window.location.href).href;
+  }
+}
+
 function mapMessage(environmentId: EnvironmentId, message: MessageInput): ChatMessage {
   const attachments = message.attachments?.map((attachment) => ({
     type: "image" as const,
@@ -183,12 +203,7 @@ function mapMessage(environmentId: EnvironmentId, message: MessageInput): ChatMe
     name: attachment.name,
     mimeType: attachment.mimeType,
     sizeBytes: attachment.sizeBytes,
-    previewUrl:
-      attachment.previewUrl ??
-      resolveEnvironmentHttpUrl({
-        environmentId,
-        pathname: attachmentPreviewRoutePath(attachment.id),
-      }),
+    previewUrl: attachment.previewUrl ?? resolveAttachmentPreviewUrl(environmentId, attachment.id),
   }));
 
   return {
@@ -967,7 +982,7 @@ function buildMessageSlice(thread: Thread): {
 }
 
 function toolItemTypeForName(toolName: string): ToolLifecycleItemType {
-  // TODO: Use runtimeToolItemTypeForName from @honk/runtime if @honk/app gains that dependency.
+  // TODO: Replace this mirror when the core API exposes the canonical mapping.
   switch (toolName) {
     case "bash":
       return "command_execution";
@@ -3208,6 +3223,25 @@ export function syncServerThreadDetail(
   return commitEnvironmentState(state, environmentId, nextEnvironmentState);
 }
 
+export function syncCoreThreadDetail(
+  state: AppState,
+  thread: Thread,
+  environmentId: EnvironmentId,
+): AppState {
+  const environmentState = getStoredEnvironmentState(state, environmentId);
+  const previousThread = getThreadFromEnvironmentState(environmentState, thread.id);
+  const nextEnvironmentState = writeThreadState(
+    clearLiveAssistantTurnsForThread(environmentState, thread.id),
+    thread,
+    previousThread,
+  );
+  return commitEnvironmentState(state, environmentId, {
+    ...nextEnvironmentState,
+    snapshotSource: "server",
+    bootstrapComplete: true,
+  });
+}
+
 export function applyThreadDetailEvent(
   state: EnvironmentState,
   event: OrchestrationEvent,
@@ -3770,7 +3804,7 @@ function contextWindowActivityForRuntimeEvent(
   if (event.type !== "context-window.updated" || !isThreadTokenUsageSnapshot(event.data)) {
     return null;
   }
-  // Mirror runtimeContextWindowActivities in @honk/runtime so the persisted copy
+  // Mirror core context window activity handling so the persisted copy
   // replaces this live one instead of duplicating it.
   return {
     id: EventId.make(`runtime-activity:${event.id}`),

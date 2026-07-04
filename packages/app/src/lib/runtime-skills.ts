@@ -1,7 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { isDesktopRuntimeApiAvailable, readHonkRuntimeApi } from "./honk-runtime-api";
-
-export type { RuntimeSkillSummary } from "@honk/contracts";
+export type { RuntimeSkillSummary } from "@honk/shared/runtime";
 
 export const runtimeSkillsQueryKeys = {
   all: ["runtime-skills"] as const,

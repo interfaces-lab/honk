@@ -1,6 +1,7 @@
 "use client";
 
-import { EnvironmentId, ThreadId } from "@honk/contracts";
+import { EnvironmentId } from "@honk/shared/environment";
+import { ThreadId } from "@honk/shared/base-schemas";
 import { IconDotGrid1x3Horizontal } from "central-icons";
 import { Truncate } from "@pierre/truncate/react";
 import type { DragEvent, ReactNode } from "react";

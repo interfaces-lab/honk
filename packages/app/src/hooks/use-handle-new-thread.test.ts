@@ -1,4 +1,5 @@
-import { EnvironmentId, ProjectId, ThreadId } from "@honk/contracts";
+import { EnvironmentId } from "@honk/shared/environment";
+import { ProjectId, ThreadId } from "@honk/shared/base-schemas";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { AppRouter } from "~/router";

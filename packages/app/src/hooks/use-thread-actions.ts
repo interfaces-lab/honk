@@ -5,8 +5,9 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "~/lib/environment-scope";
-import { type ScopedProjectRef, type ScopedThreadRef, ThreadId } from "@honk/contracts";
-import type { SidebarThreadSortOrder } from "@honk/contracts/settings";
+import type { ScopedProjectRef, ScopedThreadRef } from "@honk/shared/environment";
+import { ThreadId } from "@honk/shared/base-schemas";
+import type { SidebarThreadSortOrder } from "@honk/shared/client-settings";
 import { createAgentModelPolicy } from "@honk/shared/agent-model-policy";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";

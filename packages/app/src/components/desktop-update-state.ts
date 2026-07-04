@@ -1,4 +1,4 @@
-import type { DesktopUpdateActionResult, DesktopUpdateState } from "@honk/contracts";
+import type { DesktopUpdateActionResult, DesktopUpdateState } from "@honk/shared/desktop-api";
 
 export type DesktopUpdateButtonAction = "download" | "install" | "none";
 

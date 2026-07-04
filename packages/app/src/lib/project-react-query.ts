@@ -1,12 +1,12 @@
+import type { EnvironmentId } from "@honk/shared/environment";
 import type {
-  EnvironmentId,
   ProjectCreateDirectoryInput,
   ProjectDeleteFileInput,
   ProjectListDirectoryResult,
   ProjectRenamePathInput,
   ProjectSearchEntriesResult,
   ProjectWriteFileInput,
-} from "@honk/contracts";
+} from "@honk/shared/project";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { ensureEnvironmentApi } from "~/environment-api";
 

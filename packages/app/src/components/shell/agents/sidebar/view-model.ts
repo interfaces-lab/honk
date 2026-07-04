@@ -4,7 +4,7 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "~/lib/environment-scope";
-import type { ScopedThreadRef } from "@honk/contracts";
+import type { ScopedThreadRef } from "@honk/shared/environment";
 import { contractHomeDir } from "@honk/shared/paths";
 
 import { formatCompactRelativeTimeLabel } from "~/lib/timestamp-format";

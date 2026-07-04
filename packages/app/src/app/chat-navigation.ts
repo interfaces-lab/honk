@@ -1,4 +1,5 @@
-import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@honk/contracts";
+import type { EnvironmentId, ScopedThreadRef } from "@honk/shared/environment";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import {
   DraftId,
   isNewThreadDraftId,

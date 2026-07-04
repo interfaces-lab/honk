@@ -1,4 +1,5 @@
-import { EDITORS, EditorId, LocalApi } from "@honk/contracts";
+import { EDITORS, EditorId } from "@honk/shared/editor";
+import type { LocalApi } from "./desktop-bridge";
 import {
   getLocalStorageItem,
   setLocalStorageItem,

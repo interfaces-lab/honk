@@ -1,9 +1,5 @@
-import type {
-  KeybindingCommand,
-  ProjectScript,
-  ProjectScriptIcon,
-  ResolvedKeybindingsConfig,
-} from "@honk/contracts";
+import type { KeybindingCommand, ResolvedKeybindingsConfig } from "@honk/shared/keybindings";
+import type { ProjectScript, ProjectScriptIcon } from "@honk/shared/project-scripts";
 import {
   IconBug,
   IconChecklist,

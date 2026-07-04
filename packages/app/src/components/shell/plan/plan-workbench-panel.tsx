@@ -13,8 +13,8 @@ import {
 import { Input } from "@honk/honkkit/input";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@honk/honkkit/menu";
 import { ScrollArea } from "@honk/honkkit/scroll-area";
-import type { EnvironmentId } from "@honk/contracts";
-import type { TimestampFormat } from "@honk/contracts/settings";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { TimestampFormat } from "@honk/shared/client-settings";
 import {
   IconArrowUp,
   IconCheckmark1,

@@ -39,10 +39,6 @@
   "ignoreDependencies": ["bun"],
   "ignoreIssues": {},
   "workspaces": {
-    "packages/contracts": {
-      "entry": ["src/index.ts", "src/settings.ts", "src/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
-    },
     "packages/desktop": {
       "entry": [
         "src/main.ts",
@@ -52,15 +48,6 @@
         "tsdown.config.ts"
       ],
       "project": ["src/**/*.{ts,tsx}", "scripts/**/*.mjs", "test/**/*.{ts,tsx}", "*.config.ts"]
-    },
-    "packages/server": {
-      "entry": ["src/bin.ts", "scripts/**/*.ts", "test/**/*.{ts,tsx}", "vitest.config.ts"],
-      "project": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.{ts,tsx}", "*.config.ts"],
-      "ignoreDependencies": ["@honk/app"]
-    },
-    "packages/runtime": {
-      "entry": ["src/index.ts", "test/**/*.{ts,tsx}"],
-      "project": ["src/**/*.ts", "test/**/*.{ts,tsx}"]
     },
     "packages/shared": {
       "entry": ["src/**/*.ts", "test/**/*.{ts,tsx}"],

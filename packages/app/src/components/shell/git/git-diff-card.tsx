@@ -1,6 +1,6 @@
 "use client";
 import { IconClipboard, IconStepBack } from "central-icons";
-import type { GitFilePatchResult } from "@honk/contracts";
+import type { GitFilePatchResult } from "@honk/shared/git";
 import { MiddleTruncate } from "@pierre/truncate/react";
 import { type RefObject, useRef } from "react";
 import { toast } from "sonner";

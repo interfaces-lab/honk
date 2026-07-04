@@ -1,11 +1,11 @@
-import {
-  type EnvironmentId,
-  type GitFileImageResult,
-  type GitFilePatchResult,
-  type GitManagerServiceError,
-  type GitStatusResult,
-  type GitWorkingTreeFileStatus,
-} from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type {
+  GitFileImageResult,
+  GitFilePatchResult,
+  GitManagerServiceError,
+  GitStatusResult,
+  GitWorkingTreeFileStatus,
+} from "@honk/shared/git";
 import type { GitFileState } from "~/lib/ui-session-types";
 import { type QueryClient, useQueries, useQueryClient } from "@tanstack/react-query";
 import * as Schema from "effect/Schema";

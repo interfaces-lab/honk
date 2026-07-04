@@ -3,7 +3,7 @@ import {
   DesktopThemeSchema,
   type DesktopServerExposureMode,
   type DesktopTheme,
-} from "@honk/contracts";
+} from "@honk/shared/desktop-api";
 import { fromLenientJson } from "@honk/shared/schema-json";
 import * as Context from "effect/Context";
 import * as Data from "effect/Data";

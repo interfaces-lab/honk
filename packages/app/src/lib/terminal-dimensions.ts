@@ -3,7 +3,7 @@ import {
   TERMINAL_COLS_MIN,
   TERMINAL_ROWS_MAX,
   TERMINAL_ROWS_MIN,
-} from "@honk/contracts";
+} from "@honk/shared/terminal";
 
 interface TerminalDimensionsInput {
   cols: number;

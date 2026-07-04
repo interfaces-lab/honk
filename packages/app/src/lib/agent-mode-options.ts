@@ -1,11 +1,11 @@
 import {
   AGENT_CONFIGURABLE_THINKING_LEVELS,
   AGENT_MODES,
-  type AgentAuthStatus,
   type AgentMode,
   type AgentThinkingLevel,
-  type ModelSelection,
-} from "@honk/contracts";
+} from "@honk/shared/agent-model-policy";
+import type { AuthSnapshot } from "@honk/api/core/v1";
+import type { ModelSelection } from "@honk/shared/model";
 import { authProviderIdForModelSelection } from "@honk/shared/agent-model-policy";
 
 export interface AgentModeAvailability {
@@ -15,18 +15,18 @@ export interface AgentModeAvailability {
 }
 
 export function deriveAgentModeAvailability(
-  authStatuses: readonly AgentAuthStatus[],
+  authSnapshot: AuthSnapshot | null | undefined,
 ): AgentModeAvailability {
   return {
-    anthropic: authStatuses.some(
-      (status) => status.authProviderId === "anthropic" && status.state === "available",
+    anthropic: (authSnapshot?.harnesses ?? []).some(
+      (status) => status.harness === "claude-code" && status.available,
     ),
-    codex: authStatuses.some(
-      (status) =>
-        (status.authProviderId === "openai-codex" || status.authProviderId === "openai") &&
-        status.state === "available",
+    codex: (authSnapshot?.credentials ?? []).some(
+      (status) => status.kind === "codex-oauth" && status.state === "available",
     ),
-    cursor: true,
+    cursor: (authSnapshot?.credentials ?? []).some(
+      (status) => status.kind === "cursor-api-key" && status.state === "available",
+    ),
   };
 }
 

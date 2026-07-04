@@ -1,4 +1,24 @@
-import type { ProjectScript } from "@honk/contracts";
+import { Schema } from "effect";
+import { TrimmedNonEmptyString } from "./base-schemas";
+
+export const ProjectScriptIcon = Schema.Literals([
+  "play",
+  "test",
+  "lint",
+  "configure",
+  "build",
+  "debug",
+]);
+export type ProjectScriptIcon = typeof ProjectScriptIcon.Type;
+
+export const ProjectScript = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  name: TrimmedNonEmptyString,
+  command: TrimmedNonEmptyString,
+  icon: ProjectScriptIcon,
+  runOnWorktreeCreate: Schema.Boolean,
+});
+export type ProjectScript = typeof ProjectScript.Type;
 
 interface ProjectScriptRuntimeEnvInput {
   project: {

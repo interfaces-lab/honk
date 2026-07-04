@@ -1,5 +1,5 @@
-import { type KeybindingCommand } from "@honk/contracts";
-import type { SidebarThreadSortOrder } from "@honk/contracts/settings";
+import type { KeybindingCommand } from "@honk/shared/keybindings";
+import type { SidebarThreadSortOrder } from "@honk/shared/client-settings";
 import { normalizeSearchQuery } from "@honk/shared/search-ranking";
 import { type ReactNode } from "react";
 import { sortThreads } from "../lib/thread-sort";

@@ -1,6 +1,6 @@
 "use client";
 
-import type { GitFilePatchResult, GitNonTextFileType } from "@honk/contracts";
+import type { GitFilePatchResult, GitNonTextFileType } from "@honk/shared/git";
 import {
   IconArchive1,
   IconFileBend,

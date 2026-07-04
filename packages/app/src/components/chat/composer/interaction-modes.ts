@@ -1,4 +1,4 @@
-import type { AgentInteractionMode } from "@honk/contracts";
+import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
 
 import { DEFAULT_INTERACTION_MODE } from "../../../types";
 

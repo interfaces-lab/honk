@@ -1,9 +1,7 @@
-import type {
-  AgentInteractionMode,
-  MessageId,
-  OrchestrationProposedPlanId,
-  ThreadId,
-} from "@honk/contracts";
+import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
+import type { MessageId } from "@honk/shared/base-schemas";
+import type { OrchestrationProposedPlanId } from "@honk/shared/orchestration";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import { create } from "zustand";
 
 import type { ComposerSubmitContext } from "../components/chat/composer-submit";

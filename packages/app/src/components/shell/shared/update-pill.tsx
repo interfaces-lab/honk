@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { DesktopUpdateState } from "@honk/contracts";
+import type { DesktopUpdateState } from "@honk/shared/desktop-api";
 import { toast } from "sonner";
 
 import { APP_VERSION } from "~/app/branding";

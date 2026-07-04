@@ -1,12 +1,13 @@
 import type {
   EnvironmentId,
-  OrchestrationLatestTurn,
-  OrchestrationSessionStatus,
-  ProjectId,
   ScopedProjectRef,
   ScopedThreadRef,
-  ThreadId,
-} from "@honk/contracts";
+} from "@honk/shared/environment";
+import type {
+  OrchestrationLatestTurn,
+  OrchestrationSessionStatus,
+} from "@honk/shared/orchestration";
+import type { ProjectId, ThreadId } from "@honk/shared/base-schemas";
 
 import type { HarnessKind } from "~/lib/ui-session-types";
 

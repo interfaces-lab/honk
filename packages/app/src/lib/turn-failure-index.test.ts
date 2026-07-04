@@ -1,4 +1,8 @@
-import { EventId, MessageId, TurnId } from "@honk/contracts";
+import {
+  EventId,
+  MessageId,
+  TurnId,
+} from "@honk/shared/base-schemas";
 import { describe, expect, it } from "vitest";
 
 import type { ChatMessage } from "../types";

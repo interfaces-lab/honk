@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EnvironmentId, ThreadId } from "@honk/contracts";
+import { EnvironmentId } from "@honk/shared/environment";
+import { ThreadId } from "@honk/shared/base-schemas";
 
 import { ChatThreadRouteView } from "~/routes/-chat-thread-route";
 

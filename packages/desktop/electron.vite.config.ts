@@ -5,7 +5,7 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
 import { cp, mkdir, rm } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import pkg from "./package.json" with { type: "json" };
@@ -16,8 +16,7 @@ const appDir = resolve(repoRoot, "packages/app");
 const appSrcDir = resolve(appDir, "src");
 const rendererRoot = resolve(currentDir, "src/renderer");
 const desktopOutDir = resolve(currentDir, "out");
-const serverDistDir = resolve(repoRoot, "packages/server/dist");
-const serverClientDistDir = resolve(serverDistDir, "client");
+const coreDistDir = resolve(repoRoot, "packages/core/dist");
 
 const port = Number(process.env.PORT ?? 5733);
 const host = process.env.HOST?.trim() || "localhost";
@@ -38,13 +37,8 @@ const buildSourcemap =
       ? "hidden"
       : false;
 
-function isWithinPath(parentPath: string, candidatePath: string): boolean {
-  const relativePath = relative(parentPath, candidatePath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
-}
-
-function shouldCopyDesktopServerFile(source: string): boolean {
-  return !isWithinPath(serverClientDistDir, source) && !source.endsWith(".map");
+function shouldCopyDesktopCoreFile(source: string): boolean {
+  return !source.endsWith(".map");
 }
 
 function resolveDevProxyTarget(wsUrl: string | undefined): string | undefined {
@@ -79,15 +73,15 @@ export default defineConfig({
   main: {
     plugins: [
       {
-        name: "honk:copy-server-dist",
+        name: "honk:copy-core-dist",
         apply: "build",
         async writeBundle() {
-          const targetDir = resolve(desktopOutDir, "server");
+          const targetDir = resolve(desktopOutDir, "core");
           await rm(targetDir, { recursive: true, force: true });
           await mkdir(targetDir, { recursive: true });
-          await cp(serverDistDir, targetDir, {
+          await cp(coreDistDir, targetDir, {
             recursive: true,
-            filter: shouldCopyDesktopServerFile,
+            filter: shouldCopyDesktopCoreFile,
           });
         },
       },
@@ -97,7 +91,10 @@ export default defineConfig({
       sourcemap: buildSourcemap,
       emptyOutDir: true,
       externalizeDeps: {
-        exclude: ["@honk/runtime"],
+        // Workspace packages ship raw .ts via their exports maps, so the main
+        // process must bundle them — Node ESM cannot resolve their extensionless
+        // relative imports at runtime.
+        exclude: ["@honk/core", "@honk/shared"],
         include: ["sqlite3"],
       },
       lib: {

@@ -6,7 +6,7 @@
       "specifier": "oxlint-plugin-react-doctor"
     }
   ],
-  "plugins": ["typescript", "oxc"],
+  "plugins": ["typescript", "oxc", "import"],
   "options": {
     "typeAware": true
   },
@@ -23,13 +23,45 @@
   "rules": {
     "react-doctor/no-set-state-in-render": "error",
     "react-doctor/react-compiler-no-manual-memoization": "warn",
-    "typescript/consistent-return": "off"
+    "typescript/consistent-return": "off",
+    "typescript/unbound-method": ["error", { "ignoreStatic": true }],
+    "import/no-cycle": ["error", { "ignoreExternal": true }],
+    "import/no-self-import": "error",
+    "import/default": "off",
+    "import/namespace": "off",
+    "import/no-named-as-default": "off",
+    "import/no-named-as-default-member": "off"
   },
   "overrides": [
     {
       "files": ["packages/marketing/**"],
       "rules": {
         "react-doctor/react-compiler-no-manual-memoization": "off"
+      }
+    },
+    {
+      "files": ["packages/app/**", "packages/desktop/**"],
+      "rules": {
+        "import/no-cycle": "warn",
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              "@honk/contracts",
+              "@honk/contracts/*",
+              "@honk/runtime",
+              "@honk/runtime/*",
+              "@honk/client-runtime",
+              "@honk/client-runtime/*"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/shared/**"],
+      "rules": {
+        "no-restricted-imports": ["error", { "patterns": ["@honk/contracts", "@honk/contracts/*"] }]
       }
     }
   ],

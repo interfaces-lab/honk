@@ -1,10 +1,6 @@
-import {
-  AccountId,
-  AuthProviderId,
-  ModelId,
-  type AgentModelPolicy,
-  type ModelSelection,
-} from "@honk/contracts";
+import { AccountId, AuthProviderId, ModelId } from "./base-schemas";
+import type { AgentModelPolicy } from "./agent-model-policy";
+import type { ModelSelection } from "./model";
 import { getModelOptionBooleanSelectionValue } from "./model";
 
 export const CURSOR_PROVIDER_ID = "cursor";

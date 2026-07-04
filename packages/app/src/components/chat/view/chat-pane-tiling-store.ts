@@ -1,4 +1,5 @@
-import { EnvironmentId, type ScopedThreadRef, ThreadId } from "@honk/contracts";
+import { EnvironmentId, type ScopedThreadRef } from "@honk/shared/environment";
+import { ThreadId } from "@honk/shared/base-schemas";
 import { create } from "zustand";
 
 import { DraftId } from "~/stores/chat-drafts";

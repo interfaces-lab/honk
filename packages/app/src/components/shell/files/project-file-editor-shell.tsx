@@ -1,4 +1,4 @@
-import type { EnvironmentId } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
 import { Button } from "@honk/honkkit/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as monaco from "monaco-editor";

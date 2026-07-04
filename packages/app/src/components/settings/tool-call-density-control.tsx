@@ -1,7 +1,4 @@
-import {
-  USER_CONVERSATION_DENSITY_VALUES,
-  type ConversationDensity,
-} from "@honk/contracts/settings";
+import { USER_CONVERSATION_DENSITY_VALUES, type ConversationDensity } from "@honk/shared/conversation-density";
 import { IconChevronRightMedium } from "central-icons";
 
 import { ToolCallRenderer, type ToolCallModel } from "../chat/message/tool-renderer";

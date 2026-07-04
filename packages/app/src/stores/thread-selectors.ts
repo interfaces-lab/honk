@@ -1,10 +1,7 @@
-import {
-  type MessageId,
-  type OrchestrationThreadActivity,
-  type ScopedProjectRef,
-  type ScopedThreadRef,
-  type ThreadId,
-} from "@honk/contracts";
+import type { MessageId } from "@honk/shared/base-schemas";
+import type { OrchestrationThreadActivity } from "@honk/shared/orchestration";
+import type { ScopedProjectRef, ScopedThreadRef } from "@honk/shared/environment";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import { selectEnvironmentState, type AppState, type EnvironmentState } from "./thread-store";
 import {
   type ChatMessage,

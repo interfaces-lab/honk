@@ -1,7 +1,8 @@
 "use client";
 
 import { scopeProjectRef, scopeThreadRef } from "~/lib/environment-scope";
-import { DEFAULT_PROJECTLESS_CWD, type ResolvedKeybindingsConfig } from "@honk/contracts";
+import { DEFAULT_PROJECTLESS_CWD } from "@honk/shared/project";
+import type { ResolvedKeybindingsConfig } from "@honk/shared/keybindings";
 import { normalizePathSeparators } from "@honk/shared/paths";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import {

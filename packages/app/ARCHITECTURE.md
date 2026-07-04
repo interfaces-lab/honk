@@ -4,13 +4,12 @@ The app is a Promise-client UI layer. It coordinates user turns, projects chat r
 
 ## Package Boundaries
 
-| Package                | Allowed                                                                           | Forbidden                                                                                                                                      |
-| ---------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/app`         | `@honk/contracts`, `@honk/client-runtime`, `@honk/shared`, React/Zustand UI state | Pi imports, `@honk/runtime`, server internals, Effect services in stores, IPC channel strings, renderer orchestration ingestion from Pi events |
-| `@honk/client-runtime` | Promise clients for `HonkRuntimeApi`, `EnvironmentApi`, `LocalApi`                | Pi, server internals, UI state                                                                                                                 |
-| `@honk/runtime`        | Pi SDK, projections, `ThreadAgentRuntime`, sidecars                               | React, app stores, desktop IPC                                                                                                                 |
-| `packages/desktop`     | `@honk/runtime`, IPC, runtime ingestion, Effect services                          | Pi types in renderer/preload                                                                                                                   |
-| `packages/server`      | Durable orchestration facts and projections                                       | Pi execution, runtime display rows, `chatTimelineRows`                                                                                         |
+| Package            | Allowed                                                              | Forbidden                                                                                                    |
+| ------------------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `packages/app`     | `@honk/shared`, `@honk/api`, React/Zustand UI state, bridge wrappers | Pi imports, Core internals, Effect services in stores, IPC channel strings, renderer synthesis from Pi events |
+| `packages/desktop` | Core process launch, IPC, aux services, Electron integration         | Pi types in renderer/preload, app UI state                                                                   |
+| `@honk/core`       | Harness execution, durable thread state, auth, terminal runtime      | React, app stores, desktop IPC                                                                               |
+| `@honk/shared`     | Shared schemas, model types, bridge contracts                        | App, desktop, or Core implementation details                                                                 |
 
 ## Agent-Adjacent SDK Surfaces
 
@@ -63,7 +62,7 @@ the right layer.
 
 | Layer             | Cursor symbol            | Honk file / symbol                                                                                                         |
 | ----------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| Storage + migrate | `HFr` key, `XBn` aliases | `contracts/settings.ts` `ConversationDensity` (decode-time legacy migration)                                               |
+| Storage + migrate | `HFr` key, `XBn` aliases | `@honk/shared/conversation-density` `ConversationDensity` (decode-time legacy migration)                                  |
 | Settings UI       | `ETA` + `ATA` slider     | `settings/appearance/appearance-settings-panel.tsx` + `tool-call-density-control.tsx` (slider + live preview)              |
 | Config read       | `f4o` / `GMS` / `Cjt`    | `hooks/use-settings.ts` → `hooks/use-conversation-density.ts`                                                              |
 | Distribution      | `F5r` / `SCe` context    | hook + prop (`messages-timeline.tsx`, `tool-message.tsx`) — no provider                                                    |

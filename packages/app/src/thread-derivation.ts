@@ -1,4 +1,9 @@
-import type { MessageId, ThreadEntryId, ThreadId, TurnId } from "@honk/contracts";
+import type {
+  MessageId,
+  ThreadEntryId,
+  TurnId,
+} from "@honk/shared/base-schemas";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import type { EnvironmentState } from "./stores/thread-store";
 import type {
   ChatMessage,

@@ -1,5 +1,5 @@
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID, scopedThreadKey } from "~/lib/environment-scope";
-import type { ScopedThreadRef } from "@honk/contracts";
+import type { ScopedThreadRef } from "@honk/shared/environment";
 import { SidebarButton, SidebarItem } from "@honk/honkkit/sidebar";
 import { IconArchive1, IconCrossMedium, IconPin, IconUnpin } from "central-icons";
 import {

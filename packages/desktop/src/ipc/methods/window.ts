@@ -1,6 +1,8 @@
 import {
   BrowserAutomationRegisterInput,
   BrowserAutomationUnregisterInput,
+} from "@honk/shared/browser-automation";
+import {
   ContextMenuItemSchema,
   DesktopActiveWorkStateSchema,
   DesktopAppBrandingSchema,
@@ -8,15 +10,18 @@ import {
   DesktopThemeSchema,
   DesktopWindowChromeStateSchema,
   PickFolderOptionsSchema,
-} from "@honk/contracts";
+} from "@honk/shared/desktop-api";
+import { OpenInEditorInput } from "@honk/shared/editor";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import * as Electron from "electron";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import * as Net from "node:net";
 
-import * as DesktopBackendManager from "../../backend/desktop-backend-manager";
+import * as DesktopCoreManager from "../../backend/desktop-core-manager";
 import * as DesktopBrowserAutomation from "../../browser/browser-automation";
 import * as DesktopActiveWork from "../../app/desktop-active-work";
 import * as DesktopEnvironment from "../../app/desktop-environment";
@@ -174,22 +179,28 @@ export const getLocalEnvironmentBootstrap = makeSyncIpcMethod({
   result: Schema.NullOr(DesktopEnvironmentBootstrapSchema),
   trace: false,
   handler: Effect.fnUntraced(function* () {
-    const backendManager = yield* DesktopBackendManager.DesktopBackendManager;
+    const coreManager = yield* DesktopCoreManager.DesktopCoreManager;
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
-    const config = yield* backendManager.currentConfig;
+    const config = yield* coreManager.currentConfig;
+    const snapshot = yield* coreManager.snapshot;
     return Option.match(config, {
       onNone: () => null,
-      onSome: ({ bootstrap, httpBaseUrl }) => {
-        const browserBaseUrl = Option.getOrElse(environment.devServerUrl, () => httpBaseUrl);
+      onSome: ({ discoveryPath, home }) => {
+        const origin = Option.getOrUndefined(snapshot.discoveredOrigin);
+        if (!origin) {
+          return null;
+        }
+        const browserBaseUrl = Option.getOrElse(environment.devServerUrl, () => new URL(origin));
+        const bootstrapToken = readFileSync(join(home, "core", "core-app-secret"), "utf8").trim();
         return {
-          label: "Local environment",
-          httpBaseUrl: httpBaseUrl.href,
+          label: "Core",
+          httpBaseUrl: origin,
           browserBootstrapUrl: buildBrowserBootstrapUrl({
             baseUrl: browserBaseUrl.href,
-            bootstrapToken: bootstrap.desktopBootstrapToken,
+            bootstrapToken,
           }),
-          bootstrapToken: bootstrap.desktopBootstrapToken,
-          runId: bootstrap.runId,
+          bootstrapToken,
+          runId: discoveryPath,
         };
       },
     });
@@ -422,6 +433,16 @@ export const openExternal = makeIpcMethod({
   handler: Effect.fn("desktop.ipc.window.openExternal")(function* (url) {
     const shell = yield* ElectronShell.ElectronShell;
     return yield* shell.openExternal(url);
+  }),
+});
+
+export const openInEditor = makeIpcMethod({
+  channel: IpcChannels.OPEN_IN_EDITOR_CHANNEL,
+  payload: OpenInEditorInput,
+  result: Schema.Boolean,
+  handler: Effect.fn("desktop.ipc.window.openInEditor")(function* (input) {
+    const shell = yield* ElectronShell.ElectronShell;
+    return yield* shell.openInEditor(input);
   }),
 });
 

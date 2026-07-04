@@ -2,7 +2,8 @@
 
 import type { Toast as BaseToast } from "@base-ui/react/toast";
 import { type CSSProperties } from "react";
-import { type ScopedThreadRef, type ThreadId } from "@honk/contracts";
+import type { ScopedThreadRef } from "@honk/shared/environment";
+import type { ThreadId } from "@honk/shared/base-schemas";
 import {
   IconCheckmark1,
   IconCircleCheck,

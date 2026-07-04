@@ -1,4 +1,4 @@
-import type { DesktopEnvironmentBootstrap } from "@honk/contracts";
+import type { DesktopEnvironmentBootstrap } from "@honk/shared/desktop-api";
 import type { KnownEnvironment } from "~/lib/environment-scope";
 
 export interface PrimaryEnvironmentTarget {
@@ -12,7 +12,7 @@ let cachedDesktopBootstrap: DesktopEnvironmentBootstrap | null = null;
 
 export function readDesktopLocalEnvironmentBootstrap(): DesktopEnvironmentBootstrap | null {
   const bridge = window.desktopBridge ?? null;
-  if (cachedDesktopBootstrapBridge === bridge) {
+  if (cachedDesktopBootstrapBridge === bridge && cachedDesktopBootstrap !== null) {
     return cachedDesktopBootstrap;
   }
 

@@ -1,4 +1,4 @@
-import { type ThreadId } from "@honk/contracts";
+import type { ThreadId } from "@honk/shared/base-schemas";
 
 export interface TerminalContextSelection {
   terminalId: string;

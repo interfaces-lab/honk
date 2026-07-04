@@ -1,4 +1,4 @@
-import type { EnvironmentId, ScopedThreadRef } from "@honk/contracts";
+import type { EnvironmentId, ScopedThreadRef } from "@honk/shared/environment";
 import { getRouteApi, useRouter } from "@tanstack/react-router";
 import { Spinner } from "@honk/honkkit/spinner";
 import { useShallow } from "zustand/react/shallow";

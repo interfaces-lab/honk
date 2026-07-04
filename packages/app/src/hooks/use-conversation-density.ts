@@ -1,4 +1,4 @@
-import type { ConversationDensity } from "@honk/contracts/settings";
+import type { ConversationDensity } from "@honk/shared/conversation-density";
 import { useSettings } from "./use-settings";
 
 export function useConversationDensity(): ConversationDensity {

@@ -2,7 +2,7 @@ import {
   DesktopUpdateActionResultSchema,
   DesktopUpdateCheckResultSchema,
   DesktopUpdateStateSchema,
-} from "@honk/contracts";
+} from "@honk/shared/desktop-api";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 

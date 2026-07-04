@@ -1,5 +1,5 @@
+import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
 import {
-  type AgentInteractionMode,
   type ComposerModeKeybindingCommand,
   type KeybindingCommand,
   type KeybindingShortcut,
@@ -7,7 +7,7 @@ import {
   type ResolvedKeybindingsConfig,
   THREAD_JUMP_KEYBINDING_COMMANDS,
   type ThreadJumpKeybindingCommand,
-} from "@honk/contracts";
+} from "@honk/shared/keybindings";
 import { isMacPlatform } from "./lib/utils";
 
 export const COMMAND_PALETTE_FALLBACK_KEYBINDINGS: ResolvedKeybindingsConfig = [

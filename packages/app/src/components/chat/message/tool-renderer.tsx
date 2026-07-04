@@ -21,7 +21,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import type { ConversationDensity } from "@honk/contracts/settings";
+import type { ConversationDensity } from "@honk/shared/conversation-density";
 import { shouldUseCompactEdits, shouldUseCompactShells } from "@honk/shared/conversation-density";
 import {
   formatDuration,

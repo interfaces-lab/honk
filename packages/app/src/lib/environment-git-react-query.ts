@@ -1,4 +1,5 @@
-import type { EnvironmentId, GitFileImageResult, GitFilePatchResult } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { GitFileImageResult, GitFilePatchResult } from "@honk/shared/git";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 
 import type { GitFileState } from "~/lib/ui-session-types";

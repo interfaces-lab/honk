@@ -75,7 +75,12 @@ export default {
     buildResources: "resources",
     output: "dist",
   },
-  files: ["out/**/*", "!out/**/*.map", "!out/server/client/**/*", "resources/**/*"],
+  files: [
+    "out/**/*",
+    "out/core/**/*",
+    "!out/**/*.map",
+    "resources/**/*",
+  ],
   publish: resolvePublishConfig(),
   mac: {
     target: ["dmg", "zip"],

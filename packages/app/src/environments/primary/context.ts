@@ -3,15 +3,20 @@ import {
   createKnownEnvironment,
   type KnownEnvironment,
 } from "~/lib/environment-scope";
-import type { EnvironmentId, ExecutionEnvironmentDescriptor } from "@honk/contracts";
+import type { EnvironmentId, ExecutionEnvironmentDescriptor } from "@honk/shared/environment";
+import { EnvironmentId as EnvironmentIdSchema } from "@honk/shared/environment";
 import { create } from "zustand";
 
 import { BootstrapHttpError, retryTransientBootstrap } from "./auth";
 
-import { readPrimaryEnvironmentTarget, resolvePrimaryEnvironmentHttpUrl } from "./target";
+import {
+  readDesktopLocalEnvironmentBootstrap,
+  readPrimaryEnvironmentTarget,
+  resolvePrimaryEnvironmentHttpUrl,
+} from "./target";
 import { useStore } from "~/stores/thread-store";
 
-const SERVER_ENVIRONMENT_DESCRIPTOR_PATH = "/.well-known/honk/environment";
+const PRIMARY_CORE_ENVIRONMENT_ID = EnvironmentIdSchema.make("core");
 
 interface PrimaryEnvironmentBootstrapState {
   readonly descriptor: ExecutionEnvironmentDescriptor | null;
@@ -49,17 +54,28 @@ function createPrimaryKnownEnvironment(input: {
 
 async function fetchPrimaryEnvironmentDescriptor(): Promise<ExecutionEnvironmentDescriptor> {
   return retryTransientBootstrap(async () => {
-    const response = await fetch(
-      resolvePrimaryEnvironmentHttpUrl(SERVER_ENVIRONMENT_DESCRIPTOR_PATH),
-    );
+    const response = await fetch(resolvePrimaryEnvironmentHttpUrl("/core/v1/health"));
     if (!response.ok) {
       throw new BootstrapHttpError({
-        message: `Failed to load server environment descriptor (${response.status}).`,
+        message: `Failed to load core health (${response.status}).`,
         status: response.status,
       });
     }
 
-    const descriptor = (await response.json()) as ExecutionEnvironmentDescriptor;
+    const health = (await response.json()) as { readonly version?: unknown };
+    const descriptor: ExecutionEnvironmentDescriptor = {
+      environmentId: PRIMARY_CORE_ENVIRONMENT_ID,
+      label: readDesktopLocalEnvironmentBootstrap()?.label ?? "Core",
+      platform: {
+        os: "unknown",
+        arch: "other",
+      },
+      serverVersion: typeof health.version === "string" ? health.version : "unknown",
+      capabilities: {
+        repositoryIdentity: false,
+      },
+      startupStatus: "ready",
+    };
     writePrimaryEnvironmentDescriptor(descriptor);
     return descriptor;
   });

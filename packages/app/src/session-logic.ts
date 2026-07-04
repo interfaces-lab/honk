@@ -7,20 +7,26 @@ import {
 import { Data, Effect, Option, Predicate } from "effect";
 import {
   ApprovalRequestId,
+  type TurnId,
+} from "@honk/shared/base-schemas";
+import {
   isToolLifecycleItemType,
-  type OrchestrationLatestTurn,
-  type OrchestrationThreadActivity,
-  type OrchestrationProposedPlanId,
-  type RuntimeDisplayTimelineExtensionUiRequestItem,
-  type RuntimeDisplayTimelineMessageItem,
-  type RuntimeDisplayTimelineToolItem,
-  type DesktopExtensionUiRequestKind,
-  type RuntimeRequestKind,
   type ToolLifecycleItemType,
   type UserInputQuestion,
-  type ThreadId,
-  type TurnId,
-} from "@honk/contracts";
+} from "@honk/shared/runtime-events";
+import type {
+  RuntimeDisplayTimelineExtensionUiRequestItem,
+  RuntimeDisplayTimelineMessageItem,
+  RuntimeDisplayTimelineToolItem,
+  DesktopExtensionUiRequestKind,
+} from "@honk/shared/runtime";
+import type {
+  OrchestrationLatestTurn,
+  OrchestrationThreadActivity,
+  OrchestrationProposedPlanId,
+  RuntimeRequestKind,
+} from "@honk/shared/orchestration";
+import type { ThreadId } from "@honk/shared/base-schemas";
 
 import type { ChatMessage, ProposedPlan, SessionPhase, Thread, ThreadSession } from "./types";
 import { arePlanMarkdownTodosComplete } from "./plan/proposed-plan";

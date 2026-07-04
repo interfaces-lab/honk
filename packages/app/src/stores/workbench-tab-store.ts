@@ -1,4 +1,4 @@
-import { DEFAULT_TERMINAL_ID } from "@honk/contracts";
+import { DEFAULT_TERMINAL_ID } from "@honk/shared/terminal";
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 

@@ -1,4 +1,5 @@
-import { EnvironmentId, ProjectId, type ScopedProjectRef } from "@honk/contracts";
+import { EnvironmentId, type ScopedProjectRef } from "@honk/shared/environment";
+import { ProjectId } from "@honk/shared/base-schemas";
 import { useSyncExternalStore } from "react";
 import { useShallow } from "zustand/react/shallow";
 

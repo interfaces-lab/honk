@@ -1,5 +1,5 @@
-import type { EnvironmentId, ScopedProjectRef } from "@honk/contracts";
-import type { SidebarThreadSortOrder } from "@honk/contracts/settings";
+import type { EnvironmentId, ScopedProjectRef } from "@honk/shared/environment";
+import type { SidebarThreadSortOrder } from "@honk/shared/client-settings";
 import { projectScriptCwd } from "@honk/shared/project-scripts";
 
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID, scopeProjectRef } from "~/lib/environment-scope";

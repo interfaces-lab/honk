@@ -1,16 +1,16 @@
 import { useAtomValue } from "@effect/atom-react";
+import type { EnvironmentId } from "@honk/shared/environment";
 import {
-  type EnvironmentId,
   GitManagerError,
   type GitManagerServiceError,
   type GitStatusResult,
-} from "@honk/contracts";
+} from "@honk/shared/git";
 import { Cause } from "effect";
 import { Atom } from "effect/unstable/reactivity";
 import { useSyncExternalStore } from "react";
 
 import { appAtomRegistry } from "../rpc/atom-registry";
-import { subscribeEnvironmentConnections } from "../environments/runtime";
+import { subscribeCoreEnvironmentConnections } from "../environments/core";
 import { readResolvedEnvironmentGitApi, type EnvironmentGitApi } from "./environment-git-api";
 import { isTransportConnectionErrorMessage } from "../rpc/transport-error";
 
@@ -303,7 +303,7 @@ function subscribeToGitStatusTarget(targetKey: string, target: GitStatusTarget):
     currentUnsubscribe = subscribeToGitStatus(targetKey, cwd, resolved.client);
   };
 
-  const unsubscribeRegistry = subscribeEnvironmentConnections(syncClientSubscription);
+  const unsubscribeRegistry = subscribeCoreEnvironmentConnections(syncClientSubscription);
   syncClientSubscription();
 
   return () => {

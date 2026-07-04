@@ -1,4 +1,5 @@
-import type { EnvironmentId, ThreadId } from "@honk/contracts";
+import type { EnvironmentId } from "@honk/shared/environment";
+import type { ThreadId } from "@honk/shared/base-schemas";
 
 const GIT_AGENT_ACTION_INSTRUCTIONS = [
   "Run this Git action from Source Control.",
