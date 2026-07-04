@@ -10,12 +10,8 @@ const workspaceFiles = [
   "package.json",
   "pnpm-workspace.yaml",
   "pnpm-lock.yaml",
-  "packages/server/package.json",
-  "packages/runtime/package.json",
   "packages/desktop/package.json",
   "packages/app/package.json",
-  "packages/client-runtime/package.json",
-  "packages/contracts/package.json",
   "packages/shared/package.json",
   "packages/honkkit/package.json",
   "packages/release-scripts/package.json",
@@ -23,10 +19,8 @@ const workspaceFiles = [
 ] as const;
 
 const releasePackageFiles = [
-  "packages/server/package.json",
   "packages/desktop/package.json",
   "packages/app/package.json",
-  "packages/contracts/package.json",
 ] as const;
 
 function copyWorkspaceManifestFixture(targetRoot: string): void {
@@ -124,10 +118,8 @@ try {
     stdio: "inherit",
   });
 
-  assertPackageVersion(tempRoot, "packages/server/package.json", "9.9.9-smoke.0");
   assertPackageVersion(tempRoot, "packages/desktop/package.json", "9.9.9-smoke.0");
   assertPackageVersion(tempRoot, "packages/app/package.json", "9.9.9-smoke.0");
-  assertPackageVersion(tempRoot, "packages/contracts/package.json", "9.9.9-smoke.0");
 
   const { arm64Path, x64Path } = writeMacManifestFixtures(tempRoot);
   execFileSync(

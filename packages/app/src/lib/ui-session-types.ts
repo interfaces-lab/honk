@@ -1,11 +1,10 @@
 import type { OrchestrationSessionStatus } from "@honk/shared/orchestration";
 
 /**
- * UI session types (formerly in @honk/contracts).
+ * UI session types kept locally for the app.
  *
- * Types that already exist in @honk/contracts (ThreadId, ModelSelection,
- * AgentInteractionMode, etc.) are NOT duplicated here --
- * import those directly from @honk/contracts.
+ * Types that already exist in shared packages (ThreadId, ModelSelection,
+ * AgentInteractionMode, etc.) are NOT duplicated here.
  */
 
 // ── Primitive ────────────────────────────────────────────────────────
@@ -322,7 +321,7 @@ export interface UiSkill {
   body: string;
 }
 
-// ── Git (Glass-specific shapes, not in @honk/contracts) ───────────
+// ── Git (app-specific shapes) ───────────
 
 export type GitFileState =
   | "modified"

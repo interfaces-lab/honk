@@ -12,17 +12,13 @@ import type {
   DesktopUpdateState,
   DesktopWindowChromeState,
 } from "@honk/shared/desktop-api";
-import type {
-  HonkRuntimeHostEvent,
-  HonkRuntimeApi,
-} from "@honk/contracts";
 
 interface DesktopAuxEndpoint {
   readonly baseUrl: string;
   readonly bearer: string;
 }
 
-type DesktopBridgeWithAux = DesktopBridge & {
+type DesktopBridgeWithAux = DesktopBridge<never> & {
   readonly getAuxEndpoint: () => Promise<DesktopAuxEndpoint | null>;
 };
 
@@ -34,6 +30,7 @@ const SET_DISPLAY_ZOOM_CHANNEL = "desktop:set-display-zoom";
 const EXPAND_WINDOW_WIDTH_CHANNEL = "desktop:expand-window-width";
 const CONTEXT_MENU_CHANNEL = "desktop:context-menu";
 const OPEN_EXTERNAL_CHANNEL = "desktop:open-external";
+const OPEN_IN_EDITOR_CHANNEL = "desktop:open-in-editor";
 const SHOW_ITEM_IN_FOLDER_CHANNEL = "desktop:show-item-in-folder";
 const MENU_ACTION_CHANNEL = "desktop:menu-action";
 const UPDATE_STATE_CHANNEL = "desktop:update-state";
@@ -57,63 +54,7 @@ const GET_CLIENT_SETTINGS_CHANNEL = "desktop:get-client-settings";
 const SET_CLIENT_SETTINGS_CHANNEL = "desktop:set-client-settings";
 const GET_SERVER_EXPOSURE_STATE_CHANNEL = "desktop:get-server-exposure-state";
 const SET_SERVER_EXPOSURE_MODE_CHANNEL = "desktop:set-server-exposure-mode";
-const RUNTIME_GET_HOST_SNAPSHOT_CHANNEL = "desktop:runtime-get-host-snapshot";
-const RUNTIME_GET_PREFERENCES_CHANNEL = "desktop:runtime-get-preferences";
-const RUNTIME_UPDATE_PREFERENCES_CHANNEL = "desktop:runtime-update-preferences";
-const RUNTIME_CONFIGURE_CREDENTIAL_CHANNEL = "desktop:runtime-configure-credential";
-const RUNTIME_HYDRATE_THREAD_CHANNEL = "desktop:runtime-hydrate-thread";
-const RUNTIME_CLONE_THREAD_CHANNEL = "desktop:runtime-clone-thread";
-const RUNTIME_SET_THREAD_FOCUS_CHANNEL = "desktop:runtime-set-thread-focus";
-const RUNTIME_SEND_TURN_CHANNEL = "desktop:runtime-send-turn";
-const RUNTIME_ENQUEUE_FOLLOW_UP_CHANNEL = "desktop:runtime-enqueue-follow-up";
-const RUNTIME_UPDATE_QUEUED_FOLLOW_UP_CHANNEL = "desktop:runtime-update-queued-follow-up";
-const RUNTIME_REMOVE_QUEUED_FOLLOW_UP_CHANNEL = "desktop:runtime-remove-queued-follow-up";
-const RUNTIME_REORDER_QUEUED_FOLLOW_UP_CHANNEL = "desktop:runtime-reorder-queued-follow-up";
-const RUNTIME_SEND_QUEUED_FOLLOW_UP_NOW_CHANNEL = "desktop:runtime-send-queued-follow-up-now";
-const RUNTIME_COMPACT_THREAD_CHANNEL = "desktop:runtime-compact-thread";
-const RUNTIME_ABORT_CHANNEL = "desktop:runtime-abort";
-const RUNTIME_RESPOND_EXTENSION_UI_CHANNEL = "desktop:runtime-respond-extension-ui";
-const RUNTIME_LIST_SKILLS_CHANNEL = "desktop:runtime-list-skills";
-const RUNTIME_GET_THREAD_SESSION_FILE_CHANNEL = "desktop:runtime-get-thread-session-file";
-const RUNTIME_HOST_EVENT_CHANNEL = "desktop:runtime-host-event";
 const LOG_RENDERER_DIAGNOSTIC_CHANNEL = "desktop:log-renderer-diagnostic";
-
-const desktopRuntimeApi = {
-  getHostSnapshot: () => ipcRenderer.invoke(RUNTIME_GET_HOST_SNAPSHOT_CHANNEL),
-  getPreferences: () => ipcRenderer.invoke(RUNTIME_GET_PREFERENCES_CHANNEL),
-  updatePreferences: (patch) => ipcRenderer.invoke(RUNTIME_UPDATE_PREFERENCES_CHANNEL, patch),
-  configureCredential: (input) => ipcRenderer.invoke(RUNTIME_CONFIGURE_CREDENTIAL_CHANNEL, input),
-  hydrateThread: (input) => ipcRenderer.invoke(RUNTIME_HYDRATE_THREAD_CHANNEL, input),
-  cloneThread: (input) => ipcRenderer.invoke(RUNTIME_CLONE_THREAD_CHANNEL, input),
-  setThreadFocus: (input) => ipcRenderer.invoke(RUNTIME_SET_THREAD_FOCUS_CHANNEL, input),
-  sendTurn: (input) => ipcRenderer.invoke(RUNTIME_SEND_TURN_CHANNEL, input),
-  enqueueFollowUp: (input) => ipcRenderer.invoke(RUNTIME_ENQUEUE_FOLLOW_UP_CHANNEL, input),
-  updateQueuedFollowUp: (input) =>
-    ipcRenderer.invoke(RUNTIME_UPDATE_QUEUED_FOLLOW_UP_CHANNEL, input),
-  removeQueuedFollowUp: (input) =>
-    ipcRenderer.invoke(RUNTIME_REMOVE_QUEUED_FOLLOW_UP_CHANNEL, input),
-  reorderQueuedFollowUp: (input) =>
-    ipcRenderer.invoke(RUNTIME_REORDER_QUEUED_FOLLOW_UP_CHANNEL, input),
-  sendQueuedFollowUpNow: (input) =>
-    ipcRenderer.invoke(RUNTIME_SEND_QUEUED_FOLLOW_UP_NOW_CHANNEL, input),
-  compactThread: (input) => ipcRenderer.invoke(RUNTIME_COMPACT_THREAD_CHANNEL, input),
-  abort: (input) => ipcRenderer.invoke(RUNTIME_ABORT_CHANNEL, input),
-  respondToExtensionUiRequest: (input) =>
-    ipcRenderer.invoke(RUNTIME_RESPOND_EXTENSION_UI_CHANNEL, input),
-  listSkills: (input) => ipcRenderer.invoke(RUNTIME_LIST_SKILLS_CHANNEL, input),
-  getThreadSessionFile: (input) =>
-    ipcRenderer.invoke(RUNTIME_GET_THREAD_SESSION_FILE_CHANNEL, input),
-  onHostEvent: (listener) => {
-    const wrappedListener = (_event: IpcRendererEvent, hostEvent: HonkRuntimeHostEvent) => {
-      listener(hostEvent);
-    };
-
-    ipcRenderer.on(RUNTIME_HOST_EVENT_CHANNEL, wrappedListener);
-    return () => {
-      ipcRenderer.removeListener(RUNTIME_HOST_EVENT_CHANNEL, wrappedListener);
-    };
-  },
-} satisfies HonkRuntimeApi;
 
 function readWindowChromeState(): DesktopWindowChromeState {
   const state: unknown = ipcRenderer.sendSync(GET_WINDOW_CHROME_STATE_CHANNEL);
@@ -189,6 +130,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(EXPAND_WINDOW_WIDTH_CHANNEL, additionalWidth),
   showContextMenu: (items, position) => ipcRenderer.invoke(CONTEXT_MENU_CHANNEL, items, position),
   openExternal: (url: string) => ipcRenderer.invoke(OPEN_EXTERNAL_CHANNEL, url),
+  openInEditor: (cwd, editor) => ipcRenderer.invoke(OPEN_IN_EDITOR_CHANNEL, { cwd, editor }),
   showItemInFolder: (path: string) => ipcRenderer.invoke(SHOW_ITEM_IN_FOLDER_CHANNEL, path),
   onMenuAction: (listener) => {
     const wrappedListener = (_event: IpcRendererEvent, action: unknown) => {
@@ -217,7 +159,4 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   },
   logRendererDiagnostic: (input: DesktopRendererDiagnosticInput) =>
     ipcRenderer.invoke(LOG_RENDERER_DIAGNOSTIC_CHANNEL, input),
-  runtime: desktopRuntimeApi,
 } satisfies DesktopBridgeWithAux);
-
-contextBridge.exposeInMainWorld("honkRuntime", desktopRuntimeApi);

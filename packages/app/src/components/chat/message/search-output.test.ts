@@ -11,7 +11,7 @@ describe("search output parser", () => {
           " 42: export interface ToolSearchArtifact {",
           ' 43-   type: "search";',
           "",
-          "packages/runtime/src/display-timeline-projection.ts",
+          "packages/core/src/stream.ts",
           " 101: function projectRuntimeToolDisplay() {}",
         ].join("\n"),
       ),
@@ -35,7 +35,7 @@ describe("search output parser", () => {
           ],
         },
         {
-          path: "packages/runtime/src/display-timeline-projection.ts",
+              path: "packages/core/src/stream.ts",
           lines: [
             {
               lineNumber: 101,
@@ -53,7 +53,7 @@ describe("search output parser", () => {
       parseFindOutput(
         [
           "packages/app/src/components/chat/message/tool-renderer.tsx  [often touched file]",
-          "packages/runtime/src/display-timeline-projection.ts  [modified in git]",
+          "packages/core/src/stream.ts  [modified in git]",
           "",
           '[38 more matches available. cursor="1" to continue]',
         ].join("\n"),
@@ -66,7 +66,7 @@ describe("search output parser", () => {
           annotation: "often touched file",
         },
         {
-          path: "packages/runtime/src/display-timeline-projection.ts",
+            path: "packages/core/src/stream.ts",
           annotation: "modified in git",
         },
       ],

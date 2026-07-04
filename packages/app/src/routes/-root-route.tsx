@@ -3,7 +3,6 @@ import { getRouteApi, Outlet, type ErrorComponentProps, useNavigate } from "@tan
 import { useState } from "react";
 
 import { CommandPalette } from "~/components/command-palette";
-import { WebSocketConnectionCoordinator } from "~/components/web-socket-connection-surface";
 import { TaskCompletionNotifications } from "~/notifications/taskCompletion";
 import { AnchoredToastProvider, ToastProvider } from "~/app/toast";
 import { syncBrowserChromeTheme } from "~/hooks/use-theme";
@@ -11,8 +10,7 @@ import { useMountEffect } from "~/hooks/use-mount-effect";
 import { DevDevtoolsPanel } from "~/dev/devtools-panel";
 import { useSettings } from "~/hooks/use-settings";
 import { APPEARANCE_SETTINGS_CHANGED } from "~/lib/appearance-settings";
-import { startEnvironmentConnectionService } from "~/environments/runtime";
-import { startDesktopRuntimeHostSync } from "~/stores/agent-runtime-store";
+import { startCoreEnvironmentConnectionService } from "~/environments/core";
 import { readDesktopLocalEnvironmentBootstrap } from "~/environments/primary/target";
 import { RootStatusPage } from "./-root-status-page";
 
@@ -57,8 +55,6 @@ export function RootRouteView() {
       <AnchoredToastProvider>
         <CursorPreferenceSync />
         <EnvironmentConnectionServiceSync />
-        <WebSocketConnectionCoordinator />
-        <DesktopRuntimeHostBootstrap />
         <TaskCompletionNotifications />
         <CommandPalette>
           <Outlet />
@@ -96,7 +92,7 @@ function BrowserChromeThemeSync() {
 function EnvironmentConnectionServiceSync() {
   const queryClient = useQueryClient();
 
-  useMountEffect(() => startEnvironmentConnectionService(queryClient));
+  useMountEffect(() => startCoreEnvironmentConnectionService(queryClient));
 
   return null;
 }
@@ -242,10 +238,4 @@ async function copyText(value: string): Promise<void> {
     return;
   }
   await navigator.clipboard.writeText(value);
-}
-
-function DesktopRuntimeHostBootstrap() {
-  useMountEffect(() => startDesktopRuntimeHostSync());
-
-  return null;
 }

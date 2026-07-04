@@ -91,9 +91,9 @@ Subagents support `effective_readonly` and `use_ask_mode_for_subagent` proto fie
 
 Honk uses `**AgentInteractionMode = "ask"**` (orthogonal to `AgentMode` rush/smart/deep/composer).
 
-**Enforcement** in `[packages/runtime/src/thread-agent-runtime.ts](packages/runtime/src/thread-agent-runtime.ts)`:
+**Enforcement** in `[packages/core/src/thread-agent-runtime.ts](packages/core/src/thread-agent-runtime.ts)`:
 
-```2064:2070:packages/runtime/src/thread-agent-runtime.ts
+```2064:2070:packages/core/src/thread-agent-runtime.ts
     case "ask":
       return [
         "## Honk Interaction Mode: Ask",
@@ -119,8 +119,8 @@ Honk uses `**AgentInteractionMode = "ask"**` (orthogonal to `AgentMode` rush/sma
 | Explicit `READ-ONLY MODE` block with enumerated prohibitions | 4 generic lines                                                                                                                                       | **Thin guidance** — model not told *how* to explore vs answer     |
 | Explore subagent specialist identity                         | No ask-specific exploration persona                                                                                                                   | **No delegation pattern** for broad codebase questions            |
 | `isEagerEditingModel` anti-over-edit nudge                   | Absent in ask                                                                                                                                         | **Missing "don't implement when asked to explain"**               |
-| Mode-aware base identity                                     | `[HONK_SYSTEM_PROMPT_IDENTITY](packages/runtime/src/thread-agent-runtime.ts)` always says *"executing commands, editing code, and writing new files"* | **Contradicts ask mode**                                          |
-| Codex tool-use nudge                                         | `[CODEX_TOOL_USE_NUDGE](packages/runtime/src/codex-runtime-policy-extension.ts)` always appended for rush/deep                                        | **Tells model to use shell/apply_patch while tools are disabled** |
+| Mode-aware base identity                                     | `[HONK_SYSTEM_PROMPT_IDENTITY](packages/core/src/thread-agent-runtime.ts)` always says *"executing commands, editing code, and writing new files"* | **Contradicts ask mode**                                          |
+| Codex tool-use nudge                                         | `[CODEX_TOOL_USE_NUDGE](packages/core/src/codex-runtime-policy-extension.ts)` always appended for rush/deep                                        | **Tells model to use shell/apply_patch while tools are disabled** |
 | Citation / code-reference conventions                        | Not in ask guidance                                                                                                                                   | Cursor explore subagent expects file:line references              |
 | `ask_question` usage rules                                   | Global tool guidelines only                                                                                                                           | No ask-mode-scoped "when to clarify vs infer"                     |
 
@@ -147,8 +147,8 @@ Honk uses `**AgentInteractionMode = "ask"**` (orthogonal to `AgentMode` rush/sma
 
 ### Subagent gaps
 
-- `[subagent-extension.ts](packages/runtime/src/subagent-extension.ts)`: children always `interactionMode: "agent"` — full write posture if subagent were reachable.
-- `[subagent-profiles.ts](packages/runtime/src/subagent-profiles.ts)`: `librarian`/`oracle` `READONLY_TOOLS` includes `bash` — inconsistent with ask semantics.
+- `[subagent-extension.ts](packages/core/src/subagent-extension.ts)`: children always `interactionMode: "agent"` — full write posture if subagent were reachable.
+- `[subagent-profiles.ts](packages/core/src/subagent-profiles.ts)`: `librarian`/`oracle` `READONLY_TOOLS` includes `bash` — inconsistent with ask semantics.
 
 ---
 
@@ -156,7 +156,7 @@ Honk uses `**AgentInteractionMode = "ask"**` (orthogonal to `AgentMode` rush/sma
 
 ### Phase 1 — Prompt parity (highest ROI, matches your ask)
 
-**File:** `[packages/runtime/src/thread-agent-runtime.ts](packages/runtime/src/thread-agent-runtime.ts)`
+**File:** `[packages/core/src/thread-agent-runtime.ts](packages/core/src/thread-agent-runtime.ts)`
 
 Replace the 4-line `interactionModeGuidance("ask")` block with a Cursor-shaped prompt (~15–25 lines), structured like the explore subagent:
 
@@ -175,16 +175,16 @@ Replace the 4-line `interactionModeGuidance("ask")` block with a Cursor-shaped p
 - `**createHonkSystemPromptIdentityExtension`:** when `interactionMode === "ask"`, use a read-only identity string (*"You help users understand their codebase by reading and searching — you do not modify files or run mutating commands"*) instead of the edit-capable default.
 - Pass interaction mode into identity extension (consume from same `InteractionModeQueue` or thread-scoped mode on `before_agent_start`).
 
-**File:** `[packages/runtime/src/codex-runtime-policy-extension.ts](packages/runtime/src/codex-runtime-policy-extension.ts)`
+**File:** `[packages/core/src/codex-runtime-policy-extension.ts](packages/core/src/codex-runtime-policy-extension.ts)`
 
 - Gate `CODEX_TOOL_USE_NUDGE` on `policy.interactionMode !== "ask"` (and optionally `"plan"`).
 - Thread `interactionMode` through `AgentModelPolicy` if not already present on the policy object passed to this extension.
 
-**Optional:** Add ask-mode-scoped `promptGuidelines` on `ask_question` in `[desktop-agent-extensions.ts](packages/runtime/src/desktop-agent-extensions.ts)` (pattern from `[plan-extension.ts](packages/runtime/src/plan-extension.ts)`).
+**Optional:** Add ask-mode-scoped `promptGuidelines` on `ask_question` in `[desktop-agent-extensions.ts](packages/core/src/desktop-agent-extensions.ts)` (pattern from `[plan-extension.ts](packages/core/src/plan-extension.ts)`).
 
 ### Phase 2 — Enforcement parity
 
-**File:** `[packages/runtime/src/thread-agent-runtime.ts](packages/runtime/src/thread-agent-runtime.ts)`
+**File:** `[packages/core/src/thread-agent-runtime.ts](packages/core/src/thread-agent-runtime.ts)`
 
 1. **Fix follow-up path:** In `submitNextQueuedComposerFollowUpWithPiFollowUp`, before `session.followUp`:
   - `interactionModeQueue.enqueue(item.interactionMode)`
@@ -196,7 +196,7 @@ Replace the 4-line `interactionModeGuidance("ask")` block with a Cursor-shaped p
 
 ### Phase 3 — Tool allowlist alignment
 
-**File:** `[packages/runtime/src/thread-agent-runtime.ts](packages/runtime/src/thread-agent-runtime.ts)` — `READ_ONLY_MODE_TOOLS`
+**File:** `[packages/core/src/thread-agent-runtime.ts](packages/core/src/thread-agent-runtime.ts)` — `READ_ONLY_MODE_TOOLS`
 
 Audit Pi-registered tools at session creation, then expand allowlist to match Cursor's read-only set where Honk has equivalents:
 
@@ -204,17 +204,17 @@ Audit Pi-registered tools at session creation, then expand allowlist to match Cu
 - Add if registered: `read_lints` (or Honk equivalent), any semantic/codebase search tool names
 - Explicitly **exclude** in guidance + tests: `bash`, `edit`, `write`, `subagent`, `browser_`*, `mcp__*`, `create_plan`, `apply_patch`
 
-**File:** `[packages/runtime/src/subagent-extension.ts](packages/runtime/src/subagent-extension.ts)`
+**File:** `[packages/core/src/subagent-extension.ts](packages/core/src/subagent-extension.ts)`
 
 - When parent `interactionMode === "ask"`: either block `subagent` entirely **or** allow only `librarian`/`oracle` with parent ask mode propagated (`interactionMode: "ask"` on child runtime).
 
-**File:** `[packages/runtime/src/subagent-profiles.ts](packages/runtime/src/subagent-profiles.ts)`
+**File:** `[packages/core/src/subagent-profiles.ts](packages/core/src/subagent-profiles.ts)`
 
 - Remove `bash` from `READONLY_TOOLS` for librarian/oracle (true read-only recon).
 
 ### Phase 4 — Tests
 
-**File:** `[packages/runtime/test/thread-agent-runtime.interaction-mode.test.ts](packages/runtime/test/thread-agent-runtime.interaction-mode.test.ts)`
+**File:** `[packages/core/test/thread-agent-runtime.interaction-mode.test.ts](packages/core/test/thread-agent-runtime.interaction-mode.test.ts)`
 
 Add coverage for:
 
@@ -259,7 +259,7 @@ flowchart TD
 ## Out of Scope (unless you want them)
 
 - Recreating Cursor's server-injected `askSystemReminderGenerator` pipeline (Honk owns prompts client-side — better to inline the explore-subagent template)
-- Cursor Composer provider–specific ask paths (`[cursor-composer-provider.ts](packages/runtime/src/cursor-composer-provider.ts)`) — only if composer agent mode needs separate handling
+- Cursor Composer provider–specific ask paths (`[cursor-composer-provider.ts](packages/core/src/cursor-composer-provider.ts)`) — only if composer agent mode needs separate handling
 - External `.md` prompt files — inline TS strings match current Honk conventions
 
 ---

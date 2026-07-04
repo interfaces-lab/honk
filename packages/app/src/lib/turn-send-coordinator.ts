@@ -1,10 +1,9 @@
 import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
-import type { EnvironmentApi } from "@honk/contracts";
+import type { EnvironmentApi } from "~/desktop-bridge";
 import type {
   MessageId,
   ThreadEntryId,
 } from "@honk/shared/base-schemas";
-import type { ThreadAgentRuntimeImageAttachment } from "@honk/shared/runtime";
 import { threadEntryIdForMessageId } from "@honk/shared/thread-tree";
 import type {
   ChatAttachment,
@@ -28,10 +27,6 @@ import { selectEnvironmentState, useStore } from "~/stores/thread-store";
 import { getThreadFromEnvironmentState } from "~/thread-derivation";
 import { DEFAULT_RUNTIME_MODE } from "~/types";
 import { newCommandId } from "~/lib/utils";
-import {
-  type PreparedRuntimeTurnPolicy,
-  sendRuntimeTurnWithPreparedPolicy,
-} from "./runtime-turn-dispatch";
 
 export interface TurnSendMessageContent {
   readonly text: string;
@@ -66,7 +61,7 @@ export interface CoordinateTurnSendInput {
   readonly sourceProposedPlan?: SourceProposedPlanReference | null;
   readonly bootstrap?: ThreadTurnStartBootstrap;
   readonly cwd: string;
-  readonly preparedPolicy: PreparedRuntimeTurnPolicy;
+  readonly preparedPolicy?: unknown;
   readonly api: EnvironmentApi | undefined;
   readonly appendSendIntent?: boolean;
   readonly applyLocalTurnStart?: boolean;
@@ -142,7 +137,6 @@ export async function coordinateTurnSend(
     });
   }
 
-  let runtimeCwd = input.cwd;
   let serverTurnStartSucceeded = false;
   let runtimeSendSucceeded = false;
   let serverPersistenceError: unknown = null;
@@ -171,59 +165,10 @@ export async function coordinateTurnSend(
     }
   };
 
-  const startRuntimeBeforePersistence = input.startRuntimeBeforePersistence ?? true;
-  let runtimeSendPromise: Promise<void> | null = null;
-  const startRuntimeTurn = (): Promise<void> => {
-    if (!runtimeSendPromise) {
-      input.onBeforeRuntimeSend?.();
-      runtimeSendPromise = (async () => {
-        const turnAttachments = await input.message.getTurnAttachments();
-        const runtimeInput = {
-          threadId: input.threadId,
-          cwd: runtimeCwd,
-          text: input.message.text,
-          interactionMode: input.interactionMode,
-          sourceProposedPlan: input.sourceProposedPlan ?? null,
-          clientMessageId: input.clientMessageId,
-          replacesClientMessageId: input.replacesClientMessageId ?? null,
-          parentEntryId: localParentEntryId,
-          images: turnAttachments as ThreadAgentRuntimeImageAttachment[],
-          modelSelection: input.modelSelection,
-          preparedPolicy: input.preparedPolicy,
-        };
-        try {
-          await sendRuntimeTurnWithPreparedPolicy(runtimeInput);
-        } catch (error) {
-          if (
-            input.parentEntryId !== undefined ||
-            localParentEntryId === null ||
-            !isRuntimeParentResolutionError(error)
-          ) {
-            throw error;
-          }
-          await sendRuntimeTurnWithPreparedPolicy({
-            threadId: runtimeInput.threadId,
-            cwd: runtimeInput.cwd,
-            text: runtimeInput.text,
-            interactionMode: runtimeInput.interactionMode,
-            sourceProposedPlan: runtimeInput.sourceProposedPlan,
-            clientMessageId: runtimeInput.clientMessageId,
-            replacesClientMessageId: runtimeInput.replacesClientMessageId,
-            images: runtimeInput.images,
-            modelSelection: runtimeInput.modelSelection,
-            preparedPolicy: runtimeInput.preparedPolicy,
-          });
-        }
-        runtimeSendSucceeded = true;
-      })();
-      void runtimeSendPromise.catch(() => undefined);
-    }
-    return runtimeSendPromise;
-  };
-
-  if (startRuntimeBeforePersistence) {
-    void startRuntimeTurn();
-  }
+  void input.cwd;
+  void input.preparedPolicy;
+  void input.startRuntimeBeforePersistence;
+  void input.onBeforeRuntimeSend;
 
   if (input.persistBeforeDispatch) {
     await input.persistBeforeDispatch().catch(captureServerPersistenceError);
@@ -260,17 +205,14 @@ export async function coordinateTurnSend(
             worktreePath: dispatchResult.preparedWorktree.worktreePath,
             branch: dispatchResult.preparedWorktree.branch,
           };
-          runtimeCwd = preparedWorktree.worktreePath;
         }
       } catch (error) {
-        if (!startRuntimeBeforePersistence) {
-          throw error;
-        }
         captureServerPersistenceError(error);
+        throw error;
       }
     }
 
-    await startRuntimeTurn();
+    runtimeSendSucceeded = serverTurnStartSucceeded;
   } finally {
     clearUnpersistedLocalArtifacts();
   }
@@ -281,16 +223,6 @@ export async function coordinateTurnSend(
     serverPersistenceError,
     preparedWorktree,
   };
-}
-
-function isRuntimeParentResolutionError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-  return (
-    error.message.includes("Cannot branch from thread entry") &&
-    error.message.includes("runtime entry not found")
-  );
 }
 
 export function buildThreadTurnStartCommand(input: {

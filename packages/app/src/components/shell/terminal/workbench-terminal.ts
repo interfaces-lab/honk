@@ -1,6 +1,6 @@
-import type { EnvironmentApi } from "@honk/contracts";
 import type { EnvironmentId } from "@honk/shared/environment";
 
+import type { EnvironmentApi } from "~/desktop-bridge";
 import { readEnvironmentApiWithFallback } from "~/environment-api";
 
 type WorkbenchTerminalApi = EnvironmentApi["terminal"];

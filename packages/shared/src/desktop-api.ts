@@ -329,6 +329,7 @@ export interface DesktopBridge<RuntimeApi = unknown> {
     position?: { x: number; y: number },
   ) => Promise<T | null>;
   openExternal: (url: string) => Promise<boolean>;
+  openInEditor: (cwd: string, editor: EditorId) => Promise<boolean>;
   showItemInFolder: (path: string) => Promise<boolean>;
   onMenuAction: (listener: (action: string) => void) => () => void;
   getUpdateState: () => Promise<DesktopUpdateState>;
@@ -346,7 +347,7 @@ export interface DesktopBridge<RuntimeApi = unknown> {
  * These capabilities describe the desktop/browser host that the user is
  * currently running: dialogs, editor/external-link opening, context menus, and
  * app-level settings persistence. Server config operations stay generic here
- * because their concrete ws-rpc envelopes remain in @honk/contracts.
+ * so desktop/web shells can bind their own transport.
  */
 export interface LocalApi<RuntimeApi = unknown, ServerApi = unknown> {
   runtime?: RuntimeApi;
@@ -377,8 +378,8 @@ export interface LocalApi<RuntimeApi = unknown, ServerApi = unknown> {
  *
  * These operations must always be routed with explicit environment context.
  * They represent remote stateful capabilities such as terminal, project, and
- * git operations. Filesystem and orchestration stay generic here because their
- * concrete contracts remain in @honk/contracts.
+ * git operations. Filesystem and orchestration stay generic here so the app can
+ * bind the active environment transport.
  */
 export interface EnvironmentApi<FilesystemApi = unknown, OrchestrationApi = unknown> {
   terminal: {

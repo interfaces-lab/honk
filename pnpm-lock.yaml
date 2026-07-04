@@ -138,18 +138,9 @@ importers:
       '@honk/api':
         specifier: workspace:*
         version: link:../api
-      '@honk/client-runtime':
-        specifier: workspace:*
-        version: link:../client-runtime
-      '@honk/contracts':
-        specifier: workspace:*
-        version: link:../contracts
       '@honk/honkkit':
         specifier: workspace:*
         version: link:../honkkit
-      '@honk/runtime':
-        specifier: workspace:*
-        version: link:../runtime
       '@honk/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -329,50 +320,6 @@ importers:
         specifier: ^2.2.0
         version: 2.2.0(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@4.1.9)
 
-  packages/client-runtime:
-    dependencies:
-      '@honk/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-    devDependencies:
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.0.0
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@26.0.0)(@vitest/browser-playwright@4.1.9)(msw@2.12.11(@types/node@26.0.0)(typescript@6.0.3))(vite@8.0.16(@types/node@26.0.0)(jiti@2.7.0)(yaml@2.9.0))
-
-  packages/contracts:
-    dependencies:
-      '@honk/shared':
-        specifier: workspace:*
-        version: link:../shared
-      effect:
-        specifier: 'catalog:'
-        version: 4.0.0-beta.59
-    devDependencies:
-      '@effect/language-service':
-        specifier: 'catalog:'
-        version: 0.86.2
-      '@effect/vitest':
-        specifier: 'catalog:'
-        version: 4.0.0-beta.59(effect@4.0.0-beta.59)(vitest@4.1.9)
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.0.0
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.22.3(@typescript/native-preview@7.0.0-dev.20260622.1)(oxc-resolver@11.20.0)(typescript@6.0.3)
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@26.0.0)(@vitest/browser-playwright@4.1.9)(msw@2.12.11(@types/node@26.0.0)(typescript@6.0.3))(vite@8.0.16(@types/node@26.0.0)(jiti@2.7.0)(yaml@2.9.0))
-
   packages/core:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
@@ -409,6 +356,9 @@ importers:
       '@types/ws':
         specifier: 8.18.1
         version: 8.18.1
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.22.3(oxc-resolver@11.20.0)(typescript@6.0.3)(typescript@7.0.1-rc)
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -442,9 +392,6 @@ importers:
       '@honk/core':
         specifier: workspace:*
         version: link:../core
-      '@honk/runtime':
-        specifier: workspace:*
-        version: link:../runtime
       '@honk/shared':
         specifier: workspace:*
         version: link:../shared
@@ -482,9 +429,6 @@ importers:
       '@honk/app':
         specifier: workspace:*
         version: link:../app
-      '@honk/contracts':
-        specifier: workspace:*
-        version: link:../contracts
       '@rolldown/plugin-babel':
         specifier: ^0.2.3
         version: 0.2.3(@babel/core@7.29.7)(@babel/runtime@7.29.2)(rolldown@1.1.0)(vite@8.0.16(@types/node@26.0.0)(jiti@2.7.0)(yaml@2.9.0))
@@ -672,43 +616,6 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
-  packages/runtime:
-    dependencies:
-      '@anthropic-ai/claude-agent-sdk':
-        specifier: ^0.3.170
-        version: 0.3.195(@anthropic-ai/sdk@0.91.1(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
-      '@earendil-works/pi-agent-core':
-        specifier: ^0.80.2
-        version: 0.80.2(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)
-      '@earendil-works/pi-ai':
-        specifier: ^0.80.2
-        version: 0.80.2(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)
-      '@earendil-works/pi-coding-agent':
-        specifier: ^0.80.2
-        version: 0.80.2(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)
-      '@honk/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@honk/shared':
-        specifier: workspace:*
-        version: link:../shared
-      effect:
-        specifier: 'catalog:'
-        version: 4.0.0-beta.59
-      typebox:
-        specifier: ^1.3.0
-        version: 1.3.0
-    devDependencies:
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.0.0
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@26.0.0)(@vitest/browser-playwright@4.1.9)(msw@2.12.11(@types/node@26.0.0)(typescript@6.0.3))(vite@8.0.16(@types/node@26.0.0)(jiti@2.7.0)(yaml@2.9.0))
-
   packages/sdk:
     dependencies:
       '@honk/api':
@@ -733,64 +640,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.0.0
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@26.0.0)(@vitest/browser-playwright@4.1.9)(msw@2.12.11(@types/node@26.0.0)(typescript@6.0.3))(vite@8.0.16(@types/node@26.0.0)(jiti@2.7.0)(yaml@2.9.0))
-
-  packages/server:
-    dependencies:
-      '@effect/platform-bun':
-        specifier: 'catalog:'
-        version: 4.0.0-beta.59(effect@4.0.0-beta.59)
-      '@effect/platform-node':
-        specifier: 'catalog:'
-        version: 4.0.0-beta.59(effect@4.0.0-beta.59)(ioredis@5.11.1)
-      '@effect/sql-sqlite-bun':
-        specifier: 'catalog:'
-        version: 4.0.0-beta.59(effect@4.0.0-beta.59)
-      '@honk/release-scripts':
-        specifier: workspace:*
-        version: link:../release-scripts
-      '@lydell/node-pty':
-        specifier: 1.2.0-beta.12
-        version: 1.2.0-beta.12
-      '@pierre/diffs':
-        specifier: ^1.2.11
-        version: 1.2.11(@shikijs/themes@3.23.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      effect:
-        specifier: 'catalog:'
-        version: 4.0.0-beta.59
-      open:
-        specifier: ^11.0.0
-        version: 11.0.0
-    devDependencies:
-      '@effect/language-service':
-        specifier: 'catalog:'
-        version: 0.86.2
-      '@effect/vitest':
-        specifier: 'catalog:'
-        version: 4.0.0-beta.59(effect@4.0.0-beta.59)(vitest@4.1.9)
-      '@honk/app':
-        specifier: workspace:*
-        version: link:../app
-      '@honk/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@honk/shared':
-        specifier: workspace:*
-        version: link:../shared
-      '@types/bun':
-        specifier: 'catalog:'
-        version: 1.3.14
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.0.0
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.22.3(@typescript/native-preview@7.0.0-dev.20260622.1)(oxc-resolver@11.20.0)(typescript@6.0.3)
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -4474,53 +4323,6 @@ packages:
   '@typescript-eslint/types@8.60.1':
     resolution: {integrity: sha512-4h0tY8ppCkdCzcrl2YM5M3my0xsE1Tf8om3owEu5oPWmXwkKRmk0j0LGDzYBGUcAlesEbxBhazqu/K4cu3Ug7w==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-
-  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260622.1':
-    resolution: {integrity: sha512-g/fjmdh/i/ngSmUeWNHh98iuONzW+kUaqwZRaZCmGkssBJ6ZrJAsyg85cm1t4aK9ne5nNjbjNPzJFTZ+QNMSRw==}
-    engines: {node: '>=16.20.0'}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260622.1':
-    resolution: {integrity: sha512-AqRrnPQCR+7j6u6uC6eQpacJ/btxZW6ktpWxPj7byoyk6kGSSgUb0YNcZ2Iao2brdbYw4LOxVcrVW4mP+K7sxg==}
-    engines: {node: '>=16.20.0'}
-    cpu: [x64]
-    os: [darwin]
-
-  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260622.1':
-    resolution: {integrity: sha512-sxo7AlhQiX5J5WYWBxSBjJ02nA2kiO8j+K51fuF24nmbQRtSLjTa8/BimpYbBywTAsSps8vgnJjsLONf243HYw==}
-    engines: {node: '>=16.20.0'}
-    cpu: [arm64]
-    os: [linux]
-
-  '@typescript/native-preview-linux-arm@7.0.0-dev.20260622.1':
-    resolution: {integrity: sha512-XnDHJZWFY2M8DCzxXj598Ql9op+zYpk6k5X3FYB4KeOXpdzjAke2H9wKW7UKeYfvPJyAgvyS+IapcvogCwx13A==}
-    engines: {node: '>=16.20.0'}
-    cpu: [arm]
-    os: [linux]
-
-  '@typescript/native-preview-linux-x64@7.0.0-dev.20260622.1':
-    resolution: {integrity: sha512-41TR69UuB1be2DmjcavcUMoFipIQNVpqsm1FvVCtGnscL41pDa/ijXHnSwzn7v8EbCgAI7hRUhRsPNPGY3OCKQ==}
-    engines: {node: '>=16.20.0'}
-    cpu: [x64]
-    os: [linux]
-
-  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260622.1':
-    resolution: {integrity: sha512-TMdYylCqBvQOVz6x5dT1HQ/49eLBijNE/uMGD2CA3YR4Hp4NkG+Rqg46NZiaO48D2+sjZws2uoNtPhfefN9IdA==}
-    engines: {node: '>=16.20.0'}
-    cpu: [arm64]
-    os: [win32]
-
-  '@typescript/native-preview-win32-x64@7.0.0-dev.20260622.1':
-    resolution: {integrity: sha512-ROz8ncFZsMC2nn8ClBZ3wLNXpea6BbdMYyNTWx8xYrikhOIgFlkmAdc10PA/MiOh78RraUbdWvwbXNe19He+iQ==}
-    engines: {node: '>=16.20.0'}
-    cpu: [x64]
-    os: [win32]
-
-  '@typescript/native-preview@7.0.0-dev.20260622.1':
-    resolution: {integrity: sha512-t4XoYz/Jr1Jt7wkaHwe4e/r3OcYgKxvL0dqfZsnBmqG8HsJ57VpOwd0PINU5b5umcb4g9akVto028L70lAJUpA==}
-    engines: {node: '>=16.20.0'}
-    hasBin: true
 
   '@typescript/typescript-aix-ppc64@7.0.1-rc':
     resolution: {integrity: sha512-oqq2ZfEJ7BQuufcC3QBQndZLPNyamYNHLao8lKRBeeSkZKypBqxPSgkzrcFZtbYcIaBvpiyUnQP9MT7DEYHWbw==}
@@ -12414,38 +12216,6 @@ snapshots:
 
   '@typescript-eslint/types@8.60.1': {}
 
-  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260622.1':
-    optional: true
-
-  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260622.1':
-    optional: true
-
-  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260622.1':
-    optional: true
-
-  '@typescript/native-preview-linux-arm@7.0.0-dev.20260622.1':
-    optional: true
-
-  '@typescript/native-preview-linux-x64@7.0.0-dev.20260622.1':
-    optional: true
-
-  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260622.1':
-    optional: true
-
-  '@typescript/native-preview-win32-x64@7.0.0-dev.20260622.1':
-    optional: true
-
-  '@typescript/native-preview@7.0.0-dev.20260622.1':
-    optionalDependencies:
-      '@typescript/native-preview-darwin-arm64': 7.0.0-dev.20260622.1
-      '@typescript/native-preview-darwin-x64': 7.0.0-dev.20260622.1
-      '@typescript/native-preview-linux-arm': 7.0.0-dev.20260622.1
-      '@typescript/native-preview-linux-arm64': 7.0.0-dev.20260622.1
-      '@typescript/native-preview-linux-x64': 7.0.0-dev.20260622.1
-      '@typescript/native-preview-win32-arm64': 7.0.0-dev.20260622.1
-      '@typescript/native-preview-win32-x64': 7.0.0-dev.20260622.1
-    optional: true
-
   '@typescript/typescript-aix-ppc64@7.0.1-rc':
     optional: true
 
@@ -16421,7 +16191,7 @@ snapshots:
 
   robust-predicates@3.0.3: {}
 
-  rolldown-plugin-dts@0.26.0(@typescript/native-preview@7.0.0-dev.20260622.1)(oxc-resolver@11.20.0)(rolldown@1.1.2)(typescript@6.0.3):
+  rolldown-plugin-dts@0.26.0(oxc-resolver@11.20.0)(rolldown@1.1.2)(typescript@6.0.3)(typescript@7.0.1-rc):
     dependencies:
       '@babel/generator': 8.0.0
       '@babel/helper-validator-identifier': 8.0.2
@@ -16433,7 +16203,7 @@ snapshots:
       obug: 2.1.3
       rolldown: 1.1.2
     optionalDependencies:
-      '@typescript/native-preview': 7.0.0-dev.20260622.1
+      '@typescript/native-preview': typescript@7.0.1-rc
       typescript: 6.0.3
     transitivePeerDependencies:
       - oxc-resolver
@@ -17059,7 +16829,7 @@ snapshots:
 
   ts-dedent@2.2.0: {}
 
-  tsdown@0.22.3(@typescript/native-preview@7.0.0-dev.20260622.1)(oxc-resolver@11.20.0)(typescript@6.0.3):
+  tsdown@0.22.3(oxc-resolver@11.20.0)(typescript@6.0.3)(typescript@7.0.1-rc):
     dependencies:
       ansis: 4.3.1
       cac: 7.0.0
@@ -17070,7 +16840,7 @@ snapshots:
       obug: 2.1.3
       picomatch: 4.0.4
       rolldown: 1.1.2
-      rolldown-plugin-dts: 0.26.0(@typescript/native-preview@7.0.0-dev.20260622.1)(oxc-resolver@11.20.0)(rolldown@1.1.2)(typescript@6.0.3)
+      rolldown-plugin-dts: 0.26.0(oxc-resolver@11.20.0)(rolldown@1.1.2)(typescript@6.0.3)(typescript@7.0.1-rc)
       semver: 7.8.4
       tinyexec: 1.2.4
       tinyglobby: 0.2.17

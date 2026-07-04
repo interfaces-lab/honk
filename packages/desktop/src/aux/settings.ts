@@ -647,8 +647,8 @@ export class DesktopAuxSettingsService {
 		this.started = true;
 		await fs.mkdir(path.dirname(this.settingsPath), { recursive: true });
 		await fs.mkdir(path.dirname(this.keybindingsConfigPath), { recursive: true });
-		// Mirrors packages/server/src/keybindings.ts startup sync: create the file with defaults,
-		// then backfill newly added defaults unless the user file currently has parse issues.
+		// Create the keybindings file with defaults, then backfill newly added defaults unless the
+		// user file currently has parse issues.
 		await this.syncDefaultKeybindingsOnStartup();
 		this.settingsCache = await this.loadSettingsFromDisk();
 		this.keybindingsCache = await this.loadConfigStateFromDisk();
@@ -896,7 +896,7 @@ export class DesktopAuxSettingsService {
 			if (this.settingsWatchTimer) {
 				clearTimeout(this.settingsWatchTimer);
 			}
-			// Mirrors packages/server/src/server-settings.ts: debounce editor truncate/write/rename.
+			// Debounce editor truncate/write/rename bursts before re-reading settings.
 			this.settingsWatchTimer = setTimeout(() => {
 				void this.revalidateSettingsFromWatch();
 			}, SETTINGS_WATCH_DEBOUNCE_MS);
@@ -920,7 +920,7 @@ export class DesktopAuxSettingsService {
 			if (this.keybindingsWatchTimer) {
 				clearTimeout(this.keybindingsWatchTimer);
 			}
-			// Mirrors packages/server/src/keybindings.ts: debounce file-save event bursts.
+			// Debounce file-save bursts before re-reading keybindings.
 			this.keybindingsWatchTimer = setTimeout(() => {
 				void this.revalidateKeybindingsFromWatch();
 			}, KEYBINDINGS_WATCH_DEBOUNCE_MS);

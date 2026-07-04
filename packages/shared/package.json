@@ -76,6 +76,10 @@
       "types": "./src/desktop-api.ts",
       "import": "./src/desktop-api.ts"
     },
+    "./filesystem": {
+      "types": "./src/filesystem.ts",
+      "import": "./src/filesystem.ts"
+    },
     "./git": {
       "types": "./src/git.ts",
       "import": "./src/git.ts"

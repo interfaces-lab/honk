@@ -7,7 +7,7 @@
 - `thread.turn.interrupt` and `thread.session.stop` dispatch to `honk.threads.interrupt`.
 - `thread.user-input.respond` dispatches to `honk.threads.answerQuestion`.
 - Terminal open/create/list/attach/write/resize/restart/close/event streaming maps to `honk.terminals`. The app's stable terminal tab id is stored as the core terminal title because core generates terminal ids.
-- Desktop-local git and settings/config route through the desktop aux server when `HONK_AUX_SERVICES=1`; web/serve mode has no aux and reports those methods as unavailable.
+- Desktop-local git and settings/config route through the desktop aux server in desktop mode; web/serve mode has no aux and reports those methods as unavailable.
 - Desktop-local project list/create/update/delete route through the desktop aux `/projects` registry when aux is present. The registry stores project metadata and scripts; `repositoryIdentity` is derived from git remotes at serve/event time and cached. Web/serve mode has no aux and exposes no projects.
 
 ## Remaining gaps

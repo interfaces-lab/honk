@@ -10,6 +10,7 @@ export {
   readCoreEnvironmentConnection,
   requireCoreEnvironmentConnection,
   resetCoreEnvironmentServiceForTests,
+  resolveCoreEnvironmentHttpUrl,
   retainCoreThreadDetailSubscription,
   startCoreEnvironmentConnectionService,
   subscribeCoreEnvironmentConnections,

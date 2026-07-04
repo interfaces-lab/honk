@@ -7,8 +7,8 @@ record, projections, the three Harnesses, store, auth, PTY, the honk bin; import
 @honk/api and must never import @honk/core). opencode's further schema/protocol split is deliberately
 collapsed into @honk/api — that split earns its keep only with codegen or multiple protocol bindings, and
 we have neither; the dependency discipline survives as an enforced import rule instead of a package
-boundary. At cutover, contracts, runtime, server, and client-runtime are deleted; app, desktop, honkkit,
-marketing, and release-scripts survive.
+boundary. At cutover, the legacy stack packages are deleted; app, desktop, honkkit, marketing, and
+release-scripts survive.
 
 File philosophy: one file per domain concept, however long — part.ts owns everything Part, thread.ts owns
 the Thread aggregate, each Harness adapter is one file. No utils/, no helpers/, no types.ts dumping
@@ -21,7 +21,6 @@ Preparatory commits may add new @honk/api, @honk/core, @honk/sdk, and Core-App-l
 tickets + WS, worktree thread metadata, local settings/keybindings, the desktop-local git service)
 while the legacy server still runs untouched — additions are not half-states. What "no interleaved
 half-states" forbids is any commit in which app or desktop speaks both stacks at once: the final
-commit atomically switches app+desktop to @honk/sdk AND deletes contracts, runtime, server, and
-client-runtime together. The port map that sized this staging is the Round 7 investigation
-(cited edge set: app's contracts-shaped state layer, the 5,300-LOC git service, PTY ownership in
-the legacy server).
+commit atomically switches app+desktop to @honk/sdk and deletes the legacy stack together. The port
+map that sized this staging is the Round 7 investigation (cited edge set: app's former shared state
+layer, the 5,300-LOC git service, PTY ownership in the legacy backend).

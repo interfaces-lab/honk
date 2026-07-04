@@ -60,7 +60,7 @@ import type {
   ThreadTurnState,
   TurnDiffSummary,
 } from "../types";
-import { resolveEnvironmentHttpUrl } from "../environments/runtime";
+import { resolveCoreEnvironmentHttpUrl } from "../environments/core";
 import { sanitizeThreadErrorMessage } from "../rpc/transport-error";
 import { getThreadFromEnvironmentState } from "../thread-derivation";
 import {
@@ -181,6 +181,21 @@ function mapSession(session: OrchestrationSession): ThreadSession {
   };
 }
 
+function resolveAttachmentPreviewUrl(
+  environmentId: EnvironmentId,
+  attachmentId: string,
+): string {
+  const pathname = attachmentPreviewRoutePath(attachmentId);
+  try {
+    return resolveCoreEnvironmentHttpUrl({
+      environmentId,
+      pathname,
+    });
+  } catch {
+    return typeof window === "undefined" ? pathname : new URL(pathname, window.location.href).href;
+  }
+}
+
 function mapMessage(environmentId: EnvironmentId, message: MessageInput): ChatMessage {
   const attachments = message.attachments?.map((attachment) => ({
     type: "image" as const,
@@ -188,12 +203,7 @@ function mapMessage(environmentId: EnvironmentId, message: MessageInput): ChatMe
     name: attachment.name,
     mimeType: attachment.mimeType,
     sizeBytes: attachment.sizeBytes,
-    previewUrl:
-      attachment.previewUrl ??
-      resolveEnvironmentHttpUrl({
-        environmentId,
-        pathname: attachmentPreviewRoutePath(attachment.id),
-      }),
+    previewUrl: attachment.previewUrl ?? resolveAttachmentPreviewUrl(environmentId, attachment.id),
   }));
 
   return {
@@ -972,7 +982,7 @@ function buildMessageSlice(thread: Thread): {
 }
 
 function toolItemTypeForName(toolName: string): ToolLifecycleItemType {
-  // TODO: Use runtimeToolItemTypeForName from @honk/runtime if @honk/app gains that dependency.
+  // TODO: Replace this mirror when the core API exposes the canonical mapping.
   switch (toolName) {
     case "bash":
       return "command_execution";
@@ -3794,7 +3804,7 @@ function contextWindowActivityForRuntimeEvent(
   if (event.type !== "context-window.updated" || !isThreadTokenUsageSnapshot(event.data)) {
     return null;
   }
-  // Mirror runtimeContextWindowActivities in @honk/runtime so the persisted copy
+  // Mirror core context window activity handling so the persisted copy
   // replaces this live one instead of duplicating it.
   return {
     id: EventId.make(`runtime-activity:${event.id}`),

@@ -1648,7 +1648,7 @@ export class DesktopAuxGitService {
 		const targetBranch = input.newBranch ?? input.branch;
 		const sanitizedBranch = targetBranch.replace(/\//g, "-");
 		const repoName = path.basename(input.cwd);
-		// Mirrors packages/server/src/git/GitCore.ts createWorktree: null path derives under worktreesDir/repo/branch.
+		// Null path derives under worktreesDir/repo/branch so callers can omit local layout details.
 		const worktreePath = input.path ?? path.join(this.worktreesDir, repoName, sanitizedBranch);
 		const args = input.newBranch
 			? ["worktree", "add", "-b", input.newBranch, worktreePath, input.branch]
@@ -2084,7 +2084,7 @@ export class DesktopAuxGitService {
 				["--git-dir", gitCommonDir, "fetch", "--quiet", "--no-tags", upstream.remoteName],
 				{ allowNonZeroExit: true, timeoutMs: STATUS_UPSTREAM_REFRESH_TIMEOUT_MS },
 			);
-			// Mirrors packages/server/src/git/GitCore.ts: cache successful remote status fetches for 15s.
+			// Cache successful remote status fetches briefly to avoid repeated network work.
 			this.upstreamRefreshCache.set(cacheKey, Date.now() + STATUS_UPSTREAM_REFRESH_INTERVAL_MS);
 		} catch {
 			this.upstreamRefreshCache.set(cacheKey, Date.now() + STATUS_UPSTREAM_REFRESH_FAILURE_COOLDOWN_MS);
@@ -3206,9 +3206,8 @@ export class DesktopAuxGitService {
 				commitMessage: formatCommitMessage(customCommit.subject, customCommit.body),
 			};
 		}
-		// Legacy source: packages/server/src/git/GitManager.ts delegates empty commit/branch
-		// messages to TextGeneration. Desktop-local aux has no Core/TextGeneration dependency in this slice,
-		// so the deterministic fallback preserves the operation without inventing an AI integration.
+		// Empty commit/branch messages used to delegate to text generation. This desktop-local aux
+		// slice keeps a deterministic fallback without inventing an AI integration.
 		const firstChangedPath = context.stagedSummary.split(/\r?\n/g)[0]?.split(/\s+/g).pop() ?? "project files";
 		const subject = `Update ${firstChangedPath}`.slice(0, 72).trimEnd();
 		const body = context.stagedSummary;
@@ -3560,8 +3559,7 @@ export class DesktopAuxGitService {
 		if (watcher.timer) {
 			clearTimeout(watcher.timer);
 		}
-		// Legacy source: packages/server/src/git/GitStatusBroadcaster.ts debounces local watch
-		// events by 1s and then sleeps for 5s to avoid status refresh storms.
+		// Debounce local watch events, then cool down to avoid status refresh storms.
 		watcher.timer = setTimeout(() => {
 			watcher.timer = null;
 			void this.refreshLocalStatus(cwd, true)

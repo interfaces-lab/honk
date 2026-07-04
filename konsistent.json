@@ -3,10 +3,22 @@
   "version": "v1",
   "conventions": [
     {
-      "name": "shared-must-not-import-contracts",
-      "description": "Cut boundary: @honk/shared is self-contained. Contracts re-exports FROM shared, never the reverse. Guards the shared/contracts migration the cutover deletes contracts against. (oxlint enforces the same via no-restricted-imports; this keeps it visible in the structural config.)",
-      "paths": "packages/shared/src/**/*.ts",
+      "name": "app-desktop-must-not-import-contracts",
+      "description": "Post-cut boundary: app and desktop must use shared/core surfaces instead of the deleted contracts package.",
+      "paths": ["packages/app/src/**/*.{ts,tsx}", "packages/desktop/src/**/*.{ts,tsx}"],
       "mustNot": { "importFrom": "@honk/contracts" }
+    },
+    {
+      "name": "app-desktop-must-not-import-runtime",
+      "description": "Post-cut boundary: app and desktop must not import the deleted runtime package.",
+      "paths": ["packages/app/src/**/*.{ts,tsx}", "packages/desktop/src/**/*.{ts,tsx}"],
+      "mustNot": { "importFrom": "@honk/runtime" }
+    },
+    {
+      "name": "app-desktop-must-not-import-client-runtime",
+      "description": "Post-cut boundary: app and desktop must not import the deleted client-runtime package.",
+      "paths": ["packages/app/src/**/*.{ts,tsx}", "packages/desktop/src/**/*.{ts,tsx}"],
+      "mustNot": { "importFrom": "@honk/client-runtime" }
     }
   ]
 }

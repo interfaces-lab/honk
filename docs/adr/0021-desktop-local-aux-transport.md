@@ -4,9 +4,9 @@ Status: proposed (Round 7, 2026-07-03 — decided on-principle while the user wa
 
 ## Context
 
-The cutover deletes the legacy WS-RPC socket (`contracts`/`runtime`/`server`/`client-runtime`). Today
-that one socket carries *everything* the app needs: threads/turns (now a Core concern), and also three
-concerns that are inherently **local to the machine holding the files** — git management (status,
+The cutover deletes the legacy WS-RPC socket. That socket carried *everything* the app needed:
+threads/turns (now a Core concern), and also three concerns that are inherently **local to the
+machine holding the files** — git management (status,
 branches, worktrees, diff, commit, PR actions), settings/keybindings, and the project registry
 (`Project`: name, cwd, repository identity, default model, scripts). Projects arrive today bundled in
 the `orchestration.subscribeShell` snapshot (`snapshot.projects`).

@@ -8,7 +8,7 @@ import {
   type TerminalEvent,
   type TerminalSessionSnapshot,
 } from "@honk/shared/terminal";
-import type { EnvironmentApi } from "@honk/contracts";
+import type { EnvironmentApi } from "~/desktop-bridge";
 import type { TerminalSession } from "@honk/sdk";
 
 import type { CoreEnvironmentConnection } from "./connection";

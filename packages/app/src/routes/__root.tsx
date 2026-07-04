@@ -7,7 +7,6 @@ import {
   ensurePrimaryEnvironmentReady,
   resolveInitialServerAuthGateState,
 } from "~/environments/primary";
-import { assertRuntimeHostAvailable, isDesktopRuntimeApiAvailable } from "~/lib/honk-runtime-api";
 
 function isStandaloneDevRoute(pathname: string): boolean {
   return import.meta.env.DEV && pathname === "/dev/honkkit";
@@ -21,14 +20,6 @@ export const Route = createRootRouteWithContext<{
       return {
         authGateState: { status: "authenticated" } as const,
         devStandalone: true,
-      };
-    }
-
-    if (isDesktopRuntimeApiAvailable()) {
-      await Promise.all([ensurePrimaryEnvironmentReady(), assertRuntimeHostAvailable()]);
-      return {
-        authGateState: { status: "authenticated" } as const,
-        devStandalone: false,
       };
     }
 

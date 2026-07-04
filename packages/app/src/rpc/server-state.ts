@@ -10,7 +10,6 @@ import type {
 import { Atom } from "effect/unstable/reactivity";
 import { useRef } from "react";
 
-import type { WsRpcClient } from "./ws-rpc-client";
 import { appAtomRegistry, resetAppAtomRegistryForTests } from "./atom-registry";
 
 export type ServerConfigUpdateSource = ServerConfigStreamEvent["type"];
@@ -21,10 +20,13 @@ export interface ServerConfigUpdatedNotification {
   readonly source: ServerConfigUpdateSource;
 }
 
-type ServerStateClient = Pick<
-  WsRpcClient["server"],
-  "getConfig" | "subscribeConfig" | "subscribeLifecycle"
->;
+interface ServerStateClient {
+  readonly getConfig: () => Promise<ServerConfig>;
+  readonly subscribeConfig: (listener: (event: ServerConfigStreamEvent) => void) => () => void;
+  readonly subscribeLifecycle: (
+    listener: (event: { readonly type: "welcome"; readonly payload: ServerLifecycleWelcomePayload }) => void,
+  ) => () => void;
+}
 
 function makeStateAtom<A>(label: string, initialValue: A) {
   return Atom.make(initialValue).pipe(Atom.keepAlive, Atom.withLabel(label));

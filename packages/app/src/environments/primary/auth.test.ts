@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { __resetServerAuthBootstrapForTests, resolveAuthenticatedServerBearerToken } from "./auth";
 
-const AUTH_DESCRIPTOR = {
-  policy: "desktop-managed-local",
-  bootstrapMethods: ["desktop-bootstrap"],
-  sessionMethods: ["bearer-session-token"],
+const AUTH_SNAPSHOT = {
+  credentials: [],
+  harnesses: [],
+  flow: null,
 } as const;
 
 function jsonResponse(body: unknown, init?: ResponseInit): Response {
@@ -55,21 +55,11 @@ describe("resolveAuthenticatedServerBearerToken", () => {
   it("reuses a recently validated bearer session while reconnecting", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = readFetchInputUrl(input);
-      if (url.endsWith("/api/auth/session")) {
+      if (url.endsWith("/core/v1/auth")) {
         const headers = new Headers(init?.headers);
-        return jsonResponse({
-          authenticated: headers.has("authorization"),
-          auth: AUTH_DESCRIPTOR,
-        });
-      }
-      if (url.endsWith("/api/auth/bootstrap")) {
-        return jsonResponse({
-          authenticated: true,
-          role: "owner",
-          sessionMethod: "bearer-session-token",
-          expiresAt: "2026-06-17T13:00:00.000Z",
-          sessionToken: "session-token",
-        });
+        return headers.has("authorization")
+          ? jsonResponse(AUTH_SNAPSHOT)
+          : jsonResponse({ error: "Unauthorized" }, { status: 401 });
       }
       throw new Error(`Unexpected fetch: ${url}`);
     });
@@ -89,21 +79,21 @@ describe("resolveAuthenticatedServerBearerToken", () => {
       },
     });
 
-    await expect(resolveAuthenticatedServerBearerToken()).resolves.toBe("session-token");
-    await expect(resolveAuthenticatedServerBearerToken()).resolves.toBe("session-token");
+    await expect(resolveAuthenticatedServerBearerToken()).resolves.toBe("bootstrap-token");
+    await expect(resolveAuthenticatedServerBearerToken()).resolves.toBe("bootstrap-token");
 
     expect(fetchMock.mock.calls.map(([input]) => readFetchInputUrl(input))).toEqual([
-      "http://127.0.0.1:13773/api/auth/session",
-      "http://127.0.0.1:13773/api/auth/bootstrap",
+      "http://127.0.0.1:13773/core/v1/auth",
+      "http://127.0.0.1:13773/core/v1/auth",
     ]);
 
     vi.setSystemTime(new Date("2026-06-17T12:01:01.000Z"));
-    await expect(resolveAuthenticatedServerBearerToken()).resolves.toBe("session-token");
+    await expect(resolveAuthenticatedServerBearerToken()).resolves.toBe("bootstrap-token");
 
     expect(fetchMock.mock.calls.map(([input]) => readFetchInputUrl(input))).toEqual([
-      "http://127.0.0.1:13773/api/auth/session",
-      "http://127.0.0.1:13773/api/auth/bootstrap",
-      "http://127.0.0.1:13773/api/auth/session",
+      "http://127.0.0.1:13773/core/v1/auth",
+      "http://127.0.0.1:13773/core/v1/auth",
+      "http://127.0.0.1:13773/core/v1/auth",
     ]);
   });
 });

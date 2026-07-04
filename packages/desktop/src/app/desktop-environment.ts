@@ -50,7 +50,6 @@ export interface DesktopEnvironmentShape {
   readonly logDir: string;
   readonly rootDir: string;
   readonly appRoot: string;
-  readonly backendEntryPath: string;
   readonly coreEntryPath: string;
   readonly backendCwd: string;
   readonly preloadPath: string;
@@ -114,9 +113,6 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
   const desktopPackageDir = input.isPackaged ? input.appPath : path.resolve(input.dirname, "../..");
   const rootDir = input.isPackaged ? input.appPath : path.resolve(desktopPackageDir, "../..");
   const appRoot = input.isPackaged ? input.appPath : rootDir;
-  const backendEntryPath = input.isPackaged
-    ? path.join(input.appPath, "out/server/bin.mjs")
-    : path.join(rootDir, "packages/server/dist/bin.mjs");
   const coreEntryPath = input.isPackaged
     ? path.join(input.appPath, "out/core/main.mjs")
     : path.join(rootDir, "packages/core/dist/main.mjs");
@@ -141,7 +137,6 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
     logDir: path.join(stateDir, "logs"),
     rootDir,
     appRoot,
-    backendEntryPath,
     coreEntryPath,
     backendCwd: defaultBackendCwd,
     preloadPath: path.join(input.dirname, "../preload/index.js"),

@@ -1,8 +1,7 @@
 # Interaction Modes — Core-owned definition (working spec)
 
-Distilled from the source-verified legacy study (2026-07-02; enforcement lives in
-packages/runtime/src/thread-agent-runtime.ts:2410-2520 and the plan/debug/subagent extensions). The
-Core owns each mode's meaning; every Harness projects what it can honor (CONTEXT.md: Interaction Mode).
+Distilled from the source-verified legacy study (2026-07-02). The Core owns each mode's
+meaning; every Harness projects what it can honor (CONTEXT.md: Interaction Mode).
 
 ## The five postures
 

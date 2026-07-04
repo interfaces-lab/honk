@@ -11,7 +11,7 @@ import { useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { openChatIndex, openDraft, openThread } from "~/app/chat-navigation";
-import { retainThreadDetailSubscription } from "~/environments/runtime/service";
+import { retainCoreThreadDetailSubscription } from "~/environments/core";
 import {
   type ChatThreadActionContext,
   startNewThreadFromContext,
@@ -594,7 +594,7 @@ export function useAgentSidebarModel(input: {
     if (summary) {
       const threadRef = scopeThreadRef(summary.environmentId, summary.id);
       void openThread(router, threadRef);
-      const releaseThreadDetail = retainThreadDetailSubscription(
+      const releaseThreadDetail = retainCoreThreadDetailSubscription(
         threadRef.environmentId,
         threadRef.threadId,
       );

@@ -8,7 +8,7 @@ import type { ThreadId } from "@honk/shared/base-schemas";
 import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
-import { retainThreadDetailSubscription } from "../../../environments/runtime/service";
+import { retainCoreThreadDetailSubscription } from "../../../environments/core";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { isTerminalFocused } from "../../../lib/terminal-focus";
 import { projectScriptIdFromCommand } from "~/lib/project-scripts";
@@ -71,7 +71,7 @@ export function RetainServerThreadDetailSync({
     if (routeKind !== "server") {
       return;
     }
-    return retainThreadDetailSubscription(environmentId, threadId);
+    return retainCoreThreadDetailSubscription(environmentId, threadId);
   });
 
   return null;

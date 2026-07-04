@@ -12,7 +12,7 @@ let cachedDesktopBootstrap: DesktopEnvironmentBootstrap | null = null;
 
 export function readDesktopLocalEnvironmentBootstrap(): DesktopEnvironmentBootstrap | null {
   const bridge = window.desktopBridge ?? null;
-  if (cachedDesktopBootstrapBridge === bridge) {
+  if (cachedDesktopBootstrapBridge === bridge && cachedDesktopBootstrap !== null) {
     return cachedDesktopBootstrap;
   }
 

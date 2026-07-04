@@ -3,26 +3,6 @@ import * as Effect from "effect/Effect";
 import * as DesktopIpc from "./desktop-ipc";
 import { getAuxEndpoint } from "./methods/aux-endpoint";
 import { getClientSettings, setClientSettings } from "./methods/client-settings";
-import {
-  abortRuntimeThread,
-  cloneRuntimeThread,
-  compactRuntimeThread,
-  configureRuntimeCredential,
-  enqueueRuntimeFollowUp,
-  getRuntimeHostSnapshot,
-  getRuntimePreferences,
-  getRuntimeThreadSessionFile,
-  hydrateRuntimeThread,
-  listRuntimeSkills,
-  removeQueuedRuntimeFollowUp,
-  reorderQueuedRuntimeFollowUp,
-  respondToRuntimeExtensionUiRequest,
-  sendQueuedRuntimeFollowUpNow,
-  sendRuntimeTurn,
-  setRuntimeThreadFocus,
-  updateQueuedRuntimeFollowUp,
-  updateRuntimePreferences,
-} from "./methods/runtime";
 import { logRendererDiagnostic } from "./methods/renderer-diagnostics";
 import { getServerExposureState, setServerExposureMode } from "./methods/server-exposure";
 import { checkForUpdate, downloadUpdate, getUpdateState, installUpdate } from "./methods/updates";
@@ -34,6 +14,7 @@ import {
   getBrowserWebviewPreloadPath,
   getLocalEnvironmentBootstrap,
   getWindowChromeState,
+  openInEditor,
   openExternal,
   pickFolder,
   registerBrowserAutomationHost,
@@ -59,25 +40,6 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(setClientSettings);
   yield* ipc.handle(getAuxEndpoint);
 
-  yield* ipc.handle(getRuntimeHostSnapshot);
-  yield* ipc.handle(getRuntimePreferences);
-  yield* ipc.handle(updateRuntimePreferences);
-  yield* ipc.handle(configureRuntimeCredential);
-  yield* ipc.handle(hydrateRuntimeThread);
-  yield* ipc.handle(cloneRuntimeThread);
-  yield* ipc.handle(setRuntimeThreadFocus);
-  yield* ipc.handle(sendRuntimeTurn);
-  yield* ipc.handle(enqueueRuntimeFollowUp);
-  yield* ipc.handle(updateQueuedRuntimeFollowUp);
-  yield* ipc.handle(removeQueuedRuntimeFollowUp);
-  yield* ipc.handle(reorderQueuedRuntimeFollowUp);
-  yield* ipc.handle(sendQueuedRuntimeFollowUpNow);
-  yield* ipc.handle(compactRuntimeThread);
-  yield* ipc.handle(abortRuntimeThread);
-  yield* ipc.handle(respondToRuntimeExtensionUiRequest);
-  yield* ipc.handle(listRuntimeSkills);
-  yield* ipc.handle(getRuntimeThreadSessionFile);
-
   yield* ipc.handle(getServerExposureState);
   yield* ipc.handle(setServerExposureMode);
 
@@ -94,6 +56,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(setVibrancy);
   yield* ipc.handle(showContextMenu);
   yield* ipc.handle(openExternal);
+  yield* ipc.handle(openInEditor);
   yield* ipc.handle(showItemInFolder);
 
   yield* ipc.handle(getUpdateState);

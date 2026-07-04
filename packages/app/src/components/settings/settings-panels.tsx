@@ -13,7 +13,6 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AGENT_INTERACTION_MODES, type AgentInteractionMode } from "@honk/shared/interaction-mode";
-import type { HonkRuntimeHostSnapshot } from "@honk/contracts";
 import type {
   AgentAuthStatus,
   AgentCredentialAuthFlow,
@@ -81,7 +80,11 @@ import { Switch } from "@honk/honkkit/switch";
 import { Text } from "@honk/honkkit/text";
 import { toastManager } from "~/app/toast";
 import { cn } from "~/lib/utils";
-import { isDesktopRuntimeApiAvailable, readHonkRuntimeApi } from "~/lib/honk-runtime-api";
+import {
+  isDesktopRuntimeApiAvailable,
+  readHonkRuntimeApi,
+  type HonkRuntimeHostSnapshot,
+} from "~/lib/honk-runtime-api";
 import { runtimeSkillsQueryOptions } from "~/lib/runtime-skills";
 import { useAgentRuntimeStore } from "~/stores/agent-runtime-store";
 import { useLocalFeatureFlagsStore } from "~/stores/local-feature-flags";

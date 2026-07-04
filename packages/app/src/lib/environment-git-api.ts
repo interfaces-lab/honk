@@ -1,10 +1,9 @@
-import type { EnvironmentApi } from "@honk/contracts";
 import type { EnvironmentId } from "@honk/shared/environment";
 
-import { readEnvironmentApi, createEnvironmentApi } from "~/environment-api";
+import type { EnvironmentApi } from "~/desktop-bridge";
+import { readEnvironmentApi } from "~/environment-api";
 import { readCoreEnvironmentConnection } from "~/environments/core";
 import { getPrimaryKnownEnvironment } from "~/environments/primary";
-import { readEnvironmentConnection } from "~/environments/runtime";
 
 export type EnvironmentGitApi = EnvironmentApi["git"];
 
@@ -22,14 +21,14 @@ function readPrimaryEnvironmentGitApi(
     return null;
   }
 
-  const connection = readEnvironmentConnection(environmentId);
+  const connection = readCoreEnvironmentConnection(environmentId);
   if (!connection) {
     return null;
   }
   return {
     environmentId: connection.environmentId,
     clientIdentity: connection.environmentId,
-    git: createEnvironmentApi(connection.client).git,
+    git: connection.client.git,
   };
 }
 
@@ -55,15 +54,6 @@ export function readResolvedEnvironmentGitApi(
       environmentId: coreConnection.environmentId,
       clientIdentity: coreConnection.environmentId,
       git: coreConnection.client.git,
-    };
-  }
-
-  const connection = readEnvironmentConnection(environmentId);
-  if (connection) {
-    return {
-      environmentId: connection.environmentId,
-      clientIdentity: connection.environmentId,
-      git: createEnvironmentApi(connection.client).git,
     };
   }
 

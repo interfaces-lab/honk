@@ -8,7 +8,6 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { readCoreEnvironmentConnection } from "../environments/core";
-import { readEnvironmentConnection } from "../environments/runtime";
 import { DESKTOP_AUX_UNAVAILABLE_ERROR } from "../environments/core/aux";
 import { ensureEnvironmentGitApi } from "./environment-git-api";
 
@@ -182,13 +181,6 @@ export function gitRunStackedActionMutationOptions(input: {
         ...(featureBranch ? { featureBranch: true } : {}),
         ...(filePaths && filePaths.length > 0 ? { filePaths } : {}),
       };
-      const runtimeConnection = readEnvironmentConnection(input.environmentId);
-      if (runtimeConnection) {
-        return runtimeConnection.client.git.runStackedAction(
-          actionInput,
-          ...(onProgress ? [{ onProgress }] : []),
-        );
-      }
       const aux = readCoreEnvironmentConnection(input.environmentId)?.aux();
       if (!aux) {
         throw new Error(DESKTOP_AUX_UNAVAILABLE_ERROR);

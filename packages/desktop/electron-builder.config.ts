@@ -79,7 +79,6 @@ export default {
     "out/**/*",
     "out/core/**/*",
     "!out/**/*.map",
-    "!out/server/client/**/*",
     "resources/**/*",
   ],
   publish: resolvePublishConfig(),

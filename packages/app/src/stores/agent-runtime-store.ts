@@ -1,9 +1,8 @@
 import {
   type HonkRuntimeHostEvent,
   type HonkRuntimeHostSnapshot,
-  migrateLegacyRuntimeHostEventInput,
-  migrateLegacyRuntimeHostSnapshotInput,
-} from "@honk/contracts";
+  createEmptyRuntimeHostSnapshot,
+} from "../lib/honk-runtime-api";
 import type { TurnId } from "@honk/shared/base-schemas";
 import type {
   AgentRuntimeEvent,
@@ -17,8 +16,6 @@ import type { ThreadId } from "@honk/shared/base-schemas";
 import { create } from "zustand";
 
 import { DESKTOP_RUNTIME_ENVIRONMENT_ID } from "../lib/environment-scope";
-import { createEmptyRuntimeHostSnapshot, readHonkRuntimeApi } from "../lib/honk-runtime-api";
-import { resetRuntimeThreadHydrationCache } from "../lib/runtime-turn-dispatch";
 import { runtimeParentToolDisplaySignature } from "../lib/runtime-tool-display";
 import { useComposerDraftStore } from "./chat-drafts";
 import { useStore, type EnvironmentState } from "./thread-store";
@@ -301,7 +298,7 @@ function hostOwnedRuntimeThreadIdsForEvent(event: HonkRuntimeHostEvent): Set<Thr
     case "queued-follow-ups":
       return new Set(event.items.map((item) => item.threadId));
     case "runtime-ingestion-records":
-      return new Set(event.records.map((record) => record.threadId));
+      return new Set();
     case "runtime-identities":
       return new Set(event.identities.map((identity) => identity.threadId));
     case "runtime-event":
@@ -972,11 +969,8 @@ export const useAgentRuntimeStore = create<AgentRuntimeState>()((set) => ({
   localRuntimeThreadIds: new Set(),
   runtimeActivityByThreadId: new Map(),
   setSnapshot: (snapshot) => {
-    const migratedSnapshot = migrateLegacyRuntimeHostSnapshotInput(
-      snapshot,
-    ) as HonkRuntimeHostSnapshot;
     set((state) => {
-      const normalizedSnapshot = normalizeRuntimeHostSnapshot(migratedSnapshot, state.snapshot);
+      const normalizedSnapshot = normalizeRuntimeHostSnapshot(snapshot, state.snapshot);
       syncRuntimeSnapshotToThreadStore(normalizedSnapshot, state.snapshot);
       const localRuntimeThreadIds = clearAcknowledgedLocalRuntimeThreadIds(
         state.localRuntimeThreadIds,
@@ -996,17 +990,16 @@ export const useAgentRuntimeStore = create<AgentRuntimeState>()((set) => ({
     });
   },
   applyHostEvent: (event) => {
-    const migratedEvent = migrateLegacyRuntimeHostEventInput(event) as HonkRuntimeHostEvent;
     set((state) => {
-      applyRuntimeHostEventToThreadStore(migratedEvent, state.snapshot);
-      const snapshot = reduceHostEvent(state.snapshot, migratedEvent);
+      applyRuntimeHostEventToThreadStore(event, state.snapshot);
+      const snapshot = reduceHostEvent(state.snapshot, event);
       const localRuntimeThreadIds = clearAcknowledgedLocalRuntimeThreadIds(
         state.localRuntimeThreadIds,
-        hostOwnedRuntimeThreadIdsForEvent(migratedEvent),
+        hostOwnedRuntimeThreadIdsForEvent(event),
       );
       const runtimeActivityByThreadId = reduceRuntimeActivitiesForHostEvent(
         state.runtimeActivityByThreadId,
-        migratedEvent,
+        event,
         snapshot,
       );
       if (
@@ -1105,45 +1098,6 @@ export function selectPendingExtensionUiRequestsForThread(
 }
 
 export function startDesktopRuntimeHostSync(): () => void {
-  const api = readHonkRuntimeApi();
-  let disposed = false;
-  let snapshotApplied = false;
-  const bufferedEvents: HonkRuntimeHostEvent[] = [];
-  const applyBufferedEvents = () => {
-    for (const event of bufferedEvents.splice(0)) {
-      useAgentRuntimeStore.getState().applyHostEvent(event);
-    }
-  };
-
-  void api.getHostSnapshot().then(
-    (snapshot) => {
-      if (!disposed) {
-        useAgentRuntimeStore.getState().setSnapshot(snapshot);
-        snapshotApplied = true;
-        applyBufferedEvents();
-      }
-    },
-    () => {
-      if (!disposed) {
-        snapshotApplied = true;
-        applyBufferedEvents();
-      }
-    },
-  );
-
-  const unsubscribe = api.onHostEvent((event) => {
-    if (!disposed) {
-      if (!snapshotApplied) {
-        bufferedEvents.push(event);
-        return;
-      }
-      useAgentRuntimeStore.getState().applyHostEvent(event);
-    }
-  });
-
-  return () => {
-    disposed = true;
-    unsubscribe();
-    resetRuntimeThreadHydrationCache();
-  };
+  useAgentRuntimeStore.getState().setSnapshot(createEmptyRuntimeHostSnapshot());
+  return () => undefined;
 }

@@ -1,7 +1,4 @@
-import type {
-  EnvironmentApi,
-  LocalApi,
-} from "@honk/contracts";
+import type { EnvironmentApi, LocalApi } from "~/desktop-bridge";
 import type { ServerConfigStreamEvent } from "@honk/shared/server-config";
 import type {
   OrchestrationEvent,
@@ -15,8 +12,6 @@ import type {
 } from "@honk/shared/git";
 import { applyGitStatusStreamEvent } from "@honk/shared/git";
 
-import type { WsRpcClient } from "~/rpc/ws-rpc-client";
-
 export const DESKTOP_AUX_UNAVAILABLE_ERROR = "desktop aux unavailable in this environment";
 
 export interface CoreAuxEndpoint {
@@ -29,7 +24,10 @@ export interface CoreAuxStreamSubscriptionOptions {
 }
 
 export type CoreAuxGitApi = EnvironmentApi["git"] & {
-  readonly runStackedAction: WsRpcClient["git"]["runStackedAction"];
+  readonly runStackedAction: (
+    input: GitRunStackedActionInput,
+    options?: { readonly onProgress?: (event: GitActionProgressEvent) => void },
+  ) => Promise<GitRunStackedActionResult>;
 };
 export type CoreAuxProjectEvent = Extract<
   OrchestrationEvent,

@@ -42,7 +42,20 @@
     {
       "files": ["packages/app/**", "packages/desktop/**"],
       "rules": {
-        "import/no-cycle": "warn"
+        "import/no-cycle": "warn",
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              "@honk/contracts",
+              "@honk/contracts/*",
+              "@honk/runtime",
+              "@honk/runtime/*",
+              "@honk/client-runtime",
+              "@honk/client-runtime/*"
+            ]
+          }
+        ]
       }
     },
     {

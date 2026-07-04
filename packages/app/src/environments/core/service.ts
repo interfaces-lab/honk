@@ -1,8 +1,9 @@
-import { createEnvironmentClient } from "@honk/client-runtime";
 import {
   EntryId as CoreApiEntryId,
   MessageId as CoreApiMessageId,
+  ModelId as CoreApiModelId,
   PlanId as CoreApiPlanId,
+  ProjectId as CoreApiProjectId,
   QuestionId as CoreApiQuestionId,
   ThreadId as CoreApiThreadId,
   TurnId as CoreApiTurnId,
@@ -10,7 +11,8 @@ import {
   type SendMessageInput,
 } from "@honk/api/core/v1";
 import { DEFAULT_AGENT_INTERACTION_MODE } from "@honk/shared/interaction-mode";
-import type { EnvironmentApi } from "@honk/contracts";
+import { DEFAULT_PROJECTLESS_CWD } from "@honk/shared/project";
+import type { EnvironmentApi } from "~/desktop-bridge";
 import {
   EventId,
   MessageId,
@@ -49,7 +51,11 @@ import {
 } from "@honk/sdk";
 import type { QueryClient } from "@tanstack/react-query";
 
-import { scopedThreadKey, scopeThreadRef } from "~/lib/environment-scope";
+import {
+  getKnownEnvironmentHttpBaseUrl,
+  scopedThreadKey,
+  scopeThreadRef,
+} from "~/lib/environment-scope";
 import { setLocalServerApiOverride } from "~/local-api";
 import { applyServerConfigEvent, setServerConfigSnapshot } from "~/rpc/server-state";
 import type {
@@ -99,6 +105,21 @@ type CorePlanPart = Extract<CorePart, { readonly _tag: "plan" }>;
 type CoreDispatchCommand = Parameters<EnvironmentApi["orchestration"]["dispatchCommand"]>[0];
 type CoreDispatchResult = Awaited<ReturnType<EnvironmentApi["orchestration"]["dispatchCommand"]>>;
 type CoreTurnStartCommand = Extract<CoreDispatchCommand, { readonly type: "thread.turn.start" }>;
+type CoreThreadCreateCommand = Extract<CoreDispatchCommand, { readonly type: "thread.create" }>;
+type CoreThreadDeleteCommand = Extract<CoreDispatchCommand, { readonly type: "thread.delete" }>;
+type CoreThreadArchiveCommand = Extract<CoreDispatchCommand, { readonly type: "thread.archive" }>;
+type CoreThreadUnarchiveCommand = Extract<
+  CoreDispatchCommand,
+  { readonly type: "thread.unarchive" }
+>;
+type CoreThreadMetaUpdateCommand = Extract<
+  CoreDispatchCommand,
+  { readonly type: "thread.meta.update" }
+>;
+type CoreThreadInteractionModeSetCommand = Extract<
+  CoreDispatchCommand,
+  { readonly type: "thread.interaction-mode.set" }
+>;
 type CoreTurnInterruptCommand = Extract<
   CoreDispatchCommand,
   { readonly type: "thread.turn.interrupt" }
@@ -260,6 +281,14 @@ function corePlanId(id: unknown): CoreApiPlanId {
 
 function coreQuestionId(id: unknown): CoreApiQuestionId {
   return CoreApiQuestionId.make(String(id));
+}
+
+function coreProjectId(id: unknown): CoreApiProjectId {
+  return CoreApiProjectId.make(String(id));
+}
+
+function coreModelId(id: unknown): CoreApiModelId {
+  return CoreApiModelId.make(String(id));
 }
 
 function appProjectId(id: unknown): ProjectId {
@@ -1200,10 +1229,104 @@ async function currentThreadDispatchResult(
   };
 }
 
+async function ensureCoreThreadForTurnStartCommand(
+  connection: CoreEnvironmentConnection,
+  command: CoreTurnStartCommand,
+): Promise<void> {
+  const createThread = command.bootstrap?.createThread;
+  if (!createThread) {
+    return;
+  }
+
+  const worktree =
+    createThread.branch && createThread.worktreePath
+      ? {
+          branch: createThread.branch,
+          path: createThread.worktreePath,
+        }
+      : null;
+  await connection.honk().threads.create({
+    threadId: coreThreadId(command.threadId),
+    ...(createThread.projectId ? { projectId: coreProjectId(createThread.projectId) } : {}),
+    title: createThread.title,
+    model: coreModelId(createThread.modelSelection.model),
+    cwd: createThread.worktreePath ?? command.bootstrap?.prepareWorktree?.projectCwd ?? DEFAULT_PROJECTLESS_CWD,
+    ...(worktree ? { worktree } : {}),
+  });
+}
+
+async function dispatchCoreThreadCreateCommand(
+  connection: CoreEnvironmentConnection,
+  command: CoreThreadCreateCommand,
+): Promise<CoreDispatchResult> {
+  const threadId = coreThreadId(command.threadId);
+  const worktree =
+    command.branch && command.worktreePath
+      ? {
+          branch: command.branch,
+          path: command.worktreePath,
+        }
+      : null;
+  await connection.honk().threads.create({
+    threadId,
+    ...(command.projectId ? { projectId: coreProjectId(command.projectId) } : {}),
+    title: command.title,
+    model: coreModelId(command.modelSelection.model),
+    cwd: command.worktreePath ?? DEFAULT_PROJECTLESS_CWD,
+    ...(worktree ? { worktree } : {}),
+  });
+  return currentThreadDispatchResult(connection, threadId);
+}
+
+async function dispatchCoreThreadDeleteCommand(
+  connection: CoreEnvironmentConnection,
+  command: CoreThreadDeleteCommand,
+): Promise<CoreDispatchResult> {
+  await connection.honk().threads.remove(coreThreadId(command.threadId));
+  return { sequence: 0 };
+}
+
+async function dispatchCoreThreadArchiveCommand(
+  connection: CoreEnvironmentConnection,
+  command: CoreThreadArchiveCommand,
+): Promise<CoreDispatchResult> {
+  const threadId = coreThreadId(command.threadId);
+  await connection.honk().threads.archive(threadId);
+  return currentThreadDispatchResult(connection, threadId);
+}
+
+async function dispatchCoreThreadUnarchiveCommand(
+  connection: CoreEnvironmentConnection,
+  command: CoreThreadUnarchiveCommand,
+): Promise<CoreDispatchResult> {
+  const threadId = coreThreadId(command.threadId);
+  await connection.honk().threads.unarchive(threadId);
+  return currentThreadDispatchResult(connection, threadId);
+}
+
+async function dispatchCoreThreadMetaUpdateCommand(
+  connection: CoreEnvironmentConnection,
+  command: CoreThreadMetaUpdateCommand,
+): Promise<CoreDispatchResult> {
+  const threadId = coreThreadId(command.threadId);
+  if (command.title !== undefined) {
+    await connection.honk().threads.update(threadId, { title: command.title });
+  }
+  return currentThreadDispatchResult(connection, threadId);
+}
+
+function dispatchCoreThreadInteractionModeSetCommand(
+  connection: CoreEnvironmentConnection,
+  command: CoreThreadInteractionModeSetCommand,
+): Promise<CoreDispatchResult> {
+  return currentThreadDispatchResult(connection, coreThreadId(command.threadId));
+}
+
 async function dispatchCoreTurnStartCommand(
   connection: CoreEnvironmentConnection,
   command: CoreTurnStartCommand,
 ): Promise<CoreDispatchResult> {
+  await ensureCoreThreadForTurnStartCommand(connection, command);
   const receipt = await connection.honk().threads.send(
     coreThreadId(command.threadId),
     buildCoreSendMessageInput(command),
@@ -1287,6 +1410,18 @@ function dispatchCoreCommand(
       return dispatchCoreProjectMetaUpdateCommand(connection, command);
     case "project.delete":
       return dispatchCoreProjectDeleteCommand(connection, command);
+    case "thread.create":
+      return dispatchCoreThreadCreateCommand(connection, command);
+    case "thread.delete":
+      return dispatchCoreThreadDeleteCommand(connection, command);
+    case "thread.archive":
+      return dispatchCoreThreadArchiveCommand(connection, command);
+    case "thread.unarchive":
+      return dispatchCoreThreadUnarchiveCommand(connection, command);
+    case "thread.meta.update":
+      return dispatchCoreThreadMetaUpdateCommand(connection, command);
+    case "thread.interaction-mode.set":
+      return dispatchCoreThreadInteractionModeSetCommand(connection, command);
     case "thread.turn.start":
       return dispatchCoreTurnStartCommand(connection, command);
     case "thread.turn.interrupt":
@@ -1393,7 +1528,7 @@ function createCoreEnvironmentApi(connection: CoreEnvironmentConnection): Enviro
     },
   };
 
-  return createEnvironmentClient(client);
+  return client;
 }
 
 function registerCoreEnvironmentConnection(
@@ -1532,6 +1667,23 @@ export function requireCoreEnvironmentConnection(
     throw new Error(`No core client registered for environment ${environmentId}.`);
   }
   return connection;
+}
+
+export function resolveCoreEnvironmentHttpUrl(input: {
+  readonly environmentId: EnvironmentId;
+  readonly pathname: string;
+  readonly searchParams?: Record<string, string>;
+}): string {
+  const connection = requireCoreEnvironmentConnection(input.environmentId);
+  const baseUrl = getKnownEnvironmentHttpBaseUrl(connection.knownEnvironment);
+  if (!baseUrl) {
+    throw new Error(`No HTTP URL registered for environment ${input.environmentId}.`);
+  }
+  const url = new URL(input.pathname, baseUrl);
+  if (input.searchParams) {
+    url.search = new URLSearchParams(input.searchParams).toString();
+  }
+  return url.toString();
 }
 
 export async function getPrimaryCoreEnvironmentConnection(): Promise<CoreEnvironmentServiceConnection> {

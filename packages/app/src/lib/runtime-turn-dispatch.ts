@@ -1,21 +1,13 @@
 import type { AgentInteractionMode } from "@honk/shared/interaction-mode";
 import type { AgentModelPolicy } from "@honk/shared/agent-model-policy";
-import type { HonkRuntimeApi } from "@honk/contracts";
-import type {
-  MessageId,
-  ThreadEntryId,
-} from "@honk/shared/base-schemas";
+import type { MessageId, ThreadEntryId } from "@honk/shared/base-schemas";
 import type { ThreadAgentRuntimeImageAttachment } from "@honk/shared/runtime";
 import type { SourceProposedPlanReference } from "@honk/shared/orchestration";
 import type { ModelSelection } from "@honk/shared/model";
 import type { ThreadId } from "@honk/shared/base-schemas";
 import { createAgentModelPolicy } from "@honk/shared/agent-model-policy";
 
-import {
-  assertRuntimeApiAvailable,
-  assertRuntimeHostAvailable,
-  readHonkRuntimeApi,
-} from "./honk-runtime-api";
+import { readHonkRuntimeApi, type HonkRuntimeApi } from "./honk-runtime-api";
 
 interface RuntimeTurnInput {
   readonly threadId: ThreadId;
@@ -40,7 +32,6 @@ export function prepareRuntimeTurnPolicy(input: {
   readonly interactionMode: AgentInteractionMode;
   readonly modelSelection: ModelSelection;
 }): PreparedRuntimeTurnPolicy {
-  assertRuntimeApiAvailable();
   const runtimeApi = readHonkRuntimeApi();
   const preferences = runtimeApi.getPreferences();
   const policy = preferences.then((preferences) =>
@@ -59,21 +50,8 @@ export async function sendRuntimeTurnWithPreparedPolicy(
     readonly preparedPolicy: PreparedRuntimeTurnPolicy;
   },
 ): Promise<void> {
-  await input.preparedPolicy.runtimeApi.sendTurn({
-    threadId: input.threadId,
-    cwd: input.cwd,
-    input: input.text,
-    interactionMode: input.interactionMode,
-    sourceProposedPlan: input.sourceProposedPlan,
-    clientMessageId: input.clientMessageId,
-    replacesClientMessageId: input.replacesClientMessageId,
-    ...(input.parentEntryId !== undefined ? { parentEntryId: input.parentEntryId } : {}),
-    images: [...input.images],
-    policy: await input.preparedPolicy.policy,
-    modelSelection: input.modelSelection,
-    ...(input.streamingBehavior ? { streamingBehavior: input.streamingBehavior } : {}),
-  });
-  hydratedRuntimeThreadIds.add(String(input.threadId));
+  void input;
+  throw new Error("Runtime turn dispatch is unavailable after core cutover.");
 }
 
 export async function sendRuntimeTurn(input: RuntimeTurnInput): Promise<void> {
@@ -94,26 +72,14 @@ export async function compactRuntimeThread(input: {
   readonly modelSelection: ModelSelection;
   readonly customInstructions?: string | undefined;
 }): Promise<void> {
-  const preparedPolicy = prepareRuntimeTurnPolicy({
-    interactionMode: input.interactionMode,
-    modelSelection: input.modelSelection,
-  });
-  await preparedPolicy.runtimeApi.compactThread({
-    threadId: input.threadId,
-    cwd: input.cwd,
-    ...(input.customInstructions !== undefined
-      ? { customInstructions: input.customInstructions }
-      : {}),
-    policy: await preparedPolicy.policy,
-  });
+  void input;
+  throw new Error("Runtime compact is unavailable after core cutover.");
 }
 
 const hydratedRuntimeThreadIds = new Set<string>();
-const hydrateRuntimeThreadInFlight = new Map<string, Promise<void>>();
 
 export function resetRuntimeThreadHydrationCache(): void {
   hydratedRuntimeThreadIds.clear();
-  hydrateRuntimeThreadInFlight.clear();
 }
 
 export async function hydrateRuntimeThread(input: {
@@ -122,41 +88,8 @@ export async function hydrateRuntimeThread(input: {
   readonly interactionMode: AgentInteractionMode;
   readonly modelSelection: ModelSelection;
 }): Promise<void> {
-  const threadKey = String(input.threadId);
-  if (hydratedRuntimeThreadIds.has(threadKey)) {
-    return;
-  }
-
-  const inFlight = hydrateRuntimeThreadInFlight.get(threadKey);
-  if (inFlight) {
-    await inFlight;
-    return;
-  }
-
-  const hydratePromise = (async () => {
-    await assertRuntimeHostAvailable();
-    const runtimeApi = readHonkRuntimeApi();
-    const preferences = await runtimeApi.getPreferences();
-    const policy = createAgentModelPolicy({
-      preferences,
-      interactionMode: input.interactionMode,
-      modelSelection: input.modelSelection,
-    });
-
-    await runtimeApi.hydrateThread({
-      threadId: input.threadId,
-      cwd: input.cwd,
-      policy,
-    });
-    hydratedRuntimeThreadIds.add(threadKey);
-  })();
-
-  hydrateRuntimeThreadInFlight.set(threadKey, hydratePromise);
-  try {
-    await hydratePromise;
-  } finally {
-    if (hydrateRuntimeThreadInFlight.get(threadKey) === hydratePromise) {
-      hydrateRuntimeThreadInFlight.delete(threadKey);
-    }
-  }
+  hydratedRuntimeThreadIds.add(String(input.threadId));
+  void input.cwd;
+  void input.interactionMode;
+  void input.modelSelection;
 }
