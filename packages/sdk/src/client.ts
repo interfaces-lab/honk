@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { Duration, Effect, Fiber, ManagedRuntime, Option, Stream } from "effect";
 import * as Sse from "effect/unstable/encoding/Sse";
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http";
@@ -189,42 +186,33 @@ const invokeWatchCallback = (
 
 const normalizeOrigin = (origin: string): string => origin.replace(/\/+$/, "");
 
-const resolveHonkHome = (override?: string): string =>
-	override ?? process.env["HONK_HOME"] ?? join(homedir(), ".honk");
-
-const discoveryPaths = (home: string): { readonly discoveryPath: string; readonly secretPath: string } => ({
-	discoveryPath: join(home, "core", "core.json"),
-	secretPath: join(home, "core", "core-app-secret"),
-});
-
-const readDiscoveryFile = (path: string): string => {
-	try {
-		return readFileSync(path, "utf8");
-	} catch (error) {
-		if (errorCode(error) === "ENOENT") {
-			throw new Error(`Honk Core discovery file not found at ${path}`);
-		}
-		throw new Error(`Unable to read Honk Core discovery file at ${path}: ${errorMessage(error)}`);
-	}
-};
-
-const readSecretFile = (path: string): string => {
-	try {
-		return readFileSync(path, "utf8").trim();
-	} catch (error) {
-		if (errorCode(error) === "ENOENT") {
-			throw new Error(`Honk Core app secret file not found at ${path}`);
-		}
-		throw new Error(`Unable to read Honk Core app secret file at ${path}: ${errorMessage(error)}`);
-	}
-};
-
 const probeDiscovery = async (
 	homeOverride?: string,
 ): Promise<{ readonly origin: string; readonly bearer: string }> => {
-	const home = resolveHonkHome(homeOverride);
-	const paths = discoveryPaths(home);
-	const discoveryText = readDiscoveryFile(paths.discoveryPath);
+	// Filesystem discovery is the Node-side connection path (Core Apps on the
+	// same machine). Browsers connect with an explicit endpoint + bearer, so the
+	// node builtins load lazily here to keep the module browser-safe.
+	const [{ readFileSync }, { homedir }, { join }] = await Promise.all([
+		import("node:fs"),
+		import("node:os"),
+		import("node:path"),
+	]);
+	const readTextFile = (path: string, label: string): string => {
+		try {
+			return readFileSync(path, "utf8");
+		} catch (error) {
+			if (errorCode(error) === "ENOENT") {
+				throw new Error(`Honk Core ${label} not found at ${path}`);
+			}
+			throw new Error(`Unable to read Honk Core ${label} at ${path}: ${errorMessage(error)}`);
+		}
+	};
+	const home = homeOverride ?? process.env["HONK_HOME"] ?? join(homedir(), ".honk");
+	const paths = {
+		discoveryPath: join(home, "core", "core.json"),
+		secretPath: join(home, "core", "core-app-secret"),
+	};
+	const discoveryText = readTextFile(paths.discoveryPath, "discovery file");
 	const discoveryOption = decodeCoreDiscoveryText(discoveryText);
 	if (Option.isNone(discoveryOption)) {
 		throw new Error(`Honk Core discovery file at ${paths.discoveryPath} is missing required fields or is not valid JSON`);
@@ -265,7 +253,7 @@ const probeDiscovery = async (
 	}
 	return {
 		origin,
-		bearer: readSecretFile(paths.secretPath),
+		bearer: readTextFile(paths.secretPath, "app secret file").trim(),
 	};
 };
 

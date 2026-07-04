@@ -86,7 +86,10 @@ const desktopServerExposureLayer = DesktopServerExposure.layer.pipe(
 
 const desktopWindowLayer = DesktopWindow.layer.pipe(Layer.provideMerge(desktopServerExposureLayer));
 
-const desktopCoreLayer = DesktopCoreManager.layer.pipe(Layer.provideMerge(desktopEnvironmentLayer));
+const desktopCoreLayer = DesktopCoreManager.layer.pipe(
+  Layer.provideMerge(desktopWindowLayer),
+  Layer.provideMerge(desktopEnvironmentLayer),
+);
 
 const desktopApplicationLayer = Layer.mergeAll(
   DesktopLifecycle.layer,

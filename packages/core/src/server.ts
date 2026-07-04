@@ -324,7 +324,13 @@ export const makeServerLayer = (
     {
       disableLogger: true,
       disableListenLog: true,
-      middleware: HttpMiddleware.logger,
+      // Bearer-token API with no cookie auth, so any origin may call it (the
+      // dev renderer lives on the vite origin, web sessions attach cross-origin
+      // per ADR 0002). With no allowedHeaders configured the middleware
+      // reflects the preflight's requested headers, which is what we want:
+      // clients send authorization plus tracing headers (traceparent, b3, …)
+      // and none of them carry origin-scoped privilege.
+      middleware: (app) => HttpMiddleware.cors()(HttpMiddleware.logger(app)),
     },
   ).pipe(
     Layer.provideMerge(

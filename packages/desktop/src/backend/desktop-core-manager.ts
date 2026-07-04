@@ -19,6 +19,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import { type CoreDiscovery, probeCore, resolveCoreHome } from "@honk/core";
 
 import * as DesktopEnvironment from "../app/desktop-environment";
+import * as DesktopWindow from "../window/desktop-window";
 import * as EffectLogger from "@honk/shared/effect-logger";
 
 const INITIAL_RESTART_DELAY = Duration.millis(500);
@@ -269,9 +270,21 @@ const makeDesktopCoreManager = Effect.fn("makeDesktopCoreManager")(function* () 
   const parentScope = yield* Scope.Scope;
   const fileSystem = yield* FileSystem.FileSystem;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
+  const desktopWindow = yield* DesktopWindow.DesktopWindow;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const state = yield* Ref.make(initialState);
   const mutex = yield* Semaphore.make(1);
+
+  // The renderer window stays hidden until a Core is reachable (mirrors the
+  // legacy backend-ready reveal); both the spawn path and the already-live
+  // discovery path funnel through this.
+  const revealMainWindow = desktopWindow.handleBackendReady.pipe(
+    Effect.catch((error) =>
+      elog.error("failed to open main window after core readiness", {
+        error: error.message,
+      }),
+    ),
+  );
 
   const updateActiveRun = (runId: number, f: (run: ActiveCoreRun) => ActiveCoreRun) =>
     Ref.update(state, withActiveRun(runId, f));
@@ -349,6 +362,7 @@ const makeDesktopCoreManager = Effect.fn("makeDesktopCoreManager")(function* () 
             origin: existing.value.origin,
             pid: existing.value.pid,
           });
+          yield* revealMainWindow;
           return;
         }
 
@@ -476,6 +490,7 @@ const makeDesktopCoreManager = Effect.fn("makeDesktopCoreManager")(function* () 
               origin: discovery.origin,
               pid: discovery.pid,
             });
+            yield* revealMainWindow;
           }),
           onReadinessFailure: (error) =>
             elog.warn("Core readiness check failed during bootstrap", {

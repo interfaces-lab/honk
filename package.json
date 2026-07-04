@@ -53,7 +53,7 @@
     "react-doctor": "0.2.16",
     "stylelint": "^17.13.0",
     "stylelint-config-standard": "^40.0.0",
-    "turbo": "2.10.1-canary.1",
+    "turbo": "2.10.3",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },

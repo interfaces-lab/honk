@@ -10,20 +10,15 @@ import {
   IconOpenaiCodex,
   IconSparklesSoft,
 } from "central-icons";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { CredentialKind, CredentialStatus, LoginFlow } from "@honk/api/core/v1";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AGENT_INTERACTION_MODES, type AgentInteractionMode } from "@honk/shared/interaction-mode";
+import type { AgentMode, AgentPreferencesPatch } from "@honk/shared/agent-model-policy";
 import type {
-  AgentAuthStatus,
-  AgentCredentialAuthFlow,
-} from "@honk/shared/runtime";
-import type {
-  AgentCredentialKind,
-  AgentCredentialPreference,
-  AgentMode,
-  AgentPreferencesPatch,
-} from "@honk/shared/agent-model-policy";
-import type { AgentWindowSendWhileStreamingBehavior, AgentWindowUsageSummaryDisplay } from "@honk/shared/client-settings";
+  AgentWindowSendWhileStreamingBehavior,
+  AgentWindowUsageSummaryDisplay,
+} from "@honk/shared/client-settings";
 import { DEFAULT_PROJECTLESS_CWD } from "@honk/shared/project";
 import type { ScopedThreadRef } from "@honk/shared/environment";
 import { scopeThreadRef } from "~/lib/environment-scope";
@@ -100,6 +95,13 @@ import {
   unavailableAgentModeReason,
   type AgentModeAvailability,
 } from "~/lib/agent-mode-options";
+import {
+  coreAuthCancelFlowMutationOptions,
+  coreAuthLoginMutationOptions,
+  coreAuthLogoutMutationOptions,
+  coreAuthSnapshotQueryOptions,
+  EMPTY_CORE_AUTH_SNAPSHOT,
+} from "~/lib/core-auth-react-query";
 import {
   cursorComposerPolicyModelSelection,
   CURSOR_COMPOSER_MODEL_NAME,
@@ -1024,93 +1026,15 @@ const AGENT_MODE_MODEL_DETAILS: Record<
   },
 };
 
-function findCredentialAuthStatus(
-  credential: AgentCredentialPreference,
-  authStatuses: readonly AgentAuthStatus[],
-): AgentAuthStatus | null {
-  return (
-    authStatuses.find(
-      (status) =>
-        status.authProviderId === credential.authProviderId &&
-        (status.credentialKind === credential.kind || status.credentialKind === null) &&
-        (status.accountId === credential.accountId ||
-          status.accountId === null ||
-          credential.accountId === null),
-    ) ?? null
-  );
-}
-
-function findCredentialAuthFlow(
-  credential: AgentCredentialPreference,
-  authFlows: readonly AgentCredentialAuthFlow[],
-): AgentCredentialAuthFlow | null {
-  return (
-    authFlows.find(
-      (flow) =>
-        flow.authProviderId === credential.authProviderId &&
-        (flow.credentialKind === credential.kind ||
-          (flow.credentialKind === null && isOAuthCredential(credential))),
-    ) ?? null
-  );
-}
-
-function describeCredentialState(status: AgentAuthStatus | null): string {
-  if (status?.message) {
-    return status.message;
-  }
-  switch (status?.state ?? "missing") {
-    case "available":
-      return "Credential ready.";
-    case "expired":
-      return "Credential expired.";
-    case "error":
-      return "Credential needs attention.";
-    case "unknown":
-      return "Checking credential status…";
-    case "missing":
-      return "No credential saved.";
-  }
-}
-
-function describeCredentialDisplayState(
-  status: AgentAuthStatus | null,
-  authFlow: AgentCredentialAuthFlow | null,
-): string {
-  if (authFlow?.state === "pending") {
-    return authFlow.message ?? "Complete the in-progress Pi authentication flow.";
-  }
-  if (authFlow?.state === "error") {
-    return authFlow.message ?? "Pi authentication failed.";
-  }
-  return describeCredentialState(status);
-}
-
-function resolveCredentialActionLabel(
-  credential: AgentCredentialPreference,
-  status: AgentAuthStatus | null,
-): string {
-  if (isOAuthCredential(credential)) {
-    return status?.state === "available" ? "Reauthorize" : "Login";
-  }
-  return status?.state === "available" ? "Update key" : "Add key";
-}
-
-function isOAuthCredential(credential: AgentCredentialPreference): boolean {
-  return credential.kind === "claude-oauth" || credential.kind === "codex-oauth";
-}
-
-function isApiKeyCredential(credential: AgentCredentialPreference): boolean {
-  return !isOAuthCredential(credential);
-}
-
-function CredentialKindIcon({
+function CoreAuthAccountIcon({
   kind,
   className,
 }: {
-  kind: AgentCredentialKind;
+  kind: "claude-code" | CredentialKind;
   className?: string;
 }) {
-  const Icon = kind === "claude-api-key" || kind === "claude-oauth" ? IconClawd : IconOpenaiCodex;
+  const Icon =
+    kind === "claude-code" ? IconClawd : kind === "cursor-api-key" ? IconCursor : IconOpenaiCodex;
 
   return <Icon className={className} aria-hidden />;
 }
@@ -1272,14 +1196,51 @@ function AgentModeInlineSummary({
   );
 }
 
-function CredentialAuthFlowPanel({ flow }: { flow: AgentCredentialAuthFlow }) {
+function describeCoreCredentialStatus(
+  status: CredentialStatus | null,
+  missingDescription: string,
+): string {
+  if (status === null || status.state === "missing") {
+    return missingDescription;
+  }
+  if (status.state === "available") {
+    return status.label ?? status.message ?? "Account connected.";
+  }
+  if (status.message) {
+    return status.message;
+  }
+  switch (status.state) {
+    case "expired":
+      return "Credential expired.";
+    case "error":
+      return "Credential needs attention.";
+  }
+}
+
+function CoreAuthFlowPanel({
+  disabled,
+  flow,
+  onCancel,
+  onRetry,
+}: {
+  disabled: boolean;
+  flow: LoginFlow;
+  onCancel: () => void;
+  onRetry: () => void;
+}) {
   const openVerificationUri = () => {
     if (!flow.verificationUri) {
       return;
     }
     const localApi = readLocalApi();
     if (localApi) {
-      void localApi.shell.openExternal(flow.verificationUri);
+      void localApi.shell.openExternal(flow.verificationUri).catch((error: unknown) => {
+        toastManager.add({
+          type: "error",
+          title: "Could not open login page",
+          description: error instanceof Error ? error.message : "Open the login link manually.",
+        });
+      });
       return;
     }
     if (typeof window !== "undefined") {
@@ -1329,15 +1290,24 @@ function CredentialAuthFlowPanel({ flow }: { flow: AgentCredentialAuthFlow }) {
             </Text>
           </p>
         </div>
-        {flow.verificationUri ? (
-          <Button size="xs" variant="outline" onClick={openVerificationUri}>
-            Open login page
+        <div className="flex shrink-0 items-center gap-1.5">
+          {flow.state === "error" ? (
+            <Button size="xs" variant="outline" disabled={disabled} onClick={onRetry}>
+              Retry
+            </Button>
+          ) : flow.verificationUri ? (
+            <Button size="xs" variant="outline" disabled={disabled} onClick={openVerificationUri}>
+              Open login page
+            </Button>
+          ) : null}
+          <Button size="xs" variant="ghost" disabled={disabled} onClick={onCancel}>
+            Cancel
           </Button>
-        ) : null}
+        </div>
       </div>
       {flow.userCode ? (
         <div className="mt-2 flex min-w-0 items-center gap-2">
-          <code className="min-w-0 truncate font-honk-mono text-body tracking-wide text-honk-fg-primary">
+          <code className="min-w-0 truncate font-honk-mono text-honk-lg tracking-wide text-honk-fg-primary">
             {flow.userCode}
           </code>
           <Button size="xs" variant="ghost" onClick={copyUserCode}>
@@ -1349,15 +1319,13 @@ function CredentialAuthFlowPanel({ flow }: { flow: AgentCredentialAuthFlow }) {
   );
 }
 
-function CredentialApiKeyForm({
-  credential,
+function CursorApiKeyForm({
   disabled,
   draftValue,
   onCancel,
   onDraftChange,
   onSubmit,
 }: {
-  credential: AgentCredentialPreference;
   disabled: boolean;
   draftValue: string;
   onCancel: () => void;
@@ -1381,8 +1349,8 @@ function CredentialApiKeyForm({
           type="password"
           size="sm"
           value={draftValue}
-          placeholder={`Paste ${credential.label}`}
-          aria-label={`${credential.label} value`}
+          placeholder="Paste Cursor API key"
+          aria-label="Cursor API key value"
           autoComplete="off"
           disabled={disabled}
           onChange={(event) => onDraftChange(event.currentTarget.value)}
@@ -1418,35 +1386,115 @@ function CredentialApiKeyForm({
 
 export function AgentRuntimeSettingsSections() {
   const snapshot = useAgentRuntimeStore((state) => state.snapshot);
-  const setSnapshot = useAgentRuntimeStore((state) => state.setSnapshot);
 
-  return <AgentRuntimeSettingsSectionsView snapshot={snapshot} setSnapshot={setSnapshot} />;
+  return <AgentRuntimeSettingsSectionsView snapshot={snapshot} />;
 }
 
 export function AgentRuntimeSettingsSectionsView({
   snapshot,
-  setSnapshot,
 }: {
   snapshot: HonkRuntimeHostSnapshot;
-  setSnapshot: (snapshot: HonkRuntimeHostSnapshot) => void;
 }) {
+  const queryClient = useQueryClient();
   const preferences = snapshot.preferences;
-  const authStatuses = snapshot.authStatuses;
-  const authFlows = snapshot.credentialAuthFlows;
+  const coreAuthQuery = useQuery(coreAuthSnapshotQueryOptions());
+  const authSnapshot = coreAuthQuery.data ?? EMPTY_CORE_AUTH_SNAPSHOT;
+  const coreAuthLoginMutation = useMutation(coreAuthLoginMutationOptions({ queryClient }));
+  const coreAuthLogoutMutation = useMutation(coreAuthLogoutMutationOptions({ queryClient }));
+  const coreAuthCancelFlowMutation = useMutation(
+    coreAuthCancelFlowMutationOptions({ queryClient }),
+  );
   const multitaskModeEnabled = useLocalFeatureFlagsStore((state) => state.multitaskModeEnabled);
   const interactionModeOptions = multitaskModeEnabled
     ? AGENT_INTERACTION_MODE_OPTIONS
     : AGENT_INTERACTION_MODE_OPTIONS.filter((option) => option.value !== "multitask");
-  const modelAvailability = deriveAgentModeAvailability(authStatuses);
+  const modelAvailability = deriveAgentModeAvailability(authSnapshot);
   const [isSaving, setIsSaving] = useState(false);
-  const [pendingCredentialKind, setPendingCredentialKind] = useState<AgentCredentialKind | null>(
-    null,
-  );
-  const [editingApiKeyCredentialKind, setEditingApiKeyCredentialKind] =
-    useState<AgentCredentialKind | null>(null);
-  const [apiKeyDraftByKind, setApiKeyDraftByKind] = useState<
-    Partial<Record<AgentCredentialKind, string>>
-  >({});
+  const [isEditingCursorApiKey, setIsEditingCursorApiKey] = useState(false);
+  const [cursorApiKeyDraft, setCursorApiKeyDraft] = useState("");
+
+  const claudeHarness =
+    authSnapshot.harnesses.find((harness) => harness.harness === "claude-code") ?? null;
+  const codexCredential =
+    authSnapshot.credentials.find((credential) => credential.kind === "codex-oauth") ?? null;
+  const cursorCredential =
+    authSnapshot.credentials.find((credential) => credential.kind === "cursor-api-key") ?? null;
+  const codexCredentialState = codexCredential?.state ?? "missing";
+  const cursorCredentialState = cursorCredential?.state ?? "missing";
+  const coreAuthFlow = authSnapshot.flow;
+  const claudeAvailable = claudeHarness?.available ?? false;
+  const codexAvailable = codexCredentialState === "available";
+  const cursorAvailable = cursorCredentialState === "available";
+  const showNoAccountsConnected = !claudeAvailable && !codexAvailable && !cursorAvailable;
+  const coreAuthMutating =
+    coreAuthLoginMutation.isPending ||
+    coreAuthLogoutMutation.isPending ||
+    coreAuthCancelFlowMutation.isPending;
+
+  const addableCoreCredentials: Array<{
+    readonly kind: CredentialKind;
+    readonly label: string;
+  }> = [];
+  if (codexCredentialState === "missing" && coreAuthFlow === null) {
+    addableCoreCredentials.push({ kind: "codex-oauth", label: "Codex · ChatGPT sign-in" });
+  }
+  if (cursorCredentialState === "missing" && !isEditingCursorApiKey) {
+    addableCoreCredentials.push({ kind: "cursor-api-key", label: "Cursor · API key" });
+  }
+
+  const showCoreAuthError = (title: string, error: unknown) => {
+    toastManager.add({
+      type: "error",
+      title,
+      description: error instanceof Error ? error.message : "Authentication update failed.",
+    });
+  };
+
+  const startCodexLogin = () => {
+    void coreAuthLoginMutation
+      .mutateAsync({ kind: "codex-oauth" })
+      .catch((error: unknown) => showCoreAuthError("Failed to start Codex sign-in", error));
+  };
+
+  const saveCursorApiKey = (apiKey: string) => {
+    const trimmedApiKey = apiKey.trim();
+    if (trimmedApiKey.length === 0) {
+      return;
+    }
+    void coreAuthLoginMutation
+      .mutateAsync({ kind: "cursor-api-key", apiKey: trimmedApiKey })
+      .then(() => {
+        setCursorApiKeyDraft("");
+        setIsEditingCursorApiKey(false);
+      })
+      .catch((error: unknown) => showCoreAuthError("Failed to save Cursor API key", error));
+  };
+
+  const removeCoreCredential = (kind: CredentialKind) => {
+    void coreAuthLogoutMutation
+      .mutateAsync({ kind })
+      .then(() => {
+        if (kind === "cursor-api-key") {
+          setCursorApiKeyDraft("");
+          setIsEditingCursorApiKey(false);
+        }
+      })
+      .catch((error: unknown) => showCoreAuthError("Failed to remove account", error));
+  };
+
+  const cancelCoreAuthFlow = () => {
+    void coreAuthCancelFlowMutation
+      .mutateAsync()
+      .catch((error: unknown) => showCoreAuthError("Failed to cancel sign-in", error));
+  };
+
+  const startAddingCoreCredential = (kind: CredentialKind) => {
+    if (kind === "codex-oauth") {
+      startCodexLogin();
+      return;
+    }
+    setIsEditingCursorApiKey(true);
+  };
 
   const updateAgentPreferences = (patch: AgentPreferencesPatch) => {
     setIsSaving(true);
@@ -1461,113 +1509,6 @@ export function AgentRuntimeSettingsSectionsView({
         });
       })
       .finally(() => setIsSaving(false));
-  };
-
-  const configureOAuthCredential = async (credential: AgentCredentialPreference) => {
-    const runtimeApi = readHonkRuntimeApi();
-    setPendingCredentialKind(credential.kind);
-    try {
-      const snapshot = await runtimeApi.configureCredential({
-        authProviderId: credential.authProviderId,
-        method: "oauth",
-        credentialKind: credential.kind,
-      });
-      setSnapshot(snapshot);
-    } catch (error: unknown) {
-      toastManager.add({
-        type: "error",
-        title: "Failed to configure credential",
-        description: error instanceof Error ? error.message : "Credential update failed.",
-      });
-    } finally {
-      setPendingCredentialKind(null);
-    }
-  };
-
-  const configureApiKeyCredential = async (
-    credential: AgentCredentialPreference,
-    apiKey: string,
-  ) => {
-    const trimmedApiKey = apiKey.trim();
-    if (trimmedApiKey.length === 0) {
-      return;
-    }
-
-    const runtimeApi = readHonkRuntimeApi();
-    setPendingCredentialKind(credential.kind);
-    try {
-      const snapshot = await runtimeApi.configureCredential({
-        authProviderId: credential.authProviderId,
-        method: "api-key",
-        credentialKind: credential.kind,
-        apiKey: trimmedApiKey,
-      });
-      setSnapshot(snapshot);
-      setApiKeyDraftByKind((previous) => {
-        const next = { ...previous };
-        delete next[credential.kind];
-        return next;
-      });
-      setEditingApiKeyCredentialKind((current) => (current === credential.kind ? null : current));
-    } catch (error: unknown) {
-      toastManager.add({
-        type: "error",
-        title: "Failed to save credential",
-        description: error instanceof Error ? error.message : "Credential update failed.",
-      });
-    } finally {
-      setPendingCredentialKind(null);
-    }
-  };
-
-  const removeCredential = async (credential: AgentCredentialPreference) => {
-    const runtimeApi = readHonkRuntimeApi();
-    setPendingCredentialKind(credential.kind);
-    try {
-      const snapshot = await runtimeApi.configureCredential({
-        authProviderId: credential.authProviderId,
-        method: "logout",
-        credentialKind: credential.kind,
-      });
-      setSnapshot(snapshot);
-      setApiKeyDraftByKind((previous) => {
-        const next = { ...previous };
-        delete next[credential.kind];
-        return next;
-      });
-      setEditingApiKeyCredentialKind((current) => (current === credential.kind ? null : current));
-    } catch (error: unknown) {
-      toastManager.add({
-        type: "error",
-        title: "Failed to remove credential",
-        description: error instanceof Error ? error.message : "Credential removal failed.",
-      });
-    } finally {
-      setPendingCredentialKind(null);
-    }
-  };
-
-  const isCredentialConfigured = (credential: AgentCredentialPreference) => {
-    const status = findCredentialAuthStatus(credential, authStatuses);
-    return status !== null && status.state !== "missing" && status.state !== "unknown";
-  };
-  const visibleCredentials = preferences.credentials.filter(
-    (credential) =>
-      isCredentialConfigured(credential) ||
-      findCredentialAuthFlow(credential, authFlows) !== null ||
-      editingApiKeyCredentialKind === credential.kind ||
-      pendingCredentialKind === credential.kind,
-  );
-  const addableCredentials = preferences.credentials.filter(
-    (credential) => !visibleCredentials.includes(credential),
-  );
-
-  const startAddingCredential = (credential: AgentCredentialPreference) => {
-    if (isOAuthCredential(credential)) {
-      void configureOAuthCredential(credential);
-      return;
-    }
-    setEditingApiKeyCredentialKind(credential.kind);
   };
 
   return (
@@ -1686,23 +1627,23 @@ export function AgentRuntimeSettingsSectionsView({
       <SettingsSection
         title="Accounts"
         headerAction={
-          addableCredentials.length > 0 ? (
+          addableCoreCredentials.length > 0 ? (
             <Menu>
               <MenuTrigger
                 render={
-                  <Button size="xs" variant="ghost" disabled={pendingCredentialKind !== null}>
+                  <Button size="xs" variant="ghost" disabled={coreAuthMutating}>
                     Add
                   </Button>
                 }
               />
               <MenuPopup align="end">
-                {addableCredentials.map((credential) => (
+                {addableCoreCredentials.map((credential) => (
                   <MenuItem
                     key={credential.kind}
                     className="gap-2"
-                    onClick={() => startAddingCredential(credential)}
+                    onClick={() => startAddingCoreCredential(credential.kind)}
                   >
-                    <CredentialKindIcon
+                    <CoreAuthAccountIcon
                       kind={credential.kind}
                       className="size-3.5 shrink-0 text-honk-icon-secondary"
                     />
@@ -1714,109 +1655,132 @@ export function AgentRuntimeSettingsSectionsView({
           ) : null
         }
       >
-        {visibleCredentials.length === 0 ? (
+        {showNoAccountsConnected ? (
           <SettingsRow
             title="No accounts connected"
-            description="Add a Claude or Codex credential to run those agent modes. Cursor uses Cursor Agent CLI login."
+            description="Claude uses your Claude Code login. Add Codex (ChatGPT sign-in) or a Cursor API key to enable those models."
           />
         ) : null}
-        {visibleCredentials.map((credential) => {
-          const status = findCredentialAuthStatus(credential, authStatuses);
-          const authFlow = findCredentialAuthFlow(credential, authFlows);
-          const isCredentialPending = pendingCredentialKind === credential.kind;
-          const canStartCredentialAction = pendingCredentialKind === null || isCredentialPending;
-          const isAvailable = status?.state === "available";
-          const showApiKeyEditor =
-            isApiKeyCredential(credential) && editingApiKeyCredentialKind === credential.kind;
-          const draftValue = apiKeyDraftByKind[credential.kind] ?? "";
-          return (
-            <SettingsRow
-              key={credential.kind}
-              preferenceId={`agents.account.${credential.kind}`}
-              title={
-                <span className="inline-flex items-center gap-1.5">
-                  <CredentialKindIcon
-                    kind={credential.kind}
-                    className="size-3.5 shrink-0 text-honk-icon-secondary"
-                  />
-                  {credential.label}
-                </span>
-              }
-              description={describeCredentialDisplayState(status, authFlow)}
-              control={
-                isOAuthCredential(credential) ? (
-                  <>
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      disabled={!canStartCredentialAction}
-                      onClick={() => void configureOAuthCredential(credential)}
-                    >
-                      {isCredentialPending
-                        ? "Working..."
-                        : resolveCredentialActionLabel(credential, status)}
-                    </Button>
-                    {isAvailable ? (
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        disabled={!canStartCredentialAction}
-                        onClick={() => void removeCredential(credential)}
-                      >
-                        Sign out
-                      </Button>
-                    ) : null}
-                  </>
-                ) : showApiKeyEditor ? null : (
-                  <>
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      disabled={!canStartCredentialAction}
-                      onClick={() => setEditingApiKeyCredentialKind(credential.kind)}
-                    >
-                      {resolveCredentialActionLabel(credential, status)}
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      disabled={!canStartCredentialAction}
-                      onClick={() => void removeCredential(credential)}
-                    >
-                      Remove
-                    </Button>
-                  </>
+        <SettingsRow
+          preferenceId="agents.account.claude-code"
+          title={
+            <span className="inline-flex items-center gap-1.5">
+              <CoreAuthAccountIcon
+                kind="claude-code"
+                className="size-3.5 shrink-0 text-honk-icon-secondary"
+              />
+              Claude Code
+            </span>
+          }
+          description={
+            claudeAvailable
+              ? (claudeHarness?.detail ?? "Claude Code login available.")
+              : "Uses your Claude Code login. Run `claude login` to connect."
+          }
+        />
+        <SettingsRow
+          preferenceId="agents.account.codex-oauth"
+          title={
+            <span className="inline-flex items-center gap-1.5">
+              <CoreAuthAccountIcon
+                kind="codex-oauth"
+                className="size-3.5 shrink-0 text-honk-icon-secondary"
+              />
+              Codex
+            </span>
+          }
+          description={
+            coreAuthFlow
+              ? (coreAuthFlow.message ??
+                (coreAuthFlow.state === "error"
+                  ? "Codex sign-in failed."
+                  : "Complete ChatGPT sign-in to connect Codex."))
+              : describeCoreCredentialStatus(
+                  codexCredential,
+                  "Add ChatGPT sign-in to enable Codex models.",
                 )
-              }
-            >
-              {showApiKeyEditor ? (
-                <CredentialApiKeyForm
-                  credential={credential}
-                  disabled={!canStartCredentialAction || isCredentialPending}
-                  draftValue={draftValue}
-                  onCancel={() => {
-                    setEditingApiKeyCredentialKind((current) =>
-                      current === credential.kind ? null : current,
-                    );
-                    setApiKeyDraftByKind((previous) => {
-                      const next = { ...previous };
-                      delete next[credential.kind];
-                      return next;
-                    });
-                  }}
-                  onDraftChange={(value) =>
-                    setApiKeyDraftByKind((previous) => ({
-                      ...previous,
-                      [credential.kind]: value,
-                    }))
-                  }
-                  onSubmit={(apiKey) => void configureApiKeyCredential(credential, apiKey)}
-                />
-              ) : null}
-              {authFlow ? <CredentialAuthFlowPanel flow={authFlow} /> : null}
-            </SettingsRow>
-          );
-        })}
+          }
+          control={
+            coreAuthFlow ? null : codexAvailable ? (
+              <Button
+                size="xs"
+                variant="ghost"
+                disabled={coreAuthMutating}
+                onClick={() => removeCoreCredential("codex-oauth")}
+              >
+                Remove
+              </Button>
+            ) : codexCredentialState === "expired" || codexCredentialState === "error" ? (
+              <Button
+                size="xs"
+                variant="ghost"
+                disabled={coreAuthMutating}
+                onClick={startCodexLogin}
+              >
+                Re-login
+              </Button>
+            ) : null
+          }
+        >
+          {coreAuthFlow ? (
+            <CoreAuthFlowPanel
+              disabled={coreAuthMutating}
+              flow={coreAuthFlow}
+              onCancel={cancelCoreAuthFlow}
+              onRetry={startCodexLogin}
+            />
+          ) : null}
+        </SettingsRow>
+        <SettingsRow
+          preferenceId="agents.account.cursor-api-key"
+          title={
+            <span className="inline-flex items-center gap-1.5">
+              <CoreAuthAccountIcon
+                kind="cursor-api-key"
+                className="size-3.5 shrink-0 text-honk-icon-secondary"
+              />
+              Cursor
+            </span>
+          }
+          description={describeCoreCredentialStatus(
+            cursorCredential,
+            "Add a Cursor API key to enable Cursor Composer.",
+          )}
+          control={
+            isEditingCursorApiKey ? null : cursorAvailable ? (
+              <Button
+                size="xs"
+                variant="ghost"
+                disabled={coreAuthMutating}
+                onClick={() => removeCoreCredential("cursor-api-key")}
+              >
+                Remove
+              </Button>
+            ) : cursorCredentialState === "expired" || cursorCredentialState === "error" ? (
+              <Button
+                size="xs"
+                variant="ghost"
+                disabled={coreAuthMutating}
+                onClick={() => setIsEditingCursorApiKey(true)}
+              >
+                Update key
+              </Button>
+            ) : null
+          }
+        >
+          {isEditingCursorApiKey ? (
+            <CursorApiKeyForm
+              disabled={coreAuthMutating}
+              draftValue={cursorApiKeyDraft}
+              onCancel={() => {
+                setCursorApiKeyDraft("");
+                setIsEditingCursorApiKey(false);
+              }}
+              onDraftChange={setCursorApiKeyDraft}
+              onSubmit={saveCursorApiKey}
+            />
+          ) : null}
+        </SettingsRow>
       </SettingsSection>
     </>
   );

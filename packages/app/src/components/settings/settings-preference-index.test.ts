@@ -43,7 +43,7 @@ describe("settings-preference-index", () => {
     const ids = results.map((entry) => entry.id);
     expect(ids).toContain("agents.agent-mode");
     expect(ids).toContain("agents.account.codex-oauth");
-    expect(ids).toContain("agents.account.codex-api-key");
+    expect(ids).not.toContain("agents.account.codex-api-key");
   });
 
   it("hides gated preferences when unsupported", () => {

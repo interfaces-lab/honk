@@ -42,6 +42,9 @@ nothing — no consumer reads its `baseUrl`/token.
 4. **In web/serve mode there is no desktop, so git/settings/projects are absent — and that is correct.**
    A browser attached to a remote Core gets orchestration only; managing the remote machine's local git
    is out of scope for v1. The environment surfaces these as unavailable rather than faking them.
+   *Superseded by ADR 0022 for paired clients: pairing hands over the aux endpoint + bearer too, so the
+   owner's remote clients (web attach, Expo) get full parity. "Absent" now applies only to contexts
+   that never paired with the desktop.*
 
 ## Consequences
 

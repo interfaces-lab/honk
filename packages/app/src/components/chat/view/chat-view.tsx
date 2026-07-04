@@ -1,7 +1,4 @@
-import {
-  type ApprovalRequestId,
-  MessageId,
-} from "@honk/shared/base-schemas";
+import { type ApprovalRequestId, MessageId } from "@honk/shared/base-schemas";
 import type {
   DesktopExtensionUiRequest,
   ThreadAgentRuntimeImageAttachment,
@@ -13,11 +10,7 @@ import type {
   OrchestrationThreadActivity,
   SourceProposedPlanReference,
 } from "@honk/shared/orchestration";
-import type {
-  EnvironmentId,
-  ScopedProjectRef,
-  ScopedThreadRef,
-} from "@honk/shared/environment";
+import type { EnvironmentId, ScopedProjectRef, ScopedThreadRef } from "@honk/shared/environment";
 import type { GitBranch } from "@honk/shared/git";
 import type { ModelSelection } from "@honk/shared/model";
 import type { ProjectScript } from "@honk/shared/project-scripts";
@@ -28,7 +21,7 @@ import type { AgentPreferences } from "@honk/shared/agent-model-policy";
 import { DEFAULT_PROJECTLESS_CWD } from "@honk/shared/project";
 import { scopedThreadKey, scopeProjectRef, scopeThreadRef } from "~/lib/environment-scope";
 import { projectScriptRuntimeEnv } from "@honk/shared/project-scripts";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@honk/honkkit/alert";
 import { Button } from "@honk/honkkit/button";
 import { type ConversationScrollerController } from "@honk/honkkit/conversation-scroller";
@@ -57,6 +50,7 @@ import {
   deriveAgentModeAvailability,
   unavailableModelSelectionReason,
 } from "~/lib/agent-mode-options";
+import { coreAuthSnapshotQueryOptions } from "~/lib/core-auth-react-query";
 import { coordinateTurnSend, dispatchTurnStartFailure } from "~/lib/turn-send-coordinator";
 import { isElectron } from "../../../env";
 import {
@@ -597,6 +591,7 @@ export default function ChatView(props: ChatViewProps) {
   const selectedWorkspaceProject = useStore(selectedWorkspaceProjectSelector);
   const router = useRouter();
   const queryClient = useQueryClient();
+  const coreAuthQuery = useQuery(coreAuthSnapshotQueryOptions());
   const { resolvedTheme } = useTheme();
   // Granular store selectors avoid subscribing to prompt changes.
   const composerInteractionMode = useComposerDraftStore(
@@ -1670,10 +1665,9 @@ export default function ChatView(props: ChatViewProps) {
     targetThreadId: ThreadId,
     modelSelection: ModelSelection,
   ): boolean => {
-    const { snapshot } = useAgentRuntimeStore.getState();
     const reason = unavailableModelSelectionReason(
       modelSelection,
-      deriveAgentModeAvailability(snapshot.authStatuses),
+      deriveAgentModeAvailability(coreAuthQuery.data),
     );
     if (reason === null) {
       return true;

@@ -118,9 +118,10 @@ import { PlanFollowUpTray } from "./plan-follow-up/plan-follow-up-tray";
 import { useLayoutSyncEffect } from "~/hooks/use-layout-sync-effect";
 import { useMountEffect } from "~/hooks/use-mount-effect";
 import { isDesktopRuntimeApiAvailable, readHonkRuntimeApi } from "~/lib/honk-runtime-api";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { runtimeSkillsQueryOptions } from "~/lib/runtime-skills";
 import { projectSearchEntriesQueryOptions } from "~/lib/project-react-query";
+import { coreAuthSnapshotQueryOptions } from "~/lib/core-auth-react-query";
 import { useAgentRuntimeStore } from "~/stores/agent-runtime-store";
 import { useLocalFeatureFlagsStore } from "~/stores/local-feature-flags";
 import {
@@ -1559,11 +1560,11 @@ export const ComposerInput = forwardRef<ComposerInputHandle, ComposerInputProps>
     }));
     const composerImages = composerDraft.images;
     const runtimePreferences = useAgentRuntimeStore((state) => state.snapshot.preferences);
-    const runtimeAuthStatuses = useAgentRuntimeStore((state) => state.snapshot.authStatuses);
+    const coreAuthQuery = useQuery(coreAuthSnapshotQueryOptions());
     const surfaceAgentMode = isNewAgentComposer
       ? runtimePreferences.agentMode
       : resolveAgentModeForModelSelection(modelSelection, runtimePreferences.agentMode);
-    const agentModeAvailability = deriveAgentModeAvailability(runtimeAuthStatuses);
+    const agentModeAvailability = deriveAgentModeAvailability(coreAuthQuery.data);
     const [isAgentModeSaving, setIsAgentModeSaving] = useState(false);
 
     const statusContextWindow = (() => {
