@@ -24,6 +24,8 @@ export {
   iconVars,
   motionDefaults,
   motionVars,
+  proseDefaults,
+  proseVars,
   radiusDefaults,
   radiusVars,
   shellDefaults,
@@ -43,6 +45,7 @@ export type {
   FontVarName,
   IconVarName,
   MotionVarName,
+  ProseVarName,
   RadiusVarName,
   ShellVarName,
   SpaceVarName,
@@ -64,6 +67,28 @@ export type {
   TextTone,
   TextWeight,
 } from "./text";
+
+// Long-form assistant output: a measured reading column whose evidence/media leaves can use the
+// wider conversation lane. Consumers keep ownership of parsing and map semantic leaves here.
+export { Prose } from "./prose";
+export type {
+  ProseBlockquoteProps,
+  ProseCodeBlockProps,
+  ProseHeadingLevel,
+  ProseHeadingProps,
+  ProseImageProps,
+  ProseInlineCodeProps,
+  ProseLinkProps,
+  ProseListItemProps,
+  ProseListProps,
+  ProseParagraphProps,
+  ProseRootProps,
+  ProseRuleProps,
+  ProseStrongProps,
+  ProseTableDataProps,
+  ProseTableHeaderProps,
+  ProseTableProps,
+} from "./prose";
 
 // The glyph leaf (wraps central-icons glyphs). The curated glyph SET itself — the 35 production
 // glyphs grouped by function, plus ICON_CATALOG — deliberately stays off the root: deep-import it

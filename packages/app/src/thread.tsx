@@ -49,6 +49,8 @@ import {
   type PromptEditorHandle,
   type PromptSubmit,
 } from "./composer";
+import { DirectoryAccessControl } from "./directory-access-control";
+import { canPickFolder, pickFolder } from "./desktop-bridge";
 import { Markdown } from "./markdown";
 import { actions as modeActions, modeAgentName, nextModeId, useThreadMode } from "./modes";
 import type { SideChatSummary, ThreadState } from "./sidecar";
@@ -76,6 +78,7 @@ type AssistantThreadMessage = Extract<ThreadMessage, { readonly role: "assistant
 type ThreadDiff = NonNullable<UserThreadMessage["summary"]>["diffs"][number];
 type RenderableThreadDiff = ThreadDiff & { readonly file: string };
 const EMPTY_SIDE_CHATS: readonly SideChatSummary[] = Object.freeze([]);
+const EMPTY_DIRECTORIES: readonly string[] = Object.freeze([]);
 
 // Thread column from locked §5; sized to the current app's readable chat lane.
 const THREAD_MAX_WIDTH = "840px";
@@ -162,6 +165,17 @@ const styles = stylex.create({
     flexDirection: "column",
     gap: spaceVars["--honk-space-panel-pad"],
     overflowY: "auto",
+    // The transcript is the one vertical viewport inside the fixed shell. Stable gutter geometry
+    // prevents the prose measure from shifting when a scrollbar appears, and contained overscroll
+    // keeps a trackpad fling from leaking into the window behind it. Smooth programmatic/focus
+    // movement mirrors the reference reading surface while reduced-motion keeps the jump immediate.
+    scrollbarGutter: "stable",
+    overscrollBehaviorY: "contain",
+    scrollBehavior: {
+      default: "smooth",
+      "@media (prefers-reduced-motion: reduce)": "auto",
+    },
+    scrollPaddingBlock: spaceVars["--honk-space-panel-pad"],
     paddingBlock: spaceVars["--honk-space-gutter"],
   },
   turn: {
@@ -484,6 +498,7 @@ function ThreadSurface({
           threadId={threadId}
           isRunning={state.summary.status === "running"}
           cwd={state.cwd}
+          attachedDirectories={state.attachedDirectories}
           title={state.summary.title}
           {...(onCreateSideChat !== undefined ? { onCreateSideChat } : {})}
         />
@@ -1404,6 +1419,16 @@ function PatchPartRow({ files }: { files: readonly string[] }): React.ReactEleme
 // thread from its first prompt line, exactly like the create path does.
 const PLACEHOLDER_TITLE = /^(?:New session - \d{4}|Side Chat)$/;
 const TITLE_MAX_LENGTH = 80;
+const DIRECTORY_ACCESS_BUSY_MESSAGE =
+  "Can't change folder access while the agent is working. Stop the run and try again.";
+const CD_COMMAND = {
+  name: "cd",
+  description: "Allow access to an external directory",
+  agent: null,
+  model: null,
+  template: "",
+  subtask: false,
+} as const;
 const SIDE_CHAT_COMMANDS = [
   {
     name: "side",
@@ -1422,6 +1447,8 @@ const SIDE_CHAT_COMMANDS = [
     subtask: false,
   },
 ] as const;
+const THREAD_COMMANDS = [CD_COMMAND] as const;
+const THREAD_COMMANDS_WITH_SIDE_CHAT = [CD_COMMAND, ...SIDE_CHAT_COMMANDS] as const;
 
 function titleFromPrompt(text: string): string {
   const [firstLine = ""] = text.split("\n");
@@ -1433,12 +1460,14 @@ function ThreadComposer({
   threadId,
   isRunning,
   cwd,
+  attachedDirectories,
   title,
   onCreateSideChat,
 }: {
   threadId: string;
   isRunning: boolean;
   cwd: string;
+  attachedDirectories: readonly string[];
   title: string;
   onCreateSideChat?: (prompt: string) => Promise<void>;
 }): React.ReactElement {
@@ -1446,15 +1475,99 @@ function ThreadComposer({
   const allSideChats = useWorkspaceWatchSelector(
     (snapshot) => snapshot.state?.sideChats ?? EMPTY_SIDE_CHATS,
   );
+  const recentDirectories = useWorkspaceWatchSelector(
+    (snapshot) => snapshot.state?.recentDirectories ?? EMPTY_DIRECTORIES,
+  );
   const sideChats = allSideChats
     .filter((sideChat) => sideChat.parentThreadId === threadId)
     .map((sideChat) => ({ id: sideChat.id, title: sideChat.title }));
   const [hasText, setHasText] = React.useState(false);
   const [isSending, setSending] = React.useState(false);
+  const [isDirectoryPickerOpen, setDirectoryPickerOpen] = React.useState(false);
+  const [isUpdatingDirectories, setUpdatingDirectories] = React.useState(false);
   // The compact ↔ expanded-block flip: driven by the editor's wrap state (a reply that fits on one
   // line stays a single compact row; wrapping or a line break expands it, matching the old composer).
   const [expanded, setExpanded] = React.useState(false);
   const editorRef = React.useRef<PromptEditorHandle | null>(null);
+
+  const reportDirectoryError = (error: unknown): void => {
+    const message = errorMessage(error);
+    toastActions.add({
+      type: "error",
+      title: "Folder access failed",
+      description: message,
+      copyableError: message,
+      threadKey: threadId,
+    });
+  };
+
+  const canChangeDirectories = (): boolean => {
+    if (!isRunning) {
+      return true;
+    }
+    reportDirectoryError(new Error(DIRECTORY_ACCESS_BUSY_MESSAGE));
+    return false;
+  };
+
+  const requestDirectoryPicker = (open: boolean): void => {
+    if (!open) {
+      setDirectoryPickerOpen(false);
+      return;
+    }
+    if (canChangeDirectories()) {
+      setDirectoryPickerOpen(true);
+    }
+  };
+
+  const attachDirectory = (path: string): void => {
+    if (!canChangeDirectories() || isUpdatingDirectories) {
+      return;
+    }
+    const client = getBoundHonkClient();
+    if (client === null) {
+      reportDirectoryError(new Error("The sidecar connection is not ready yet."));
+      return;
+    }
+    setUpdatingDirectories(true);
+    void client.threads
+      .attachDirectory(threadId, path)
+      .then(() => {
+        setDirectoryPickerOpen(false);
+      })
+      .catch(reportDirectoryError)
+      .finally(() => {
+        setUpdatingDirectories(false);
+      });
+  };
+
+  const detachDirectory = (path: string): void => {
+    if (!canChangeDirectories() || isUpdatingDirectories) {
+      return;
+    }
+    const client = getBoundHonkClient();
+    if (client === null) {
+      reportDirectoryError(new Error("The sidecar connection is not ready yet."));
+      return;
+    }
+    setUpdatingDirectories(true);
+    void client.threads
+      .detachDirectory(threadId, path)
+      .catch(reportDirectoryError)
+      .finally(() => {
+        setUpdatingDirectories(false);
+      });
+  };
+
+  const browseForDirectory = (): void => {
+    if (!canChangeDirectories() || isUpdatingDirectories) {
+      return;
+    }
+    void pickFolder(cwd).then((path) => {
+      if (path !== null) {
+        attachDirectory(path);
+      }
+    });
+  };
 
   const handleSubmit = (payload: PromptSubmit): void => {
     const client = getBoundHonkClient();
@@ -1465,6 +1578,15 @@ function ThreadComposer({
         description: "The sidecar connection is not ready yet.",
         threadKey: threadId,
       });
+      return;
+    }
+
+    if (payload.command?.name === "cd") {
+      if (payload.command.arguments.length === 0) {
+        requestDirectoryPicker(true);
+      } else {
+        attachDirectory(payload.command.arguments);
+      }
       return;
     }
 
@@ -1527,6 +1649,12 @@ function ThreadComposer({
         editorRef.current?.submit();
       }}
       onKeyDown={(event) => {
+        if (
+          event.target instanceof Element &&
+          event.target.closest("[data-directory-picker]") !== null
+        ) {
+          return;
+        }
         if (event.key === "Tab" && event.shiftKey && !event.defaultPrevented) {
           event.preventDefault();
           modeActions.setThreadMode(threadId, nextModeId(mode));
@@ -1537,7 +1665,16 @@ function ThreadComposer({
         placeholder="Reply…"
         ariaLabel="Reply"
         directory={cwd}
-        localCommands={onCreateSideChat === undefined ? [] : SIDE_CHAT_COMMANDS}
+        localCommands={
+          onCreateSideChat === undefined ? THREAD_COMMANDS : THREAD_COMMANDS_WITH_SIDE_CHAT
+        }
+        onCommandSelect={(name) => {
+          if (name !== "cd") {
+            return false;
+          }
+          requestDirectoryPicker(true);
+          return true;
+        }}
         sideChats={sideChats}
         onSubmit={handleSubmit}
         onHasTextChange={setHasText}
@@ -1549,6 +1686,18 @@ function ThreadComposer({
       />
       <div {...stylex.props(expanded ? styles.controlsExpanded : styles.controlsCollapsed)}>
         <ComposerAttachmentButton editorRef={editorRef} />
+        <DirectoryAccessControl
+          cwd={cwd}
+          attachedDirectories={attachedDirectories}
+          recentDirectories={recentDirectories}
+          isOpen={isDirectoryPickerOpen}
+          isPending={isUpdatingDirectories}
+          canBrowse={canPickFolder()}
+          onOpenChange={requestDirectoryPicker}
+          onAttach={attachDirectory}
+          onDetach={detachDirectory}
+          onBrowse={browseForDirectory}
+        />
         <ModeControl
           value={mode}
           onValueChange={(id) => {
@@ -1560,7 +1709,11 @@ function ThreadComposer({
             {isRunning ? "The agent is working — a new prompt steers it." : ""}
           </Text>
         ) : null}
-        <Button type="submit" variant="primary" disabled={!hasText || isSending}>
+        <Button
+          type="submit"
+          variant="primary"
+          disabled={!hasText || isSending || isUpdatingDirectories}
+        >
           Send
         </Button>
       </div>

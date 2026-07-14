@@ -16,8 +16,6 @@ import type { SidecarChange, SidecarDiffHunk } from "./sidecar";
 import { getBoundHonkClient } from "./watch-registry";
 
 const ROW_HEIGHT = "26px";
-const DIFF_LINE_HEIGHT = "18px";
-
 const styles = stylex.create({
   root: {
     flexGrow: 1,
@@ -132,8 +130,8 @@ const styles = stylex.create({
     paddingInline: spaceVars["--honk-space-gutter"],
     margin: 0,
     fontFamily: fontVars["--honk-font-family-mono"],
-    fontSize: fontVars["--honk-font-size-detail"],
-    lineHeight: DIFF_LINE_HEIGHT,
+    fontSize: fontVars["--honk-font-size-code"],
+    lineHeight: fontVars["--honk-leading-code"],
     whiteSpace: "pre",
     color: colorVars["--honk-color-fg-secondary"],
   },

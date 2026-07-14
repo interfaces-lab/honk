@@ -14,7 +14,7 @@
 // thread anywhere else. The shared PromptEditor also serves the thread composer.
 
 import * as stylex from "@stylexjs/stylex";
-import { Button, Icon, IconButton, Menu, Tooltip } from "@honk/ui";
+import { Button, Icon, IconButton, Menu, Popover, Tooltip } from "@honk/ui";
 import {
   IconArrowUp,
   IconBubbleQuestion,
@@ -67,7 +67,8 @@ import {
 import * as React from "react";
 
 import { actions as appSettingsActions } from "./app-settings-store";
-import { pickFolder } from "./desktop-bridge";
+import { canPickFolder, pickFolder } from "./desktop-bridge";
+import { DirectoryPicker } from "./directory-picker";
 import {
   actions as modeActions,
   DEFAULT_MODE,
@@ -107,6 +108,7 @@ const MENU_GUTTER = "6px";
 // File-search debounce — long enough to coalesce a burst of keystrokes, short enough to feel live.
 const FILE_SEARCH_DEBOUNCE_MS = 120;
 const MENU_MAX_ITEMS = 32;
+const EMPTY_DIRECTORY_PATHS: readonly string[] = Object.freeze([]);
 // The old composer attachment tile is a fixed 56px square; it is component anatomy rather than
 // a theme value, so it stays a named intrinsic while its colors/radius come from tokens.
 const ATTACHMENT_SIZE = "56px";
@@ -178,8 +180,6 @@ const styles = stylex.create({
   // top-left (not the whole card, which also holds attachment tiles).
   editorShell: {
     position: "relative",
-    display: "flex",
-    flexDirection: "column",
     minHeight: 0,
   },
   // The empty-state placeholder — a non-interactive overlay at the editor's text origin.
@@ -880,6 +880,7 @@ function PromptEditor(props: {
   readonly ariaLabel: string;
   readonly directory?: string;
   readonly localCommands?: readonly SidecarCommand[];
+  readonly onCommandSelect?: (name: string) => boolean;
   readonly sideChats?: readonly SideChatMention[];
   readonly menuPlacement?: "above" | "below";
   readonly onSubmit: (payload: PromptSubmit) => void;
@@ -914,6 +915,7 @@ function PromptEditorInner({
   ariaLabel,
   directory,
   localCommands = [],
+  onCommandSelect,
   sideChats = [],
   menuPlacement = "above",
   onSubmit,
@@ -930,6 +932,8 @@ function PromptEditorInner({
   readonly directory?: string;
   // App-owned commands such as /side are merged with opencode's command catalog.
   readonly localCommands?: readonly SidecarCommand[];
+  // Returning true consumes a picked app-owned command instead of inserting a command token.
+  readonly onCommandSelect?: (name: string) => boolean;
   // Parent-thread side chats share the @ menu with files and serialize as transcript references.
   readonly sideChats?: readonly SideChatMention[];
   // "below" for composers near the top of the sheet (home); "above" for bottom-seated ones.
@@ -1247,6 +1251,31 @@ function PromptEditorInner({
           ]);
         }
       });
+    } else if (onCommandSelect?.(item.key) === true) {
+      editor.update(() => {
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+          return;
+        }
+        const node = selection.anchor.getNode();
+        if (!$isTextNode(node)) {
+          return;
+        }
+        const before = node.getTextContent().slice(0, selection.anchor.offset);
+        const slash = /(^|\s)\/([\w:.-]*)$/.exec(before);
+        if (slash === null) {
+          return;
+        }
+        const triggerStart = selection.anchor.offset - (slash[2]?.length ?? 0) - 1;
+        node.select(triggerStart, selection.anchor.offset);
+        const range = $getSelection();
+        if ($isRangeSelection(range)) {
+          range.insertText("");
+        }
+      });
+      notifyContent();
+      closeMenu();
+      return;
     } else {
       editor.update(() => {
         const selection = $getSelection();
@@ -1779,12 +1808,15 @@ function ComposerAttachmentButton({
 function Composer({
   directory,
   directoryLabel,
+  recentDirectories = EMPTY_DIRECTORY_PATHS,
   onDirectoryPicked,
 }: {
   // Where the new thread will live. Undefined → the default working folder.
   readonly directory?: string;
   // What the location chip prints (home passes the selected project's name).
   readonly directoryLabel?: string;
+  // App-wide convenience only; choosing one still scopes the new thread explicitly.
+  readonly recentDirectories?: readonly string[];
   // The picker handoff — home owns the selection state, the chip just asks.
   readonly onDirectoryPicked?: (path: string) => void;
 }): React.ReactElement {
@@ -1794,6 +1826,8 @@ function Composer({
   const editorRef = React.useRef<PromptEditorHandle | null>(null);
   // Send-button enablement only — keystrokes stay out of any store.
   const [hasText, setHasText] = React.useState(false);
+  const [isLocationPickerOpen, setLocationPickerOpen] = React.useState(false);
+  const [isBrowsing, setBrowsing] = React.useState(false);
 
   const handleSubmit = (payload: PromptSubmit): void => {
     // Mode picks the agent (soft, switchable later); the preset's model bundle hard-pins. `mode`
@@ -1823,12 +1857,22 @@ function Composer({
     }
   };
 
-  const pickTarget = (): void => {
-    void pickFolder(directory ?? null).then((path) => {
-      if (path !== null) {
-        onDirectoryPicked?.(path);
-      }
-    });
+  const chooseTarget = (path: string): void => {
+    onDirectoryPicked?.(path);
+    setLocationPickerOpen(false);
+  };
+
+  const browseForTarget = (): void => {
+    setBrowsing(true);
+    void pickFolder(directory ?? null)
+      .then((path) => {
+        if (path !== null) {
+          chooseTarget(path);
+        }
+      })
+      .finally(() => {
+        setBrowsing(false);
+      });
   };
 
   return (
@@ -1836,6 +1880,12 @@ function Composer({
       <div
         {...stylex.props(styles.card)}
         onKeyDown={(event) => {
+          if (
+            event.target instanceof Element &&
+            event.target.closest("[data-directory-picker]") !== null
+          ) {
+            return;
+          }
           if (event.key === "Tab" && event.shiftKey && !event.defaultPrevented) {
             event.preventDefault();
             modeActions.setHomeMode(nextModeId(mode));
@@ -1865,22 +1915,41 @@ function Composer({
               presetActions.select(id);
             }}
           />
-          {onDirectoryPicked !== undefined && (
-            <Tooltip
-              label={
-                directory !== undefined
-                  ? `${directory} — click to change`
-                  : "New threads start in your default folder — click to pick another"
-              }
-            >
-              <button type="button" {...stylex.props(styles.locationChip)} onClick={pickTarget}>
-                <Icon icon={IconFolder1} size="sm" />
-                <span {...stylex.props(styles.locationLabel)}>
-                  {directoryLabel ?? (directory !== undefined ? basename(directory) : "Default")}
-                </span>
-              </button>
-            </Tooltip>
-          )}
+          {onDirectoryPicked !== undefined ? (
+            <Popover.Root open={isLocationPickerOpen} onOpenChange={setLocationPickerOpen}>
+              <Popover.Trigger
+                render={
+                  <button
+                    type="button"
+                    title={
+                      directory !== undefined
+                        ? `${directory} — choose where the new task starts`
+                        : "Choose where the new task starts"
+                    }
+                    {...stylex.props(styles.locationChip)}
+                  >
+                    <Icon icon={IconFolder1} size="sm" />
+                    <span {...stylex.props(styles.locationLabel)}>
+                      {directoryLabel ??
+                        (directory !== undefined ? basename(directory) : "Default")}
+                    </span>
+                  </button>
+                }
+              />
+              <Popover.Popup side="bottom" align="start">
+                <DirectoryPicker
+                  recentDirectories={recentDirectories}
+                  excludedDirectories={
+                    directory === undefined ? EMPTY_DIRECTORY_PATHS : [directory]
+                  }
+                  allowDirectPath={false}
+                  isPending={isBrowsing}
+                  onSelect={chooseTarget}
+                  {...(canPickFolder() ? { onBrowse: browseForTarget } : {})}
+                />
+              </Popover.Popup>
+            </Popover.Root>
+          ) : null}
           <div {...stylex.props(styles.footerSpacer)} />
           <IconButton
             aria-label="Send"

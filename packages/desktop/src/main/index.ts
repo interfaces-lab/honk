@@ -87,6 +87,10 @@ const desktopServerExposureLayer = DesktopServerExposure.layer.pipe(
 
 const desktopWindowLayer = DesktopWindow.layer.pipe(Layer.provideMerge(desktopServerExposureLayer));
 
+const opencodeSidecarLayer = OpencodeSidecar.layer.pipe(Layer.provideMerge(desktopWindowLayer));
+
+const desktopUpdatesLayer = DesktopUpdates.layer.pipe(Layer.provideMerge(opencodeSidecarLayer));
+
 const desktopApplicationLayer = Layer.mergeAll(
   DesktopLifecycle.layer,
   DesktopQuitGuard.layer,
@@ -95,11 +99,9 @@ const desktopApplicationLayer = Layer.mergeAll(
   DesktopBrowserAutomation.layer,
   DesktopAuxEndpoint.layer,
   DesktopPty.layer,
-  OpencodeSidecar.layer,
 ).pipe(
-  Layer.provideMerge(DesktopUpdates.layer),
+  Layer.provideMerge(desktopUpdatesLayer),
   Layer.provideMerge(DesktopAppIdentity.layer),
-  Layer.provideMerge(desktopWindowLayer),
   Layer.provideMerge(desktopWindowLayer),
 );
 

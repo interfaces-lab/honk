@@ -6,7 +6,9 @@ import { LoadingState } from "../src/ui";
 
 export default function IndexRoute(): React.ReactElement {
   const remote = useRemote();
-  if (remote.status === "restoring") return <LoadingState label="Restoring Core connection…" />;
+  if (remote.status === "restoring") {
+    return <LoadingState label="Restoring Honk connection…" />;
+  }
   if (remote.client === null) return <Redirect href="/connect" />;
   return <Redirect href="/(tabs)/home" />;
 }

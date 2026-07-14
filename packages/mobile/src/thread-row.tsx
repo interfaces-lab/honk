@@ -1,115 +1,85 @@
 import * as React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Link, type Href } from "expo-router";
-import type { ThreadSummary } from "@honk/api/core/v1";
+import type { ThreadSummary } from "@honk/opencode";
 
 import { formatTimestamp } from "./format";
 import { DetailText, useHonkTheme } from "./ui";
 
 const statusLabel = (thread: ThreadSummary): string => {
-  switch (thread.rowStatus) {
-    case "running":
-      return "Running";
-    case "needs_attention":
-      return "Needs attention";
-    case "stopped":
-      return "Stopped";
-    case "error":
-      return "Error";
-    case "idle":
-      return "Idle";
-  }
+  if (thread.needsAttention) return "Needs attention";
+  if (thread.status === "running") return "Running";
+  if (thread.status === "failed") return "Failed";
+  return "Idle";
 };
 
 export function ThreadRow({
   href,
-  readAt = null,
   thread,
 }: {
   readonly href: Href;
-  readonly readAt?: string | null;
   readonly thread: ThreadSummary;
 }): React.ReactElement {
   const theme = useHonkTheme();
-  const emphasized = thread.rowStatus === "needs_attention" || thread.rowStatus === "error";
+  const emphasized = thread.needsAttention || thread.status === "failed";
+  const active = emphasized || thread.status === "running";
   const statusColor =
-    thread.rowStatus === "running"
+    thread.status === "running"
       ? theme.colors.accent
       : emphasized
         ? theme.colors.errFg
         : theme.colors.textMuted;
-  const unread =
-    thread.readableAt !== null && (readAt === null || thread.readableAt.localeCompare(readAt) > 0);
+  const model = thread.model === null ? (thread.agent ?? "Honk") : thread.model.id;
+
   return (
     <Link asChild href={href}>
       <Pressable
         accessibilityHint="Opens this task"
-        accessibilityLabel={`${thread.title}, ${statusLabel(thread)}${unread ? ", unread" : ""}`}
+        accessibilityLabel={`${thread.title}, ${statusLabel(thread)}`}
         style={({ pressed }) => [
           styles.root,
           {
             backgroundColor: pressed ? theme.colors.statePress : theme.colors.bgBase,
             borderBottomColor: theme.colors.borderMuted,
             borderBottomWidth: theme.metrics.field.borderWidth,
-            gap: theme.metrics.space.compactGap,
-            paddingHorizontal: theme.metrics.space.screenGutter,
+            gap: theme.metrics.space.rowGap,
             paddingVertical: theme.metrics.feed.rowPaddingBlock,
           },
         ]}
       >
-        <View style={[styles.line, { gap: theme.metrics.space.contentGap }]}>
+        <View style={[styles.statusSlot, { marginTop: theme.metrics.space.contentGap }]}>
+          {active ? (
+            <View
+              style={[
+                styles.statusMark,
+                {
+                  backgroundColor: statusColor,
+                  borderRadius: theme.metrics.radius.pill,
+                },
+              ]}
+            />
+          ) : null}
+        </View>
+        <View style={[styles.content, { gap: theme.metrics.space.compactGap }]}>
           <Text
             allowFontScaling
             numberOfLines={2}
-            style={[
-              styles.title,
-              {
-                color: theme.colors.textPrimary,
-                fontSize: theme.metrics.font.bodySize,
-                fontWeight: theme.metrics.font.weightSemibold,
-                lineHeight: theme.metrics.font.bodyLeading,
-              },
-            ]}
+            style={{
+              color: theme.colors.textPrimary,
+              fontSize: theme.metrics.font.bodySize,
+              fontWeight: emphasized
+                ? theme.metrics.font.weightSemibold
+                : theme.metrics.font.weightMedium,
+              lineHeight: theme.metrics.font.bodyLeading,
+            }}
           >
             {thread.title}
           </Text>
-          <View style={[styles.status, { gap: theme.metrics.space.compactGap }]}>
-            <View
-              style={{
-                backgroundColor: statusColor,
-                borderRadius: theme.metrics.radius.pill,
-                height: theme.metrics.space.contentGap,
-                width: theme.metrics.space.contentGap,
-              }}
-            />
-            <Text
-              allowFontScaling
-              style={{
-                color: statusColor,
-                fontSize: theme.metrics.font.captionSize,
-                fontWeight: theme.metrics.font.weightMedium,
-                lineHeight: theme.metrics.font.captionLeading,
-              }}
-            >
-            {statusLabel(thread)}
-          </Text>
-          {unread ? (
-            <Text
-              allowFontScaling
-              style={{
-                color: theme.colors.accent,
-                fontSize: theme.metrics.font.captionSize,
-                fontWeight: theme.metrics.font.weightSemibold,
-              }}
-            >
-              New
-            </Text>
-          ) : null}
-          </View>
+          <DetailText numberOfLines={1}>
+            {active ? `${statusLabel(thread)} · ` : ""}
+            {model} · {formatTimestamp(thread.updatedAt)}
+          </DetailText>
         </View>
-        <DetailText numberOfLines={1}>
-          {String(thread.model)} · {formatTimestamp(thread.updatedAt)}
-        </DetailText>
       </Pressable>
     </Link>
   );
@@ -117,18 +87,18 @@ export function ThreadRow({
 
 const styles = StyleSheet.create({
   root: {
-    width: "100%",
-  },
-  line: {
     alignItems: "flex-start",
     flexDirection: "row",
-    justifyContent: "space-between",
   },
-  title: {
+  content: {
     flex: 1,
   },
-  status: {
-    alignItems: "center",
-    flexDirection: "row",
+  statusMark: {
+    height: 8,
+    width: 8,
+  },
+  statusSlot: {
+    height: 8,
+    width: 8,
   },
 });

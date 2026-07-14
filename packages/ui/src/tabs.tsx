@@ -1,6 +1,6 @@
 // The thread-tab plane — honk's browser-grade titlebar tabs, the whole concept in one file
 // (ADR 0011 one-file-per-concept). Anatomy comes from the locked board (§0 "tab + status
-// language" + §1 in .design/wireframes/locked.html); the --tab-bg technique from opencode;
+// language" + §1 in the locked design board); the --tab-bg technique from opencode;
 // everything expressed as StyleX 0.19 per the charter.
 //
 // PRESENTATIONAL ONLY. This component owns geometry, the status vocabulary, and pointer

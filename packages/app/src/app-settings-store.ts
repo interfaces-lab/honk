@@ -15,7 +15,9 @@ export type AppSettings = {
 };
 
 const STORAGE_KEY = "honk:app-next:app-settings";
-const DEFAULT_SNAPSHOT: AppSettings = Object.freeze({ defaultProjectDirectory: null });
+const DEFAULT_SNAPSHOT: AppSettings = Object.freeze({
+  defaultProjectDirectory: null,
+});
 
 const listeners = new Set<() => void>();
 
@@ -84,13 +86,17 @@ function hydrate(): AppSettings {
     if (raw === null) {
       return DEFAULT_SNAPSHOT;
     }
-    const parsed = JSON.parse(raw) as Partial<{ defaultProjectDirectory: unknown }>;
+    const parsed = JSON.parse(raw) as Partial<{
+      defaultProjectDirectory: unknown;
+    }>;
     const directory =
       typeof parsed.defaultProjectDirectory === "string" &&
       parsed.defaultProjectDirectory.trim().length > 0
         ? parsed.defaultProjectDirectory
         : null;
-    return Object.freeze({ defaultProjectDirectory: directory });
+    return Object.freeze({
+      defaultProjectDirectory: directory,
+    });
   } catch {
     return DEFAULT_SNAPSHOT;
   }

@@ -1,0 +1,33 @@
+{
+  "name": "@honk/cli",
+  "version": "0.6.2",
+  "description": "Run Honk and its managed OpenCode host.",
+  "license": "MIT",
+  "bin": {
+    "honk": "./dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "web"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "bun src/bin.ts",
+    "build": "tsdown src/bin.ts --format esm --out-dir dist --clean && node scripts/copy-web.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "open": "^11.0.0",
+    "opencode-ai": "1.17.20",
+    "toqr": "0.1.1"
+  },
+  "devDependencies": {
+    "@honk/app": "workspace:*",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

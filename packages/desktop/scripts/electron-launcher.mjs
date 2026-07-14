@@ -17,14 +17,13 @@ import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
 const LAUNCHER_VERSION = 3;
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 export const desktopDir = resolve(currentDir, "..");
 const productionLauncherIconPath = join(desktopDir, "resources", "icon.icns");
 
-function resolveLauncherIdentity() {
+function resolveLauncherIdentity(isDevelopment) {
   return isDevelopment
     ? {
         appDisplayName: "Honk (Dev)",
@@ -126,8 +125,8 @@ function hasMacRuntimeResources(appBundlePath) {
   );
 }
 
-function buildMacLauncher(electronBinaryPath) {
-  const identity = resolveLauncherIdentity();
+function buildMacLauncher(electronBinaryPath, isDevelopment) {
+  const identity = resolveLauncherIdentity(isDevelopment);
   const sourceAppBundlePath = resolve(electronBinaryPath, "../../..");
   const runtimeDir = join(desktopDir, ".electron-runtime");
   const targetAppBundlePath = join(runtimeDir, `${identity.appDisplayName}.app`);
@@ -182,7 +181,7 @@ function installElectronBinary(require) {
   }
 }
 
-export function resolveElectronPath() {
+export function resolveElectronPath({ isDevelopment = false } = {}) {
   const require = createRequire(import.meta.url);
   let electronBinaryPath;
 
@@ -197,5 +196,5 @@ export function resolveElectronPath() {
     return electronBinaryPath;
   }
 
-  return buildMacLauncher(electronBinaryPath);
+  return buildMacLauncher(electronBinaryPath, isDevelopment);
 }

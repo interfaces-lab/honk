@@ -22,6 +22,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import * as DesktopEnvironment from "../app/desktop-environment";
 import * as EffectLogger from "@honk/shared/effect-logger";
+import * as DesktopWindow from "../window/desktop-window";
 import { writeHonkOpencodeConfig } from "./opencode-config";
 
 // Supervises a plain `opencode serve` process (the "sidecar") for the desktop.
@@ -40,8 +41,8 @@ const HEALTH_TIMEOUT = Duration.minutes(1);
 const HEALTH_INTERVAL = Duration.millis(150);
 const HEALTH_REQUEST_TIMEOUT = Duration.seconds(3);
 const TERMINATE_GRACE = Duration.seconds(5);
-// Generous: the first-boot warm-up may trigger an on-demand npm plugin install
-// inside opencode's cache before it can answer.
+// Plugin resolution may trigger an on-demand install in OpenCode's cache. It
+// runs after readiness in the managed run scope so it never delays the shell.
 const WARMUP_REQUEST_TIMEOUT = Duration.seconds(90);
 
 type SidecarRunRequirements = ChildProcessSpawner.ChildProcessSpawner | Scope.Scope;
@@ -126,6 +127,7 @@ interface SidecarSession {
   readonly configPath: string;
   readonly cwd: string;
   readonly env: Record<string, string | undefined>;
+  readonly corsOrigin: string;
 }
 
 interface ActiveRun {
@@ -258,9 +260,9 @@ const waitForHealthy = (session: SidecarSession): Effect.Effect<void, string> =>
     Effect.mapError(() => "opencode sidecar failed health check within timeout"),
   );
 
-// Force opencode to resolve the configured plugins BEFORE the sidecar reports
-// ready, so provider auth methods and honk's own plugin are available when the
-// renderer first asks for them.
+// Resolve configured plugins after the sidecar reports healthy, reducing the
+// chance that the first prompt pays an on-demand install without delaying the
+// renderer's connection.
 //
 // opencode does NOT load plugins at serve boot: the server creates a project
 // instance per request keyed by the `directory` param / `x-opencode-directory`
@@ -271,8 +273,7 @@ const waitForHealthy = (session: SidecarSession): Effect.Effect<void, string> =>
 // that install would run on the user's first prompt and could stall or fail
 // offline. Instead honk issues the first instance request itself — listing agents
 // for the backend directory — which triggers plugin resolution/install up front.
-// Failure is non-fatal: opencode still resolves lazily on the first prompt, and
-// `/global/health` already passed so the server is usable.
+// Failure is non-fatal: OpenCode still resolves lazily on the first prompt.
 const warmUpPlugins = (session: SidecarSession): Effect.Effect<void> =>
   Effect.tryPromise({
     try: async () => {
@@ -323,7 +324,15 @@ const runOpencodeProcess = Effect.fn("desktop.opencodeSidecar.runProcess")(funct
   const { session } = options;
   const command = ChildProcess.make(
     session.binaryPath,
-    ["serve", "--hostname", SIDECAR_HOST, "--port", String(session.port)],
+    [
+      "serve",
+      "--hostname",
+      SIDECAR_HOST,
+      "--port",
+      String(session.port),
+      "--cors",
+      session.corsOrigin,
+    ],
     {
       cwd: session.cwd,
       env: session.env,
@@ -344,9 +353,9 @@ const runOpencodeProcess = Effect.fn("desktop.opencodeSidecar.runProcess")(funct
   yield* waitForHealthy(session).pipe(
     Effect.matchEffect({
       onFailure: (message) => options.onReadinessFailure(message),
-      // Preinstall plugins before declaring ready so the first prompt never waits
-      // on an on-demand plugin install.
-      onSuccess: () => warmUpPlugins(session).pipe(Effect.andThen(options.onReady)),
+      // Publish the healthy endpoint first. This whole branch already runs in a
+      // scoped background fiber, so plugin warm-up remains managed by the run.
+      onSuccess: () => options.onReady.pipe(Effect.andThen(warmUpPlugins(session))),
     }),
     Effect.forkScoped,
   );
@@ -370,11 +379,20 @@ const closeRun = (
 const makeOpencodeSidecar = Effect.fn("desktop.opencodeSidecar.make")(function* () {
   const parentScope = yield* Scope.Scope;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
+  const desktopWindow = yield* DesktopWindow.DesktopWindow;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const state = yield* Ref.make(initialState);
   const mutex = yield* Semaphore.make(1);
+
+  const revealMainWindow = desktopWindow.handleBackendReady.pipe(
+    Effect.catch((error) =>
+      elog.error("failed to open main window after opencode readiness", {
+        error: error.message,
+      }),
+    ),
+  );
 
   const snapshot = Ref.get(state).pipe(
     Effect.map(
@@ -441,6 +459,10 @@ const makeOpencodeSidecar = Effect.fn("desktop.opencodeSidecar.make")(function* 
         NO_PROXY: mergeLoopbackNoProxy(process.env.NO_PROXY),
         no_proxy: mergeLoopbackNoProxy(process.env.no_proxy),
       },
+      corsOrigin: Option.match(environment.devServerUrl, {
+        onNone: () => "honk://desktop",
+        onSome: (url) => url.origin,
+      }),
     };
     yield* Ref.update(state, (current) => ({ ...current, session: Option.some(session) }));
     return session;
@@ -555,7 +577,10 @@ const makeOpencodeSidecar = Effect.fn("desktop.opencodeSidecar.make")(function* 
               if (activeRun?.id !== runId) return [false, latest] as const;
               return [true, { ...latest, status: "ready" as const, restartAttempt: 0 }] as const;
             });
-            if (isCurrentRun) yield* elog.info("opencode sidecar is healthy", { url: session.url });
+            if (isCurrentRun) {
+              yield* elog.info("opencode sidecar is healthy", { url: session.url });
+              yield* revealMainWindow;
+            }
           }),
           onReadinessFailure: (message) =>
             elog.warn("opencode sidecar health check failed", { message }),

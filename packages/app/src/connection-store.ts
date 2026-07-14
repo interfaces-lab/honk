@@ -1,18 +1,22 @@
-// Connection / boot store. Owns the reach-the-sidecar state machine as a plain
+// Connection / boot store. Owns the reach-the-OpenCode-host state machine as a plain
 // {subscribe, getSnapshot, actions} module so components stay effect-free. Timers
 // and promises live here; React only reads.
 //
-// Altitude change (opencode sidecar): the old honk Core auth wire
-// (/core/v1/sessions/exchange, /core/v1/auth, pairing-token exchange) is gone.
-// The desktop sidecar supervisor spawns `opencode serve` and hands the renderer
-// {httpBaseUrl, bootstrapToken} through the preload bridge. We treat that as
-// {origin, password}: opencode uses HTTP Basic auth with a fixed "opencode"
-// username when a password is set, and no auth on a bare loopback server.
+// Desktop receives its managed `opencode serve` endpoint through preload. Web
+// either uses the same-origin Honk host or exchanges a one-time /pair link for a
+// revocable device password. Both paths end at the same @honk/opencode client.
 //
-// Boot: resolve origin → resolve optional password → probe /global/health →
-// build the sidecar client and bind it into the watch registry. Manual paste
-// (submitToken) sets the password and re-probes; retry restarts the probe.
+// Boot: resolve origin → exchange/read a credential → probe /global/health →
+// bind the client into the watch registry. The shell paints before this work.
 
+import {
+  exchangeHonkPairing,
+  normalizeOpenCodeOrigin,
+  openCodeAuthorizationHeader,
+  parseOpenCodeConnection,
+  type OpenCodeConnection,
+  type OpenCodeConnectionCandidate,
+} from "@honk/opencode";
 import { useSyncExternalStore } from "react";
 
 import { createSidecarClient, type SidecarClient } from "./sidecar";
@@ -25,7 +29,7 @@ export type ConnectionStatus = "connecting" | "authenticated" | "requires-auth" 
 export type ConnectionSnapshot = {
   readonly status: ConnectionStatus;
   readonly errorMessage: string | null;
-  /** Resolved sidecar HTTP origin once known (null only before the first resolve). */
+  /** Resolved OpenCode HTTP origin once known (null only before the first resolve). */
   readonly origin: string | null;
 };
 
@@ -37,8 +41,8 @@ const INITIAL_SNAPSHOT: ConnectionSnapshot = Object.freeze({
 
 // ── Bootstrap seam (Electron host) ───────────────────────────────────────────────────────────
 // Desktop injects the sidecar origin + optional Basic-auth password here. The
-// Vite web build has no bridge, so without a provider only URL tokens +
-// sessionStorage + manual paste can attach a password.
+// Vite web build has no bridge, so it uses a same-origin HttpOnly cookie, a
+// one-time URL, or manual paste. Passwords stay in memory only.
 
 export type BootstrapCredential =
   | { readonly kind: "pairing-token"; readonly credential: string }
@@ -64,9 +68,7 @@ export function setBootstrapOriginProvider(provider: BootstrapOriginProvider | n
   bootstrapOriginProvider = provider;
 }
 
-// ── Persistence (sessionStorage password, keyed by origin) ────────────────────────────────────
-
-const SIDECAR_PASSWORD_STORAGE_KEY = "honk.sidecar.password.v1";
+// ── In-memory credential ────────────────────────────────────────────────────────────────────
 
 const TRANSIENT_STATUS_CODES = new Set([502, 503, 504]);
 const PROBE_RETRY_TIMEOUT_MS = 15_000;
@@ -109,7 +111,7 @@ export function useConnection(): ConnectionSnapshot {
 /**
  * Returns the Basic-auth password owned by the current authenticated client.
  * Local bridges (e.g. the legacy iframe host) may hand it to another trusted
- * renderer; normal UI should use the bound sidecar client instead.
+ * renderer; normal UI should use the bound OpenCode client instead.
  */
 export function getAuthenticatedBearer(): string | null {
   return snapshot.status === "authenticated" ? livePassword : null;
@@ -136,109 +138,74 @@ async function disposeLiveClient(): Promise<void> {
   }
 }
 
-// ── Origin + URL token ─────────────────────────────────────────────────────────────────────────
+// ── Origin + URL credential ────────────────────────────────────────────────────────────────────
+
+const URL_CREDENTIAL_PARAMS = ["pairing", "password", "token"] as const;
+
+function absoluteOrigin(value: string): string {
+  return normalizeOpenCodeOrigin(new URL(value, window.location.origin).toString());
+}
 
 function resolveOrigin(): string {
   // Electron chooses the sidecar port at runtime, so its preload bootstrap must
   // win over build-time Vite config. Web has no provider and keeps the fallback.
   const bootstrapOrigin = bootstrapOriginProvider?.()?.trim() ?? "";
   if (bootstrapOrigin.length > 0) {
-    return new URL(bootstrapOrigin, window.location.origin).toString().replace(/\/+$/, "");
+    return absoluteOrigin(bootstrapOrigin);
+  }
+
+  const pageUrl = new URL(window.location.href);
+  const attachedOrigin = pageUrl.searchParams.get("origin") ?? pageUrl.searchParams.get("host");
+  if (attachedOrigin !== null && attachedOrigin.trim().length > 0) {
+    return absoluteOrigin(attachedOrigin.trim());
   }
 
   const configured = import.meta.env.VITE_HTTP_URL;
   if (typeof configured === "string" && configured.trim().length > 0) {
-    return new URL(configured.trim(), window.location.origin).toString().replace(/\/+$/, "");
+    return absoluteOrigin(configured.trim());
   }
-  return new URL(window.location.origin, window.location.origin).toString().replace(/\/+$/, "");
+  return normalizeOpenCodeOrigin(window.location.origin);
 }
-
-const PAIRING_TOKEN_PARAM = "token";
 
 function readHashParams(url: URL): URLSearchParams {
   return new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
 }
 
-function peekTokenFromUrl(): string | null {
-  const url = new URL(window.location.href);
-  const hashToken = readHashParams(url).get(PAIRING_TOKEN_PARAM)?.trim() ?? "";
-  if (hashToken.length > 0) {
-    return hashToken;
-  }
-  const searchToken = url.searchParams.get(PAIRING_TOKEN_PARAM)?.trim() ?? "";
-  return searchToken.length > 0 ? searchToken : null;
-}
-
-function stripTokenFromUrl(): void {
+function stripCredentialFromUrl(): void {
   const url = new URL(window.location.href);
   const next = new URL(url.toString());
   const hashParams = readHashParams(next);
-  if (hashParams.has(PAIRING_TOKEN_PARAM)) {
-    hashParams.delete(PAIRING_TOKEN_PARAM);
-    next.hash = hashParams.toString();
+  for (const parameter of URL_CREDENTIAL_PARAMS) {
+    hashParams.delete(parameter);
+    next.searchParams.delete(parameter);
   }
-  next.searchParams.delete(PAIRING_TOKEN_PARAM);
+  next.hash = hashParams.toString();
   if (next.toString() === url.toString()) {
     return;
   }
   window.history.replaceState({}, document.title, next.toString());
 }
 
-function takeTokenFromUrl(): string | null {
-  const token = peekTokenFromUrl();
-  if (token === null) {
-    return null;
-  }
-  stripTokenFromUrl();
-  return token;
+function takeConnectionFromUrl(fallbackOrigin: string): OpenCodeConnectionCandidate | null {
+  const candidate = parseOpenCodeConnection(window.location.href, fallbackOrigin);
+  if (candidate !== null) stripCredentialFromUrl();
+  return candidate;
 }
 
 // ── Password storage ─────────────────────────────────────────────────────────────────────────
 
 function readStoredPassword(origin: string): string | null {
-  if (memoryPassword !== null && memoryPassword.origin === origin) {
-    return memoryPassword.password;
-  }
-  try {
-    const raw = window.sessionStorage?.getItem(SIDECAR_PASSWORD_STORAGE_KEY);
-    if (raw === null || raw === undefined) {
-      return null;
-    }
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) {
-      return null;
-    }
-    const storedOrigin = Reflect.get(parsed, "origin");
-    const password = Reflect.get(parsed, "password");
-    if (storedOrigin !== origin || typeof password !== "string" || password.length === 0) {
-      return null;
-    }
-    memoryPassword = { origin, password };
-    return password;
-  } catch {
-    return null;
-  }
+  return memoryPassword !== null && memoryPassword.origin === origin
+    ? memoryPassword.password
+    : null;
 }
 
 function writeStoredPassword(origin: string, password: string): void {
   memoryPassword = { origin, password };
-  try {
-    window.sessionStorage?.setItem(
-      SIDECAR_PASSWORD_STORAGE_KEY,
-      JSON.stringify({ origin, password }),
-    );
-  } catch {
-    // Persist best-effort; memory covers this tab.
-  }
 }
 
 function clearStoredPassword(): void {
   memoryPassword = null;
-  try {
-    window.sessionStorage?.removeItem(SIDECAR_PASSWORD_STORAGE_KEY);
-  } catch {
-    // Private mode / blocked storage — memory clear is enough for this tab.
-  }
 }
 
 // ── Probe helpers ────────────────────────────────────────────────────────────────────────────
@@ -249,6 +216,13 @@ class ProbeHttpError extends Error {
     super(message);
     this.name = "ProbeHttpError";
     this.status = status;
+  }
+}
+
+class RequiresAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RequiresAuthError";
   }
 }
 
@@ -279,27 +253,37 @@ function basicAuthHeader(password: string | null): Record<string, string> {
   if (password === null || password.length === 0) {
     return {};
   }
-  return { authorization: `Basic ${btoa(`opencode:${password}`)}` };
+  return { authorization: openCodeAuthorizationHeader(password) };
+}
+
+function browserRequestCredentials(): RequestCredentials {
+  // The web client may authenticate with a same-origin HttpOnly cookie. Electron receives a
+  // Basic-auth password from preload, and OpenCode deliberately does not allow credentialed CORS.
+  return bootstrapOriginProvider === null ? "include" : "omit";
 }
 
 /**
- * Probe outcome: "ok" once the sidecar answers health, "requires-auth" on 401/403,
+ * Probe outcome: "ok" once OpenCode answers health, "requires-auth" on 401/403,
  * throws (retryable/transport) otherwise so the caller can classify unreachable.
  */
-async function probeHealth(origin: string, password: string | null): Promise<"ok" | "requires-auth"> {
+async function probeHealth(
+  origin: string,
+  password: string | null,
+): Promise<"ok" | "requires-auth"> {
   const startedAt = Date.now();
   while (true) {
     try {
       const response = await fetch(`${origin}/global/health`, {
         method: "GET",
         headers: basicAuthHeader(password),
+        credentials: browserRequestCredentials(),
       });
       if (response.status === 401 || response.status === 403) {
         return "requires-auth";
       }
       if (!response.ok) {
         throw new ProbeHttpError(
-          `Sidecar health check failed (${response.status}).`,
+          `OpenCode health check failed (${response.status}).`,
           response.status,
         );
       }
@@ -316,32 +300,60 @@ async function probeHealth(origin: string, password: string | null): Promise<"ok
   }
 }
 
-async function resolvePassword(origin: string): Promise<string | null> {
-  const stored = readStoredPassword(origin);
-  if (stored !== null) {
-    return stored;
+async function connectionFromCandidate(
+  candidate: OpenCodeConnectionCandidate,
+): Promise<OpenCodeConnection> {
+  if (candidate.credential.type === "password") {
+    return { origin: candidate.origin, password: candidate.credential.value };
   }
-  const urlToken = takeTokenFromUrl();
-  if (urlToken !== null) {
-    return urlToken;
+  try {
+    const connection = await exchangeHonkPairing(candidate.origin, candidate.credential.value, {
+      label: "Honk web",
+    });
+    // Pairing tokens are one-use. Persist the issued device password before the
+    // OpenCode probe so a slow first start cannot strand this browser.
+    writeStoredPassword(connection.origin, connection.password);
+    return connection;
+  } catch (error) {
+    throw new RequiresAuthError(
+      errorMessageOf(error, "This pairing link is invalid, expired, or already used."),
+    );
   }
+}
+
+async function resolveConnection(origin: string): Promise<OpenCodeConnection> {
+  const urlCandidate = takeConnectionFromUrl(origin);
+  if (urlCandidate !== null) {
+    return connectionFromCandidate(urlCandidate);
+  }
+
   if (bootstrapCredentialProvider !== null) {
     const credential = await bootstrapCredentialProvider();
     if (credential !== null) {
-      return credential.credential;
+      return connectionFromCandidate({
+        origin,
+        credential: {
+          type: credential.kind === "pairing-token" ? "pairing" : "password",
+          value: credential.credential,
+        },
+      });
     }
   }
-  return null;
+
+  return { origin, password: readStoredPassword(origin) ?? "" };
 }
 
 function classifyFailure(error: unknown): {
   readonly status: "requires-auth" | "unreachable";
   readonly errorMessage: string;
 } {
+  if (error instanceof RequiresAuthError) {
+    return { status: "requires-auth", errorMessage: error.message };
+  }
   if (isTransportError(error)) {
     return {
       status: "unreachable",
-      errorMessage: "Could not reach the sidecar. Check that it is running, then retry.",
+      errorMessage: "Could not reach OpenCode. Check that the Honk host is running, then retry.",
     };
   }
   if (isRetryable(error)) {
@@ -349,17 +361,21 @@ function classifyFailure(error: unknown): {
       status: "unreachable",
       errorMessage: errorMessageOf(
         error,
-        "Could not reach the sidecar. Check that it is running, then retry.",
+        "Could not reach OpenCode. Check that the Honk host is running, then retry.",
       ),
     };
   }
   return {
     status: "unreachable",
-    errorMessage: errorMessageOf(error, "Could not connect to the sidecar."),
+    errorMessage: errorMessageOf(error, "Could not connect to OpenCode."),
   };
 }
 
-async function bindClient(origin: string, password: string | null, generation: number): Promise<void> {
+async function bindClient(
+  origin: string,
+  password: string | null,
+  generation: number,
+): Promise<void> {
   const client = createSidecarClient(origin, password === null ? undefined : { password });
   if (generation !== bootGeneration) {
     try {
@@ -388,7 +404,7 @@ async function runBoot(generation: number): Promise<void> {
     }
     emit({
       status: "unreachable",
-      errorMessage: errorMessageOf(error, "Could not resolve the sidecar URL."),
+      errorMessage: errorMessageOf(error, "Could not resolve the OpenCode URL."),
       origin: null,
     });
     return;
@@ -400,10 +416,13 @@ async function runBoot(generation: number): Promise<void> {
   emit({ status: "connecting", errorMessage: null, origin });
 
   try {
-    const password = await resolvePassword(origin);
+    const connection = await resolveConnection(origin);
     if (generation !== bootGeneration) {
       return;
     }
+    origin = connection.origin;
+    emit({ status: "connecting", errorMessage: null, origin });
+    const password = connection.password.length > 0 ? connection.password : null;
     const outcome = await probeHealth(origin, password);
     if (generation !== bootGeneration) {
       return;
@@ -411,7 +430,7 @@ async function runBoot(generation: number): Promise<void> {
     if (outcome === "requires-auth") {
       emit({
         status: "requires-auth",
-        errorMessage: password === null ? null : "The sidecar rejected this password.",
+        errorMessage: password === null ? null : "The Honk host rejected this password.",
         origin,
       });
       return;
@@ -441,36 +460,36 @@ export function startConnection(): void {
 }
 
 export const actions = {
-  /** Manual password / paste-link entry (no reload-only dead end). */
-  submitToken(raw: string): void {
+  /** Manual password / pairing-link entry (no reload-only dead end). */
+  submitToken: (raw: string): void => {
     const trimmed = raw.trim();
     if (trimmed.length === 0) {
       emit({
         status: "requires-auth",
-        errorMessage: "Paste the sidecar password or pairing link to attach this browser.",
+        errorMessage: "Paste a Honk pairing link or OpenCode password to attach this browser.",
         origin: snapshot.origin,
       });
       return;
     }
 
-    // Accept a full pairing URL: extract #token= / ?token= when a link is pasted.
-    let password = trimmed;
+    let candidate: OpenCodeConnectionCandidate | null;
     try {
-      if (trimmed.includes("://") || trimmed.startsWith("/") || trimmed.includes("#token=")) {
-        const url = new URL(trimmed, window.location.origin);
-        const fromLink = (() => {
-          const hashToken = readHashParams(url).get(PAIRING_TOKEN_PARAM)?.trim() ?? "";
-          if (hashToken.length > 0) {
-            return hashToken;
-          }
-          return url.searchParams.get(PAIRING_TOKEN_PARAM)?.trim() ?? "";
-        })();
-        if (fromLink.length > 0) {
-          password = fromLink;
-        }
-      }
-    } catch {
-      // Not a URL — treat the whole string as the password.
+      candidate = parseOpenCodeConnection(trimmed, snapshot.origin ?? resolveOrigin());
+    } catch (error) {
+      emit({
+        status: "requires-auth",
+        errorMessage: errorMessageOf(error, "That connection value is not valid."),
+        origin: snapshot.origin,
+      });
+      return;
+    }
+    if (candidate === null) {
+      emit({
+        status: "requires-auth",
+        errorMessage: "That link does not contain a pairing token or password.",
+        origin: snapshot.origin,
+      });
+      return;
     }
 
     const generation = ++bootGeneration;
@@ -478,22 +497,12 @@ export const actions = {
       emit({ status: "connecting", errorMessage: null, origin: snapshot.origin });
       await disposeLiveClient();
 
-      let origin: string;
-      try {
-        origin = snapshot.origin ?? resolveOrigin();
-      } catch (error) {
-        if (generation !== bootGeneration) {
-          return;
-        }
-        emit({
-          status: "unreachable",
-          errorMessage: errorMessageOf(error, "Could not resolve the sidecar URL."),
-          origin: null,
-        });
-        return;
-      }
+      let origin = candidate.origin;
 
       try {
+        const connection = await connectionFromCandidate(candidate);
+        origin = connection.origin;
+        const password = connection.password;
         const outcome = await probeHealth(origin, password);
         if (generation !== bootGeneration) {
           return;
@@ -501,13 +510,12 @@ export const actions = {
         if (outcome === "requires-auth") {
           emit({
             status: "requires-auth",
-            errorMessage: "The sidecar rejected this password.",
+            errorMessage: "The Honk host rejected this password.",
             origin,
           });
           return;
         }
         writeStoredPassword(origin, password);
-        stripTokenFromUrl();
         await bindClient(origin, password, generation);
       } catch (error) {
         if (generation !== bootGeneration) {
@@ -516,7 +524,7 @@ export const actions = {
         await disposeLiveClient();
         const classified = classifyFailure(error);
         emit({
-          status: classified.status === "unreachable" ? "unreachable" : "requires-auth",
+          status: classified.status,
           errorMessage: classified.errorMessage,
           origin,
         });
@@ -524,16 +532,27 @@ export const actions = {
     })();
   },
 
-  retry(): void {
+  retry: (): void => {
     beginBoot();
   },
 
-  /** Clear the stored password and drop the sidecar client (explicit sign-out). */
-  signOut(): void {
-    bootGeneration += 1;
+  /** Revoke the paired browser credential when possible, then drop the local client. */
+  signOut: (): void => {
+    const generation = ++bootGeneration;
+    const origin = snapshot.origin;
+    const password = livePassword;
     clearStoredPassword();
-    void disposeLiveClient().then(() => {
-      emit({ status: "requires-auth", errorMessage: null, origin: snapshot.origin });
+    void disposeLiveClient().then(async () => {
+      if (origin !== null) {
+        await fetch(`${origin}/honk/sign-out`, {
+          method: "POST",
+          headers: basicAuthHeader(password),
+          credentials: browserRequestCredentials(),
+        }).catch(() => undefined);
+      }
+      if (generation === bootGeneration) {
+        emit({ status: "requires-auth", errorMessage: null, origin });
+      }
     });
   },
 };

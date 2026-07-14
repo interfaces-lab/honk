@@ -32,6 +32,8 @@ import {
 // The v2 sheet gutter — opencode's m-2/p-2 (8px) between the deep well and the sheet on
 // every side. Structural to this anatomy, not identity vocabulary.
 const SHEET_GUTTER = "8px";
+// The titlebar's compact item rhythm from the opencode shell port; private chrome anatomy.
+const TITLEBAR_ITEM_GAP = "6px";
 
 const styles = stylex.create({
   frame: {
@@ -66,7 +68,7 @@ const styles = stylex.create({
     // opencode's md:pr-3 — the bar's right inset so the trailing cluster clears the corner.
     paddingRight: spaceVars["--honk-space-panel-pad"],
     // the 6px rhythm between titlebar items (home button · tab strip · new-tab · trailing).
-    columnGap: "6px",
+    columnGap: TITLEBAR_ITEM_GAP,
   },
   // The trailing slot (update pill, channel chip): pushed to the far edge.
   titleBarTrailing: {

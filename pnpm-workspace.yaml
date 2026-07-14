@@ -7,36 +7,36 @@ minimumReleaseAgeExclude:
   - "@earendil-works/pi-ai@0.80.2"
   - "@earendil-works/pi-coding-agent@0.80.2"
   - "@earendil-works/pi-tui@0.80.2"
-  - '@typescript/typescript-aix-ppc64@7.0.2'
-  - '@typescript/typescript-darwin-arm64@7.0.2'
-  - '@typescript/typescript-darwin-x64@7.0.2'
-  - '@typescript/typescript-freebsd-arm64@7.0.2'
-  - '@typescript/typescript-freebsd-x64@7.0.2'
-  - '@typescript/typescript-linux-arm64@7.0.2'
-  - '@typescript/typescript-linux-arm@7.0.2'
-  - '@typescript/typescript-linux-loong64@7.0.2'
-  - '@typescript/typescript-linux-mips64el@7.0.2'
-  - '@typescript/typescript-linux-ppc64@7.0.2'
-  - '@typescript/typescript-linux-riscv64@7.0.2'
-  - '@typescript/typescript-linux-s390x@7.0.2'
-  - '@typescript/typescript-linux-x64@7.0.2'
-  - '@typescript/typescript-netbsd-arm64@7.0.2'
-  - '@typescript/typescript-netbsd-x64@7.0.2'
-  - '@typescript/typescript-openbsd-arm64@7.0.2'
-  - '@typescript/typescript-openbsd-x64@7.0.2'
-  - '@typescript/typescript-sunos-x64@7.0.2'
-  - '@typescript/typescript-win32-arm64@7.0.2'
-  - '@typescript/typescript-win32-x64@7.0.2'
+  - "@typescript/typescript-aix-ppc64@7.0.2"
+  - "@typescript/typescript-darwin-arm64@7.0.2"
+  - "@typescript/typescript-darwin-x64@7.0.2"
+  - "@typescript/typescript-freebsd-arm64@7.0.2"
+  - "@typescript/typescript-freebsd-x64@7.0.2"
+  - "@typescript/typescript-linux-arm64@7.0.2"
+  - "@typescript/typescript-linux-arm@7.0.2"
+  - "@typescript/typescript-linux-loong64@7.0.2"
+  - "@typescript/typescript-linux-mips64el@7.0.2"
+  - "@typescript/typescript-linux-ppc64@7.0.2"
+  - "@typescript/typescript-linux-riscv64@7.0.2"
+  - "@typescript/typescript-linux-s390x@7.0.2"
+  - "@typescript/typescript-linux-x64@7.0.2"
+  - "@typescript/typescript-netbsd-arm64@7.0.2"
+  - "@typescript/typescript-netbsd-x64@7.0.2"
+  - "@typescript/typescript-openbsd-arm64@7.0.2"
+  - "@typescript/typescript-openbsd-x64@7.0.2"
+  - "@typescript/typescript-sunos-x64@7.0.2"
+  - "@typescript/typescript-win32-arm64@7.0.2"
+  - "@typescript/typescript-win32-x64@7.0.2"
   - typescript@7.0.2
-  - '@effect/tsgo-darwin-arm64@0.16.3'
-  - '@effect/tsgo-darwin-x64@0.16.3'
-  - '@effect/tsgo-linux-arm64@0.16.3'
-  - '@effect/tsgo-linux-arm@0.16.3'
-  - '@effect/tsgo-linux-x64@0.16.3'
-  - '@effect/tsgo-win32-arm64@0.16.3'
-  - '@effect/tsgo-win32-x64@0.16.3'
-  - '@effect/tsgo@0.16.3'
-  - '@opencode-ai/sdk@1.17.20'
+  - "@effect/tsgo-darwin-arm64@0.16.3"
+  - "@effect/tsgo-darwin-x64@0.16.3"
+  - "@effect/tsgo-linux-arm64@0.16.3"
+  - "@effect/tsgo-linux-arm@0.16.3"
+  - "@effect/tsgo-linux-x64@0.16.3"
+  - "@effect/tsgo-win32-arm64@0.16.3"
+  - "@effect/tsgo-win32-x64@0.16.3"
+  - "@effect/tsgo@0.16.3"
+  - "@opencode-ai/sdk@1.17.20"
   - opencode-ai@1.17.20
   - opencode-darwin-arm64@1.17.20
   - opencode-darwin-x64-baseline@1.17.20
@@ -50,6 +50,10 @@ minimumReleaseAgeExclude:
   - opencode-windows-arm64@1.17.20
   - opencode-windows-x64-baseline@1.17.20
   - opencode-windows-x64@1.17.20
+
+patchedDependencies:
+  metro@0.84.4: patches/metro@0.84.4.patch
+  metro-runtime@0.84.4: patches/metro-runtime@0.84.4.patch
 
 allowBuilds:
   "@central-icons-react/round-outlined-radius-2-stroke-1.5": true

@@ -2,7 +2,6 @@ import * as React from "react";
 import * as SecureStore from "expo-secure-store";
 import {
   createSidecarClient,
-  normalizeOpenCodeOrigin,
   probeOpenCodeConnection,
   type SidecarClient,
   type WatchStatus,
@@ -15,6 +14,7 @@ import {
   type RemoteContextValue,
   type RemoteStatus,
 } from "./remote-context";
+import { normalizeRemoteOrigin } from "./pairing";
 
 const REMOTE_STORAGE_KEY = "honk.mobile.opencode.v1";
 
@@ -50,12 +50,12 @@ const reduceViewState = (
 ): RemoteViewState => ({ ...state, ...patch });
 
 const errorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : "The OpenCode connection failed.";
+  error instanceof Error ? error.message : "The Honk connection failed.";
 
 const decodeStoredRemote = (raw: string): StoredRemote => {
   const value: unknown = JSON.parse(raw);
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error("The saved OpenCode connection is invalid.");
+    throw new Error("The saved Honk connection is invalid.");
   }
   const origin = Reflect.get(value, "origin");
   const password = Reflect.get(value, "password");
@@ -66,9 +66,9 @@ const decodeStoredRemote = (raw: string): StoredRemote => {
     password.length === 0 ||
     typeof defaultCwd !== "string"
   ) {
-    throw new Error("The saved OpenCode connection is incomplete.");
+    throw new Error("The saved Honk connection is incomplete.");
   }
-  return { origin: normalizeOpenCodeOrigin(origin), password, defaultCwd };
+  return { origin: normalizeRemoteOrigin(origin), password, defaultCwd };
 };
 
 const persistRemote = (stored: StoredRemote): Promise<void> =>
@@ -162,7 +162,7 @@ export function RemoteProvider({ children }: React.PropsWithChildren): React.Rea
   const connect = React.useCallback(
     async (input: ConnectRemoteInput): Promise<void> => {
       const stored: StoredRemote = {
-        origin: normalizeOpenCodeOrigin(input.origin),
+        origin: normalizeRemoteOrigin(input.origin),
         password: input.password,
         defaultCwd: input.defaultCwd.trim(),
       };
@@ -214,7 +214,8 @@ export function RemoteProvider({ children }: React.PropsWithChildren): React.Rea
     if (stored === null) return;
     const next = { ...stored, defaultCwd };
     storedRef.current = next;
-    if (preparedRef.current !== null) preparedRef.current = { ...preparedRef.current, stored: next };
+    if (preparedRef.current !== null)
+      preparedRef.current = { ...preparedRef.current, stored: next };
     await persistRemote(next);
   }, []);
 

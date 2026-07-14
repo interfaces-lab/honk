@@ -26,11 +26,13 @@
 
 ## Design reference (`.design/`)
 
-- Any design or UI work starts at `.design/README.md` — the agent-facing design system (principles, exemplars, deterministic checks: `node .design/lint.mjs`).
+- Any design or UI work starts with `.agents/skills/design/SKILL.md`, then `.design/README.md`
+  (principles, exemplars, and the deterministic check: `node .design/lint.mjs`).
 - Cross-platform `@honk/ui` work must also read `packages/ui/AGENTS.md` and use `.agents/skills/honk-ui`; one logical component API serves web and native through platform-resolved implementations.
-- Decision hierarchy: `.agents/skills/honk-ui` (platform routing) → `.agents/skills/stylex` + `.agents/skills/styling-tokens` (web authoring mechanics) → `packages/ui/src/theme.ts` for shared values and the generated `platform-tokens.stylex.ts` web binding, with `tokens.stylex.ts` retaining web-only values → `.design/principles.md` + `.design/exemplars.md` (product judgment).
+- Decision hierarchy: `.agents/skills/design` + `.agents/skills/honk-ui` (product judgment and platform routing) → `.agents/skills/stylex` + `.agents/skills/styling-tokens` (web authoring mechanics) → `packages/ui/src/theme.ts` for shared values and the generated `platform-tokens.stylex.ts` web binding, with `tokens.stylex.ts` retaining web-only values → `.design/principles.md` + `.design/exemplars.md` (Honk-specific judgment).
 - Skills are first-party in `.agents/skills/` (`.claude/skills/*` are symlinks into it).
-- The HonkKit rules below apply to the old app (`packages/app` + `packages/honkkit`). The rewrite (`packages/ui`) follows `.design/` and the skills instead.
+- The HonkKit rules below apply to the old app (`packages/app` + `packages/honkkit`). The rewrite
+  (`packages/ui`) follows `.design/` and the local skills instead.
 
 ## HonkKit (design system)
 
@@ -47,6 +49,13 @@
 - If you create or modify a test, run that specific test from its package root and iterate until it passes.
 - Never run `pnpm run dev`, `pnpm run build`, or broad test commands unless the user asks.
 - Never commit unless the user asks.
+
+## OpenCode host
+
+- Changes to `packages/cli`, remote pairing, or shared OpenCode connection behavior must use
+  `.agents/skills/honk-host/SKILL.md`.
+- `@honk/opencode` is the only client boundary. Do not restore the retired `api/core` transport or
+  create a parallel mobile/web protocol.
 
 ## Git
 

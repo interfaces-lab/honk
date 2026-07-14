@@ -1,7 +1,7 @@
 // Pure ranking for the command menu (locked.html §0.5 / §3). Ranking is FIXED,
 // never smart: Start-new → threads → commands. A command-verb match may float
 // Commands within its band; nothing else reorders bands. Dev/feature-flag
-// entries live in a separate registry later — never in SHIPPING_COMMANDS.
+// entries live in a separate registry — never in SHIPPING_COMMANDS.
 //
 // Scoring ports the old palette's prefix / exact / includes ideas (lean, no
 // @honk/shared dep). Submenu frames replace the root list when the stack is
@@ -57,7 +57,7 @@ export type CommandMenuItem =
     };
 
 /** Shipping command ids — run handlers live in the surface, not the model. */
-export type CommandMenuCommandId = "new-thread" | "open-settings";
+export type CommandMenuCommandId = "new-thread" | "open-settings" | "replay-onboarding";
 
 export type ShippingCommand = {
   readonly id: string;
@@ -95,11 +95,21 @@ export const SHIPPING_COMMANDS: readonly ShippingCommand[] = Object.freeze([
   },
 ]);
 
+/** Development-only commands. Callers decide whether the current runtime may expose them. */
+export const DEVELOPMENT_COMMANDS: readonly ShippingCommand[] = Object.freeze([
+  {
+    id: "replay-onboarding",
+    title: "Replay onboarding",
+    searchTerms: Object.freeze(["replay onboarding", "show onboarding", "first run", "setup"]),
+    run: "replay-onboarding",
+  },
+]);
+
 export const RECENT_THREAD_LIMIT = 12;
 
 // ── Status mapping (SDK ThreadSummary → tab / StatusDot vocabulary) ──────────────────────────
 
-/** Map Core ThreadSummary onto the board's tab status alphabet. */
+/** Map OpenCode ThreadSummary onto the board's tab status alphabet. */
 export function tabStatusFromSummary(summary: CommandMenuThread): TabStatus {
   if (summary.needsAttention) {
     return "needs-you";
@@ -119,9 +129,7 @@ export function tabStatusFromSummary(summary: CommandMenuThread): TabStatus {
 }
 
 /** StatusDot tone for a tab-status word (principles.md §2). */
-export function statusDotTone(
-  status: TabStatus,
-): "ok" | "warn" | "err" | "neutral" | "draft" {
+export function statusDotTone(status: TabStatus): "ok" | "warn" | "err" | "neutral" | "draft" {
   switch (status) {
     case "done":
       return "ok";

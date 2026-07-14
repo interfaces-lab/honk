@@ -260,7 +260,7 @@ function startApp() {
   }
 
   const app = spawn(
-    resolveElectronPath(),
+    resolveElectronPath({ isDevelopment: true }),
     [
       "--trace-warnings",
       `--user-data-dir=${devUserDataDir}`,

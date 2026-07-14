@@ -1,12 +1,7 @@
 import * as React from "react";
 import * as stylex from "@stylexjs/stylex";
 
-import {
-  colorVars,
-  controlVars,
-  fontVars,
-  radiusVars,
-} from "../platform-tokens.stylex";
+import { colorVars, controlVars, fontVars, radiusVars } from "../platform-tokens.stylex";
 import type { TextFieldHandle, TextFieldProps } from "./types";
 
 const FIELD_RING = `inset 0 0 0 ${controlVars["--honk-control-border-width"]} ${colorVars["--honk-color-border-base"]}`;
@@ -112,6 +107,7 @@ const TextField = React.forwardRef<TextFieldHandle, TextFieldProps>(function Tex
     error,
     inputMode,
     label,
+    labelHidden = false,
     leading,
     maxLength,
     minRows = 3,
@@ -202,10 +198,12 @@ const TextField = React.forwardRef<TextFieldHandle, TextFieldProps>(function Tex
 
   return (
     <div {...stylex.props(sx.root, disabled && sx.disabled)} data-testid={testID}>
-      <label htmlFor={inputId} {...stylex.props(sx.label, invalid && sx.labelInvalid)}>
-        {label}
-        {required ? <span {...stylex.props(sx.required)}> *</span> : null}
-      </label>
+      {labelHidden ? null : (
+        <label htmlFor={inputId} {...stylex.props(sx.label, invalid && sx.labelInvalid)}>
+          {label}
+          {required ? <span {...stylex.props(sx.required)}> *</span> : null}
+        </label>
+      )}
       <div
         role="presentation"
         onMouseDown={(event) => {

@@ -18,7 +18,6 @@ import { getBoundHonkClient } from "./watch-registry";
 
 const ROW_HEIGHT = "24px";
 const INDENT_PX = 14;
-const LINE_HEIGHT = "18px";
 const ROOT_PATH = ".";
 // A viewer, not an editor — cap what one render swallows.
 const VIEWER_MAX_CHARS = 200_000;
@@ -122,8 +121,8 @@ const styles = stylex.create({
     margin: 0,
     padding: spaceVars["--honk-space-gutter"],
     fontFamily: fontVars["--honk-font-family-mono"],
-    fontSize: fontVars["--honk-font-size-detail"],
-    lineHeight: LINE_HEIGHT,
+    fontSize: fontVars["--honk-font-size-code"],
+    lineHeight: fontVars["--honk-leading-code"],
     color: colorVars["--honk-color-fg-secondary"],
     whiteSpace: "pre",
     tabSize: 2,

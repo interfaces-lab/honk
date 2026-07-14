@@ -7,6 +7,7 @@
 
 import { useSyncExternalStore } from "react";
 
+import { honkTheme } from "@honk/ui/theme";
 import { colorVars, fontVars } from "@honk/ui/tokens.stylex";
 
 export type ThemePreference = "system" | "light" | "dark";
@@ -15,7 +16,6 @@ export type AppearanceSnapshot = {
   readonly theme: ThemePreference;
   readonly tintHue: number;
   readonly tintIntensity: number;
-  readonly reduceTransparency: boolean;
   readonly uiFontSize: number;
   readonly codeFontSize: number;
 };
@@ -24,7 +24,6 @@ export const DEFAULT_APPEARANCE: AppearanceSnapshot = Object.freeze({
   theme: "system",
   tintHue: 210,
   tintIntensity: 0,
-  reduceTransparency: false,
   uiFontSize: 13,
   codeFontSize: 12,
 });
@@ -46,14 +45,43 @@ function cssVarName(reference: unknown): string {
   return match[1];
 }
 
-const ACCENT_VAR = cssVarName(colorVars["--honk-color-accent"]);
-const FONT_SIZE_BODY_VAR = cssVarName(fontVars["--honk-font-size-body"]);
-const FONT_SIZE_DETAIL_VAR = cssVarName(fontVars["--honk-font-size-detail"]);
-const FONT_SIZE_CAPTION_VAR = cssVarName(fontVars["--honk-font-size-caption"]);
-const FONT_SIZE_MICRO_VAR = cssVarName(fontVars["--honk-font-size-micro"]);
-// No dedicated code-size token yet — prose detail is the closest mono-adjacent size
-// consumers already read; a real --honk-code-font-size token is a DS gap.
-const CODE_SIZE_VAR = cssVarName(fontVars["--honk-text-detail"]);
+const tintColorVars = {
+  bgDeep: cssVarName(colorVars["--honk-color-bg-deep"]),
+  bgBase: cssVarName(colorVars["--honk-color-bg-base"]),
+  layer01: cssVarName(colorVars["--honk-color-layer-01"]),
+  layer02: cssVarName(colorVars["--honk-color-layer-02"]),
+  layer03: cssVarName(colorVars["--honk-color-layer-03"]),
+  layer04: cssVarName(colorVars["--honk-color-layer-04"]),
+  tabHover: cssVarName(colorVars["--honk-color-tab-hover"]),
+  control: cssVarName(colorVars["--honk-color-control"]),
+  controlHover: cssVarName(colorVars["--honk-color-control-hover"]),
+  controlPress: cssVarName(colorVars["--honk-color-control-press"]),
+  messageBubbleBg: cssVarName(colorVars["--honk-color-message-bubble-bg"]),
+  accent: cssVarName(colorVars["--honk-color-accent"]),
+  accentFill: cssVarName(colorVars["--honk-color-accent-fill"]),
+  accentSubtle: cssVarName(colorVars["--honk-color-accent-subtle"]),
+} as const;
+
+const uiFontVars = {
+  chromeBody: cssVarName(fontVars["--honk-font-size-body"]),
+  chromeDetail: cssVarName(fontVars["--honk-font-size-detail"]),
+  chromeCaption: cssVarName(fontVars["--honk-font-size-caption"]),
+  chromeMicro: cssVarName(fontVars["--honk-font-size-micro"]),
+  chromeBodyLarge: cssVarName(fontVars["--honk-font-size-body-lg"]),
+  proseCaption: cssVarName(fontVars["--honk-text-caption"]),
+  proseDetail: cssVarName(fontVars["--honk-text-detail"]),
+  proseBody: cssVarName(fontVars["--honk-text-body"]),
+  proseTitle: cssVarName(fontVars["--honk-text-title"]),
+  proseHeading: cssVarName(fontVars["--honk-text-heading"]),
+  leadingCaption: cssVarName(fontVars["--honk-leading-caption"]),
+  leadingDetail: cssVarName(fontVars["--honk-leading-detail"]),
+  leadingBody: cssVarName(fontVars["--honk-leading-body"]),
+  leadingTitle: cssVarName(fontVars["--honk-leading-title"]),
+  leadingHeading: cssVarName(fontVars["--honk-leading-heading"]),
+} as const;
+
+const CODE_SIZE_VAR = cssVarName(fontVars["--honk-font-size-code"]);
+const CODE_LEADING_VAR = cssVarName(fontVars["--honk-leading-code"]);
 
 const listeners = new Set<() => void>();
 
@@ -99,10 +127,6 @@ export const actions = {
     publish({ ...snapshot, tintIntensity: clamp(tintIntensity, 0, 100) });
   },
 
-  setReduceTransparency(reduceTransparency: boolean): void {
-    publish({ ...snapshot, reduceTransparency });
-  },
-
   setUiFontSize(uiFontSize: number): void {
     publish({ ...snapshot, uiFontSize: clamp(uiFontSize, UI_FONT_MIN, UI_FONT_MAX) });
   },
@@ -126,13 +150,6 @@ export const actions = {
     publish({ ...snapshot, tintIntensity: DEFAULT_APPEARANCE.tintIntensity });
   },
 
-  resetReduceTransparency(): void {
-    publish({
-      ...snapshot,
-      reduceTransparency: DEFAULT_APPEARANCE.reduceTransparency,
-    });
-  },
-
   resetUiFontSize(): void {
     publish({ ...snapshot, uiFontSize: DEFAULT_APPEARANCE.uiFontSize });
   },
@@ -152,7 +169,6 @@ function publish(next: AppearanceSnapshot): void {
     next.theme === snapshot.theme &&
     next.tintHue === snapshot.tintHue &&
     next.tintIntensity === snapshot.tintIntensity &&
-    next.reduceTransparency === snapshot.reduceTransparency &&
     next.uiFontSize === snapshot.uiFontSize &&
     next.codeFontSize === snapshot.codeFontSize
   ) {
@@ -184,76 +200,143 @@ function applyAppearance(next: AppearanceSnapshot): void {
   rootStyle.colorScheme =
     next.theme === "light" || next.theme === "dark" ? next.theme : "light dark";
 
-  // Tint → accent. Intensity 0 (default) un-pins so light-dark() accent stays in charge.
-  if (
-    next.tintIntensity === DEFAULT_APPEARANCE.tintIntensity &&
-    next.tintHue === DEFAULT_APPEARANCE.tintHue
-  ) {
-    rootStyle.removeProperty(ACCENT_VAR);
-  } else if (next.tintIntensity === 0) {
-    rootStyle.removeProperty(ACCENT_VAR);
-  } else {
-    rootStyle.setProperty(ACCENT_VAR, accentHex(next.tintHue, next.tintIntensity));
-  }
+  applyTint(rootStyle, next.tintHue, next.tintIntensity);
 
-  // Reduce transparency: attribute seam for a future surface createTheme swap. The rewrite
-  // has no glass/vibrancy tokens yet — persisting + marking is the honest apply today.
-  if (next.reduceTransparency) {
-    root.dataset.reduceTransparency = "";
-  } else {
-    delete root.dataset.reduceTransparency;
-  }
-
-  // UI chrome ramp — body is the dialed size; siblings keep their default offsets from 13.
+  // UI chrome and prose share the same user-selected base while retaining their own offsets.
   if (next.uiFontSize === DEFAULT_APPEARANCE.uiFontSize) {
-    rootStyle.removeProperty(FONT_SIZE_BODY_VAR);
-    rootStyle.removeProperty(FONT_SIZE_DETAIL_VAR);
-    rootStyle.removeProperty(FONT_SIZE_CAPTION_VAR);
-    rootStyle.removeProperty(FONT_SIZE_MICRO_VAR);
+    for (const property of Object.values(uiFontVars)) {
+      rootStyle.removeProperty(property);
+    }
   } else {
     const body = next.uiFontSize;
-    rootStyle.setProperty(FONT_SIZE_BODY_VAR, `${body}px`);
-    rootStyle.setProperty(FONT_SIZE_DETAIL_VAR, `${Math.max(body - 1, 8)}px`);
-    rootStyle.setProperty(FONT_SIZE_CAPTION_VAR, `${Math.max(body - 2, 8)}px`);
-    rootStyle.setProperty(FONT_SIZE_MICRO_VAR, `${Math.max(body - 3, 8)}px`);
+    const sizes: Readonly<Record<keyof typeof uiFontVars, number>> = {
+      chromeBody: body,
+      chromeDetail: body - 1,
+      chromeCaption: body - 2,
+      chromeMicro: body - 3,
+      chromeBodyLarge: body + 1,
+      proseCaption: body - 3,
+      proseDetail: body - 2,
+      proseBody: body - 1,
+      proseTitle: body,
+      proseHeading: body + 3,
+      leadingCaption: body - 1,
+      leadingDetail: body + 1,
+      leadingBody: body + 3,
+      leadingTitle: body + 5,
+      leadingHeading: body + 8,
+    };
+    for (const [name, property] of Object.entries(uiFontVars) as readonly [
+      keyof typeof uiFontVars,
+      string,
+    ][]) {
+      rootStyle.setProperty(property, `${Math.max(sizes[name], 8)}px`);
+    }
   }
 
   if (next.codeFontSize === DEFAULT_APPEARANCE.codeFontSize) {
     rootStyle.removeProperty(CODE_SIZE_VAR);
+    rootStyle.removeProperty(CODE_LEADING_VAR);
   } else {
     rootStyle.setProperty(CODE_SIZE_VAR, `${next.codeFontSize}px`);
+    rootStyle.setProperty(CODE_LEADING_VAR, `${next.codeFontSize + 6}px`);
   }
 }
 
-function accentHex(hue: number, intensity: number): string {
-  // Lightness sits near the dark-arm accent so a dialed tint stays readable on both
-  // schemes until a real per-arm tint builder lands (old appearance-colors.ts).
-  const s = intensity / 100;
-  const l = 0.55;
-  return hslToHex(hue, s, l);
-}
-
-function hslToHex(h: number, s: number, l: number): string {
-  if (s === 0) {
-    const channel = Math.round(l * 255)
-      .toString(16)
-      .padStart(2, "0");
-    return `#${channel}${channel}${channel}`;
+function applyTint(rootStyle: CSSStyleDeclaration, hue: number, intensity: number): void {
+  if (intensity === 0) {
+    for (const property of Object.values(tintColorVars)) {
+      rootStyle.removeProperty(property);
+    }
+    return;
   }
 
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  const hk = h / 360;
-  const r = Math.round(hueToRgb(p, q, hk + 1 / 3) * 255);
-  const g = Math.round(hueToRgb(p, q, hk) * 255);
-  const b = Math.round(hueToRgb(p, q, hk - 1 / 3) * 255);
+  const light = honkTheme.colors.light;
+  const dark = honkTheme.colors.dark;
+  const surfaces = [
+    ["bgDeep", 1],
+    ["bgBase", 0.5],
+    ["layer01", 0.45],
+    ["layer02", 0.55],
+    ["layer03", 0.65],
+    ["layer04", 0.75],
+    ["tabHover", 0.55],
+    ["control", 0.45],
+    ["controlHover", 0.55],
+    ["controlPress", 0.65],
+    ["messageBubbleBg", 0.45],
+  ] as const;
 
-  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b
-    .toString(16)
-    .padStart(2, "0")}`;
+  for (const [name, scale] of surfaces) {
+    rootStyle.setProperty(
+      tintColorVars[name],
+      `light-dark(${tintHex(light[name], hue, intensity, scale)}, ${tintHex(dark[name], hue, intensity, scale)})`,
+    );
+  }
+
+  rootStyle.setProperty(
+    tintColorVars.accent,
+    `light-dark(${tintHex(light.accent, hue, intensity, 1)}, ${tintHex(dark.accent, hue, intensity, 1)})`,
+  );
+  rootStyle.setProperty(
+    tintColorVars.accentFill,
+    tintHex(light.accentFill, hue, intensity, 1),
+  );
+  rootStyle.setProperty(
+    tintColorVars.accentSubtle,
+    `light-dark(${tintHex(light.accentSubtle, hue, intensity, 0.65)}, ${tintHex(dark.accentSubtle, hue, intensity, 0.65)})`,
+  );
 }
 
-function hueToRgb(p: number, q: number, t: number): number {
+function tintHex(hex: string, hue: number, intensity: number, scale: number): string {
+  const source = hexToRgb(hex);
+  const target = hslToRgb(hue, 1, rgbLightness(source));
+  const amount = (intensity / 100) * scale;
+  return rgbToHex({
+    red: source.red + (target.red - source.red) * amount,
+    green: source.green + (target.green - source.green) * amount,
+    blue: source.blue + (target.blue - source.blue) * amount,
+  });
+}
+
+type Rgb = { readonly red: number; readonly green: number; readonly blue: number };
+
+function hexToRgb(hex: string): Rgb {
+  return {
+    red: Number.parseInt(hex.slice(1, 3), 16),
+    green: Number.parseInt(hex.slice(3, 5), 16),
+    blue: Number.parseInt(hex.slice(5, 7), 16),
+  };
+}
+
+function rgbLightness(rgb: Rgb): number {
+  const red = rgb.red / 255;
+  const green = rgb.green / 255;
+  const blue = rgb.blue / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  return (max + min) / 2;
+}
+
+function hslToRgb(hue: number, saturation: number, lightness: number): Rgb {
+  if (saturation === 0) {
+    const channel = lightness * 255;
+    return { red: channel, green: channel, blue: channel };
+  }
+  const q =
+    lightness < 0.5
+      ? lightness * (1 + saturation)
+      : lightness + saturation - lightness * saturation;
+  const p = 2 * lightness - q;
+  const normalizedHue = hue / 360;
+  return {
+    red: hueToChannel(p, q, normalizedHue + 1 / 3) * 255,
+    green: hueToChannel(p, q, normalizedHue) * 255,
+    blue: hueToChannel(p, q, normalizedHue - 1 / 3) * 255,
+  };
+}
+
+function hueToChannel(p: number, q: number, t: number): number {
   let wrappedHue = t;
   if (wrappedHue < 0) wrappedHue += 1;
   if (wrappedHue > 1) wrappedHue -= 1;
@@ -261,6 +344,12 @@ function hueToRgb(p: number, q: number, t: number): number {
   if (wrappedHue < 1 / 2) return q;
   if (wrappedHue < 2 / 3) return p + (q - p) * (2 / 3 - wrappedHue) * 6;
   return p;
+}
+
+function rgbToHex(rgb: Rgb): string {
+  const channel = (value: number): string =>
+    Math.round(value).toString(16).padStart(2, "0");
+  return `#${channel(rgb.red)}${channel(rgb.green)}${channel(rgb.blue)}`;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -299,10 +388,6 @@ function hydrate(): AppearanceSnapshot {
         0,
         100,
       ),
-      reduceTransparency:
-        typeof parsed.reduceTransparency === "boolean"
-          ? parsed.reduceTransparency
-          : DEFAULT_APPEARANCE.reduceTransparency,
       uiFontSize: clamp(
         typeof parsed.uiFontSize === "number"
           ? parsed.uiFontSize

@@ -16,7 +16,7 @@ import type { TextFieldHandle, TextFieldProps } from "./types";
 
 /**
  * Native interaction behavior was reviewed against Bluesky social-app
- * 6f69ded4929a945b4dead2bbd52c464a00fef4b5. Keep the root-to-input focus
+ * 9fa5f15baa5ece3a398fbdc5ed7f6ac69884bdbd. Keep the root-to-input focus
  * handoff, uncontrolled-first value flow, merged imperative handle, and
  * platform-specific text metrics when this renderer changes.
  */
@@ -66,6 +66,7 @@ const TextField = React.forwardRef<TextFieldHandle, TextFieldProps>(function Tex
     inputMode,
     keyboardAppearance,
     label,
+    labelHidden = false,
     leading,
     maxLength,
     minRows = 3,
@@ -97,16 +98,17 @@ const TextField = React.forwardRef<TextFieldHandle, TextFieldProps>(function Tex
   const [focused, setFocused] = React.useState(false);
   const field = theme.metrics.field;
   const font = theme.metrics.font;
-  const minHeight = multiline
-    ? field.multilineMinHeight
-    : size === "lg"
-      ? field.minHeightLg
-      : field.minHeightMd;
   const paddingInline = size === "lg" ? field.paddingInlineLg : field.paddingInlineMd;
   const nativePaddingBlock = size === "lg" ? field.paddingBlockLg : field.paddingBlockMd;
   const androidPaddingBlock =
     size === "lg" ? field.paddingBlockAndroidLg : field.paddingBlockAndroidMd;
   const paddingBlock = Platform.OS === "android" ? androidPaddingBlock : nativePaddingBlock;
+  const resolvedMinRows = Math.max(1, minRows);
+  const minHeight = multiline
+    ? Math.max(field.minHeightMd, resolvedMinRows * font.bodyLeading + paddingBlock * 2)
+    : size === "lg"
+      ? field.minHeightLg
+      : field.minHeightMd;
   const invalid = error !== undefined;
   const accessibleLabel = required ? `${label}, required` : label;
 
@@ -132,7 +134,8 @@ const TextField = React.forwardRef<TextFieldHandle, TextFieldProps>(function Tex
   };
   const surfaceStyle: ViewStyle = {
     backgroundColor: invalid ? theme.colors.errBg : theme.colors.layer01,
-    borderColor: invalid ? theme.colors.errFg : theme.colors.borderBase,
+    borderColor: invalid ? theme.colors.errFg : theme.colors.borderStrong,
+    borderCurve: "continuous",
     borderRadius: theme.metrics.radius.field,
     borderStyle: "solid",
     borderWidth: field.borderWidth,
@@ -169,10 +172,12 @@ const TextField = React.forwardRef<TextFieldHandle, TextFieldProps>(function Tex
 
   return (
     <View style={[layout.root, rootStyle]}>
-      <Text nativeID={labelId} style={[layout.label, labelStyle]}>
-        {label}
-        {required ? " *" : ""}
-      </Text>
+      {labelHidden ? null : (
+        <Text nativeID={labelId} style={[layout.label, labelStyle]}>
+          {label}
+          {required ? " *" : ""}
+        </Text>
+      )}
       <Pressable
         accessible={false}
         disabled={disabled}
@@ -189,7 +194,7 @@ const TextField = React.forwardRef<TextFieldHandle, TextFieldProps>(function Tex
           ref={inputRef}
           accessibilityHint={error ?? accessibilityHint}
           accessibilityLabel={accessibleLabel}
-          accessibilityLabelledBy={labelId}
+          accessibilityLabelledBy={labelHidden ? undefined : labelId}
           accessibilityState={{ disabled }}
           allowFontScaling
           autoCapitalize={autoCapitalize}
@@ -202,7 +207,7 @@ const TextField = React.forwardRef<TextFieldHandle, TextFieldProps>(function Tex
           keyboardAppearance={keyboardAppearance ?? mode}
           maxLength={maxLength}
           multiline={multiline}
-          numberOfLines={multiline ? minRows : 1}
+          numberOfLines={multiline ? resolvedMinRows : 1}
           onBlur={() => {
             setFocused(false);
             onFocusChange?.(false);
@@ -217,7 +222,7 @@ const TextField = React.forwardRef<TextFieldHandle, TextFieldProps>(function Tex
           }}
           onSubmitEditing={() => onSubmit?.(value ?? currentValue.current)}
           placeholder={placeholder}
-          placeholderTextColor={theme.colors.textFaint}
+          placeholderTextColor={theme.colors.textMuted}
           readOnly={readOnly}
           returnKeyType={returnKeyType}
           secureTextEntry={secureTextEntry}

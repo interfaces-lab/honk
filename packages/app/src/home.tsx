@@ -341,6 +341,7 @@ function HomePage(): React.ReactElement {
         <Composer
           {...(targetDirectory !== undefined ? { directory: targetDirectory } : {})}
           {...(targetLabel !== undefined ? { directoryLabel: targetLabel } : {})}
+          recentDirectories={watch.state?.recentDirectories ?? EMPTY_DIRECTORIES}
           onDirectoryPicked={(path) => {
             setPickedDirectory(path);
             setProjectKey(PROJECT_ALL_KEY);
@@ -484,6 +485,7 @@ function NavRow({
 }
 
 const EMPTY_THREADS: readonly CommandMenuThread[] = Object.freeze([]);
+const EMPTY_DIRECTORIES: readonly string[] = Object.freeze([]);
 
 function activeThreads(threads: readonly CommandMenuThread[]): readonly CommandMenuThread[] {
   return threads

@@ -1,4 +1,9 @@
 export const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
+export const COMPLETE_ONBOARDING_CHANNEL = "desktop:complete-onboarding";
+export const FINISH_ONBOARDING_CHANNEL = "desktop:finish-onboarding";
+export const DISMISS_ONBOARDING_CHANNEL = "desktop:dismiss-onboarding";
+export const REPLAY_ONBOARDING_CHANNEL = "desktop:replay-onboarding";
+export const ONBOARDING_WINDOW_SHOWN_CHANNEL = "desktop:onboarding-window-shown";
 export const SET_THEME_CHANNEL = "desktop:set-theme";
 export const SET_BACKGROUND_COLOR_CHANNEL = "desktop:set-background-color";
 export const SET_VIBRANCY_CHANNEL = "desktop:set-vibrancy";

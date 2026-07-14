@@ -11,9 +11,10 @@ component work.
 ## Load the contract
 
 1. Read `packages/ui/AGENTS.md` completely.
-2. Read `.design/README.md`, then the required principles and exemplar for the component family.
-3. For web, read the StyleX and styling-token skills completely.
-4. For native, load the relevant Expo/native skill and verify installed dependency types.
+2. Load the local `design` skill for product judgment and request-mode routing.
+3. Read `.design/README.md`, then the required principles and exemplar for the component family.
+4. For web, read the StyleX and styling-token skills completely.
+5. For native, load the relevant Expo/native skill and verify installed dependency types.
 
 ## Choose the boundary before writing code
 
@@ -67,9 +68,8 @@ Do not expose a shared prop type formed by combining DOM input props with React 
 
 ## Finish
 
-- Run `pnpm --filter @honk/ui-cli mobile:check`; this is the executable source for supported Expo
-  SDK and platform-resolution checks.
-- Typecheck every affected consumer.
-- Run `.design/lint.mjs` for web UI.
+- Run `pnpm run check:mobile` for supported Expo dependency, platform-resolution, shared SDK, and
+  affected-consumer checks.
+- Run `node .design/lint.mjs` for web UI.
 - Exercise native changes on both iOS and Android once the mobile consumer exists.
 - Report which platforms were actually verified and never imply untested parity.

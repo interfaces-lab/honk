@@ -301,7 +301,7 @@ async function createDesktopDevEnv(baseEnv: NodeJS.ProcessEnv): Promise<NodeJS.P
 
   const env: NodeJS.ProcessEnv = {
     ...baseEnv,
-    ELECTRON_EXEC_PATH: resolveElectronPath(),
+    ELECTRON_EXEC_PATH: resolveElectronPath({ isDevelopment: true }),
     HOST: desktopDevLoopbackHost,
     PORT: String(rendererPort),
     VITE_DEV_SERVER_URL: rendererUrl,
@@ -445,6 +445,12 @@ function signalProcessTree(pid: number, signal: NodeJS.Signals): void {
     return;
   }
   killChildTreeByPid(pid, signal);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolveSleep) => {
+    setTimeout(resolveSleep, ms);
+  });
 }
 
 async function waitForPidsToExit(pids: readonly number[], timeoutMs: number): Promise<void> {

@@ -15,6 +15,8 @@
     "dev:desktop": "turbo run dev --filter=@honk/desktop",
     "start:desktop": "turbo run start --filter=@honk/desktop",
     "start:mock-update-server": "bun scripts/mock-update-server.ts",
+    "honk": "bun packages/cli/src/bin.ts",
+    "check:mobile": "pnpm --filter @honk/ui typecheck && pnpm --filter @honk/opencode typecheck && pnpm --filter @honk/mobile typecheck && pnpm --dir packages/mobile exec expo install --check && pnpm --dir packages/mobile exec expo-doctor .",
     "build": "turbo run build",
     "build:desktop": "turbo run build --filter=@honk/desktop",
     "typecheck": "turbo run typecheck",

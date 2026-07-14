@@ -1,12 +1,17 @@
 import * as React from "react";
 import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from "react-native";
+import * as Crypto from "expo-crypto";
 import * as Linking from "expo-linking";
+import * as SecureStore from "expo-secure-store";
 import { router, useLocalSearchParams } from "expo-router";
+import { exchangeHonkPairing } from "@honk/opencode";
 import { TextField } from "@honk/ui/text-field";
 
-import { parseOpenCodeConnection } from "./pairing";
+import { normalizeRemoteOrigin, parseOpenCodeConnection } from "./pairing";
 import { useRemote } from "./remote-context";
 import { ActionButton, BodyText, DetailText, Page, useHonkTheme } from "./ui";
+
+const CONSUMED_PAIRING_DIGEST_KEY = "honk.mobile.consumed-pairing.v1";
 
 export function ConnectScreen(): React.ReactElement {
   const theme = useHonkTheme();
@@ -21,35 +26,62 @@ export function ConnectScreen(): React.ReactElement {
   const [localError, setLocalError] = React.useState<string | null>(null);
   const consumedUrl = React.useRef<string | null>(null);
 
+  const connectValue = React.useCallback(
+    async (connectionValue: string, fallbackOrigin: string): Promise<void> => {
+      const candidate = parseOpenCodeConnection(connectionValue, fallbackOrigin);
+      if (candidate === null) {
+        throw new Error("Paste a Honk attach link, or enter the Honk host password.");
+      }
+      const origin = normalizeRemoteOrigin(candidate.origin);
+      const connection =
+        candidate.credential.type === "pairing"
+          ? await exchangeHonkPairing(origin, candidate.credential.value, {
+              label: "Honk mobile",
+            })
+          : { origin, password: candidate.credential.value };
+      await remote.connect({
+        ...connection,
+        defaultCwd: form.defaultCwd,
+      });
+      router.replace("/");
+    },
+    [form.defaultCwd, remote],
+  );
+
   React.useEffect(() => {
     if (linkingUrl === null || consumedUrl.current === linkingUrl) return;
     consumedUrl.current = linkingUrl;
+    let candidate;
     try {
-      const candidate = parseOpenCodeConnection(linkingUrl, form.origin);
-      if (candidate === null) return;
+      candidate = parseOpenCodeConnection(linkingUrl, form.origin);
+    } catch {
+      // Expo development links and unrelated universal links are ignored.
+      return;
+    }
+    if (candidate === null || candidate.credential.type !== "pairing") return;
+    void (async () => {
+      const digest = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        linkingUrl,
+      );
+      if ((await SecureStore.getItemAsync(CONSUMED_PAIRING_DIGEST_KEY)) === digest) return;
+      await SecureStore.setItemAsync(CONSUMED_PAIRING_DIGEST_KEY, digest);
       setForm((current) => ({
         ...current,
         origin: candidate.origin,
-        connectionValue: linkingUrl,
+        connectionValue: "",
       }));
-    } catch {
-      // Expo development links and unrelated universal links are ignored.
-    }
-  }, [linkingUrl, form.origin]);
+      setLocalError(null);
+      await connectValue(linkingUrl, form.origin);
+    })().catch((cause: unknown) => {
+      setLocalError(cause instanceof Error ? cause.message : "Pairing failed.");
+    });
+  }, [connectValue, form.origin, linkingUrl]);
 
   const submit = async (): Promise<void> => {
     setLocalError(null);
     try {
-      const candidate = parseOpenCodeConnection(form.connectionValue, form.origin);
-      if (candidate === null) {
-        throw new Error("Paste a Honk attach link, or enter the OpenCode password.");
-      }
-      await remote.connect({
-        origin: candidate.origin,
-        password: candidate.password,
-        defaultCwd: form.defaultCwd,
-      });
-      router.replace("/");
+      await connectValue(form.connectionValue, form.origin);
     } catch (cause) {
       setLocalError(cause instanceof Error ? cause.message : "Pairing failed.");
     }
@@ -82,11 +114,11 @@ export function ConnectScreen(): React.ReactElement {
                 lineHeight: theme.metrics.font.titleLeading,
               }}
             >
-              Connect to OpenCode
+              Connect to Honk
             </BodyText>
             <DetailText>
-              Start the Honk host on your computer, then open its attach link or enter the server
-              address and password. Use HTTP only over a trusted LAN or encrypted tailnet.
+              Start Honk on your computer, then open its attach link or enter the host address and
+              password. Remote connections require HTTPS.
             </DetailText>
           </View>
 
@@ -123,7 +155,7 @@ export function ConnectScreen(): React.ReactElement {
                 autoComplete="url"
                 autoCorrect={false}
                 inputMode="url"
-                label="OpenCode address"
+                label="Honk host address"
                 onChangeText={(origin) => setForm((current) => ({ ...current, origin }))}
                 placeholder="https://honk.example.com"
                 value={form.origin}
@@ -144,17 +176,19 @@ export function ConnectScreen(): React.ReactElement {
                 autoCapitalize="none"
                 autoCorrect={false}
                 label="Default project folder"
-                onChangeText={(defaultCwd) =>
-                  setForm((current) => ({ ...current, defaultCwd }))
-                }
+                onChangeText={(defaultCwd) => setForm((current) => ({ ...current, defaultCwd }))}
                 placeholder="/Users/you/Developer/project"
                 value={form.defaultCwd}
               />
-              <ActionButton label="Connect" onPress={() => void submit()} pending={pending} />
+              <ActionButton
+                label="Connect to Honk"
+                onPress={() => void submit()}
+                pending={pending}
+              />
             </View>
           )}
 
-          {localError ?? remote.error ? (
+          {(localError ?? remote.error) ? (
             <DetailText accessibilityLiveRegion="polite" style={{ color: theme.colors.errFg }}>
               {localError ?? remote.error}
             </DetailText>

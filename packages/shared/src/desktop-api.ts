@@ -302,6 +302,11 @@ export interface DesktopBridge<RuntimeApi = unknown> {
   getServerExposureState: () => Promise<DesktopServerExposureState>;
   setServerExposureMode: (mode: DesktopServerExposureMode) => Promise<DesktopServerExposureState>;
   pickFolder: (options?: PickFolderOptions) => Promise<string | null>;
+  completeOnboarding: () => Promise<void>;
+  finishOnboarding: () => Promise<void>;
+  dismissOnboarding: () => Promise<void>;
+  replayOnboarding: () => Promise<void>;
+  onOnboardingWindowShown: (listener: () => void) => () => void;
   setTheme: (theme: DesktopTheme) => Promise<void>;
   setBackgroundColor: (color: string) => Promise<void>;
   setVibrancy: (enabled: boolean) => Promise<void>;

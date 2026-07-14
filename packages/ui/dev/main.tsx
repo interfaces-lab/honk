@@ -49,6 +49,7 @@ import {
   Matrix,
   Menu,
   Popover,
+  Prose,
   Separator,
   Shell,
   Spinner,
@@ -89,6 +90,7 @@ import {
   ConversationDials,
   DesignSystemDials,
   IconDials,
+  ProseDials,
   ShellDials,
   TabsDials,
   TextDials,
@@ -120,6 +122,8 @@ const CANVAS_PAD = "32px";
 const CONTENT_MAX_WIDTH = "1120px";
 // The sliver between story-rail nav items, so adjacent hover/active fills never touch.
 const RAIL_ITEM_GAP = "2px";
+// Gallery column dividers are structural hairlines, matching the Shell region recipe.
+const GALLERY_HAIRLINE = "1px";
 // The Shell story's full-fidelity demo window: proportions of the locked board's desktop frame
 // (locked.html §1 .frame.desktop, 1120×640) — an honest window shape, demo-only geometry.
 const DEMO_WINDOW_MAX_WIDTH = "1120px";
@@ -141,6 +145,9 @@ const TRUNCATE_DEMO_WIDTH = "160px";
 // Cap the conversation specimens at a readable column; the real timeline column (840px) is the
 // future app's concern, not this gallery's.
 const SPECIMEN_MAX_WIDTH = "560px";
+// Matches the rebuilt app's conversation lane so wide prose leaves (code/table/media) are judged
+// against their real container while the text leaves retain their token-owned character measure.
+const PROSE_SPECIMEN_MAX_WIDTH = "840px";
 // The icon-catalog grid cell: wide enough for the longest pack name (IconDotGrid1x3Horizontal) to
 // sit under its glyph. A fact of THIS gallery's icon story, not product vocabulary.
 const ICON_CELL_WIDTH = "148px";
@@ -183,7 +190,7 @@ const styles = stylex.create({
     flexGrow: 1,
   },
   galleryColDivided: {
-    borderLeftWidth: "1px",
+    borderLeftWidth: GALLERY_HAIRLINE,
     borderLeftStyle: "solid",
     borderLeftColor: colorVars["--honk-color-border-muted"],
   },
@@ -264,6 +271,10 @@ const styles = stylex.create({
     flexDirection: "column",
     gap: spaceVars["--honk-space-gutter"],
     maxWidth: SPECIMEN_MAX_WIDTH,
+  },
+  proseSpecimen: {
+    width: "100%",
+    maxWidth: PROSE_SPECIMEN_MAX_WIDTH,
   },
   // A fixed-width variant label so spec rows column-align.
   specLabel: {
@@ -918,6 +929,59 @@ function TextStory(): React.ReactElement {
               A very long line that must ellipsize inside its 160px box instead of wrapping.
             </Text>
           </div>
+        </div>
+      </Section>
+    </>
+  );
+}
+
+// ── Story: Prose ────────────────────────────────────────────────────────────────────────────
+
+function ProseStory(): React.ReactElement {
+  return (
+    <>
+      <ProseDials />
+      <Section
+        title="Assistant prose — measured text, wider evidence"
+        note="Long-form text uses a 68ch reading measure at 14/22. Code, tables, and media keep the full 840px conversation lane, following Making Software's narrow-copy / wide-figure rhythm without importing its editorial chrome."
+      >
+        <div {...stylex.props(styles.proseSpecimen)}>
+          <Prose>
+            <Prose.Heading level={1}>Make the answer easy to stay inside</Prose.Heading>
+            <Prose.Paragraph>
+              Dense application chrome and long-form explanation do different jobs. Controls remain
+              compact, while assistant prose gets a stable measure and enough leading for the eye to
+              return to the next line without searching.
+            </Prose.Paragraph>
+            <Prose.Paragraph>
+              The hierarchy comes from rhythm as much as scale. Paragraphs breathe, sections open
+              more decisively, and <Prose.InlineCode>inline evidence</Prose.InlineCode> stays
+              visibly distinct without turning every sentence into a row of chips.
+            </Prose.Paragraph>
+            <Prose.Heading level={2}>Let evidence use the wider lane</Prose.Heading>
+            <Prose.List>
+              <Prose.ListItem>
+                Keep explanatory lines within a readable character measure.
+              </Prose.ListItem>
+              <Prose.ListItem>
+                Allow code, tables, and media to use the full transcript width.
+              </Prose.ListItem>
+              <Prose.ListItem>
+                Preserve the same semantic anatomy in compact windows.
+              </Prose.ListItem>
+            </Prose.List>
+            <Prose.CodeBlock>
+              <code>{`stream: {
+  overflowY: "auto",
+  overscrollBehaviorY: "contain",
+  scrollbarGutter: "stable",
+}`}</code>
+            </Prose.CodeBlock>
+            <Prose.Blockquote>
+              Reading comfort is cumulative: line length, leading, spacing, and stable scroll
+              geometry all have to agree.
+            </Prose.Blockquote>
+          </Prose>
         </div>
       </Section>
     </>
@@ -2184,6 +2248,7 @@ const STORIES = [
   { path: "/alert-dialog", label: "AlertDialog" },
   { path: "/matrix", label: "Matrix" },
   { path: "/text", label: "Text" },
+  { path: "/prose", label: "Prose" },
   { path: "/icon", label: "Icon" },
   { path: "/conversation", label: "Conversation" },
 ] as const;
@@ -2337,6 +2402,12 @@ const textRoute = createRoute({
   component: TextStory,
 });
 
+const proseRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/prose",
+  component: ProseStory,
+});
+
 const iconRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/icon",
@@ -2406,6 +2477,7 @@ const routeTree = rootRoute.addChildren([
   alertDialogRoute,
   matrixRoute,
   textRoute,
+  proseRoute,
   iconRoute,
   conversationRoute,
 ]);

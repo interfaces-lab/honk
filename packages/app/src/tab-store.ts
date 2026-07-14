@@ -6,7 +6,7 @@
 //   • Home is pinned at slot 0 — not closable, not reorderable past 0, skipped by ⌘W.
 //   • activate navigates; route changes activate only already-known real thread tabs.
 //   • Closing the active tab activates a sensible neighbor; closed tabs push reopenStack.
-//   • New tabs come from Core `threads.create`; no client-only draft ids.
+//   • New tabs come from OpenCode `threads.create`; no client-only draft ids.
 
 import type { HonkClient, SendMessageFile, WorkspaceState } from "./sidecar";
 import { useSyncExternalStore } from "react";
@@ -276,14 +276,14 @@ export const actions = {
     navigateToKey(entry.item.key);
   },
 
-  // ⌘N / + / Home omnibox — create in Core first, then navigate to the real thread id.
+  // ⌘N / + / Home omnibox — create in OpenCode first, then navigate to the real thread id.
   openNew(input?: OpenNewThreadInput): void {
     const client = getBoundHonkClient();
     if (client === null) {
       toastActions.add({
         type: "error",
         title: "Not connected",
-        description: "The Core connection is not ready yet.",
+        description: "The OpenCode connection is not ready yet.",
       });
       return;
     }
@@ -398,7 +398,7 @@ function syncFromPathname(pathname: string): void {
 
   // A direct URL is a legitimate browser-style open. Start with honest loading
   // chrome; the workspace summary synchronizer replaces the title/status once
-  // Core validates the id, while the route surface owns its unavailable state.
+  // OpenCode validates the id, while the route surface owns its unavailable state.
   publish(
     Object.freeze([
       ...snapshot.tabs,

@@ -22,6 +22,7 @@ import * as DesktopEnvironment from "../app/desktop-environment";
 export interface DesktopSettings {
   readonly serverExposureMode: DesktopServerExposureMode;
   readonly themeSource: DesktopTheme;
+  readonly hasCompletedOnboarding: boolean;
   readonly lastBackendPort?: number;
 }
 
@@ -33,11 +34,13 @@ export interface DesktopSettingsChange {
 export const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
   serverExposureMode: "local-only",
   themeSource: "system",
+  hasCompletedOnboarding: false,
 };
 
 const DesktopSettingsDocument = Schema.Struct({
   serverExposureMode: Schema.optionalKey(DesktopServerExposureModeSchema),
   themeSource: Schema.optionalKey(DesktopThemeSchema),
+  hasCompletedOnboarding: Schema.optionalKey(Schema.Boolean),
   lastBackendPort: Schema.optionalKey(Schema.Number),
 });
 
@@ -73,6 +76,7 @@ export interface DesktopAppSettingsShape {
   readonly setLastBackendPort: (
     port: number,
   ) => Effect.Effect<DesktopSettingsChange, DesktopSettingsWriteError>;
+  readonly completeOnboarding: Effect.Effect<DesktopSettingsChange, DesktopSettingsWriteError>;
 }
 
 export class DesktopAppSettings extends Context.Service<
@@ -93,6 +97,7 @@ function normalizeDesktopSettingsDocument(
     serverExposureMode:
       parsed.serverExposureMode === "network-accessible" ? "network-accessible" : "local-only",
     themeSource: parsed.themeSource ?? "system",
+    hasCompletedOnboarding: parsed.hasCompletedOnboarding === true,
     ...(typeof lastBackendPort === "number" &&
     Number.isInteger(lastBackendPort) &&
     lastBackendPort >= 1 &&
@@ -113,6 +118,9 @@ function toDesktopSettingsDocument(
   }
   if (settings.themeSource !== defaults.themeSource) {
     document.themeSource = settings.themeSource;
+  }
+  if (settings.hasCompletedOnboarding !== defaults.hasCompletedOnboarding) {
+    document.hasCompletedOnboarding = settings.hasCompletedOnboarding;
   }
   if (
     settings.lastBackendPort !== undefined &&
@@ -150,6 +158,15 @@ function setLastBackendPort(settings: DesktopSettings, requestedPort: number): D
     : {
         ...settings,
         lastBackendPort: requestedPort,
+      };
+}
+
+function completeOnboarding(settings: DesktopSettings): DesktopSettings {
+  return settings.hasCompletedOnboarding
+    ? settings
+    : {
+        ...settings,
+        hasCompletedOnboarding: true,
       };
 }
 
@@ -244,6 +261,9 @@ export const layer = Layer.effect(
         persist((settings) => setLastBackendPort(settings, port)).pipe(
           Effect.withSpan("desktop.settings.setLastBackendPort", { attributes: { port } }),
         ),
+      completeOnboarding: persist(completeOnboarding).pipe(
+        Effect.withSpan("desktop.settings.completeOnboarding"),
+      ),
     });
   }),
 );
@@ -272,6 +292,7 @@ export const layerTest = (initialSettings: DesktopSettings = DEFAULT_DESKTOP_SET
           update((settings) => setServerExposureMode(settings, mode)),
         setThemeSource: (theme) => update((settings) => setThemeSource(settings, theme)),
         setLastBackendPort: (port) => update((settings) => setLastBackendPort(settings, port)),
+        completeOnboarding: update(completeOnboarding),
       });
     }),
   );

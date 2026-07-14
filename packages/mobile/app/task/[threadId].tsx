@@ -3,8 +3,7 @@ import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { Redirect, Stack, router, useLocalSearchParams } from "expo-router";
-import { ThreadId } from "@honk/api/core/v1";
-import type { ThreadDetail } from "@honk/api/core/v1";
+import type { ThreadDetail } from "@honk/opencode";
 import { TextField } from "@honk/ui/text-field";
 
 import { useRemote } from "../../src/remote-context";
@@ -14,7 +13,7 @@ export default function TaskSettingsRoute(): React.ReactElement {
   const theme = useHonkTheme();
   const remote = useRemote();
   const params = useLocalSearchParams<{ threadId: string }>();
-  const threadId = ThreadId.make(params.threadId);
+  const threadId = params.threadId;
   const [detail, setDetail] = React.useState<ThreadDetail | null>(null);
   const [title, setTitle] = React.useState("");
   const [pending, setPending] = React.useState(false);
@@ -22,8 +21,9 @@ export default function TaskSettingsRoute(): React.ReactElement {
 
   React.useEffect(() => {
     let active = true;
-    if (remote.client === null) return;
-    void remote.client.threads
+    const client = remote.client;
+    if (client === null || threadId.length === 0) return;
+    void client.threads
       .get(threadId)
       .then((next) => {
         if (!active) return;
@@ -31,7 +31,9 @@ export default function TaskSettingsRoute(): React.ReactElement {
         setTitle(next.summary.title);
       })
       .catch((cause: unknown) => {
-        if (active) setMessage(cause instanceof Error ? cause.message : "The task could not be loaded.");
+        if (active) {
+          setMessage(cause instanceof Error ? cause.message : "The task could not be loaded.");
+        }
       });
     return () => {
       active = false;
@@ -50,9 +52,10 @@ export default function TaskSettingsRoute(): React.ReactElement {
     setPending(true);
     setMessage(null);
     try {
-      const summary = await remote.client?.threads.update(threadId, { title: normalized });
-      if (summary === undefined) throw new Error("Core disconnected while renaming the task.");
-      setDetail((current) => (current === null ? current : { ...current, summary }));
+      await remote.client?.threads.setTitle(threadId, normalized);
+      const next = await remote.client?.threads.get(threadId);
+      if (next === undefined) throw new Error("Honk disconnected while renaming the task.");
+      setDetail(next);
       await remote.refreshWorkspace();
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setMessage("Task renamed.");
@@ -64,13 +67,13 @@ export default function TaskSettingsRoute(): React.ReactElement {
   };
 
   const copyId = async (): Promise<void> => {
-    await Clipboard.setStringAsync(String(threadId));
+    await Clipboard.setStringAsync(threadId);
     await Haptics.selectionAsync();
     setMessage("Task ID copied.");
   };
 
   const archive = (): void => {
-    Alert.alert("Archive this task?", "You can restore it from Archived tasks.", [
+    Alert.alert("Archive this task?", "It will move to Archived tasks.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Archive",
@@ -82,7 +85,9 @@ export default function TaskSettingsRoute(): React.ReactElement {
               router.replace("/(tabs)/home");
             })
             .catch((cause: unknown) =>
-              setMessage(cause instanceof Error ? cause.message : "The task could not be archived."),
+              setMessage(
+                cause instanceof Error ? cause.message : "The task could not be archived.",
+              ),
             );
         },
       },
@@ -90,29 +95,27 @@ export default function TaskSettingsRoute(): React.ReactElement {
   };
 
   const remove = (): void => {
-    Alert.alert(
-      "Delete this task?",
-      "This permanently removes the conversation, attachments, and checkpoints from Core.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            void remote.client?.threads
-              .remove(threadId)
-              .then(async () => {
-                await remote.refreshWorkspace();
-                router.replace("/(tabs)/home");
-              })
-              .catch((cause: unknown) =>
-                setMessage(cause instanceof Error ? cause.message : "The task could not be deleted."),
-              );
-          },
+    Alert.alert("Delete this task?", "This permanently removes the task and its conversation.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          void remote.client?.threads
+            .remove(threadId)
+            .then(async () => {
+              await remote.refreshWorkspace();
+              router.replace("/(tabs)/home");
+            })
+            .catch((cause: unknown) =>
+              setMessage(cause instanceof Error ? cause.message : "The task could not be deleted."),
+            );
         },
-      ],
-    );
+      },
+    ]);
   };
+
+  const model = detail?.summary.model ?? null;
 
   return (
     <Page>
@@ -143,26 +146,16 @@ export default function TaskSettingsRoute(): React.ReactElement {
             <BodyText style={{ fontWeight: theme.metrics.font.weightSemibold }}>Details</BodyText>
             <DetailText selectable>{detail.cwd}</DetailText>
             <DetailText>
-              {String(detail.summary.model)} · {detail.summary.thinkingLevel}
+              {model === null ? "Default model" : model.id}
+              {model?.variant === undefined ? "" : ` · ${model.variant}`}
             </DetailText>
-            <DetailText>Status: {detail.summary.rowStatus.replace("_", " ")}</DetailText>
-            <DetailText selectable>{String(detail.summary.id)}</DetailText>
+            <DetailText>
+              Status: {detail.summary.needsAttention ? "needs attention" : detail.summary.status}
+            </DetailText>
+            <DetailText selectable>{threadId}</DetailText>
             <View style={styles.leadingAction}>
               <ActionButton label="Copy task ID" onPress={() => void copyId()} tone="neutral" />
             </View>
-            {detail.summary.readableAt === null ? null : (
-              <View style={styles.leadingAction}>
-                <ActionButton
-                  label="Mark as unread"
-                  onPress={() => {
-                    void remote.client?.uiState
-                      .update({ threadRead: { threadId, readAt: null } })
-                      .then(() => setMessage("Task marked unread."));
-                  }}
-                  tone="neutral"
-                />
-              </View>
-            )}
           </View>
         )}
 
@@ -171,7 +164,9 @@ export default function TaskSettingsRoute(): React.ReactElement {
         )}
 
         <View style={{ gap: theme.metrics.space.rowGap }}>
-          <BodyText style={{ fontWeight: theme.metrics.font.weightSemibold }}>Task lifecycle</BodyText>
+          <BodyText style={{ fontWeight: theme.metrics.font.weightSemibold }}>
+            Task lifecycle
+          </BodyText>
           <ActionButton label="Archive task" onPress={archive} tone="neutral" />
           <ActionButton label="Delete task" onPress={remove} tone="destructive" />
         </View>

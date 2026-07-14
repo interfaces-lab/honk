@@ -38,6 +38,7 @@ import {
   fontVars,
   iconVars,
   motionVars,
+  proseVars,
   radiusVars,
   shellVars,
   spaceVars,
@@ -188,6 +189,27 @@ const textPanel: PanelSpec = {
     leadingTitle: { cssVar: cssVarName(fontVars["--honk-leading-title"]) },
     heading: { cssVar: cssVarName(fontVars["--honk-text-heading"]) },
     leadingHeading: { cssVar: cssVarName(fontVars["--honk-leading-heading"]) },
+  },
+};
+
+// Prose — the assistant reading role. The fixed pixel measure keeps headings and body copy aligned
+// even though their font sizes differ; at the default face and size, 600px is roughly 68 characters.
+const prosePanel: PanelSpec = {
+  id: "prose",
+  name: "Prose",
+  config: {
+    measure: [600, 440, 760, 20],
+    size: [14, 12, 18, 0.5],
+    leading: [22, 16, 30, 1],
+    flowGap: [12, 4, 24, 1],
+    sectionGap: [24, 12, 48, 1],
+  },
+  bindings: {
+    measure: { cssVar: cssVarName(proseVars["--honk-prose-measure"]) },
+    size: { cssVar: cssVarName(proseVars["--honk-prose-size"]) },
+    leading: { cssVar: cssVarName(proseVars["--honk-prose-leading"]) },
+    flowGap: { cssVar: cssVarName(proseVars["--honk-prose-flow-gap"]) },
+    sectionGap: { cssVar: cssVarName(proseVars["--honk-prose-section-gap"]) },
   },
 };
 
@@ -554,12 +576,19 @@ const dsToastPanel: PanelSpec = {
   id: "ds-toast",
 };
 
+const dsReadingPanel: PanelSpec = {
+  ...prosePanel,
+  id: "ds-reading",
+  name: "Reading prose",
+};
+
 // Mounted together only on /design (createPanelMount + DesignSystemDials below).
 const DESIGN_PANELS: readonly PanelSpec[] = [
   dsRadiusPanel,
   dsSpacePanel,
   dsControlPanel,
   dsProsePanel,
+  dsReadingPanel,
   dsChromePanel,
   dsIconPanel,
   dsMotionPanel,
@@ -574,6 +603,7 @@ const PANELS: readonly PanelSpec[] = [
   shellPanel,
   tabsPanel,
   textPanel,
+  prosePanel,
   iconPanel,
   conversationPanel,
   toastPanel,
@@ -691,6 +721,7 @@ const ThemeDials = createPanelMount(themePanel);
 const ShellDials = createPanelMount(shellPanel);
 const TabsDials = createPanelMount(tabsPanel);
 const TextDials = createPanelMount(textPanel);
+const ProseDials = createPanelMount(prosePanel);
 const IconDials = createPanelMount(iconPanel);
 const ConversationDials = createPanelMount(conversationPanel);
 const ToastDials = createPanelMount(toastPanel);
@@ -759,6 +790,7 @@ export {
   ConversationDials,
   DesignSystemDials,
   IconDials,
+  ProseDials,
   ShellDials,
   TabsDials,
   TextDials,

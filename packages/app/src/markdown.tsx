@@ -3,142 +3,19 @@
 // inherits Streamdown's product chrome, icon set, or decorative controls.
 
 import * as stylex from "@stylexjs/stylex";
-import {
-  colorVars,
-  conversationVars,
-  fontVars,
-  radiusVars,
-  spaceVars,
-} from "@honk/ui/tokens.stylex";
+import { Prose } from "@honk/ui";
+import { proseCodeBlockStyle } from "@honk/ui/prose-code-block";
 import * as React from "react";
 import type { ShikiTransformer } from "shiki";
 import { type Components, Streamdown } from "streamdown";
 
-// A markdown rule is a real hairline, not a design value that changes with identity.
-const MARKDOWN_HAIRLINE = "1px";
-
 const styles = stylex.create({
-  root: {
-    width: "100%",
-    minWidth: 0,
-    overflowWrap: "anywhere",
-  },
-  flow: {
-    marginBlockStart: 0,
-    marginBlockEnd: {
-      default: conversationVars["--honk-conversation-step-gap"],
-      ":last-child": 0,
-    },
-  },
-  heading: {
-    marginBlockStart: spaceVars["--honk-space-panel-pad"],
-    marginBlockEnd: spaceVars["--honk-space-gutter"],
-    color: colorVars["--honk-color-fg"],
-    fontFamily: fontVars["--honk-font-family-ui"],
-    fontWeight: fontVars["--honk-font-weight-semibold"],
-  },
-  headingLarge: {
-    fontSize: fontVars["--honk-text-heading"],
-    lineHeight: fontVars["--honk-leading-heading"],
-  },
-  headingSmall: {
-    fontSize: fontVars["--honk-text-title"],
-    lineHeight: fontVars["--honk-leading-title"],
-  },
-  list: {
-    marginBlockStart: 0,
-    marginBlockEnd: conversationVars["--honk-conversation-step-gap"],
-    paddingInlineStart: spaceVars["--honk-space-panel-pad"],
-  },
-  listItem: {
-    marginBlockEnd: {
-      default: conversationVars["--honk-conversation-row-gap"],
-      ":last-child": 0,
-    },
-  },
-  link: {
-    color: {
-      default: colorVars["--honk-color-accent"],
-      ":hover": { "@media (hover: hover)": colorVars["--honk-color-fg"] },
-    },
-    textDecorationLine: "underline",
-    textUnderlineOffset: conversationVars["--honk-conversation-row-gap"],
-  },
-  strong: {
-    color: colorVars["--honk-color-fg"],
-    fontWeight: fontVars["--honk-font-weight-semibold"],
-  },
-  inlineCode: {
-    paddingInline: conversationVars["--honk-conversation-row-gap"],
-    borderRadius: radiusVars["--honk-radius-control"],
-    backgroundColor: colorVars["--honk-color-layer-01"],
-    color: colorVars["--honk-color-fg"],
-    fontFamily: fontVars["--honk-font-family-mono"],
-    fontSize: fontVars["--honk-text-detail"],
-  },
-  pre: {
-    maxWidth: "100%",
-    marginBlockStart: 0,
-    marginBlockEnd: conversationVars["--honk-conversation-step-gap"],
-    padding: spaceVars["--honk-space-panel-pad"],
-    overflowX: "auto",
-    borderRadius: radiusVars["--honk-radius-control"],
-    backgroundColor: colorVars["--honk-color-layer-01"],
-    color: colorVars["--honk-color-fg-secondary"],
-    fontFamily: fontVars["--honk-font-family-mono"],
-    fontSize: fontVars["--honk-text-detail"],
-    lineHeight: fontVars["--honk-leading-title"],
-    whiteSpace: "pre",
-  },
   // Shiki emits its own <pre>; this wrapper only owns width/overflow so the highlighted
-  // block behaves in a flex column. The <pre> itself is re-tagged with styles.pre below.
+  // block behaves in a flex column. The <pre> itself receives @honk/ui's code-block style below.
   highlightWrap: {
     width: "100%",
     minWidth: 0,
     maxWidth: "100%",
-  },
-  blockquote: {
-    marginInline: 0,
-    paddingInlineStart: spaceVars["--honk-space-gutter"],
-    borderInlineStartWidth: MARKDOWN_HAIRLINE,
-    borderInlineStartStyle: "solid",
-    borderInlineStartColor: colorVars["--honk-color-border-strong"],
-    color: colorVars["--honk-color-fg-secondary"],
-  },
-  rule: {
-    height: MARKDOWN_HAIRLINE,
-    marginBlock: spaceVars["--honk-space-panel-pad"],
-    borderWidth: 0,
-    backgroundColor: colorVars["--honk-color-border-muted"],
-  },
-  tableWrap: {
-    width: "100%",
-    maxWidth: "100%",
-    overflowX: "auto",
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    fontVariantNumeric: "tabular-nums",
-  },
-  tableCell: {
-    paddingBlock: conversationVars["--honk-conversation-row-gap"],
-    paddingInline: spaceVars["--honk-space-gutter"],
-    borderBlockEndWidth: MARKDOWN_HAIRLINE,
-    borderBlockEndStyle: "solid",
-    borderBlockEndColor: colorVars["--honk-color-border-muted"],
-    textAlign: "start",
-    verticalAlign: "top",
-  },
-  tableHead: {
-    color: colorVars["--honk-color-fg"],
-    fontWeight: fontVars["--honk-font-weight-semibold"],
-  },
-  image: {
-    display: "block",
-    maxWidth: "100%",
-    height: "auto",
-    borderRadius: radiusVars["--honk-radius-control"],
   },
 });
 
@@ -154,7 +31,7 @@ const highlightCache = new Map<string, string>();
 // Shiki paints its own container chrome (background, padding) from the theme. Strip it and re-tag
 // the <pre> with honk's token styling so highlighted and plain-fallback blocks look identical;
 // only the per-token foreground colors survive from Shiki.
-const HIGHLIGHT_PRE_CLASS = stylex.props(styles.pre).className ?? "";
+const HIGHLIGHT_PRE_CLASS = stylex.props(proseCodeBlockStyle).className ?? "";
 const SHIKI_TRANSFORMERS: ShikiTransformer[] = [
   {
     pre(node) {
@@ -226,52 +103,46 @@ function stripRendererProps<Tag extends keyof React.JSX.IntrinsicElements>(
 }
 
 function Paragraph(props: MarkdownProps<"p">): React.ReactElement {
-  return <p {...stripRendererProps(props)} {...stylex.props(styles.flow)} />;
+  return <Prose.Paragraph {...stripRendererProps(props)} />;
 }
 
 function Heading1(props: MarkdownProps<"h1">): React.ReactElement {
-  return (
-    <h1 {...stripRendererProps(props)} {...stylex.props(styles.heading, styles.headingLarge)} />
-  );
+  return <Prose.Heading level={1} {...stripRendererProps(props)} />;
 }
 
 function Heading2(props: MarkdownProps<"h2">): React.ReactElement {
-  return (
-    <h2 {...stripRendererProps(props)} {...stylex.props(styles.heading, styles.headingSmall)} />
-  );
+  return <Prose.Heading level={2} {...stripRendererProps(props)} />;
 }
 
 function Heading3(props: MarkdownProps<"h3">): React.ReactElement {
-  return (
-    <h3 {...stripRendererProps(props)} {...stylex.props(styles.heading, styles.headingSmall)} />
-  );
+  return <Prose.Heading level={3} {...stripRendererProps(props)} />;
 }
 
 function UnorderedList(props: MarkdownProps<"ul">): React.ReactElement {
-  return <ul {...stripRendererProps(props)} {...stylex.props(styles.list)} />;
+  return <Prose.List {...stripRendererProps(props)} />;
 }
 
 function OrderedList(props: MarkdownProps<"ol">): React.ReactElement {
-  return <ol {...stripRendererProps(props)} {...stylex.props(styles.list)} />;
+  return <Prose.List ordered {...stripRendererProps(props)} />;
 }
 
 function ListItem(props: MarkdownProps<"li">): React.ReactElement {
-  return <li {...stripRendererProps(props)} {...stylex.props(styles.listItem)} />;
+  return <Prose.ListItem {...stripRendererProps(props)} />;
 }
 
 function Anchor(props: MarkdownProps<"a">): React.ReactElement {
-  return <a {...stripRendererProps(props)} {...stylex.props(styles.link)} />;
+  return <Prose.Link {...stripRendererProps(props)} />;
 }
 
 function Strong(props: MarkdownProps<"strong">): React.ReactElement {
-  return <strong {...stripRendererProps(props)} {...stylex.props(styles.strong)} />;
+  return <Prose.Strong {...stripRendererProps(props)} />;
 }
 
 function PlainCodeBlock({ code }: { readonly code: string }): React.ReactElement {
   return (
-    <pre {...stylex.props(styles.pre)}>
+    <Prose.CodeBlock>
       <code>{code}</code>
-    </pre>
+    </Prose.CodeBlock>
   );
 }
 
@@ -282,7 +153,7 @@ function ShikiCodeBlock({
   readonly code: string;
   readonly language: string;
 }): React.ReactElement {
-  const cacheKey = `${language} ${code}`;
+  const cacheKey = `${language}\0${code}`;
   const [html, setHtml] = React.useState<string | null>(() => highlightCache.get(cacheKey) ?? null);
 
   React.useEffect(() => {
@@ -310,7 +181,9 @@ function ShikiCodeBlock({
 
   if (html != null) {
     // Shiki output is trusted, self-generated markup — token spans with inline colors only.
-    return <div {...stylex.props(styles.highlightWrap)} dangerouslySetInnerHTML={{ __html: html }} />;
+    return (
+      <div {...stylex.props(styles.highlightWrap)} dangerouslySetInnerHTML={{ __html: html }} />
+    );
   }
   return <PlainCodeBlock code={code} />;
 }
@@ -324,7 +197,7 @@ function Code(
   const isStreaming = React.useContext(MarkdownStreamingContext);
 
   if (dataBlock == null) {
-    return <code {...stripRendererProps<"code">(props)} {...stylex.props(styles.inlineCode)} />;
+    return <Prose.InlineCode {...stripRendererProps<"code">(props)} />;
   }
 
   const code = nodeToPlainText(children);
@@ -335,35 +208,27 @@ function Code(
 }
 
 function Blockquote(props: MarkdownProps<"blockquote">): React.ReactElement {
-  return (
-    <blockquote {...stripRendererProps(props)} {...stylex.props(styles.flow, styles.blockquote)} />
-  );
+  return <Prose.Blockquote {...stripRendererProps(props)} />;
 }
 
 function HorizontalRule(props: MarkdownProps<"hr">): React.ReactElement {
-  return <hr {...stripRendererProps(props)} {...stylex.props(styles.rule)} />;
+  return <Prose.Rule {...stripRendererProps(props)} />;
 }
 
 function Table(props: MarkdownProps<"table">): React.ReactElement {
-  return (
-    <div {...stylex.props(styles.tableWrap)}>
-      <table {...stripRendererProps(props)} {...stylex.props(styles.table)} />
-    </div>
-  );
+  return <Prose.Table {...stripRendererProps(props)} />;
 }
 
 function TableHeader(props: MarkdownProps<"th">): React.ReactElement {
-  return (
-    <th {...stripRendererProps(props)} {...stylex.props(styles.tableCell, styles.tableHead)} />
-  );
+  return <Prose.TableHeader {...stripRendererProps(props)} />;
 }
 
 function TableData(props: MarkdownProps<"td">): React.ReactElement {
-  return <td {...stripRendererProps(props)} {...stylex.props(styles.tableCell)} />;
+  return <Prose.TableData {...stripRendererProps(props)} />;
 }
 
 function Image(props: MarkdownProps<"img">): React.ReactElement {
-  return <img {...stripRendererProps(props)} {...stylex.props(styles.image)} />;
+  return <Prose.Image {...stripRendererProps(props)} />;
 }
 
 const MARKDOWN_COMPONENTS: Components = {
@@ -396,7 +261,7 @@ function Markdown({
   readonly isStreaming?: boolean;
 }): React.ReactElement {
   return (
-    <div {...stylex.props(styles.root)}>
+    <Prose>
       <MarkdownStreamingContext.Provider value={isStreaming}>
         <Streamdown
           mode={isStreaming ? "streaming" : "static"}
@@ -407,7 +272,7 @@ function Markdown({
           {text}
         </Streamdown>
       </MarkdownStreamingContext.Provider>
-    </div>
+    </Prose>
   );
 }
 

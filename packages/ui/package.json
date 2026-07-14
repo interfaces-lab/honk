@@ -12,6 +12,7 @@
     "./notice-row": "./src/notice-row.tsx",
     "./platform-tokens.stylex": "./src/platform-tokens.stylex.ts",
     "./plan-card": "./src/plan-card.tsx",
+    "./prose-code-block": "./src/prose-code-block.ts",
     "./reasoning-block": "./src/reasoning-block.tsx",
     "./text-field": {
       "react-native": "./src/text-field/index.native.tsx",
@@ -54,8 +55,9 @@
     "@vitejs/plugin-react": "^6.0.2",
     "dialkit": "^1.3.0",
     "motion": "^12.0.0",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.0",
     "tailwindcss": "^4.3.1",
     "typescript": "catalog:",
     "vite": "^8.0.16"

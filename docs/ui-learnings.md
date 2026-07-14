@@ -2,7 +2,7 @@
 
 What the current UI teaches, per surface — collected by the round-2 opus sweep as design input for
 the wireframe boards and, later, the `.design/*` references (ADR 0023 §4). These are lessons, not
-rules: the boards argue with them, the winning board turns them into `.design` guidance.
+rules: the boards argue with them, and the winning board becomes project-local design guidance.
 
 
 ## composer

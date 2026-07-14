@@ -6,7 +6,6 @@
     "version": "0.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.interfacesco.honk.mobile"
@@ -22,9 +21,12 @@
         {
           "photosPermission": "Allow Honk to attach images to your task messages."
         }
-      ]
+      ],
+      "expo-image",
+      "react-native-enriched-markdown"
     ],
     "experiments": {
+      "reactCompiler": true,
       "typedRoutes": true
     }
   }

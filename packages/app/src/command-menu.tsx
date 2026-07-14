@@ -15,13 +15,20 @@ import {
   radiusVars,
   spaceVars,
 } from "@honk/ui/tokens.stylex";
-import { IconChevronLeftMedium, IconPlusSmall, IconSettingsGear2 } from "@honk/ui/icons";
+import {
+  IconChevronLeftMedium,
+  IconConsole,
+  IconPlusSmall,
+  IconSettingsGear2,
+} from "@honk/ui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import * as React from "react";
 
 import {
+  DEVELOPMENT_COMMANDS,
   rankCommandMenuItems,
   selectableItems,
+  SHIPPING_COMMANDS,
   statusDotPulse,
   statusDotTone,
   type CommandMenuCommandId,
@@ -33,6 +40,7 @@ import {
   type CommandMenuDoor,
 } from "./command-menu-store";
 import { DEFAULT_SETTINGS_SECTION } from "./settings";
+import { canReplayDesktopOnboarding, replayDesktopOnboarding } from "./desktop-bridge";
 import { actions as tabActions } from "./tab-store";
 import { useWorkspaceWatchSelector } from "./use-sdk-watch";
 
@@ -45,6 +53,8 @@ const MENU_DROP_MAX_HEIGHT = "min(420px, 50dvh)";
 const HAIRLINE = "1px";
 // Section label tracking (0.06em) — typography anatomy, not a token.
 const SECTION_TRACKING = "0.06em";
+
+const COMMANDS_WITH_DEVELOPMENT = Object.freeze([...SHIPPING_COMMANDS, ...DEVELOPMENT_COMMANDS]);
 
 const styles = stylex.create({
   // Overlay popup — wider than the default dialog card. Dialog owns z-dialog;
@@ -190,6 +200,7 @@ function CommandMenuBody({
     query,
     door,
     threads,
+    commands: canReplayDesktopOnboarding() ? COMMANDS_WITH_DEVELOPMENT : SHIPPING_COMMANDS,
     submenuStack,
     hideCommandsAtRest: variant === "inline",
   });
@@ -223,6 +234,10 @@ function CommandMenuBody({
           to: "/settings",
           search: { section: DEFAULT_SETTINGS_SECTION },
         });
+        return;
+      case "replay-onboarding":
+        menuActions.close();
+        void replayDesktopOnboarding();
         return;
       default: {
         const _exhaustive: never = run;
@@ -459,7 +474,13 @@ function RowLeading({
       return (
         <ListRow.Slot>
           <Icon
-            icon={item.run === "open-settings" ? IconSettingsGear2 : IconPlusSmall}
+            icon={
+              item.run === "open-settings"
+                ? IconSettingsGear2
+                : item.run === "replay-onboarding"
+                  ? IconConsole
+                  : IconPlusSmall
+            }
             size="sm"
             tone="faint"
           />

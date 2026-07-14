@@ -1,5 +1,7 @@
-// <Text> — the typography leaf. Every piece of on-system copy (prose, verbs, detail, labels) is a
-// <Text> with a size/tone/weight/family chosen from the vocabulary, never a hand-styled span. It
+// <Text> — the compact typography leaf. On-system chrome, verbs, detail, and labels use <Text> with
+// a size/tone/weight/family chosen from the vocabulary, never a hand-styled span. Long-form
+// semantic assistant output uses the Prose compound instead so reading measure and block rhythm
+// stay intact. It
 // carries NO logic and NO state: a size/tone/etc. picks a pre-built style object out of a lookup
 // table, and stylex merges them in charter order (base → variant → caller xstyle last). Plain
 // React.createElement + StyleX only — no Base UI, no effects (ADR 0025).
@@ -21,15 +23,7 @@ import { colorVars, fontVars } from "./tokens.stylex";
 
 type TextElement = "span" | "p" | "div";
 type TextSize = "xs" | "sm" | "base" | "lg" | "xl";
-type TextTone =
-  | "inherit"
-  | "primary"
-  | "muted"
-  | "faint"
-  | "accent"
-  | "ok"
-  | "warn"
-  | "err";
+type TextTone = "inherit" | "primary" | "muted" | "faint" | "accent" | "ok" | "warn" | "err";
 type TextWeight = "regular" | "medium" | "semibold";
 type TextFamily = "ui" | "mono";
 type TextAlign = "start" | "center" | "end";
@@ -164,9 +158,7 @@ const alignStyles: Record<TextAlign, stylex.StyleXStyles> = {
   end: styles.alignEnd,
 };
 
-function Text<Element extends TextElement = "span">(
-  props: TextProps<Element>,
-): React.ReactElement {
+function Text<Element extends TextElement = "span">(props: TextProps<Element>): React.ReactElement {
   const {
     align,
     as,

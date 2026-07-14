@@ -42,6 +42,7 @@ export interface TextFieldHandle {
 export interface TextFieldProps {
   readonly ref?: Ref<TextFieldHandle>;
   readonly label: string;
+  readonly labelHidden?: boolean;
   readonly accessibilityHint?: string;
   readonly autoCapitalize?: "characters" | "none" | "sentences" | "words";
   readonly autoComplete?: TextFieldAutoComplete;

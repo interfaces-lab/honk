@@ -17,7 +17,7 @@
 // already ported from the shipped app in the chat round and are unchanged except where noted.
 //
 // STRUCTURE STAYS LOCKED — VALUES ARE THE IDENTITY
-// The locked board (.design/wireframes/locked.html §0/§1) owns structure and vocabulary law
+// The locked design board §0/§1 owns structure and vocabulary law
 // (inset recipe, tab plane, status language); its pixels were throwaway. Component call sites
 // only ever reference token KEYS (e.g. colorVars["--honk-color-accent"]), so retuning identity
 // never touches a component. Keep it that way: no literal values outside this file.
@@ -335,6 +335,11 @@ const fontDefaults = {
   // opencode shell actually uses so the port never writes a raw 14.
   "--honk-font-size-body-lg": "14px",
 
+  // Code/editor typography is independent from both chrome and prose. Per-device appearance
+  // controls override these two properties without resizing ordinary detail text.
+  "--honk-font-size-code": "12px",
+  "--honk-leading-code": "18px",
+
   // Prose type ramp (current-app port): each size paired with its line-height (leading), effective
   // px at the app's 13px default — caption 10·12 · detail 11·14 · body 12·16 · title 13·18 ·
   // heading 16·21 (tokens.css:15-24). The <Text> primitive maps its size prop onto these; the chat
@@ -464,6 +469,22 @@ const toastDefaults = {
   "--honk-toast-close-size": "22px",
 } as const;
 
+// ── Prose ──────────────────────────────────────────────────────────────────────────────────
+// The reading role for long assistant output. Making Software's article treatment was inspected
+// in Chrome on 2026-07-14: its 14px body uses a 25.2px leading, a roughly 65ch text measure, one
+// line of space between paragraphs, and much larger section breaks while figures escape to the
+// wider article grid. Honk keeps the same hierarchy at application density: Inter remains the
+// product face, the 14px reading step gets 22px leading, ordinary flow breathes at 12px, and a
+// 24px section break carries headings. The 600px measure is roughly 68 characters at this face and
+// size, and it applies only to prose leaves; evidence, tables, and media may use the full lane.
+const proseDefaults = {
+  "--honk-prose-measure": "600px",
+  "--honk-prose-size": "14px",
+  "--honk-prose-leading": "22px",
+  "--honk-prose-flow-gap": "12px",
+  "--honk-prose-section-gap": "24px",
+} as const;
+
 // ── Conversation ───────────────────────────────────────────────────────────────────────────
 // Geometry of the thread surface's rows (CURRENT-APP PORT). inset = the horizontal text inset
 // every conversation row carries inside the timeline column (--conversation-text-inset: 11px,
@@ -528,6 +549,7 @@ const iconVars = stylex.defineVars(iconDefaults);
 const motionVars = stylex.defineVars(motionDefaults);
 const zVars = stylex.defineVars(zDefaults);
 const toastVars = stylex.defineVars(toastDefaults);
+const proseVars = stylex.defineVars(proseDefaults);
 const conversationVars = stylex.defineVars(conversationDefaults);
 const shellVars = stylex.defineVars(shellDefaults);
 
@@ -542,6 +564,7 @@ type IconVarName = keyof typeof iconDefaults;
 type MotionVarName = keyof typeof motionDefaults;
 type ZVarName = keyof typeof zDefaults;
 type ToastVarName = keyof typeof toastDefaults;
+type ProseVarName = keyof typeof proseDefaults;
 type ConversationVarName = keyof typeof conversationDefaults;
 type ShellVarName = keyof typeof shellDefaults;
 
@@ -564,6 +587,8 @@ export {
   iconVars,
   motionDefaults,
   motionVars,
+  proseDefaults,
+  proseVars,
   shellDefaults,
   shellVars,
   toastDefaults,
@@ -582,6 +607,7 @@ export type {
   FontVarName,
   IconVarName,
   MotionVarName,
+  ProseVarName,
   ShellVarName,
   ToastVarName,
   ZVarName,

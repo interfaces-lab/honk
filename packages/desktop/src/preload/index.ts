@@ -43,6 +43,11 @@ type DesktopBridgeWithAux = DesktopBridge<never> & {
 };
 
 const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
+const COMPLETE_ONBOARDING_CHANNEL = "desktop:complete-onboarding";
+const FINISH_ONBOARDING_CHANNEL = "desktop:finish-onboarding";
+const DISMISS_ONBOARDING_CHANNEL = "desktop:dismiss-onboarding";
+const REPLAY_ONBOARDING_CHANNEL = "desktop:replay-onboarding";
+const ONBOARDING_WINDOW_SHOWN_CHANNEL = "desktop:onboarding-window-shown";
 const SET_THEME_CHANNEL = "desktop:set-theme";
 const SET_BACKGROUND_COLOR_CHANNEL = "desktop:set-background-color";
 const SET_VIBRANCY_CHANNEL = "desktop:set-vibrancy";
@@ -142,6 +147,19 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   getServerExposureState: () => ipcRenderer.invoke(GET_SERVER_EXPOSURE_STATE_CHANNEL),
   setServerExposureMode: (mode) => ipcRenderer.invoke(SET_SERVER_EXPOSURE_MODE_CHANNEL, mode),
   pickFolder: (options) => ipcRenderer.invoke(PICK_FOLDER_CHANNEL, options),
+  completeOnboarding: () => ipcRenderer.invoke(COMPLETE_ONBOARDING_CHANNEL),
+  finishOnboarding: () => ipcRenderer.invoke(FINISH_ONBOARDING_CHANNEL),
+  dismissOnboarding: () => ipcRenderer.invoke(DISMISS_ONBOARDING_CHANNEL),
+  replayOnboarding: () => ipcRenderer.invoke(REPLAY_ONBOARDING_CHANNEL),
+  onOnboardingWindowShown: (listener) => {
+    const wrappedListener = () => {
+      listener();
+    };
+    ipcRenderer.on(ONBOARDING_WINDOW_SHOWN_CHANNEL, wrappedListener);
+    return () => {
+      ipcRenderer.removeListener(ONBOARDING_WINDOW_SHOWN_CHANNEL, wrappedListener);
+    };
+  },
   setTheme: (theme) => ipcRenderer.invoke(SET_THEME_CHANNEL, theme),
   setBackgroundColor: (color) => ipcRenderer.invoke(SET_BACKGROUND_COLOR_CHANNEL, color),
   setVibrancy: (enabled) => ipcRenderer.invoke(SET_VIBRANCY_CHANNEL, enabled),

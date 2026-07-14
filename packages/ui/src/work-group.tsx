@@ -243,7 +243,7 @@ function Header({
     <div {...stylex.props(styles.headerRow, xstyle)}>
       {/* A disclosure only when there is something to disclose (same law as ToolCallLine): no
           onToggle → a plain line, no chevron, no button semantics — a control must do what it
-          says (.design principle 6). */}
+          says (Honk design principle 6). */}
       {onToggle !== undefined ? (
         <button
           type="button"

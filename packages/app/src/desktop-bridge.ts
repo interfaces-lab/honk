@@ -5,8 +5,8 @@
 // `installDesktopBridge()` before `startConnection()`: in the sidecar world the
 // renderer's server is the opencode process the desktop supervisor spawns, and
 // its {url, password} arrive over the async GET_OPENCODE_SIDECAR bridge method
-// once the supervisor reports ready (first boot includes the plugin warm-up, so
-// readiness can take a while).
+// once the supervisor reports healthy. Plugin warm-up continues in the managed
+// sidecar scope without delaying this handoff.
 
 import {
   setBootstrapCredentialProvider,
@@ -45,7 +45,14 @@ type DesktopBridgeSurface = {
   // Native folder-picker dialog (async IPC → Electron showOpenDialog openDirectory). Resolves the
   // chosen absolute path, or null if the user cancelled. Optional: the web build has no bridge and
   // older preloads may lack it. `initialPath` seeds the dialog's starting directory.
-  readonly pickFolder?: (options?: { readonly initialPath?: string | null }) => Promise<string | null>;
+  readonly pickFolder?: (options?: {
+    readonly initialPath?: string | null;
+  }) => Promise<string | null>;
+  readonly completeOnboarding: () => Promise<void>;
+  readonly finishOnboarding: () => Promise<void>;
+  readonly dismissOnboarding: () => Promise<void>;
+  readonly replayOnboarding: () => Promise<void>;
+  readonly onOnboardingWindowShown: (listener: () => void) => () => void;
   // Update IPC (WP7 pill) — optional on the typed surface; web build has no bridge.
   readonly getUpdateState?: () => Promise<unknown>;
   readonly downloadUpdate?: () => Promise<unknown>;
@@ -62,13 +69,15 @@ declare global {
   }
 }
 
-// First boot pays the sidecar's plugin warm-up (up to ~90s) before ready.
+// Health normally lands quickly; keep a ceiling for process/configuration failures.
 const SIDECAR_WAIT_CEILING_MS = 120_000;
 const SIDECAR_POLL_INTERVAL_MS = 300;
 
 // The resolved sidecar endpoint the providers read. Written once by the install
 // wait; null means "not resolved" (web build or sidecar error).
 let sidecarEndpoint: { readonly url: string; readonly password: string | null } | null = null;
+let onboardingWindowShown = false;
+const onboardingWindowShownListeners = new Set<() => void>();
 
 function readDesktopBridge(): DesktopBridgeSurface | null {
   const bridge = window.desktopBridge;
@@ -124,6 +133,10 @@ async function waitForSidecarEndpoint(bridge: DesktopBridgeSurface): Promise<voi
  * cancels — or when no bridge/picker exists (web build, old preload), so callers
  * treat "can't pick" and "didn't pick" the same way.
  */
+export function canPickFolder(): boolean {
+  return window.desktopBridge?.pickFolder !== undefined;
+}
+
 export async function pickFolder(initialPath?: string | null): Promise<string | null> {
   const picker = window.desktopBridge?.pickFolder;
   if (picker === undefined) {
@@ -133,6 +146,78 @@ export async function pickFolder(initialPath?: string | null): Promise<string | 
     return await picker({ initialPath: initialPath ?? null });
   } catch {
     return null;
+  }
+}
+
+export type DesktopOnboardingWindowContext = {
+  readonly replay: boolean;
+};
+
+export function readDesktopOnboardingWindowContext(): DesktopOnboardingWindowContext | null {
+  if (readDesktopBridge() === null) {
+    return null;
+  }
+  const search = new URLSearchParams(window.location.search);
+  if (search.get("window") !== "onboarding") {
+    return null;
+  }
+  return { replay: search.get("replay") === "1" };
+}
+
+export function canReplayDesktopOnboarding(): boolean {
+  return import.meta.env.DEV && readDesktopBridge() !== null;
+}
+
+export async function completeDesktopOnboarding(): Promise<void> {
+  const bridge = readDesktopBridge();
+  if (bridge === null) {
+    throw new Error("Desktop onboarding requires the Electron bridge.");
+  }
+  await bridge.completeOnboarding();
+}
+
+export async function finishDesktopOnboarding(): Promise<void> {
+  const bridge = readDesktopBridge();
+  if (bridge === null) {
+    throw new Error("Desktop onboarding requires the Electron bridge.");
+  }
+  await bridge.finishOnboarding();
+}
+
+export async function dismissDesktopOnboarding(): Promise<void> {
+  const bridge = readDesktopBridge();
+  if (bridge === null) {
+    return;
+  }
+  await bridge.dismissOnboarding();
+}
+
+export async function replayDesktopOnboarding(): Promise<void> {
+  const bridge = readDesktopBridge();
+  if (bridge === null || !import.meta.env.DEV) {
+    return;
+  }
+  await bridge.replayOnboarding();
+}
+
+export function subscribeOnboardingWindowShown(listener: () => void): () => void {
+  onboardingWindowShownListeners.add(listener);
+  return () => {
+    onboardingWindowShownListeners.delete(listener);
+  };
+}
+
+export function getOnboardingWindowShownSnapshot(): boolean {
+  return onboardingWindowShown;
+}
+
+function markOnboardingWindowShown(): void {
+  if (onboardingWindowShown) {
+    return;
+  }
+  onboardingWindowShown = true;
+  for (const listener of onboardingWindowShownListeners) {
+    listener();
   }
 }
 
@@ -156,6 +241,8 @@ export async function installDesktopBridge(): Promise<void> {
   // Prefer this over a query param so the attribute is present before paint
   // without coupling the host load URL to CSS contracts.
   document.documentElement.setAttribute("data-shell-platform", "electron");
+
+  bridge.onOnboardingWindowShown(markOnboardingWindowShown);
 
   setBootstrapOriginProvider(readBootstrapOrigin);
   setBootstrapCredentialProvider(readBootstrapCredential);

@@ -1,5 +1,5 @@
 // Boot / gate surfaces — the rewrite of the blank bootstrap + dead-end auth failure page
-// (ui-parity onboarding-auth rethink). Structure from .design/wireframes/onboarding.html §A/C:
+// (ui-parity onboarding-auth rethink). Structure from the onboarding wireframe §A/C:
 // centered splash for connecting; card with paste field for requires-auth; explicit failure
 // with Retry for unreachable. Zero useEffect — connection lifecycle is connection-store.
 
@@ -22,6 +22,8 @@ import {
   useConnection,
   type ConnectionSnapshot,
 } from "./connection-store";
+import { readDesktopOnboardingWindowContext } from "./desktop-bridge";
+import { DesktopOnboarding } from "./onboarding";
 import { AppShell } from "./shell";
 
 // ── Anatomy (named intrinsics — gate chrome, not identity vocabulary) ────────────────────────
@@ -165,7 +167,6 @@ function GateFrame(props: {
 
 function ConnectingSplash(props: {
   readonly origin: string | null;
-  readonly label: string;
 }): React.ReactElement {
   return (
     <GateFrame originChip={props.origin}>
@@ -174,9 +175,6 @@ function ConnectingSplash(props: {
           honk
         </Text>
         <Matrix isActive grid={6} xstyle={styles.splashGlyph} />
-        <Text size="sm" tone="muted">
-          {props.label}
-        </Text>
       </div>
     </GateFrame>
   );
@@ -202,7 +200,7 @@ function RequiresAuthCard(props: {
         </Text>
         <Text size="sm" tone="muted">
           {props.errorMessage ??
-            "This Core is running. Paste a pairing link from the desktop app to attach this browser."}
+            "Paste a Honk pairing link or OpenCode password to attach this browser."}
         </Text>
         <input
           ref={inputRef}
@@ -211,8 +209,8 @@ function RequiresAuthCard(props: {
           name="pairing-token"
           autoComplete="off"
           spellCheck={false}
-          placeholder="paste pairing link or token…"
-          aria-label="Pairing link or token"
+          placeholder="paste pairing link or password…"
+          aria-label="Pairing link or OpenCode password"
         />
         <div {...stylex.props(styles.actions)}>
           <Button type="submit" variant="primary" size="sm">
@@ -237,12 +235,11 @@ function UnreachableCard(props: {
         <div {...stylex.props(styles.titleRow)}>
           <StatusDot tone="err" />
           <Text size="base" weight="semibold">
-            Couldn&apos;t reach your Core
+            Couldn&apos;t reach the Honk host
           </Text>
         </div>
         <Text size="sm" tone="muted">
-          {props.errorMessage ??
-            "Check that the Core is running, then retry. If you have a pairing link, you can also paste it after the Core is back."}
+          {props.errorMessage ?? "Check that Honk and OpenCode are running, then retry."}
         </Text>
         <div {...stylex.props(styles.actions)}>
           <Button type="button" variant="primary" size="sm" onClick={connectionActions.retry}>
@@ -257,12 +254,7 @@ function UnreachableCard(props: {
 function GateByStatus(props: { readonly connection: ConnectionSnapshot }): React.ReactElement {
   switch (props.connection.status) {
     case "connecting":
-      return (
-        <ConnectingSplash
-          origin={props.connection.origin}
-          label="Connecting to your Core"
-        />
-      );
+      return <ConnectingSplash origin={props.connection.origin} />;
     case "requires-auth":
       return (
         <RequiresAuthCard
@@ -279,9 +271,7 @@ function GateByStatus(props: { readonly connection: ConnectionSnapshot }): React
       );
     case "authenticated":
       // RootGate never renders this branch — authenticated mounts AppShell.
-      return (
-        <ConnectingSplash origin={props.connection.origin} label="Connected" />
-      );
+      return <ConnectingSplash origin={props.connection.origin} />;
   }
 }
 
@@ -291,6 +281,10 @@ function GateByStatus(props: { readonly connection: ConnectionSnapshot }): React
  */
 export function RootGate(): React.ReactElement {
   const connection = useConnection();
+  const onboardingWindow = readDesktopOnboardingWindowContext();
+  if (onboardingWindow !== null) {
+    return <DesktopOnboarding isReplay={onboardingWindow.replay} />;
+  }
   if (connection.status === "authenticated") {
     return <AppShell />;
   }
@@ -345,9 +339,7 @@ function StatusCard(props: {
               <Text size="sm" tone="muted" align="center">
                 {props.description}
               </Text>
-              {props.details ? (
-                <pre {...stylex.props(styles.details)}>{props.details}</pre>
-              ) : null}
+              {props.details ? <pre {...stylex.props(styles.details)}>{props.details}</pre> : null}
               <div {...stylex.props(styles.actions)}>{props.actions}</div>
             </div>
           </div>

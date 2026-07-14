@@ -137,7 +137,11 @@ export function parseOpenCodeConnection(
       return { origin, credential: { type: "password", value: password.trim() } };
     }
     const pairingToken = pairingTokenFromUrl(url);
-    if (pairingToken !== null && (embeddedOrigin !== null || url.protocol === "honk:")) {
+    const isPairingPath = url.pathname.replace(/\/+$/, "") === "/pair";
+    if (
+      pairingToken !== null &&
+      (embeddedOrigin !== null || url.protocol === "honk:" || isPairingPath)
+    ) {
       return { origin, credential: { type: "pairing", value: pairingToken } };
     }
     const directPassword = secretFromUrl(url);

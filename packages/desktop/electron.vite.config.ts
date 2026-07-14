@@ -95,6 +95,9 @@ export default defineConfig({
       "import.meta.env.APP_VERSION": JSON.stringify(pkg.version),
     },
     resolve: {
+      // @honk/ui is consumed as raw workspace source and has its own React dev dependency.
+      // Force every renderer module through the app's React instance so hooks share one dispatcher.
+      dedupe: ["react", "react-dom"],
       extensions: [".tsx", ".ts", ".mts", ".jsx", ".js", ".mjs", ".json"],
     },
     server: {
@@ -113,6 +116,12 @@ export default defineConfig({
       outDir: resolve(desktopOutDir, "renderer"),
       emptyOutDir: true,
       sourcemap: buildSourcemap,
+      // electron-vite resolves its default HTML entry from the desktop package root, while this
+      // renderer lives in packages/app. Pin the actual entry so dev and production use the same
+      // cross-package renderer root instead of probing packages/desktop/src/renderer.
+      rolldownOptions: {
+        input: resolve(appDir, "index.html"),
+      },
     },
   },
 });

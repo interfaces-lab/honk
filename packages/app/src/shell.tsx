@@ -37,7 +37,11 @@ function DevChannelChip(): React.ReactElement {
   );
 }
 
-function AppShell(): React.ReactElement {
+function AppShell({
+  isInteractive = true,
+}: {
+  readonly isInteractive?: boolean;
+}): React.ReactElement {
   // Titlebar trailing: update pill (desktop, actionable only) + DEV chip in dev builds.
   const trailing = (
     <TitleBarTrailing>{import.meta.env.DEV ? <DevChannelChip /> : null}</TitleBarTrailing>
@@ -49,7 +53,7 @@ function AppShell(): React.ReactElement {
   const theme = useAppearanceTheme();
 
   // ONE registry for the shell route — command-menu WP extends the same defaults map.
-  useShellHotkeys();
+  useShellHotkeys(undefined, isInteractive);
 
   return (
     <TooltipProvider>

@@ -89,7 +89,7 @@ const handleCheckForUpdatesMenuClick: Effect.Effect<
   }
 
   const desktopWindow = yield* DesktopWindow.DesktopWindow;
-  yield* desktopWindow.ensureMain;
+  yield* desktopWindow.activate;
   yield* checkForUpdatesFromMenu;
 }).pipe(Effect.withSpan("desktop.menu.handleCheckForUpdatesClick"));
 
@@ -174,7 +174,7 @@ const make = Effect.gen(function* () {
           // Quit (no Ctrl+W) — the windowMenu override below frees Ctrl+W there.
           environment.platform === "darwin"
             ? { role: "close" as const, accelerator: "CmdOrCtrl+Shift+W" }
-            : { role: environment.platform === "darwin" ? ("close" as const) : ("quit" as const) },
+            : { role: "quit" as const },
         ],
       },
       { role: "editMenu" },

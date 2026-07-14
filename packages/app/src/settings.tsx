@@ -3,7 +3,7 @@
 // inside the one inset card. Section via ?section= search param.
 
 import * as stylex from "@stylexjs/stylex";
-import { Badge, Button, Icon, IconButton, Menu, Switch, Text, Tooltip } from "@honk/ui";
+import { Badge, Button, Icon, IconButton, Menu, Text, Tooltip } from "@honk/ui";
 import { colorVars, controlVars, fontVars, radiusVars, spaceVars } from "@honk/ui/tokens.stylex";
 // Runtime: Vite resolves @honk/ui/icons via the package export. Types: see
 // honk-ui-icons.d.ts (tsc cannot resolve the "./*" wildcard export).
@@ -36,7 +36,10 @@ import type {
   SidecarProvider,
   SidecarProviderAuthMethod,
   SidecarProviderAuthPrompt,
+  ThreadSummary,
 } from "./sidecar";
+import { PRESETS } from "./presets";
+import { actions as tabActions } from "./tab-store";
 import { getBoundHonkClient } from "./watch-registry";
 
 // ── Section registry ─────────────────────────────────────────────────────────────────────────
@@ -51,7 +54,7 @@ const SETTINGS_SECTIONS = [
   },
   {
     id: "providers",
-    label: "Providers",
+    label: "Authentication",
     icon: IconBuildingBlocks,
   },
   {
@@ -395,7 +398,6 @@ function AppearancePanel(): React.ReactElement {
     appearance.theme !== DEFAULT_APPEARANCE.theme ||
     appearance.tintHue !== DEFAULT_APPEARANCE.tintHue ||
     appearance.tintIntensity !== DEFAULT_APPEARANCE.tintIntensity ||
-    appearance.reduceTransparency !== DEFAULT_APPEARANCE.reduceTransparency ||
     appearance.uiFontSize !== DEFAULT_APPEARANCE.uiFontSize ||
     appearance.codeFontSize !== DEFAULT_APPEARANCE.codeFontSize;
 
@@ -406,7 +408,13 @@ function AppearancePanel(): React.ReactElement {
           Appearance
         </Text>
         {isDirty ? (
-          <Button size="sm" variant="ghost" onClick={appearanceActions.resetAll}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              appearanceActions.resetAll();
+            }}
+          >
             Reset
           </Button>
         ) : null}
@@ -418,18 +426,35 @@ function AppearancePanel(): React.ReactElement {
           description="Light, dark, or follow the system."
           resetAction={
             appearance.theme !== DEFAULT_APPEARANCE.theme ? (
-              <SettingResetButton label="theme" onClick={appearanceActions.resetTheme} />
+              <SettingResetButton
+                label="theme"
+                onClick={() => {
+                  appearanceActions.resetTheme();
+                }}
+              />
             ) : null
           }
-          control={<ThemeSelect value={appearance.theme} onChange={appearanceActions.setTheme} />}
+          control={
+            <ThemeSelect
+              value={appearance.theme}
+              onChange={(value) => {
+                appearanceActions.setTheme(value);
+              }}
+            />
+          }
         />
 
         <SettingsRow
           title="Tint Hue"
-          description="Shell and accent hue."
+          description="Color family for the shell and accent."
           resetAction={
             appearance.tintHue !== DEFAULT_APPEARANCE.tintHue ? (
-              <SettingResetButton label="tint hue" onClick={appearanceActions.resetTintHue} />
+              <SettingResetButton
+                label="tint hue"
+                onClick={() => {
+                  appearanceActions.resetTintHue();
+                }}
+              />
             ) : null
           }
           control={
@@ -440,7 +465,9 @@ function AppearancePanel(): React.ReactElement {
                 min={0}
                 max={360}
                 value={appearance.tintHue}
-                onChange={appearanceActions.setTintHue}
+                onChange={(value) => {
+                  appearanceActions.setTintHue(value);
+                }}
               />
             </div>
           }
@@ -448,12 +475,14 @@ function AppearancePanel(): React.ReactElement {
 
         <SettingsRow
           title="Tint Intensity"
-          description="Shell tint strength."
+          description="Strength of the selected hue."
           resetAction={
             appearance.tintIntensity !== DEFAULT_APPEARANCE.tintIntensity ? (
               <SettingResetButton
                 label="tint intensity"
-                onClick={appearanceActions.resetTintIntensity}
+                onClick={() => {
+                  appearanceActions.resetTintIntensity();
+                }}
               />
             ) : null
           }
@@ -463,28 +492,8 @@ function AppearancePanel(): React.ReactElement {
               min={0}
               max={100}
               value={appearance.tintIntensity}
-              onChange={appearanceActions.setTintIntensity}
-            />
-          }
-        />
-
-        <SettingsRow
-          title="Reduce Transparency"
-          description="Prefer solid backgrounds over glass."
-          resetAction={
-            appearance.reduceTransparency !== DEFAULT_APPEARANCE.reduceTransparency ? (
-              <SettingResetButton
-                label="reduce transparency"
-                onClick={appearanceActions.resetReduceTransparency}
-              />
-            ) : null
-          }
-          control={
-            <Switch
-              checked={appearance.reduceTransparency}
-              aria-label="Reduce Transparency"
-              onCheckedChange={(checked) => {
-                appearanceActions.setReduceTransparency(Boolean(checked));
+              onChange={(value) => {
+                appearanceActions.setTintIntensity(value);
               }}
             />
           }
@@ -497,7 +506,9 @@ function AppearancePanel(): React.ReactElement {
             appearance.uiFontSize !== DEFAULT_APPEARANCE.uiFontSize ? (
               <SettingResetButton
                 label="UI font size"
-                onClick={appearanceActions.resetUiFontSize}
+                onClick={() => {
+                  appearanceActions.resetUiFontSize();
+                }}
               />
             ) : null
           }
@@ -507,7 +518,9 @@ function AppearancePanel(): React.ReactElement {
               min={11}
               max={16}
               value={appearance.uiFontSize}
-              onChange={appearanceActions.setUiFontSize}
+              onChange={(value) => {
+                appearanceActions.setUiFontSize(value);
+              }}
             />
           }
         />
@@ -519,7 +532,9 @@ function AppearancePanel(): React.ReactElement {
             appearance.codeFontSize !== DEFAULT_APPEARANCE.codeFontSize ? (
               <SettingResetButton
                 label="code font size"
-                onClick={appearanceActions.resetCodeFontSize}
+                onClick={() => {
+                  appearanceActions.resetCodeFontSize();
+                }}
               />
             ) : null
           }
@@ -529,7 +544,9 @@ function AppearancePanel(): React.ReactElement {
               min={10}
               max={18}
               value={appearance.codeFontSize}
-              onChange={appearanceActions.setCodeFontSize}
+              onChange={(value) => {
+                appearanceActions.setCodeFontSize(value);
+              }}
             />
           }
         />
@@ -589,6 +606,8 @@ function NotificationPermissionRow(): React.ReactElement {
 function GeneralPanel(): React.ReactElement {
   const appSettings = useAppSettings();
   const directory = appSettings.defaultProjectDirectory;
+  const canChooseDirectory =
+    typeof window !== "undefined" && window.desktopBridge?.pickFolder !== undefined;
 
   const choose = (): void => {
     void pickFolder(directory).then((path) => {
@@ -621,9 +640,15 @@ function GeneralPanel(): React.ReactElement {
             ) : null
           }
           control={
-            <Button size="sm" variant="secondary" onClick={choose}>
-              Choose…
-            </Button>
+            canChooseDirectory ? (
+              <Button size="sm" variant="secondary" onClick={choose}>
+                Choose…
+              </Button>
+            ) : (
+              <Text as="span" size="sm" tone="faint">
+                Desktop only
+              </Text>
+            )
           }
         />
 
@@ -642,7 +667,7 @@ function GeneralPanel(): React.ReactElement {
   );
 }
 
-// ── Providers (the login passthrough: opencode credentials, API key or OAuth) ────────────────
+// ── Providers (Codex credentials; Claude is managed by the local Claude Code passthrough) ───
 
 type ProvidersLoad =
   | { readonly phase: "loading" }
@@ -726,22 +751,27 @@ function ProvidersPanel(): React.ReactElement {
       });
   }, []);
 
-  // One-shot initial load — kicked from the state initializer, not an effect.
   const kicked = React.useRef(false);
-  if (!kicked.current) {
-    kicked.current = true;
-    refresh();
-  }
+  const loadOnMount = React.useCallback(
+    (node: HTMLDivElement | null): void => {
+      if (node !== null && !kicked.current) {
+        kicked.current = true;
+        refresh();
+      }
+    },
+    [refresh],
+  );
 
   const setFlow = (providerId: string, flow: ProviderFlow): void => {
     setFlows((current) => ({ ...current, [providerId]: flow }));
   };
+  const providers = load.phase === "ready" ? rankProviders(load.inventory.providers) : [];
 
   return (
     <>
-      <div {...stylex.props(styles.sectionHeader)}>
+      <div ref={loadOnMount} {...stylex.props(styles.sectionHeader)}>
         <Text as="p" size="lg" weight="semibold">
-          Providers
+          Authentication
         </Text>
         <Button size="sm" variant="ghost" onClick={refresh}>
           Refresh
@@ -760,51 +790,91 @@ function ProvidersPanel(): React.ReactElement {
         </div>
       ) : (
         <div {...stylex.props(styles.rows)}>
-          {rankProviders(load.inventory.providers).map((provider, index, ranked) => (
-            <ProviderRow
-              key={provider.id}
-              provider={provider}
-              flow={flows[provider.id] ?? null}
-              isLast={index === ranked.length - 1}
-              onFlowChange={(flow) => {
-                setFlow(provider.id, flow);
-              }}
-              onChanged={refresh}
-            />
-          ))}
+          {providers.length === 0 ? (
+            <Text as="p" size="sm" tone="muted">
+              Codex authentication and Claude Code passthrough are unavailable from this engine.
+            </Text>
+          ) : (
+            providers.map((provider, index) => (
+              <ProviderRow
+                key={provider.id}
+                provider={provider}
+                flow={flows[provider.id] ?? null}
+                isLast={index === providers.length - 1}
+                onFlowChange={(flow) => {
+                  setFlow(provider.id, flow);
+                }}
+                onChanged={refresh}
+              />
+            ))
+          )}
         </div>
       )}
     </>
   );
 }
 
-// Connected providers first, then the primary houses honk actually routes to (the preset
-// table's providers + OAuth-capable ones), then the long tail alphabetically.
-const PROVIDER_RANK: readonly string[] = ["anthropic", "openai", "google", "opencode"];
+// Authentication mirrors the model surface: if no preset can route to a provider, settings must
+// not offer credentials for it. First appearance in the preset table determines the stable order.
+const AUTH_PROVIDER_IDS: readonly string[] = Array.from(
+  new Set(PRESETS.map((preset) => preset.agentModel.providerID)),
+);
 
 function rankProviders(providers: readonly SidecarProvider[]): readonly SidecarProvider[] {
-  return [...providers].sort((a, b) => {
-    if (a.connected !== b.connected) {
-      return a.connected ? -1 : 1;
-    }
-    const rankA = PROVIDER_RANK.indexOf(a.id);
-    const rankB = PROVIDER_RANK.indexOf(b.id);
-    if (rankA !== rankB) {
-      return (
-        (rankA === -1 ? PROVIDER_RANK.length : rankA) -
-        (rankB === -1 ? PROVIDER_RANK.length : rankB)
-      );
-    }
-    const oauthA = a.authMethods.some((method) => method.type === "oauth");
-    const oauthB = b.authMethods.some((method) => method.type === "oauth");
-    if (oauthA !== oauthB) {
-      return oauthA ? -1 : 1;
-    }
-    return a.name.localeCompare(b.name);
-  });
+  return providers
+    .filter((provider) => AUTH_PROVIDER_IDS.includes(provider.id))
+    .sort((a, b) => {
+      if (a.connected !== b.connected) {
+        return a.connected ? -1 : 1;
+      }
+      return AUTH_PROVIDER_IDS.indexOf(a.id) - AUTH_PROVIDER_IDS.indexOf(b.id);
+    });
 }
 
 function ProviderRow({
+  provider,
+  flow,
+  isLast,
+  onFlowChange,
+  onChanged,
+}: {
+  readonly provider: SidecarProvider;
+  readonly flow: ProviderFlow;
+  readonly isLast: boolean;
+  readonly onFlowChange: (flow: ProviderFlow) => void;
+  readonly onChanged: () => void;
+}): React.ReactElement {
+  if (provider.id === "anthropic") {
+    return (
+      <SettingsRow
+        title="Claude"
+        description={
+          provider.connected
+            ? "Uses the Claude Code session on the machine running Honk. No Anthropic API key is stored in Honk."
+            : "Claude Code passthrough is unavailable from this engine. Sign in with Claude Code on the host machine."
+        }
+        isLast={isLast}
+        control={
+          <Badge tone={provider.connected ? "ok" : "neutral"} size="sm">
+            {provider.connected ? "Managed locally" : "Unavailable"}
+          </Badge>
+        }
+      />
+    );
+  }
+
+  return (
+    <DirectProviderRow
+      provider={provider}
+      flow={flow}
+      isLast={isLast}
+      onFlowChange={onFlowChange}
+      onChanged={onChanged}
+    />
+  );
+}
+
+function DirectProviderRow({
   provider,
   flow,
   isLast,
@@ -1182,11 +1252,145 @@ function requireClient(): NonNullable<ReturnType<typeof getBoundHonkClient>> {
   return client;
 }
 
+type ArchivedLoad =
+  | { readonly phase: "loading" }
+  | { readonly phase: "error"; readonly message: string }
+  | { readonly phase: "ready"; readonly threads: readonly ThreadSummary[] };
+
 function ArchivedPanel(): React.ReactElement {
-  // Data seam: archived threads come from the SDK/core projection (parity keep,
-  // core-v1). Until that adapter lands, the list is empty — render the real empty
-  // state, not a "coming soon" placeholder.
-  // const archivedThreads = useArchivedThreads(); // ← SDK adapter WP
+  const [load, setLoad] = React.useState<ArchivedLoad>({ phase: "loading" });
+  const [pendingId, setPendingId] = React.useState<string | null>(null);
+  const loadSeq = React.useRef(0);
+
+  const refresh = React.useCallback((): void => {
+    const seq = ++loadSeq.current;
+    const client = getBoundHonkClient();
+    if (client === null) {
+      setLoad({ phase: "error", message: "Not connected to the engine yet." });
+      return;
+    }
+    setLoad({ phase: "loading" });
+    void client.threads
+      .listArchived()
+      .then((threads) => {
+        if (loadSeq.current === seq) {
+          setLoad({ phase: "ready", threads });
+        }
+      })
+      .catch((error: unknown) => {
+        if (loadSeq.current === seq) {
+          setLoad({
+            phase: "error",
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      });
+  }, []);
+
+  const kicked = React.useRef(false);
+  const loadOnMount = React.useCallback(
+    (node: HTMLDivElement | null): void => {
+      if (node !== null && !kicked.current) {
+        kicked.current = true;
+        refresh();
+      }
+    },
+    [refresh],
+  );
+
+  const restore = (thread: ThreadSummary): void => {
+    const client = getBoundHonkClient();
+    if (client === null || pendingId !== null) {
+      return;
+    }
+    setPendingId(String(thread.id));
+    void client.threads
+      .restoreAsCopy(thread.id)
+      .then((restored) => {
+        tabActions.open({
+          key: String(restored.id),
+          kind: "thread",
+          title: restored.title,
+          status: "idle",
+          repository: { state: "loading" },
+        });
+      })
+      .catch((error: unknown) => {
+        setLoad({
+          phase: "error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      })
+      .finally(() => {
+        setPendingId(null);
+      });
+  };
+
+  if (load.phase === "loading") {
+    return (
+      <div ref={loadOnMount}>
+        <Text as="p" size="sm" tone="muted">
+          Loading archived threads…
+        </Text>
+      </div>
+    );
+  }
+
+  if (load.phase === "error") {
+    return (
+      <>
+        <div {...stylex.props(styles.sectionHeader)}>
+          <Text as="p" size="lg" weight="semibold">
+            Archived
+          </Text>
+          <Button size="sm" variant="ghost" onClick={refresh}>
+            Retry
+          </Button>
+        </div>
+        <Text as="p" size="sm" tone="muted">
+          {load.message}
+        </Text>
+      </>
+    );
+  }
+
+  if (load.threads.length > 0) {
+    return (
+      <>
+        <div {...stylex.props(styles.sectionHeader)}>
+          <Text as="p" size="lg" weight="semibold">
+            Archived
+          </Text>
+          <Button size="sm" variant="ghost" onClick={refresh}>
+            Refresh
+          </Button>
+        </div>
+        <div {...stylex.props(styles.rows)}>
+          {load.threads.map((thread, index) => (
+            <SettingsRow
+              key={String(thread.id)}
+              title={thread.title}
+              description={`Archived ${formatArchivedAt(thread.archivedAt)}`}
+              isLast={index === load.threads.length - 1}
+              control={
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={pendingId !== null}
+                  onClick={() => {
+                    restore(thread);
+                  }}
+                >
+                  {pendingId === String(thread.id) ? "Restoring…" : "Restore"}
+                </Button>
+              }
+            />
+          ))}
+        </div>
+      </>
+    );
+  }
+
   return (
     <div {...stylex.props(styles.empty)}>
       <Icon icon={IconArchive1} size="lg" tone="faint" />
@@ -1198,6 +1402,14 @@ function ArchivedPanel(): React.ReactElement {
       </Text>
     </div>
   );
+}
+
+function formatArchivedAt(value: string | null): string {
+  if (value === null) {
+    return "recently";
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "recently" : date.toLocaleString();
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────────────────────

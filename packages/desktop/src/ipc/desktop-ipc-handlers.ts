@@ -3,6 +3,12 @@ import * as Effect from "effect/Effect";
 import * as DesktopIpc from "./desktop-ipc";
 import { getAuxEndpoint } from "./methods/aux-endpoint";
 import { getOpencodeSidecar } from "./methods/opencode-sidecar";
+import {
+  completeOnboarding,
+  dismissOnboarding,
+  finishOnboarding,
+  replayOnboarding,
+} from "./methods/onboarding";
 import { closePty, openPty, resizePty, writePty } from "./methods/pty";
 import { getClientSettings, setClientSettings } from "./methods/client-settings";
 import { logRendererDiagnostic } from "./methods/renderer-diagnostics";
@@ -40,6 +46,10 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(setClientSettings);
   yield* ipc.handle(getAuxEndpoint);
   yield* ipc.handle(getOpencodeSidecar);
+  yield* ipc.handle(completeOnboarding);
+  yield* ipc.handle(finishOnboarding);
+  yield* ipc.handle(dismissOnboarding);
+  yield* ipc.handle(replayOnboarding);
 
   yield* ipc.handle(openPty);
   yield* ipc.handle(writePty);

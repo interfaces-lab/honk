@@ -32,8 +32,8 @@ installThreadNotifications();
 installTabSummarySync();
 
 // Electron-only: platform attribute + the sidecar endpoint handoff (async — the
-// supervisor's {url, password} arrive once opencode reports ready; first boot
-// pays the plugin warm-up). Resolves immediately in the web build. THEN the
+// supervisor's {url, password} arrive once OpenCode reports healthy). Resolves
+// immediately in the web build. THEN the
 // auth/connection gate kicks; React mounts below in parallel and the gate
 // renders its connecting state until the store advances.
 void installDesktopBridge().then(() => {

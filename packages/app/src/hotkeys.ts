@@ -29,9 +29,7 @@ export type ShellKeybindingCommand =
   | "commandMenu.toggle"
   | "commandMenu.openThreads";
 
-export type ShellKeybindingDefaults = Readonly<
-  Record<ShellKeybindingCommand, RegisterableHotkey>
->;
+export type ShellKeybindingDefaults = Readonly<Record<ShellKeybindingCommand, RegisterableHotkey>>;
 
 // The defaults map — the only place shell chords are declared. Override shape for
 // a future user-config layer: Partial<ShellKeybindingDefaults> merged over this
@@ -139,9 +137,7 @@ function dispatch(command: ShellKeybindingCommand): void {
 
 // Merge optional user overrides over defaults, then build the TanStack registration
 // list. One lookup path — no per-key if/else outside this map.
-export function resolveShellHotkeys(
-  overrides?: Partial<ShellKeybindingDefaults>,
-): HotkeyBinding[] {
+export function resolveShellHotkeys(overrides?: Partial<ShellKeybindingDefaults>): HotkeyBinding[] {
   const resolved: ShellKeybindingDefaults = {
     ...SHELL_KEYBINDING_DEFAULTS,
     ...overrides,
@@ -158,6 +154,7 @@ export function resolveShellHotkeys(
 // one-registry law, scoped to the app shell (not per-page components).
 export function useShellHotkeys(
   overrides?: Partial<ShellKeybindingDefaults>,
+  enabled = true,
 ): void {
-  useHotkeys(resolveShellHotkeys(overrides));
+  useHotkeys(resolveShellHotkeys(overrides), { enabled });
 }

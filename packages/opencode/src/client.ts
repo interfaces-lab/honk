@@ -19,6 +19,9 @@ import {
   type Message,
   type OpencodeClient,
   type Part,
+  type PermissionRule,
+  type PermissionRequest,
+  type QuestionRequest,
   type Session,
   type SessionStatus,
 } from "@opencode-ai/sdk/v2/client";
@@ -42,8 +45,15 @@ export type ThreadSummary = {
   readonly title: string;
   readonly status: "running" | "failed" | "idle";
   readonly needsAttention: boolean;
+  readonly createdAt: string;
   readonly archivedAt: string | null;
   readonly updatedAt: string;
+  readonly agent: string | null;
+  readonly model: {
+    readonly id: string;
+    readonly providerID: string;
+    readonly variant?: string;
+  } | null;
   /** opencode project id (its `projectID`); null when the session is projectless. */
   readonly projectId: string | null;
   /** opencode has no git-worktree branch on a session, so `branch` is always null. */
@@ -60,6 +70,7 @@ export type SideChatSummary = ThreadSummary & SideChatInfo;
 export type WorkspaceState = {
   readonly threads: readonly ThreadSummary[];
   readonly sideChats: readonly SideChatSummary[];
+  readonly recentDirectories: readonly string[];
   readonly seq: number;
 };
 
@@ -72,6 +83,7 @@ export type ThreadState = {
   readonly summary: ThreadSummary;
   readonly sideChat: SideChatInfo | null;
   readonly cwd: string;
+  readonly attachedDirectories: readonly string[];
   readonly messages: readonly Message[];
   readonly parts: readonly Part[];
   readonly queue: readonly never[];
@@ -112,6 +124,13 @@ export type SidecarProject = {
   readonly worktree: string;
   readonly name: string | null;
   readonly vcs: string | null;
+};
+
+export type SidecarAgent = {
+  readonly name: string;
+  readonly description: string | null;
+  readonly mode: "subagent" | "primary" | "all";
+  readonly native: boolean;
 };
 
 export type SidecarProviderAuthPrompt =
@@ -156,7 +175,21 @@ export type SidecarProvider = {
   readonly name: string;
   readonly source: "env" | "config" | "custom" | "api";
   readonly connected: boolean;
+  readonly models: readonly SidecarModel[];
   readonly authMethods: readonly SidecarProviderAuthMethod[];
+};
+
+export type SidecarModel = {
+  readonly id: string;
+  readonly providerID: string;
+  readonly name: string;
+  readonly family: string | null;
+  readonly status: "alpha" | "beta" | "deprecated" | "active";
+  readonly reasoning: boolean;
+  readonly attachments: boolean;
+  readonly variants: readonly string[];
+  readonly contextLimit: number;
+  readonly outputLimit: number;
 };
 
 /** The provider inventory: every provider plus the connected id set and per-provider default model. */
@@ -261,6 +294,7 @@ export type SendMessageInput = {
 export type ThreadDetail = {
   readonly summary: ThreadSummary;
   readonly cwd: string;
+  readonly attachedDirectories: readonly string[];
 };
 
 /**
@@ -273,6 +307,11 @@ export interface SidecarClient {
     readonly create: (payload: CreateThreadInput) => Promise<ThreadSummary>;
     readonly createSideChat: (parentThreadId: string) => Promise<SideChatSummary>;
     readonly get: (threadId: string) => Promise<ThreadDetail>;
+    /** Grant OpenCode's external-directory permission without changing the session cwd. */
+    readonly attachDirectory: (threadId: string, path: string) => Promise<void>;
+    /** Revoke a directory previously attached through attachDirectory. */
+    readonly detachDirectory: (threadId: string, path: string) => Promise<void>;
+    readonly listArchived: () => Promise<readonly ThreadSummary[]>;
     readonly send: (threadId: string, payload: SendMessageInput) => Promise<void>;
     readonly interrupt: (threadId: string) => Promise<void>;
     readonly watch: (threadId: string, handlers: ThreadWatchHandlers) => ThreadWatch;
@@ -283,6 +322,24 @@ export interface SidecarClient {
      * (runner/llm.ts TODO) — honk titles threads itself from the first prompt line.
      */
     readonly setTitle: (threadId: string, title: string) => Promise<void>;
+    readonly archive: (threadId: string) => Promise<void>;
+    /** OpenCode cannot clear `time.archived`; restoring forks the transcript and removes the archive. */
+    readonly restoreAsCopy: (threadId: string) => Promise<ThreadSummary>;
+    readonly remove: (threadId: string) => Promise<void>;
+    readonly questions: (threadId: string) => Promise<readonly QuestionRequest[]>;
+    readonly answerQuestion: (
+      threadId: string,
+      requestId: string,
+      answers: readonly (readonly string[])[],
+    ) => Promise<void>;
+    readonly rejectQuestion: (threadId: string, requestId: string) => Promise<void>;
+    readonly permissions: (threadId: string) => Promise<readonly PermissionRequest[]>;
+    readonly answerPermission: (
+      threadId: string,
+      requestId: string,
+      reply: "once" | "always" | "reject",
+      message?: string,
+    ) => Promise<void>;
   };
   readonly workspace: {
     readonly snapshot: () => Promise<WorkspaceState>;
@@ -293,6 +350,10 @@ export interface SidecarClient {
   readonly listProjects: () => Promise<readonly SidecarProject[]>;
   /** The sidecar's default working directory (client.path.get().directory). */
   readonly defaultDirectory: () => Promise<string>;
+  /** Registered OpenCode agents available for a project instance. */
+  readonly listAgents: (directory?: string) => Promise<readonly SidecarAgent[]>;
+  /** Models already available on the host. Does not inspect or mutate provider authentication. */
+  readonly listModels: () => Promise<readonly SidecarModel[]>;
   // ── Provider / auth seams (settings) ─────────────────────────────────────────────────────────
   /** Every provider with its connected flag + auth methods (client.provider.list() + .auth()). */
   readonly listProviders: () => Promise<ProviderInventory>;
@@ -360,6 +421,78 @@ export type OpenCodeEventStreamFactory = (
 // Presets are server state, not device state. Storing the immutable birth pin in
 // session metadata means desktop, web, and mobile all resend the same model bundle.
 const PRESET_METADATA_KEY = "honkPreset";
+const ATTACHED_DIRECTORIES_METADATA_KEY = "honkAttachedDirectories";
+const RECENT_DIRECTORY_LIMIT = 50;
+
+function normalizeHostPath(path: string): string {
+  const trimmed = path.trim();
+  const normalized =
+    /^[A-Za-z]:[\\/]/.test(trimmed) || trimmed.startsWith("\\\\")
+      ? trimmed.replaceAll("\\", "/")
+      : trimmed;
+  if (normalized === "/" || /^[A-Za-z]:\/$/.test(normalized)) {
+    return normalized;
+  }
+  return normalized.replace(/[\\/]+$/, "");
+}
+
+function attachedDirectoriesFromSession(session: Session): readonly string[] {
+  const raw = session.metadata?.[ATTACHED_DIRECTORIES_METADATA_KEY];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const result: string[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "string") {
+      continue;
+    }
+    const path = normalizeHostPath(entry);
+    if (path.length > 0 && !result.includes(path)) {
+      result.push(path);
+    }
+  }
+  return result;
+}
+
+function externalDirectoryPattern(path: string): string {
+  const normalized = normalizeHostPath(path);
+  return normalized.endsWith("/") ? `${normalized}*` : `${normalized}/*`;
+}
+
+function externalDirectoryRule(path: string, action: "allow" | "deny"): PermissionRule {
+  return {
+    permission: "external_directory",
+    pattern: externalDirectoryPattern(path),
+    action,
+  };
+}
+
+function allowAttachedDirectoryRules(paths: readonly string[]): readonly PermissionRule[] {
+  return paths.map((path) => externalDirectoryRule(path, "allow"));
+}
+
+function isAbsoluteHostPath(path: string): boolean {
+  return path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("\\\\");
+}
+
+function isPathWithin(path: string, root: string): boolean {
+  const normalizedPath = normalizeHostPath(path);
+  const normalizedRoot = normalizeHostPath(root);
+  if (normalizedRoot.length === 0) {
+    return false;
+  }
+  const isWindows =
+    /^[A-Za-z]:\//.test(normalizedPath) ||
+    /^[A-Za-z]:\//.test(normalizedRoot) ||
+    normalizedPath.startsWith("//") ||
+    normalizedRoot.startsWith("//");
+  const candidate = isWindows ? normalizedPath.toLowerCase() : normalizedPath;
+  const base = isWindows ? normalizedRoot.toLowerCase() : normalizedRoot;
+  if (base === "/") {
+    return candidate.startsWith("/");
+  }
+  return candidate === base || candidate.startsWith(`${base}/`);
+}
 
 function hasPreset(preset: ThreadPreset): boolean {
   return preset.agent !== undefined || preset.model !== undefined || preset.variant !== undefined;
@@ -417,8 +550,11 @@ function summaryFromSession(
     title: session.title.length > 0 ? session.title : "Untitled",
     status,
     needsAttention: derived.needsAttention,
+    createdAt: isoFromMillis(session.time.created),
     archivedAt: session.time.archived !== undefined ? isoFromMillis(session.time.archived) : null,
     updatedAt: isoFromMillis(session.time.updated),
+    agent: session.agent ?? null,
+    model: session.model === undefined ? null : { ...session.model },
     projectId: session.projectID.length > 0 ? session.projectID : null,
     worktree: {
       path: session.directory.length > 0 ? session.directory : null,
@@ -563,6 +699,28 @@ export function createSidecarClient(origin: string, options?: SidecarClientOptio
   }
 
   // ── workspace projection ─────────────────────────────────────────────────────────────────
+  function buildRecentDirectories(): readonly string[] {
+    const result: string[] = [];
+    const ordered = [...sessions.values()].sort(
+      (left, right) => right.time.updated - left.time.updated,
+    );
+    for (const session of ordered) {
+      if (session.parentID !== undefined) {
+        continue;
+      }
+      for (const path of [...attachedDirectoriesFromSession(session), session.directory]) {
+        const normalized = normalizeHostPath(path);
+        if (normalized.length > 0 && !result.includes(normalized)) {
+          result.push(normalized);
+          if (result.length === RECENT_DIRECTORY_LIMIT) {
+            return result;
+          }
+        }
+      }
+    }
+    return result;
+  }
+
   function buildWorkspace(): WorkspaceState {
     const threads: ThreadSummary[] = [];
     const sideChats: SideChatSummary[] = [];
@@ -584,7 +742,12 @@ export function createSidecarClient(origin: string, options?: SidecarClientOptio
         sideChats.push(sideChat);
       }
     }
-    return { threads, sideChats, seq: (workspaceSeq += 1) };
+    return {
+      threads,
+      sideChats,
+      recentDirectories: buildRecentDirectories(),
+      seq: (workspaceSeq += 1),
+    };
   }
 
   function notifyWorkspace(): void {
@@ -624,6 +787,7 @@ export function createSidecarClient(origin: string, options?: SidecarClientOptio
       summary,
       sideChat,
       cwd: session.directory,
+      attachedDirectories: attachedDirectoriesFromSession(session),
       messages: [...messages],
       parts,
       queue: [],
@@ -661,6 +825,169 @@ export function createSidecarClient(origin: string, options?: SidecarClientOptio
     }
     const dir = sessions.get(sessionId)?.directory;
     return dir !== undefined && dir.length > 0 ? dir : undefined;
+  }
+
+  async function loadSession(sessionId: string): Promise<Session> {
+    const cached = sessions.get(sessionId);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const directory = directoryFor(sessionId);
+    const result = await client.session.get({
+      sessionID: sessionId,
+      ...(directory !== undefined ? { directory } : {}),
+    });
+    if (result.error !== undefined || result.data === undefined) {
+      throw new Error(sidecarErrorMessage(result.error, "Failed to load session."));
+    }
+    sessions.set(result.data.id, result.data);
+    rememberDirectory(result.data);
+    return result.data;
+  }
+
+  async function refreshSession(session: Session): Promise<Session> {
+    const result = await client.session.get({
+      sessionID: session.id,
+      ...(session.directory.length > 0 ? { directory: session.directory } : {}),
+    });
+    if (result.error !== undefined || result.data === undefined) {
+      throw new Error(sidecarErrorMessage(result.error, "Failed to refresh session."));
+    }
+    sessions.set(result.data.id, result.data);
+    rememberDirectory(result.data);
+    return result.data;
+  }
+
+  async function taskSessionFamily(sessionId: string): Promise<readonly Session[]> {
+    // Access changes apply to the whole task family. Refresh the global session projection first so
+    // a side chat created by another connected client cannot be omitted from the update or busy check.
+    await refreshSessions(true);
+    const source = await loadSession(sessionId);
+    const sideChat = sideChatInfoFromSession(source);
+    const rootId = sideChat?.parentThreadId ?? source.id;
+    const root = rootId === source.id ? source : await loadSession(rootId);
+    const family = new Map<string, Session>([[root.id, root]]);
+    for (const session of sessions.values()) {
+      if (sideChatInfoFromSession(session)?.parentThreadId === root.id) {
+        family.set(session.id, session);
+      }
+    }
+    return [...family.values()];
+  }
+
+  async function assertTaskFamilyIdle(family: readonly Session[]): Promise<void> {
+    const statuses = await client.session.status();
+    if (statuses.error !== undefined || statuses.data === undefined) {
+      throw new Error(
+        sidecarErrorMessage(
+          statuses.error,
+          "Couldn't verify whether the task is still running. Try again.",
+        ),
+      );
+    }
+    for (const [sessionId, status] of Object.entries(statuses.data)) {
+      statusById.set(sessionId, status.type);
+    }
+    const isBusy = family.some((session) => {
+      const status = statusById.get(session.id);
+      return status === "busy" || status === "retry";
+    });
+    if (isBusy) {
+      throw new Error(
+        "Can't change folder access while the agent is working. Stop the run and try again.",
+      );
+    }
+  }
+
+  async function resolveExternalDirectory(sessionId: string, input: string): Promise<string> {
+    const directory = directoryFor(sessionId);
+    const baseResult = await client.path.get(directory !== undefined ? { directory } : {});
+    if (baseResult.error !== undefined || baseResult.data === undefined) {
+      throw new Error(
+        sidecarErrorMessage(baseResult.error, "Failed to resolve the task directory."),
+      );
+    }
+
+    const value = input.trim();
+    const expanded =
+      value === "~"
+        ? baseResult.data.home
+        : value.startsWith("~/") || value.startsWith("~\\")
+          ? `${baseResult.data.home}${value.slice(1)}`
+          : value;
+    if (!isAbsoluteHostPath(expanded)) {
+      throw new Error("Use an absolute directory path or a path beginning with ~/.");
+    }
+    if (expanded.includes("*") || expanded.includes("?")) {
+      throw new Error("Folders containing wildcard characters can't be attached safely.");
+    }
+
+    const candidateResult = await client.path.get({ directory: expanded });
+    if (candidateResult.error !== undefined || candidateResult.data === undefined) {
+      throw new Error("Choose an existing directory on the OpenCode host.");
+    }
+    const candidate = normalizeHostPath(candidateResult.data.directory);
+    const listing = await client.file.list({ path: ".", directory: candidate });
+    if (listing.error !== undefined || listing.data === undefined) {
+      throw new Error("Choose an existing directory on the OpenCode host.");
+    }
+    if (
+      isPathWithin(candidate, baseResult.data.directory) ||
+      isPathWithin(candidate, baseResult.data.worktree)
+    ) {
+      throw new Error("That folder is already accessible from this task's project.");
+    }
+    return candidate;
+  }
+
+  async function updateTaskDirectories(
+    family: readonly Session[],
+    path: string,
+    action: "attach" | "detach",
+  ): Promise<void> {
+    const root = family[0];
+    if (root === undefined) {
+      throw new Error("Failed to resolve the task session.");
+    }
+    const freshRoot = await refreshSession(root);
+    const current = attachedDirectoriesFromSession(freshRoot);
+    const next =
+      action === "attach"
+        ? current.includes(path)
+          ? current
+          : [...current, path]
+        : current.filter((entry) => entry !== path);
+    const permission =
+      action === "attach"
+        ? allowAttachedDirectoryRules(next)
+        : [externalDirectoryRule(path, "deny"), ...allowAttachedDirectoryRules(next)];
+
+    for (const session of family) {
+      const latest = session.id === freshRoot.id ? freshRoot : await refreshSession(session);
+      const result = await client.session.update({
+        sessionID: latest.id,
+        metadata: {
+          ...latest.metadata,
+          [ATTACHED_DIRECTORIES_METADATA_KEY]: [...next],
+        },
+        permission: [...permission],
+        ...(latest.directory.length > 0 ? { directory: latest.directory } : {}),
+      });
+      if (result.error !== undefined || result.data === undefined) {
+        throw new Error(
+          sidecarErrorMessage(
+            result.error,
+            action === "attach"
+              ? "Failed to attach the directory."
+              : "Failed to remove the attached directory.",
+          ),
+        );
+      }
+      sessions.set(result.data.id, result.data);
+      rememberDirectory(result.data);
+      notifyThread(result.data.id);
+    }
+    notifyWorkspace();
   }
 
   async function sideChatReferenceSystem(
@@ -724,7 +1051,12 @@ ${visibleTranscript}
   // ── seeding (list / detail) ──────────────────────────────────────────────────────────────
   async function refreshSessions(strict = false): Promise<void> {
     // No `directory`: the workspace list is deliberately global (every project's sessions).
-    const res = await client.session.list();
+    const [res, statuses, questions, permissions] = await Promise.all([
+      client.session.list(),
+      client.session.status(),
+      client.question.list(),
+      client.permission.list(),
+    ]);
     if (res.error !== undefined || res.data === undefined) {
       if (strict) {
         throw new Error(sidecarErrorMessage(res.error, "Failed to list OpenCode sessions."));
@@ -735,6 +1067,19 @@ ${visibleTranscript}
     for (const session of res.data) {
       sessions.set(session.id, session);
       rememberDirectory(session);
+    }
+    statusById.clear();
+    if (statuses.data !== undefined) {
+      for (const [sessionId, status] of Object.entries(statuses.data)) {
+        statusById.set(sessionId, status.type);
+      }
+    }
+    pending.clear();
+    for (const request of questions.data ?? []) {
+      markPending(request.sessionID, request.id);
+    }
+    for (const request of permissions.data ?? []) {
+      markPending(request.sessionID, request.id);
     }
     notifyWorkspace();
   }
@@ -1080,6 +1425,7 @@ ${visibleTranscript}
           seedMessageCount: messagesResult.data.length,
         };
         const parentPreset = presetFromSession(parent);
+        const parentAttachedDirectories = attachedDirectoriesFromSession(parent);
         const updateResult = await client.session.update({
           sessionID: forked.id,
           title: "Side Chat",
@@ -1088,6 +1434,9 @@ ${visibleTranscript}
             [SIDE_CHAT_METADATA_KEY]: sideChat,
             ...(parentPreset !== undefined ? { [PRESET_METADATA_KEY]: parentPreset } : {}),
           },
+          ...(parentAttachedDirectories.length > 0
+            ? { permission: [...allowAttachedDirectoryRules(parentAttachedDirectories)] }
+            : {}),
           ...(directory !== undefined ? { directory } : {}),
         });
         if (updateResult.error !== undefined || updateResult.data === undefined) {
@@ -1129,7 +1478,45 @@ ${visibleTranscript}
             needsAttention: (pending.get(session.id)?.size ?? 0) > 0,
           }),
           cwd: session.directory,
+          attachedDirectories: attachedDirectoriesFromSession(session),
         };
+      },
+
+      async attachDirectory(threadId, path) {
+        const family = await taskSessionFamily(threadId);
+        await assertTaskFamilyIdle(family);
+        const resolved = await resolveExternalDirectory(threadId, path);
+        await updateTaskDirectories(family, resolved, "attach");
+      },
+
+      async detachDirectory(threadId, path) {
+        const family = await taskSessionFamily(threadId);
+        await assertTaskFamilyIdle(family);
+        const normalized = normalizeHostPath(path);
+        if (normalized.length === 0) {
+          throw new Error("Choose an attached directory to remove.");
+        }
+        await updateTaskDirectories(family, normalized, "detach");
+      },
+
+      async listArchived() {
+        const res = await client.experimental.session.list({ archived: true });
+        if (res.error !== undefined || res.data === undefined) {
+          throw new Error(sidecarErrorMessage(res.error, "Failed to list archived sessions."));
+        }
+        const summaries: ThreadSummary[] = [];
+        for (const session of res.data) {
+          if (session.parentID !== undefined || sideChatInfoFromSession(session) !== null) continue;
+          rememberDirectory(session);
+          summaries.push(
+            summaryFromSession(session, {
+              running: false,
+              failed: false,
+              needsAttention: false,
+            }),
+          );
+        }
+        return summaries;
       },
 
       async send(threadId, payload) {
@@ -1199,6 +1586,156 @@ ${visibleTranscript}
           notifyThread(threadId);
           notifyWorkspace();
         }
+      },
+
+      async archive(threadId) {
+        const directory = directoryFor(threadId);
+        const res = await client.session.update({
+          sessionID: threadId,
+          time: { archived: Date.now() },
+          ...(directory !== undefined ? { directory } : {}),
+        });
+        if (res.error !== undefined || res.data === undefined) {
+          throw new Error(sidecarErrorMessage(res.error, "Failed to archive session."));
+        }
+        sessions.delete(threadId);
+        statusById.delete(threadId);
+        pending.delete(threadId);
+        threadCaches.delete(threadId);
+        notifyWorkspace();
+      },
+
+      async restoreAsCopy(threadId) {
+        const directory = directoryFor(threadId);
+        const scope = directory !== undefined ? { directory } : {};
+        const detail = await client.session.get({ sessionID: threadId, ...scope });
+        if (detail.error !== undefined || detail.data === undefined) {
+          throw new Error(sidecarErrorMessage(detail.error, "Failed to load archived session."));
+        }
+        const fork = await client.session.fork({ sessionID: threadId, ...scope });
+        if (fork.error !== undefined || fork.data === undefined) {
+          throw new Error(sidecarErrorMessage(fork.error, "Failed to restore archived session."));
+        }
+        let restored = fork.data;
+        const restoredAttachedDirectories = attachedDirectoriesFromSession(restored);
+        if (restored.title !== detail.data.title || restoredAttachedDirectories.length > 0) {
+          const updated = await client.session.update({
+            sessionID: restored.id,
+            ...(restored.title !== detail.data.title ? { title: detail.data.title } : {}),
+            ...(restoredAttachedDirectories.length > 0
+              ? { permission: [...allowAttachedDirectoryRules(restoredAttachedDirectories)] }
+              : {}),
+            ...scope,
+          });
+          if (updated.error !== undefined || updated.data === undefined) {
+            throw new Error(
+              sidecarErrorMessage(
+                updated.error,
+                "The session was copied but its folder access could not be restored.",
+              ),
+            );
+          }
+          restored = updated.data;
+        }
+        const removed = await client.session.delete({ sessionID: threadId, ...scope });
+        if (removed.error !== undefined) {
+          throw new Error(
+            sidecarErrorMessage(
+              removed.error,
+              "The session was restored, but the archived copy could not be removed.",
+            ),
+          );
+        }
+        sessions.set(restored.id, restored);
+        rememberDirectory(restored);
+        directories.delete(threadId);
+        notifyWorkspace();
+        return summaryFromSession(restored, {
+          running: false,
+          failed: false,
+          needsAttention: false,
+        });
+      },
+
+      async remove(threadId) {
+        const directory = directoryFor(threadId);
+        const res = await client.session.delete({
+          sessionID: threadId,
+          ...(directory !== undefined ? { directory } : {}),
+        });
+        if (res.error !== undefined) {
+          throw new Error(sidecarErrorMessage(res.error, "Failed to delete session."));
+        }
+        sessions.delete(threadId);
+        directories.delete(threadId);
+        statusById.delete(threadId);
+        failed.delete(threadId);
+        pending.delete(threadId);
+        threadCaches.delete(threadId);
+        notifyWorkspace();
+      },
+
+      async questions(threadId) {
+        const directory = directoryFor(threadId);
+        const res = await client.question.list(directory !== undefined ? { directory } : {});
+        if (res.error !== undefined || res.data === undefined) {
+          throw new Error(sidecarErrorMessage(res.error, "Failed to load pending questions."));
+        }
+        return res.data.filter((request) => request.sessionID === threadId);
+      },
+
+      async answerQuestion(threadId, requestId, answers) {
+        const directory = directoryFor(threadId);
+        const res = await client.question.reply({
+          requestID: requestId,
+          answers: answers.map((answer) => [...answer]),
+          ...(directory !== undefined ? { directory } : {}),
+        });
+        if (res.error !== undefined) {
+          throw new Error(sidecarErrorMessage(res.error, "Failed to answer question."));
+        }
+        clearPending(threadId, requestId);
+        notifyWorkspace();
+        notifyThread(threadId);
+      },
+
+      async rejectQuestion(threadId, requestId) {
+        const directory = directoryFor(threadId);
+        const res = await client.question.reject({
+          requestID: requestId,
+          ...(directory !== undefined ? { directory } : {}),
+        });
+        if (res.error !== undefined) {
+          throw new Error(sidecarErrorMessage(res.error, "Failed to dismiss question."));
+        }
+        clearPending(threadId, requestId);
+        notifyWorkspace();
+        notifyThread(threadId);
+      },
+
+      async permissions(threadId) {
+        const directory = directoryFor(threadId);
+        const res = await client.permission.list(directory !== undefined ? { directory } : {});
+        if (res.error !== undefined || res.data === undefined) {
+          throw new Error(sidecarErrorMessage(res.error, "Failed to load pending permissions."));
+        }
+        return res.data.filter((request) => request.sessionID === threadId);
+      },
+
+      async answerPermission(threadId, requestId, reply, message) {
+        const directory = directoryFor(threadId);
+        const res = await client.permission.reply({
+          requestID: requestId,
+          reply,
+          ...(message !== undefined ? { message } : {}),
+          ...(directory !== undefined ? { directory } : {}),
+        });
+        if (res.error !== undefined) {
+          throw new Error(sidecarErrorMessage(res.error, "Failed to answer permission request."));
+        }
+        clearPending(threadId, requestId);
+        notifyWorkspace();
+        notifyThread(threadId);
       },
 
       async runCommand(threadId, input) {
@@ -1292,6 +1829,48 @@ ${visibleTranscript}
       return res.data.directory;
     },
 
+    async listAgents(directory) {
+      const res = await client.app.agents(directory !== undefined ? { directory } : {});
+      if (res.error !== undefined || res.data === undefined) {
+        throw new Error(sidecarErrorMessage(res.error, "Failed to list agents."));
+      }
+      return res.data
+        .filter((agent) => agent.hidden !== true)
+        .map((agent) => ({
+          name: agent.name,
+          description:
+            agent.description !== undefined && agent.description.length > 0
+              ? agent.description
+              : null,
+          mode: agent.mode,
+          native: agent.native === true,
+        }));
+    },
+
+    async listModels() {
+      const res = await client.provider.list();
+      if (res.error !== undefined || res.data === undefined) {
+        throw new Error(sidecarErrorMessage(res.error, "Failed to list models."));
+      }
+      const connected = new Set(res.data.connected);
+      return res.data.all
+        .filter((provider) => connected.has(provider.id))
+        .flatMap((provider) =>
+          Object.values(provider.models).map((model) => ({
+            id: model.id,
+            providerID: model.providerID,
+            name: model.name,
+            family: model.family ?? null,
+            status: model.status,
+            reasoning: model.capabilities.reasoning,
+            attachments: model.capabilities.attachment,
+            variants: Object.keys(model.variants ?? {}),
+            contextLimit: model.limit.context,
+            outputLimit: model.limit.output,
+          })),
+        );
+    },
+
     async listProviders() {
       const [list, auth] = await Promise.all([client.provider.list(), client.provider.auth()]);
       if (list.error !== undefined || list.data === undefined) {
@@ -1309,6 +1888,18 @@ ${visibleTranscript}
         name: provider.name,
         source: provider.source,
         connected: connected.includes(provider.id),
+        models: Object.values(provider.models).map((model) => ({
+          id: model.id,
+          providerID: model.providerID,
+          name: model.name,
+          family: model.family ?? null,
+          status: model.status,
+          reasoning: model.capabilities.reasoning,
+          attachments: model.capabilities.attachment,
+          variants: Object.keys(model.variants ?? {}),
+          contextLimit: model.limit.context,
+          outputLimit: model.limit.output,
+        })),
         authMethods: (authByProvider[provider.id] ?? []).map((method, index) => ({
           index,
           type: method.type,
