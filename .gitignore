@@ -9,6 +9,7 @@ apps/*/dist
 apps/*/out
 .astro
 packages/*/dist
+packages/*/dev/dist
 packages/*/out
 packages/marketing/public/r/
 packages/desktop/.electron-runtime/

@@ -154,7 +154,7 @@
     }
   },
   "scripts": {
-    "typecheck": "node ../../scripts/tsc-rc.mjs --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

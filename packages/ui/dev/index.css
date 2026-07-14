@@ -1,0 +1,17 @@
+/* Dev playground stylesheet — proves the Tailwind side of the two-system setup (ADR 0023
+ * amendment): Tailwind utilities for layout/wrappers, StyleX for primitives, one token
+ * vocabulary. Order matters: Tailwind core first, then the bridge that aliases the
+ * `--honk-*` vars (emitted by the StyleX build of tokens.stylex.ts) into utility names. */
+@import "tailwindcss";
+@import "../src/tailwind.css";
+
+/* Full-viewport mount. The Shell frame is height:100dvh; guarantee the html → body → #root chain
+ * is itself full-height and margin-free so the frame fills the window edge-to-edge with no stray
+ * gap or double scrollbar (Tailwind preflight already zeroes the body margin; this pins the height
+ * chain the shell hangs from). */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}

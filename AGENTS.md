@@ -24,6 +24,14 @@
 - Use `central-icons`; do not add Lucide.
 - Import icons from `central-icons`.
 
+## Design reference (`.design/`)
+
+- Any design or UI work starts at `.design/README.md` — the agent-facing design system (principles, exemplars, deterministic checks: `node .design/lint.mjs`).
+- Cross-platform `@honk/ui` work must also read `packages/ui/AGENTS.md` and use `.agents/skills/honk-ui`; one logical component API serves web and native through platform-resolved implementations.
+- Decision hierarchy: `.agents/skills/honk-ui` (platform routing) → `.agents/skills/stylex` + `.agents/skills/styling-tokens` (web authoring mechanics) → `packages/ui/src/theme.ts` for shared values and the generated `platform-tokens.stylex.ts` web binding, with `tokens.stylex.ts` retaining web-only values → `.design/principles.md` + `.design/exemplars.md` (product judgment).
+- Skills are first-party in `.agents/skills/` (`.claude/skills/*` are symlinks into it).
+- The HonkKit rules below apply to the old app (`packages/app` + `packages/honkkit`). The rewrite (`packages/ui`) follows `.design/` and the skills instead.
+
 ## HonkKit (design system)
 
 - **HonkKit** is Honk's design system. Primitives live in `@honk/honkkit/`\*; tokens in `@honk/honkkit/styles.css` and app Tailwind theme exports in `packages/app/src/index.css`.
@@ -34,7 +42,6 @@
 
 ## Commands
 
-- Do not upgrade Bun past `1.3.14`; this repository pins `bun` and `@types/bun` there because it is the latest Bun tag that still uses the Zig binary.
 - For code changes, prefer `pnpm run typecheck` as the verifier. Get full output.
 - Do not use tests as the verifier unless the task is creating, modifying, or debugging tests.
 - If you create or modify a test, run that specific test from its package root and iterate until it passes.

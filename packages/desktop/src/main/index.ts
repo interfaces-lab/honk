@@ -26,10 +26,11 @@ import * as DesktopAuxEndpoint from "../app/desktop-aux-endpoint";
 import * as DesktopAppIdentity from "../app/desktop-app-identity";
 import * as DesktopApplicationMenu from "../window/desktop-application-menu";
 import * as DesktopAssets from "../app/desktop-assets";
-import * as DesktopCoreManager from "../backend/desktop-core-manager";
+import * as DesktopPty from "../backend/desktop-pty";
 import * as DesktopEnvironment from "../app/desktop-environment";
 import * as DesktopLifecycle from "../app/desktop-lifecycle";
 import * as DesktopObservability from "../app/desktop-observability";
+import * as OpencodeSidecar from "../backend/opencode-sidecar";
 import * as DesktopQuitGuard from "../app/desktop-quit-guard";
 import * as DesktopServerExposure from "../backend/desktop-server-exposure";
 import * as DesktopClientSettings from "../settings/desktop-client-settings";
@@ -86,11 +87,6 @@ const desktopServerExposureLayer = DesktopServerExposure.layer.pipe(
 
 const desktopWindowLayer = DesktopWindow.layer.pipe(Layer.provideMerge(desktopServerExposureLayer));
 
-const desktopCoreLayer = DesktopCoreManager.layer.pipe(
-  Layer.provideMerge(desktopWindowLayer),
-  Layer.provideMerge(desktopEnvironmentLayer),
-);
-
 const desktopApplicationLayer = Layer.mergeAll(
   DesktopLifecycle.layer,
   DesktopQuitGuard.layer,
@@ -98,11 +94,13 @@ const desktopApplicationLayer = Layer.mergeAll(
   DesktopShellEnvironment.layer,
   DesktopBrowserAutomation.layer,
   DesktopAuxEndpoint.layer,
+  DesktopPty.layer,
+  OpencodeSidecar.layer,
 ).pipe(
   Layer.provideMerge(DesktopUpdates.layer),
   Layer.provideMerge(DesktopAppIdentity.layer),
   Layer.provideMerge(desktopWindowLayer),
-  Layer.provideMerge(desktopCoreLayer),
+  Layer.provideMerge(desktopWindowLayer),
 );
 
 const desktopRuntimeLayer = ElectronProtocol.layerSchemePrivileges.pipe(

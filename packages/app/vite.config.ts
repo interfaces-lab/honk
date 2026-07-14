@@ -1,122 +1,44 @@
 import stylex from "@stylexjs/unplugin";
 import tailwindcss from "@tailwindcss/vite";
-import react, { reactCompilerPreset } from "@vitejs/plugin-react";
-import babel from "@rolldown/plugin-babel";
-import { tanstackRouter } from "@tanstack/router-plugin/vite";
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
-import pkg from "./package.json" with { type: "json" };
 
-const port = Number(process.env.PORT ?? 5733);
-const host = process.env.HOST?.trim() || "localhost";
-const configuredHttpUrl = process.env.VITE_HTTP_URL?.trim();
-const configuredWsUrl = process.env.VITE_WS_URL?.trim();
-const inferredBackendPort = process.env.HONK_PORT?.trim();
-const resolvedHttpUrl =
-  configuredHttpUrl ??
-  (inferredBackendPort ? `http://127.0.0.1:${inferredBackendPort}` : undefined);
-const resolvedWsUrl =
-  configuredWsUrl ?? (inferredBackendPort ? `ws://127.0.0.1:${inferredBackendPort}` : undefined);
-const sourcemapEnv = process.env.HONK_WEB_SOURCEMAP?.trim().toLowerCase();
-// oxlint-disable-next-line eslint/no-control-regex
-const rolldownRuntimeModulePattern = new RegExp("^\\u0000rolldown/runtime\\.js$");
-
-const buildSourcemap =
-  sourcemapEnv === "0" || sourcemapEnv === "false"
-    ? false
-    : sourcemapEnv === "hidden"
-      ? "hidden"
-      : true;
-
-function resolveDevProxyTarget(wsUrl: string | undefined): string | undefined {
-  if (!wsUrl) {
-    return undefined;
-  }
-
-  try {
-    const url = new URL(wsUrl);
-    if (url.protocol === "ws:") {
-      url.protocol = "http:";
-    } else if (url.protocol === "wss:") {
-      url.protocol = "https:";
-    }
-    url.pathname = "";
-    url.search = "";
-    url.hash = "";
-    return url.toString();
-  } catch {
-    return undefined;
-  }
-}
-
-const devProxyTarget = resolveDevProxyTarget(resolvedWsUrl);
-
+// Mirrors packages/ui/vite.config.ts: StyleX before React, Tailwind after so utilities
+// resolve against the emitted --honk-* vars via the bridge. optimizeDeps.exclude is
+// mandatory for raw-source @honk/ui — forgetting it silently drops all StyleX styles
+// (ADR 0025 §4).
 export default defineConfig({
   plugins: [
-    tanstackRouter(),
-    stylex.vite({ useCSSLayers: true }),
-    react(),
-    babel({
-      // We need to be explicit about the parser options after moving to @vitejs/plugin-react v6.0.0
-      // This is because the babel plugin only automatically parses typescript and jsx based on relative paths (e.g. "**/*.ts")
-      // whereas the previous version of the plugin parsed all files with a .ts extension.
-      // This is causing our packages/ directory to fail to parse, as they are not relative to the CWD.
-      exclude: [/[/\\]node_modules[/\\]/, rolldownRuntimeModulePattern],
-      parserOpts: { plugins: ["typescript", "jsx"] },
-      presets: [reactCompilerPreset()],
+    stylex.vite({
+      useCSSLayers: true,
+      // Same lightningcss pin as @honk/ui: keep light-dark() intact so token values
+      // declared at :root still resolve under the Shell frame's color-scheme.
+      lightningcssOptions: {
+        targets: {
+          chrome: 123 << 16,
+          edge: 123 << 16,
+          firefox: 120 << 16,
+          safari: (17 << 16) | (5 << 8),
+        },
+      },
     }),
+    react(),
     tailwindcss(),
   ],
   optimizeDeps: {
-    exclude: ["@honk/honkkit"],
-    include: [
-      "@pierre/diffs",
-      "@pierre/diffs/react",
-      "@pierre/diffs/worker/worker.js",
-      "monaco-editor",
-    ],
-  },
-  define: {
-    "import.meta.env.VITE_HTTP_URL": JSON.stringify(resolvedHttpUrl ?? ""),
-    // In dev mode, tell the web app where the WebSocket server lives
-    "import.meta.env.VITE_WS_URL": JSON.stringify(resolvedWsUrl ?? ""),
-    "import.meta.env.APP_VERSION": JSON.stringify(pkg.version),
+    exclude: ["@honk/ui"],
   },
   resolve: {
-    tsconfigPaths: true,
+    // This source tree still has stale generated .js siblings. Prefer the TS sources
+    // so extensionless imports like "./home" render the current app-next home page.
+    extensions: [".tsx", ".ts", ".mts", ".jsx", ".js", ".mjs", ".json"],
   },
+  // Desktop `pnpm dev` probes and loads `http://127.0.0.1:5173`. Pin host+port so
+  // Vite cannot bind ::1-only (Node/macOS localhost default) while the Electron
+  // host and readiness probe use IPv4 loopback.
   server: {
-    host,
-    port,
+    host: "127.0.0.1",
+    port: 5173,
     strictPort: true,
-    ...(devProxyTarget
-      ? {
-          proxy: {
-            "/.well-known": {
-              target: devProxyTarget,
-              changeOrigin: true,
-            },
-            "/api": {
-              target: devProxyTarget,
-              changeOrigin: true,
-            },
-            "/attachments": {
-              target: devProxyTarget,
-              changeOrigin: true,
-            },
-          },
-        }
-      : {}),
-    hmr: {
-      // Explicit config so Vite's HMR WebSocket connects reliably
-      // inside Electron's BrowserWindow. Vite 8 uses console.debug for
-      // connection logs — enable "Verbose" in DevTools to see them.
-      protocol: "ws",
-      host,
-    },
-  },
-  build: {
-    outDir: "dist",
-    emptyOutDir: true,
-    sourcemap: buildSourcemap,
   },
 });

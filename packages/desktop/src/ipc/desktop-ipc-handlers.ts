@@ -2,6 +2,8 @@ import * as Effect from "effect/Effect";
 
 import * as DesktopIpc from "./desktop-ipc";
 import { getAuxEndpoint } from "./methods/aux-endpoint";
+import { getOpencodeSidecar } from "./methods/opencode-sidecar";
+import { closePty, openPty, resizePty, writePty } from "./methods/pty";
 import { getClientSettings, setClientSettings } from "./methods/client-settings";
 import { logRendererDiagnostic } from "./methods/renderer-diagnostics";
 import { getServerExposureState, setServerExposureMode } from "./methods/server-exposure";
@@ -12,7 +14,6 @@ import {
   expandWindowWidth,
   getAppBranding,
   getBrowserWebviewPreloadPath,
-  getLocalEnvironmentBootstrap,
   getWindowChromeState,
   openInEditor,
   openExternal,
@@ -33,12 +34,17 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
 
   yield* ipc.handleSync(getAppBranding);
   yield* ipc.handleSync(getBrowserWebviewPreloadPath);
-  yield* ipc.handleSync(getLocalEnvironmentBootstrap);
   yield* ipc.handleSync(getWindowChromeState);
 
   yield* ipc.handle(getClientSettings);
   yield* ipc.handle(setClientSettings);
   yield* ipc.handle(getAuxEndpoint);
+  yield* ipc.handle(getOpencodeSidecar);
+
+  yield* ipc.handle(openPty);
+  yield* ipc.handle(writePty);
+  yield* ipc.handle(resizePty);
+  yield* ipc.handle(closePty);
 
   yield* ipc.handle(getServerExposureState);
   yield* ipc.handle(setServerExposureMode);

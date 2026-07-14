@@ -50,15 +50,15 @@ export interface DesktopEnvironmentShape {
   readonly logDir: string;
   readonly rootDir: string;
   readonly appRoot: string;
-  readonly coreEntryPath: string;
   readonly backendCwd: string;
   readonly preloadPath: string;
   readonly browserWebviewPreloadPath: string;
   readonly appUpdateYmlPath: string;
   readonly devServerUrl: Option.Option<URL>;
-  readonly configuredBackendPort: Option.Option<number>;
   readonly commitHashOverride: Option.Option<string>;
   readonly otlpTracesUrl: Option.Option<string>;
+  readonly otlpLogsUrl: Option.Option<string>;
+  readonly otlpLogsHeaders: Option.Option<string>;
   readonly otlpExportIntervalMs: number;
   readonly branding: DesktopAppBranding;
   readonly displayName: string;
@@ -113,10 +113,6 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
   const desktopPackageDir = input.isPackaged ? input.appPath : path.resolve(input.dirname, "../..");
   const rootDir = input.isPackaged ? input.appPath : path.resolve(desktopPackageDir, "../..");
   const appRoot = input.isPackaged ? input.appPath : rootDir;
-  const coreEntryPath = input.isPackaged
-    ? path.join(input.appPath, "out/core/main.mjs")
-    : path.join(rootDir, "packages/core/dist/main.mjs");
-
   return DesktopEnvironment.of({
     path,
     dirname: input.dirname,
@@ -137,7 +133,6 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
     logDir: path.join(stateDir, "logs"),
     rootDir,
     appRoot,
-    coreEntryPath,
     backendCwd: defaultBackendCwd,
     preloadPath: path.join(input.dirname, "../preload/index.js"),
     browserWebviewPreloadPath: path.join(input.dirname, "../preload/browser-webview.js"),
@@ -145,9 +140,10 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
       ? path.join(resourcesPath, "app-update.yml")
       : path.join(input.appPath, "dev-app-update.yml"),
     devServerUrl,
-    configuredBackendPort: config.configuredBackendPort,
     commitHashOverride: config.commitHashOverride,
     otlpTracesUrl: config.otlpTracesUrl,
+    otlpLogsUrl: config.otlpLogsUrl,
+    otlpLogsHeaders: config.otlpLogsHeaders,
     otlpExportIntervalMs: config.otlpExportIntervalMs,
     branding,
     displayName,

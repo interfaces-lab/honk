@@ -209,22 +209,6 @@ export const DesktopUpdateCheckResultSchema = Schema.Struct({
   state: DesktopUpdateStateSchema,
 });
 
-export interface DesktopEnvironmentBootstrap {
-  label: string;
-  httpBaseUrl: string;
-  browserBootstrapUrl: string;
-  bootstrapToken: string;
-  runId: string;
-}
-
-export const DesktopEnvironmentBootstrapSchema = Schema.Struct({
-  label: Schema.String,
-  httpBaseUrl: Schema.String,
-  browserBootstrapUrl: Schema.String,
-  bootstrapToken: Schema.String,
-  runId: Schema.String,
-});
-
 export type DesktopServerExposureMode = "local-only" | "network-accessible";
 
 export const DesktopServerExposureModeSchema = Schema.Literals([
@@ -310,7 +294,6 @@ export interface DesktopBridge<RuntimeApi = unknown> {
       | "websql"
     )[];
   }) => Promise<void>;
-  getLocalEnvironmentBootstrap: () => DesktopEnvironmentBootstrap | null;
   getWindowChromeState: () => DesktopWindowChromeState;
   onWindowChromeState: (listener: (state: DesktopWindowChromeState) => void) => () => void;
   setActiveWorkState: (state: DesktopActiveWorkState) => Promise<void>;

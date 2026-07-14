@@ -1,0 +1,125 @@
+/*
+ * Tailwind bridge — the token vocabulary exposed as Tailwind v4 theme variables.
+ *
+ * tokens.stylex.ts is the SOURCE OF TRUTH. This file holds no values of its own; every
+ * line aliases a `--honk-*` custom property (emitted at the root by the StyleX build of
+ * tokens.stylex.ts) so Tailwind utilities resolve the exact same values as StyleX call
+ * sites — light/dark included, since `light-dark()` lives inside the token values and
+ * follows `color-scheme` on the theme-scope element.
+ *
+ * THE IDENTITY ROUND SWAPS TOKEN VALUES, NEVER THIS FILE'S KEYS. When the identity lands
+ * it edits tokens.stylex.ts only; the aliases here (and the utility names they generate)
+ * stay put, so neither StyleX call sites nor Tailwind class strings change.
+ *
+ * CONSUMER IMPORT ORDER (dev playground, @honk/app):
+ *   @import "tailwindcss";
+ *   @import "@honk/ui/tailwind.css";   (this file; relative path also fine)
+ * plus the StyleX build step (@stylexjs/unplugin) that actually emits the `--honk-*`
+ * definitions — without it these aliases resolve to nothing.
+ *
+ * `@theme inline` registers utility-generating variables WITHOUT emitting declarations;
+ * utilities reference the shared custom properties and track them at paint time.
+ */
+
+@theme inline {
+  /* ── Color ────────────────────────────────────────────────────────────────
+   * Tailwind has ONE flat --color-* namespace feeding bg-, text-, and border-
+   * utilities alike, so text and border tokens cannot both claim the plain
+   * "muted" and "base" names. Text wins them (typed most often); borders take
+   * the "edge" family, matching the tokens' own "hairline strokes" framing.
+   */
+
+  /* Surfaces: bg-deep, bg-base, bg-layer-01..03 */
+  --color-deep: var(--honk-color-bg-deep);
+  --color-base: var(--honk-color-bg-base);
+  --color-layer-01: var(--honk-color-layer-01);
+  --color-layer-02: var(--honk-color-layer-02);
+  --color-layer-03: var(--honk-color-layer-03);
+
+  /* Type ramp: text-primary, text-muted, text-faint */
+  --color-primary: var(--honk-color-text-primary);
+  --color-muted: var(--honk-color-text-muted);
+  --color-faint: var(--honk-color-text-faint);
+
+  /* Hairlines: border-edge, border-edge-muted */
+  --color-edge: var(--honk-color-border-base);
+  --color-edge-muted: var(--honk-color-border-muted);
+
+  /* The one brand hue: text-accent, bg-accent, border-accent */
+  --color-accent: var(--honk-color-accent);
+
+  /* Status trio per hue: text-<status> (glyphs/text), bg-<status>-tint and
+   * border-<status>-edge (chips). info has only a fg token on the board. */
+  --color-ok: var(--honk-color-ok-fg);
+  --color-ok-tint: var(--honk-color-ok-bg);
+  --color-ok-edge: var(--honk-color-ok-border);
+  --color-warn: var(--honk-color-warn-fg);
+  --color-warn-tint: var(--honk-color-warn-bg);
+  --color-warn-edge: var(--honk-color-warn-border);
+  --color-err: var(--honk-color-err-fg);
+  --color-err-tint: var(--honk-color-err-bg);
+  --color-err-edge: var(--honk-color-err-border);
+  --color-info: var(--honk-color-info-fg);
+
+  /* ── Radius ───────────────────────────────────────────────────────────────
+   * rounded-panel, rounded-window, rounded-control, rounded-field, rounded-pill
+   */
+  --radius-panel: var(--honk-radius-panel);
+  --radius-window: var(--honk-radius-window);
+  --radius-control: var(--honk-radius-control);
+  --radius-field: var(--honk-radius-field);
+  --radius-pill: var(--honk-radius-pill);
+
+  /* ── Space ────────────────────────────────────────────────────────────────
+   * The board defines exactly three named insets — no numeric scale exists in
+   * the tokens, so none is invented here. p-gutter, p-panel-pad,
+   * px-control-pad-x (named --spacing-* values feed every spacing utility:
+   * p/m/gap/w/h/inset).
+   */
+  --spacing-gutter: var(--honk-space-gutter);
+  --spacing-panel-pad: var(--honk-space-panel-pad);
+  --spacing-control-pad-x: var(--honk-space-control-pad-x);
+
+  /* ── Shell ────────────────────────────────────────────────────────────────
+   * Fixed window-chrome geometry, exposed through the spacing namespace so
+   * wrappers can say h-titlebar, h-tab, max-w-tab-max, min-w-tab-min,
+   * pl-shell-inset, gap-tab-gap. The tab strip itself stays StyleX.
+   */
+  --spacing-titlebar: var(--honk-shell-titlebar-h);
+  --spacing-tab: var(--honk-shell-tab-h);
+  --spacing-tab-max: var(--honk-shell-tab-max-w);
+  --spacing-tab-min: var(--honk-shell-tab-min-w);
+  --spacing-shell-inset: var(--honk-shell-inset-left);
+  --spacing-tab-gap: var(--honk-shell-tab-gap);
+
+  /* ── Font ─────────────────────────────────────────────────────────────────
+   * font-ui, font-mono; text-body/detail/caption/micro; font-medium,
+   * font-semibold (the token 510 "medium" replaces Tailwind's default 500).
+   */
+  --font-ui: var(--honk-font-family-ui);
+  --font-mono: var(--honk-font-family-mono);
+  --text-body: var(--honk-font-size-body);
+  --text-detail: var(--honk-font-size-detail);
+  --text-caption: var(--honk-font-size-caption);
+  --text-micro: var(--honk-font-size-micro);
+  --font-weight-medium: var(--honk-font-weight-medium);
+  --font-weight-semibold: var(--honk-font-weight-semibold);
+
+  /* ── Elevation ────────────────────────────────────────────────────────────
+   * shadow-raised, shadow-floating
+   */
+  --shadow-raised: var(--honk-elevation-raised);
+  --shadow-floating: var(--honk-elevation-floating);
+
+  /* ── Motion ───────────────────────────────────────────────────────────────
+   * duration-fast, duration-base, ease-out (the token curve replaces
+   * Tailwind's default ease-out). Bare `transition` utilities default to the
+   * fast duration + token curve. prefers-reduced-motion handling stays a
+   * per-call-site duty, same as in StyleX (stylex skill rule 16).
+   */
+  --transition-duration-fast: var(--honk-motion-duration-fast);
+  --transition-duration-base: var(--honk-motion-duration-base);
+  --ease-out: var(--honk-motion-ease-out);
+  --default-transition-duration: var(--honk-motion-duration-fast);
+  --default-transition-timing-function: var(--honk-motion-ease-out);
+}

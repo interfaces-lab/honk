@@ -9,7 +9,7 @@
   },
   "type": "module",
   "scripts": {
-    "prepare": "effect-language-service patch",
+    "prepare": "node scripts/prepare-effect-language-service.mjs",
     "dev": "turbo run dev --filter=@honk/desktop",
     "dev:app": "turbo run dev --filter=@honk/app",
     "dev:desktop": "turbo run dev --filter=@honk/desktop",
@@ -36,12 +36,13 @@
     "release:bump": "bumpp --no-commit --no-tag --no-push packages/desktop/package.json packages/app/package.json",
     "release:smoke": "pnpm --filter=@honk/release-scripts run test",
     "clean": "rm -rf node_modules packages/*/node_modules packages/*/dist packages/*/dist-electron packages/*/out .turbo packages/*/.turbo",
-    "sync:vscode-icons": "node scripts/sync-vscode-icons.mjs"
+    "sync:vscode-icons": "node scripts/sync-vscode-icons.mjs",
+    "doctor": "npx react-doctor@latest"
   },
   "devDependencies": {
     "@effect/language-service": "catalog:",
+    "@effect/tsgo": "catalog:",
     "@types/node": "catalog:",
-    "@typescript/native-preview": "catalog:",
     "bumpp": "11.1.0",
     "bun": "catalog:",
     "knip": "^6.17.1",

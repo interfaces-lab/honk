@@ -169,7 +169,12 @@ const make = Effect.gen(function* () {
                 },
                 { type: "separator" as const },
               ]),
-          { role: environment.platform === "darwin" ? "close" : "quit" },
+          // ADR 0025 §5: next shell owns ⌘W via the renderer hotkey registry.
+          // Darwin File→Close is the ⌘W thief; move it to ⌘⇧W. Win/Linux File is
+          // Quit (no Ctrl+W) — the windowMenu override below frees Ctrl+W there.
+          environment.platform === "darwin"
+            ? { role: "close" as const, accelerator: "CmdOrCtrl+Shift+W" }
+            : { role: environment.platform === "darwin" ? ("close" as const) : ("quit" as const) },
         ],
       },
       { role: "editMenu" },
@@ -188,7 +193,19 @@ const make = Effect.gen(function* () {
           { role: "togglefullscreen" },
         ],
       },
-      { role: "windowMenu" },
+      // Win/Linux `windowMenu` also binds Ctrl+W to Close Window; override so the
+      // next shell's scoped ⌘W registry is not stolen (ADR 0025 §5).
+      environment.platform !== "darwin"
+        ? {
+            label: "Window",
+            submenu: [
+              { role: "minimize" },
+              { role: "zoom" },
+              { type: "separator" },
+              { role: "close", accelerator: "CmdOrCtrl+Shift+W" },
+            ],
+          }
+        : { role: "windowMenu" },
       {
         role: "help",
         submenu: [

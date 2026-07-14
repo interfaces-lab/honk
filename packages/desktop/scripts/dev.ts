@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 
 import { desktopDir, resolveElectronPath } from "./electron-launcher.mjs";
 
-const baseServerPort = 13773;
+const baseSidecarPort = 13973;
 const baseRendererPort = 5733;
 const maxHashOffset = 3_000;
 const maxPort = 65_535;
@@ -18,10 +18,20 @@ const devPortProbeHosts = ["127.0.0.1", "0.0.0.0", "::1", "::"] as const;
 const staleProcessTerminateGraceMs = 2_000;
 const staleProcessPollIntervalMs = 50;
 const forcedDevShutdownTimeoutMs = 3_000;
-const desktopBootstrapTokenEnv = "HONK_DESKTOP_BOOTSTRAP_TOKEN";
 const shutdownSignals = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 type ShutdownSignal = (typeof shutdownSignals)[number];
+
+type PortOwner = {
+  readonly pid: number;
+  readonly command: string;
+};
+
+type PortConflict = {
+  readonly label: string;
+  readonly port: number;
+  readonly owners: readonly PortOwner[];
+};
 
 function hashString(value: string): number {
   let hash = 0;
@@ -47,17 +57,145 @@ function parseOptionalPort(value: string | undefined): number | undefined {
   return parsed;
 }
 
-function createDesktopBootstrapToken(): string {
-  return randomBytes(24).toString("hex");
+function readCommandForPid(pid: number): string {
+  if (process.platform === "win32") {
+    return "";
+  }
+
+  const result = spawnSync("ps", ["-p", String(pid), "-o", "command="], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (result.status !== 0) {
+    return "";
+  }
+  return result.stdout.trim();
+}
+
+function listPortOwners(port: number): readonly PortOwner[] {
+  if (process.platform === "win32") {
+    return [];
+  }
+
+  const result = spawnSync("lsof", ["-nP", `-iTCP:${String(port)}`, "-sTCP:LISTEN"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (result.status !== 0) {
+    return [];
+  }
+
+  const owners = new Map<number, PortOwner>();
+  for (const line of result.stdout.split("\n").slice(1)) {
+    const columns = line.trim().split(/\s+/);
+    const pidText = columns[1];
+    if (pidText === undefined) {
+      continue;
+    }
+    const pid = Number.parseInt(pidText, 10);
+    if (!Number.isInteger(pid) || owners.has(pid)) {
+      continue;
+    }
+    const command = readCommandForPid(pid) || columns[0] || `PID ${String(pid)}`;
+    owners.set(pid, { pid, command });
+  }
+  return [...owners.values()];
+}
+
+function killCommandForOwners(owners: readonly PortOwner[]): string | null {
+  if (owners.length === 0) {
+    return null;
+  }
+  const pids = owners.map((owner) => String(owner.pid));
+  return process.platform === "win32"
+    ? `taskkill /PID ${pids.join(" /PID ")} /T`
+    : `kill ${pids.join(" ")}`;
+}
+
+function formatPortConflict(conflict: PortConflict): readonly string[] {
+  const lines = [`${conflict.label} port ${String(conflict.port)} is already in use.`];
+  if (conflict.owners.length > 0) {
+    lines.push("Owner:");
+    for (const owner of conflict.owners) {
+      lines.push(`  PID ${String(owner.pid)}  ${owner.command}`);
+    }
+    const killCommand = killCommandForOwners(conflict.owners);
+    if (killCommand !== null) {
+      lines.push("To free it:", `  ${killCommand}`);
+    }
+  } else if (process.platform === "win32") {
+    lines.push(
+      "Find the owning PID:",
+      `  netstat -ano | findstr :${String(conflict.port)}`,
+      "Then kill it:",
+      "  taskkill /PID <pid> /T",
+    );
+  } else {
+    lines.push(
+      "Find the owning PID:",
+      `  lsof -nP -iTCP:${String(conflict.port)} -sTCP:LISTEN`,
+      "Then kill it:",
+      "  kill <pid>",
+    );
+  }
+  return lines;
+}
+
+async function portConflict(label: string, port: number): Promise<PortConflict | null> {
+  if (await canListenOnPort(port)) {
+    return null;
+  }
+  return { label, port, owners: listPortOwners(port) };
+}
+
+function printPortConflictAndExit(input: {
+  readonly title: string;
+  readonly conflicts: readonly PortConflict[];
+  readonly retryCommand?: string;
+}): never {
+  const lines = ["", input.title, ""];
+  for (const [index, conflict] of input.conflicts.entries()) {
+    if (index > 0) {
+      lines.push("");
+    }
+    lines.push(...formatPortConflict(conflict));
+  }
+  if (input.retryCommand !== undefined) {
+    lines.push("", "Then rerun:", `  ${input.retryCommand}`);
+  }
+  console.error(lines.join("\n"));
+  process.exit(1);
+}
+
+function printDevPlan(input: {
+  readonly source: string;
+  readonly sidecarPort: number;
+  readonly rendererUrl: string;
+  readonly honkHome: string;
+  readonly bootstrapUrl: string;
+}): void {
+  const lines = [
+    "",
+    "Honk dev",
+    `  Ports:    Sidecar ${String(input.sidecarPort)} · Desktop ${input.rendererUrl}`,
+    `  Home:     ${input.rendererUrl} → opencode sidecar`,
+    `  Data:     ${input.honkHome}`,
+    `  Source:   ${input.source}`,
+    "",
+    "Browser attach (token = opencode sidecar password):",
+    `  ${input.bootstrapUrl}`,
+    "",
+  ];
+  console.log(lines.join("\n"));
 }
 
 function buildBrowserBootstrapUrl(input: {
   readonly baseUrl: string;
-  readonly bootstrapToken: string;
+  readonly token: string;
 }): string {
   const url = new URL("/", input.baseUrl);
   url.searchParams.delete("token");
-  url.hash = new URLSearchParams([["token", input.bootstrapToken]]).toString();
+  url.hash = new URLSearchParams([["token", input.token]]).toString();
   return url.toString();
 }
 
@@ -111,25 +249,25 @@ async function canListenOnPort(port: number): Promise<boolean> {
 
 async function findFirstAvailableOffset(input: {
   readonly startOffset: number;
-  readonly hasExplicitBackendPort: boolean;
   readonly hasExplicitRendererUrl: boolean;
+  readonly hasExplicitSidecarPort: boolean;
 }): Promise<number> {
   for (let offset = input.startOffset; ; offset += 1) {
-    const backendPort = baseServerPort + offset;
     const rendererPort = baseRendererPort + offset;
-    if (backendPort > maxPort || rendererPort > maxPort) {
+    const sidecarPort = baseSidecarPort + offset;
+    if (rendererPort > maxPort || sidecarPort > maxPort) {
       break;
     }
 
-    const backendAvailable = input.hasExplicitBackendPort || (await canListenOnPort(backendPort));
     const rendererAvailable = input.hasExplicitRendererUrl || (await canListenOnPort(rendererPort));
-    if (backendAvailable && rendererAvailable) {
+    const sidecarAvailable = input.hasExplicitSidecarPort || (await canListenOnPort(sidecarPort));
+    if (rendererAvailable && sidecarAvailable) {
       return offset;
     }
   }
 
   throw new Error(
-    `No available desktop dev ports found from offset ${input.startOffset}. Tried backend=${baseServerPort}+n renderer=${baseRendererPort}+n up to port ${maxPort}.`,
+    `No available desktop dev ports found from offset ${input.startOffset}. Tried renderer=${baseRendererPort}+n and sidecar=${baseSidecarPort}+n up to port ${maxPort}.`,
   );
 }
 
@@ -146,18 +284,19 @@ function resolveDevUserDataDir() {
 }
 
 async function createDesktopDevEnv(baseEnv: NodeJS.ProcessEnv): Promise<NodeJS.ProcessEnv> {
-  const explicitBackendPort = parseOptionalPort(baseEnv.HONK_PORT);
   const explicitRendererUrl = baseEnv.VITE_DEV_SERVER_URL?.trim() || undefined;
+  const explicitSidecarPort = parseOptionalPort(baseEnv.HONK_OPENCODE_PORT);
   const { offset, source } = resolveOffset(baseEnv);
   const selectedOffset = await findFirstAvailableOffset({
     startOffset: offset,
-    hasExplicitBackendPort: explicitBackendPort !== undefined,
     hasExplicitRendererUrl: explicitRendererUrl !== undefined,
+    hasExplicitSidecarPort: explicitSidecarPort !== undefined,
   });
-  const backendPort = explicitBackendPort ?? baseServerPort + selectedOffset;
   const rendererPort = parseOptionalPort(baseEnv.PORT) ?? baseRendererPort + selectedOffset;
+  const sidecarPort = explicitSidecarPort ?? baseSidecarPort + selectedOffset;
+  const sidecarOrigin = `http://${desktopDevLoopbackHost}:${sidecarPort}`;
+  const sidecarPassword = baseEnv.HONK_OPENCODE_PASSWORD?.trim() || randomBytes(24).toString("hex");
   const honkHome = resolve(baseEnv.HONK_HOME?.trim() || join(homedir(), ".honk"));
-  const bootstrapToken = baseEnv[desktopBootstrapTokenEnv]?.trim() || createDesktopBootstrapToken();
   const rendererUrl = explicitRendererUrl ?? `http://${desktopDevLoopbackHost}:${rendererPort}`;
 
   const env: NodeJS.ProcessEnv = {
@@ -166,30 +305,55 @@ async function createDesktopDevEnv(baseEnv: NodeJS.ProcessEnv): Promise<NodeJS.P
     HOST: desktopDevLoopbackHost,
     PORT: String(rendererPort),
     VITE_DEV_SERVER_URL: rendererUrl,
+    VITE_HTTP_URL: sidecarOrigin,
     HONK_HOME: honkHome,
-    HONK_PORT: String(backendPort),
-    [desktopBootstrapTokenEnv]: bootstrapToken,
+    HONK_OPENCODE_PORT: String(sidecarPort),
+    HONK_OPENCODE_PASSWORD: sidecarPassword,
   };
 
   delete env.ELECTRON_RUN_AS_NODE;
-  delete env.VITE_HTTP_URL;
   delete env.VITE_WS_URL;
   delete env.HONK_MODE;
   delete env.HONK_NO_BROWSER;
   delete env.HONK_HOST;
   delete env.HONK_DESKTOP_WS_URL;
 
-  const selectionSuffix =
-    selectedOffset === offset ? "" : ` selectedOffset=${String(selectedOffset)}`;
-  console.log(
-    `[desktop-dev] source=${source}${selectionSuffix} backendPort=${env.HONK_PORT} rendererUrl=${env.VITE_DEV_SERVER_URL} baseDir=${env.HONK_HOME}`,
-  );
-  console.log(
-    `[desktop-dev] Browser bootstrap URL: ${buildBrowserBootstrapUrl({
-      baseUrl: rendererUrl,
-      bootstrapToken,
-    })}`,
-  );
+  if (selectedOffset !== offset) {
+    const attemptedConflicts = (
+      await Promise.all([
+        explicitRendererUrl === undefined
+          ? portConflict("Desktop renderer", baseRendererPort + offset)
+          : Promise.resolve(null),
+        explicitSidecarPort === undefined
+          ? portConflict("opencode sidecar", baseSidecarPort + offset)
+          : Promise.resolve(null),
+      ])
+    ).filter((conflict): conflict is PortConflict => conflict !== null);
+
+    if (attemptedConflicts.length > 0) {
+      const lines = [
+        "",
+        `Default dev ports for ${source} are busy; using offset ${String(selectedOffset)} instead.`,
+        "",
+      ];
+      for (const [index, conflict] of attemptedConflicts.entries()) {
+        if (index > 0) {
+          lines.push("");
+        }
+        lines.push(...formatPortConflict(conflict));
+      }
+      console.warn(lines.join("\n"));
+    }
+  }
+
+  printDevPlan({
+    source:
+      selectedOffset === offset ? source : `${source}; selected offset ${String(selectedOffset)}`,
+    sidecarPort,
+    rendererUrl,
+    honkHome,
+    bootstrapUrl: buildBrowserBootstrapUrl({ baseUrl: rendererUrl, token: sidecarPassword }),
+  });
 
   return env;
 }
@@ -281,12 +445,6 @@ function signalProcessTree(pid: number, signal: NodeJS.Signals): void {
     return;
   }
   killChildTreeByPid(pid, signal);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolveSleep) => {
-    setTimeout(resolveSleep, ms);
-  });
 }
 
 async function waitForPidsToExit(pids: readonly number[], timeoutMs: number): Promise<void> {
@@ -397,21 +555,16 @@ process.once("exit", removeSupervisorPid);
 
 const childEnv = await createDesktopDevEnv(process.env);
 
-const child = spawn(
-  "pnpm",
-  ["exec", "electron-vite", "dev", "--", `--honk-dev-root=${desktopDir}`],
-  {
-    cwd: desktopDir,
-    env: childEnv,
-    stdio: "inherit",
-    shell: process.platform === "win32",
-  },
-);
-
-let childExited = false;
+let electronChild: ChildProcess | null = null;
+let electronExited = false;
 let shuttingDown = false;
 let shutdownSignal: ShutdownSignal | undefined;
 let forcedShutdownTimer: ReturnType<typeof setTimeout> | undefined;
+/** Exit code or signal to use once Electron settles. */
+let pendingExit:
+  | { readonly kind: "code"; readonly code: number }
+  | { readonly kind: "signal"; readonly signal: NodeJS.Signals }
+  | undefined;
 
 function exitCodeForSignal(signal: ShutdownSignal): number {
   switch (signal) {
@@ -424,10 +577,57 @@ function exitCodeForSignal(signal: ShutdownSignal): number {
   }
 }
 
-function forceExit(signal: ShutdownSignal): never {
-  if (child.pid !== undefined) {
-    signalProcessTree(child.pid, "SIGKILL");
+function signalManagedChild(child: ChildProcess | null, signal: NodeJS.Signals): void {
+  if (child?.pid !== undefined) {
+    signalProcessTree(child.pid, signal);
   }
+}
+
+function bothChildrenSettled(): boolean {
+  return electronChild === null || electronExited;
+}
+
+function clearForcedShutdownTimer(): void {
+  if (forcedShutdownTimer !== undefined) {
+    clearTimeout(forcedShutdownTimer);
+    forcedShutdownTimer = undefined;
+  }
+}
+
+function scheduleForcedKill(): void {
+  clearForcedShutdownTimer();
+  forcedShutdownTimer = setTimeout(() => {
+    signalManagedChild(electronChild, "SIGKILL");
+    if (shutdownSignal !== undefined) {
+      process.exit(exitCodeForSignal(shutdownSignal));
+    }
+    if (pendingExit?.kind === "signal") {
+      process.kill(process.pid, pendingExit.signal);
+      return;
+    }
+    process.exit(pendingExit?.kind === "code" ? pendingExit.code : 1);
+  }, forcedDevShutdownTimeoutMs);
+  forcedShutdownTimer.unref();
+}
+
+function finalizeExit(): void {
+  if (!bothChildrenSettled()) {
+    return;
+  }
+  clearForcedShutdownTimer();
+  if (shutdownSignal !== undefined) {
+    process.exit(exitCodeForSignal(shutdownSignal));
+    return;
+  }
+  if (pendingExit?.kind === "signal") {
+    process.kill(process.pid, pendingExit.signal);
+    return;
+  }
+  process.exit(pendingExit?.kind === "code" ? pendingExit.code : 1);
+}
+
+function forceExit(signal: ShutdownSignal): never {
+  signalManagedChild(electronChild, "SIGKILL");
   process.exit(exitCodeForSignal(signal));
 }
 
@@ -444,18 +644,27 @@ function shutdownFromSignal(signal: ShutdownSignal): void {
     });
   }
 
-  if (child.pid !== undefined) {
-    signalProcessTree(child.pid, signal);
-  }
+  signalManagedChild(electronChild, signal);
 
-  if (childExited) {
+  if (bothChildrenSettled()) {
     process.exit(exitCodeForSignal(signal));
   }
+  scheduleForcedKill();
+}
 
-  forcedShutdownTimer = setTimeout(() => {
-    forceExit(signal);
-  }, forcedDevShutdownTimeoutMs);
-  forcedShutdownTimer.unref();
+function beginPeerShutdown(exit: NonNullable<typeof pendingExit>): void {
+  if (shuttingDown && shutdownSignal !== undefined) {
+    finalizeExit();
+    return;
+  }
+  shuttingDown = true;
+  pendingExit = exit;
+  signalManagedChild(electronChild, "SIGTERM");
+  if (bothChildrenSettled()) {
+    finalizeExit();
+    return;
+  }
+  scheduleForcedKill();
 }
 
 for (const signal of shutdownSignals) {
@@ -464,21 +673,26 @@ for (const signal of shutdownSignals) {
   });
 }
 
-child.once("exit", (code, signal) => {
-  childExited = true;
-  if (forcedShutdownTimer !== undefined) {
-    clearTimeout(forcedShutdownTimer);
-    forcedShutdownTimer = undefined;
-  }
+electronChild = spawn(
+  "pnpm",
+  ["exec", "electron-vite", "dev", "--", `--honk-dev-root=${desktopDir}`],
+  {
+    cwd: desktopDir,
+    env: childEnv,
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  },
+);
 
-  if (shutdownSignal !== undefined) {
-    process.exit(exitCodeForSignal(shutdownSignal));
+electronChild.once("exit", (code, signal) => {
+  electronExited = true;
+  if (shuttingDown) {
+    finalizeExit();
     return;
   }
-
-  if (signal) {
-    process.kill(process.pid, signal);
-    return;
-  }
-  process.exit(code ?? 1);
+  const exit =
+    signal !== null
+      ? ({ kind: "signal", signal } as const)
+      : ({ kind: "code", code: code ?? 1 } as const);
+  beginPeerShutdown(exit);
 });

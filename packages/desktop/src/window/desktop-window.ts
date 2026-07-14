@@ -18,11 +18,11 @@ import { DESKTOP_SCHEME } from "../electron/electron-protocol";
 import * as IpcChannels from "../ipc/channels";
 
 const TITLEBAR_HEIGHT = 40;
-const MACOS_TITLEBAR_BAND_HEIGHT_PX = 34;
-const MACOS_TRAFFIC_LIGHT_CLUSTER_HEIGHT_PX = 16;
-/** Keep in sync with MACOS_TRAFFIC_LIGHTS.y in packages/app/src/lib/desktop-chrome.ts */
-const MACOS_TRAFFIC_LIGHT_Y_PX =
-  (MACOS_TITLEBAR_BAND_HEIGHT_PX - MACOS_TRAFFIC_LIGHT_CLUSTER_HEIGHT_PX) / 2;
+// opencode v2 desktop's macOS window-button seat, ported verbatim (their windows.ts ships
+// trafficLightPosition {x:14, y:14} for the same 36px titlebar) — the lights ride low with
+// the bottom-seated tab band instead of centering in the full bar.
+const MACOS_TRAFFIC_LIGHT_X_PX = 14;
+const MACOS_TRAFFIC_LIGHT_Y_PX = 14;
 const TITLEBAR_COLOR = "#01000000"; // #00000000 does not work correctly on Linux
 const TITLEBAR_LIGHT_SYMBOL_COLOR = "#1f2937";
 const TITLEBAR_DARK_SYMBOL_COLOR = "#f8fafc";
@@ -84,6 +84,16 @@ function resolveDesktopDevServerUrl(
     onNone: () => Effect.fail(new DesktopWindowDevServerUrlMissingError()),
     onSome: (url) => Effect.succeed(url.href),
   });
+}
+
+function resolveMainWindowAppUrl(
+  environment: DesktopEnvironment.DesktopEnvironmentShape,
+): Effect.Effect<URL, DesktopWindowDevServerUrlMissingError> {
+  if (environment.isDevelopment) {
+    return resolveDesktopDevServerUrl(environment).pipe(Effect.map((href) => new URL(href)));
+  }
+
+  return Effect.succeed(new URL(`${DESKTOP_RENDERER_ORIGIN}/index.html`));
 }
 
 function shouldLogRendererConsoleMessage(
@@ -155,7 +165,7 @@ function getInitialWindowGlassOptions(
 }
 
 function getMacOSTrafficLightPosition(): { x: number; y: number } {
-  return { x: 14, y: MACOS_TRAFFIC_LIGHT_Y_PX };
+  return { x: MACOS_TRAFFIC_LIGHT_X_PX, y: MACOS_TRAFFIC_LIGHT_Y_PX };
 }
 
 function syncMacOSTrafficLightPosition(window: Electron.BrowserWindow): void {
@@ -296,9 +306,7 @@ const make = Effect.gen(function* () {
     const iconPaths = yield* assets.iconPaths;
     const iconOption = getIconOption(iconPaths);
     const shouldUseDarkColors = yield* electronTheme.shouldUseDarkColors;
-    const appUrl = environment.isDevelopment
-      ? new URL(yield* resolveDesktopDevServerUrl(environment))
-      : new URL(`${DESKTOP_RENDERER_ORIGIN}/index.html`);
+    const appUrl = yield* resolveMainWindowAppUrl(environment);
     const window = yield* electronWindow.create({
       width: DEFAULT_WINDOW_WIDTH,
       height: DEFAULT_WINDOW_HEIGHT,

@@ -19,7 +19,7 @@ import * as Logger from "effect/Logger";
 import * as Option from "effect/Option";
 import * as References from "effect/References";
 import * as Tracer from "effect/Tracer";
-import { OtlpSerialization, OtlpTracer } from "effect/unstable/observability";
+import { OtlpLogger, OtlpSerialization, OtlpTracer } from "effect/unstable/observability";
 
 import * as DesktopEnvironment from "./desktop-environment";
 
@@ -125,6 +125,20 @@ export const backendOutputLogLayer = Layer.effect(
   ),
 );
 
+// OTEL header convention (`key=value,key2=value2`) — the same format opencode's sidecar
+// parses for OTEL_EXPORTER_OTLP_HEADERS, so one env recipe serves both processes.
+const parseOtlpHeaders = (raw: string): Record<string, string> => {
+  const headers: Record<string, string> = {};
+  for (const entry of raw.split(",")) {
+    const separator = entry.indexOf("=");
+    if (separator < 1) {
+      continue;
+    }
+    headers[entry.slice(0, separator).trim()] = entry.slice(separator + 1).trim();
+  }
+  return headers;
+};
+
 const desktopLoggerLayer = Layer.unwrap(
   Effect.gen(function* () {
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
@@ -137,21 +151,45 @@ const desktopLoggerLayer = Layer.unwrap(
       maxSizePerFile: DESKTOP_LOG_FILE_MAX_BYTES,
     });
 
-    return Layer.mergeAll(
-      Logger.layer(
-        [
-          makeSafeConsolePrettyLogger(),
-          Logger.tracerLogger,
-          makeHonkEffectLogger({
-            defaultService: "desktop",
+    const loggers: Logger.Logger<unknown, unknown>[] = [
+      makeSafeConsolePrettyLogger(),
+      Logger.tracerLogger,
+      makeHonkEffectLogger({
+        defaultService: "desktop",
+      }),
+    ];
+
+    // Optional OTLP log export (HONK_OTLP_LOGS_URL, e.g. PostHog Logs) ALONGSIDE the local
+    // file/console loggers — honk's own logs only; the opencode sidecar has its own
+    // env-gated exporter. Same resource identity as the OTLP tracer delegate below.
+    if (Option.isSome(environment.otlpLogsUrl)) {
+      loggers.push(
+        yield* OtlpLogger.make({
+          url: environment.otlpLogsUrl.value,
+          headers: Option.match(environment.otlpLogsHeaders, {
+            onNone: () => undefined,
+            onSome: parseOtlpHeaders,
           }),
-        ],
-        { mergeWithExisting: false },
-      ),
+          exportInterval: `${environment.otlpExportIntervalMs} millis`,
+          resource: {
+            serviceName: "honk-desktop",
+            attributes: {
+              "service.runtime": "desktop",
+              "service.mode": environment.isDevelopment ? "development" : "packaged",
+              "honk.run_id": desktopProcessMetadata.runId,
+              "honk.process_role": desktopProcessMetadata.processRole,
+            },
+          },
+        }),
+      );
+    }
+
+    return Layer.mergeAll(
+      Logger.layer(loggers, { mergeWithExisting: false }),
       Layer.succeed(References.MinimumLogLevel, "Info"),
     );
   }),
-);
+).pipe(Layer.provideMerge(OtlpSerialization.layerJson));
 
 const tracerLayer = Layer.unwrap(
   Effect.gen(function* () {

@@ -1,0 +1,124 @@
+// The badge — a small labelled chip (a count, a short status word, a "NEW"). A pure StyleX display
+// leaf like StatusDot/Text/Icon: not interactive, so no Base UI, only the token bus. A badge that
+// needs to be clickable is a Button, not a Badge.
+//
+// TONE mirrors the button's neutral/accent split plus the status FILLS: the pale status background
+// (*-bg) under the status foreground (*-fg) — the same chip language the whole surface speaks. NOTE
+// there is no `info` tone: the status family carries ok/warn/err with a full bg+fg+border triplet
+// but info only has a foreground (tokens.stylex.ts) — a badge needs a background, so rather than
+// invent an unsourced info-bg, info is left out until the real opencode blue ramp is ported. (The
+// StatusDot has an info tone because a dot only needs the foreground.)
+
+import * as stylex from "@stylexjs/stylex";
+import * as React from "react";
+
+import {
+  colorVars,
+  controlVars,
+  fontVars,
+  radiusVars,
+} from "./tokens.stylex";
+
+type BadgeTone = "neutral" | "accent" | "ok" | "warn" | "err" | "outline";
+type BadgeSize = "sm" | "md";
+
+// Badge anatomy — named intrinsics (the tooltip/button precedent), smaller than the interactive
+// control scale: a chip is not a control. minWidth = height so a single glyph reads as a coin.
+const BADGE_H_SM = "16px";
+const BADGE_H_MD = "20px";
+const BADGE_PAD_SM = "4px";
+const BADGE_PAD_MD = "6px";
+// The outline tone's hairline, as an inset shadow (no layout shift) — the button ring idiom.
+const BADGE_RING = `inset 0 0 0 1px ${colorVars["--honk-color-border-base"]}`;
+
+const styles = stylex.create({
+  root: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    boxSizing: "border-box",
+    gap: controlVars["--honk-control-gap"],
+    borderRadius: radiusVars["--honk-radius-control"],
+    fontFamily: fontVars["--honk-font-family-ui"],
+    fontWeight: fontVars["--honk-font-weight-medium"],
+    lineHeight: 1,
+    whiteSpace: "nowrap",
+  },
+  sm: {
+    height: BADGE_H_SM,
+    minWidth: BADGE_H_SM,
+    paddingInline: BADGE_PAD_SM,
+    fontSize: fontVars["--honk-font-size-micro"],
+  },
+  md: {
+    height: BADGE_H_MD,
+    minWidth: BADGE_H_MD,
+    paddingInline: BADGE_PAD_MD,
+    fontSize: fontVars["--honk-font-size-caption"],
+  },
+  neutral: {
+    backgroundColor: colorVars["--honk-color-layer-01"],
+    color: colorVars["--honk-color-text-muted"],
+  },
+  accent: {
+    backgroundColor: colorVars["--honk-color-accent-fill"],
+    color: colorVars["--honk-color-on-accent"],
+  },
+  ok: {
+    backgroundColor: colorVars["--honk-color-ok-bg"],
+    color: colorVars["--honk-color-ok-fg"],
+  },
+  warn: {
+    backgroundColor: colorVars["--honk-color-warn-bg"],
+    color: colorVars["--honk-color-warn-fg"],
+  },
+  err: {
+    backgroundColor: colorVars["--honk-color-err-bg"],
+    color: colorVars["--honk-color-err-fg"],
+  },
+  outline: {
+    backgroundColor: colorVars["--honk-color-bg-base"],
+    color: colorVars["--honk-color-text-primary"],
+    boxShadow: BADGE_RING,
+  },
+});
+
+const sizeStyles: Record<BadgeSize, stylex.StyleXStyles> = {
+  sm: styles.sm,
+  md: styles.md,
+};
+const toneStyles: Record<BadgeTone, stylex.StyleXStyles> = {
+  neutral: styles.neutral,
+  accent: styles.accent,
+  ok: styles.ok,
+  warn: styles.warn,
+  err: styles.err,
+  outline: styles.outline,
+};
+
+interface BadgeProps {
+  tone?: BadgeTone;
+  size?: BadgeSize;
+  children: React.ReactNode;
+  xstyle?: stylex.StyleXStyles;
+}
+
+function Badge({
+  tone = "neutral",
+  size = "md",
+  children,
+  xstyle,
+}: BadgeProps): React.ReactElement {
+  return (
+    <span
+      data-slot="badge"
+      {...stylex.props(styles.root, sizeStyles[size], toneStyles[tone], xstyle)}
+    >
+      {children}
+    </span>
+  );
+}
+
+export { Badge };
+export type { BadgeProps, BadgeSize, BadgeTone };

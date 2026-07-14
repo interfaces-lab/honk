@@ -1,35 +1,68 @@
-import { Effect } from "effect";
+import { Cause, Effect } from "effect";
 
-type Fields = Record<string, unknown>;
+import { coalesceLogFields, formatLogMessage } from "./logging";
 
-export interface Handle {
-  readonly debug: (msg?: unknown, extra?: Fields) => Effect.Effect<void>;
-  readonly info: (msg?: unknown, extra?: Fields) => Effect.Effect<void>;
-  readonly warn: (msg?: unknown, extra?: Fields) => Effect.Effect<void>;
-  readonly error: (msg?: unknown, extra?: Fields) => Effect.Effect<void>;
-  readonly with: (extra: Fields) => Handle;
+export interface CreateOptions {
+  readonly service: string;
 }
 
-const clean = (input?: Fields): Fields =>
+export type LogFields = Record<string, unknown>;
+
+export type LogExtra = LogFields | Cause.Cause<unknown> | Error;
+
+export interface Handle {
+  readonly debug: (message: string, extra?: LogExtra) => Effect.Effect<void>;
+  readonly info: (message: string, extra?: LogExtra) => Effect.Effect<void>;
+  readonly warn: (message: string, extra?: LogExtra) => Effect.Effect<void>;
+  readonly error: (message: string, extra?: LogExtra) => Effect.Effect<void>;
+  readonly with: (extra: LogFields) => Handle;
+}
+
+const clean = (input: LogFields): LogFields =>
   Object.fromEntries(
-    Object.entries(input ?? {}).filter((entry) => entry[1] !== undefined && entry[1] !== null),
+    Object.entries(input).filter((entry) => entry[1] !== undefined && entry[1] !== null),
   );
 
-const call = (
-  run: (msg?: unknown) => Effect.Effect<void>,
-  base: Fields,
-  msg?: unknown,
-  extra?: Fields,
-) => {
-  const ann = clean({ ...base, ...extra });
-  const fx = run(msg);
-  return Object.keys(ann).length > 0 ? Effect.annotateLogs(fx, ann) : fx;
+// Causes and Errors ride Effect's log-argument cause channel: `Effect.log*`
+// extracts a Cause argument into the log entry's `cause`, where each logger
+// applies its own rendering (the honk NDJSON sink pretty-prints it, console
+// pretty renders it natively). Plain records become log annotations instead.
+const splitExtra = (
+  extra?: LogExtra,
+): { readonly fields?: LogFields; readonly cause?: Cause.Cause<unknown> } => {
+  if (extra === undefined) {
+    return {};
+  }
+  if (Cause.isCause(extra)) {
+    return { cause: extra };
+  }
+  if (extra instanceof Error) {
+    return { cause: Cause.fail(extra) };
+  }
+  return { fields: extra };
 };
 
-export const create = (base: Fields = {}): Handle => ({
-  debug: (msg, extra) => call((item) => Effect.logDebug(item), base, msg, extra),
-  info: (msg, extra) => call((item) => Effect.logInfo(item), base, msg, extra),
-  warn: (msg, extra) => call((item) => Effect.logWarning(item), base, msg, extra),
-  error: (msg, extra) => call((item) => Effect.logError(item), base, msg, extra),
-  with: (extra) => create({ ...base, ...extra }),
-});
+const makeHandle = (base: LogFields): Handle => {
+  const call = (
+    run: (...args: ReadonlyArray<unknown>) => Effect.Effect<void>,
+    message: string,
+    extra?: LogExtra,
+  ) => {
+    const { fields: extraFields, cause } = splitExtra(extra);
+    const fields = clean(coalesceLogFields(base, extraFields));
+    const event = formatLogMessage(message);
+    const fx = cause === undefined ? run(event) : run(event, cause);
+    return Object.keys(fields).length > 0 ? Effect.annotateLogs(fx, fields) : fx;
+  };
+
+  return {
+    debug: (message, extra) => call(Effect.logDebug, message, extra),
+    info: (message, extra) => call(Effect.logInfo, message, extra),
+    warn: (message, extra) => call(Effect.logWarning, message, extra),
+    error: (message, extra) => call(Effect.logError, message, extra),
+    with: (extra) => makeHandle(clean(coalesceLogFields(base, extra))),
+  };
+};
+
+export const create = (options: CreateOptions): Handle =>
+  makeHandle({ service: options.service });

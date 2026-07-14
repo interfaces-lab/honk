@@ -1,0 +1,14 @@
+/* The bundled UI face (opencode-shell port, 2026-07-11). Inter carries the application chrome;
+   code and evidence use the platform monospace stack instead of a bundled JetBrains face.
+   Consumers import this once at the app root (app-next src/index.css); the families are then
+   referenced ONLY via the font tokens (--honk-font-family-ui / -mono, tokens.stylex.ts) —
+   no component names a family directly. */
+
+@font-face {
+  font-family: Inter;
+  /* Variable file — one face carries the whole 100-900 axis (opencode ships the same file). */
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("./assets/fonts/Inter.ttf") format("truetype-variations");
+}

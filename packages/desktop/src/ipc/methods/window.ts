@@ -6,7 +6,6 @@ import {
   ContextMenuItemSchema,
   DesktopActiveWorkStateSchema,
   DesktopAppBrandingSchema,
-  DesktopEnvironmentBootstrapSchema,
   DesktopThemeSchema,
   DesktopWindowChromeStateSchema,
   PickFolderOptionsSchema,
@@ -17,11 +16,8 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import * as Electron from "electron";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import * as Net from "node:net";
 
-import * as DesktopCoreManager from "../../backend/desktop-core-manager";
 import * as DesktopBrowserAutomation from "../../browser/browser-automation";
 import * as DesktopActiveWork from "../../app/desktop-active-work";
 import * as DesktopEnvironment from "../../app/desktop-environment";
@@ -34,16 +30,6 @@ import * as ElectronTheme from "../../electron/electron-theme";
 import * as ElectronWindow from "../../electron/electron-window";
 import * as IpcChannels from "../channels";
 import { makeIpcMethod, makeSyncIpcMethod } from "../desktop-ipc";
-
-function buildBrowserBootstrapUrl(input: {
-  readonly baseUrl: string;
-  readonly bootstrapToken: string;
-}): string {
-  const url = new URL("/", input.baseUrl);
-  url.searchParams.delete("token");
-  url.hash = new URLSearchParams([["token", input.bootstrapToken]]).toString();
-  return url.toString();
-}
 
 const ContextMenuPosition = Schema.Struct({
   x: Schema.Number,
@@ -171,39 +157,6 @@ export const unregisterBrowserAutomationHost = makeIpcMethod({
   handler: Effect.fn("desktop.ipc.window.unregisterBrowserAutomationHost")(function* (input) {
     const browserAutomation = yield* DesktopBrowserAutomation.DesktopBrowserAutomation;
     yield* browserAutomation.unregister(input);
-  }),
-});
-
-export const getLocalEnvironmentBootstrap = makeSyncIpcMethod({
-  channel: IpcChannels.GET_LOCAL_ENVIRONMENT_BOOTSTRAP_CHANNEL,
-  result: Schema.NullOr(DesktopEnvironmentBootstrapSchema),
-  trace: false,
-  handler: Effect.fnUntraced(function* () {
-    const coreManager = yield* DesktopCoreManager.DesktopCoreManager;
-    const environment = yield* DesktopEnvironment.DesktopEnvironment;
-    const config = yield* coreManager.currentConfig;
-    const snapshot = yield* coreManager.snapshot;
-    return Option.match(config, {
-      onNone: () => null,
-      onSome: ({ discoveryPath, home }) => {
-        const origin = Option.getOrUndefined(snapshot.discoveredOrigin);
-        if (!origin) {
-          return null;
-        }
-        const browserBaseUrl = Option.getOrElse(environment.devServerUrl, () => new URL(origin));
-        const bootstrapToken = readFileSync(join(home, "core", "core-app-secret"), "utf8").trim();
-        return {
-          label: "Core",
-          httpBaseUrl: origin,
-          browserBootstrapUrl: buildBrowserBootstrapUrl({
-            baseUrl: browserBaseUrl.href,
-            bootstrapToken,
-          }),
-          bootstrapToken,
-          runId: discoveryPath,
-        };
-      },
-    });
   }),
 });
 

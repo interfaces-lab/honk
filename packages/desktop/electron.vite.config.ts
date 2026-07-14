@@ -1,10 +1,7 @@
-import babel from "@rolldown/plugin-babel";
 import stylex from "@stylexjs/unplugin";
 import tailwindcss from "@tailwindcss/vite";
-import { tanstackRouter } from "@tanstack/router-plugin/vite";
-import react, { reactCompilerPreset } from "@vitejs/plugin-react";
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
-import { cp, mkdir, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,21 +10,14 @@ import pkg from "./package.json" with { type: "json" };
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(currentDir, "../..");
 const appDir = resolve(repoRoot, "packages/app");
-const appSrcDir = resolve(appDir, "src");
-const rendererRoot = resolve(currentDir, "src/renderer");
 const desktopOutDir = resolve(currentDir, "out");
-const coreDistDir = resolve(repoRoot, "packages/core/dist");
 
 const port = Number(process.env.PORT ?? 5733);
 const host = process.env.HOST?.trim() || "localhost";
 const configuredHttpUrl = process.env.VITE_HTTP_URL?.trim();
-const configuredWsUrl = process.env.VITE_WS_URL?.trim();
-const inferredBackendPort = process.env.HONK_PORT?.trim();
+const sidecarPort = process.env.HONK_OPENCODE_PORT?.trim();
 const resolvedHttpUrl =
-  configuredHttpUrl ??
-  (inferredBackendPort ? `http://127.0.0.1:${inferredBackendPort}` : undefined);
-const resolvedWsUrl =
-  configuredWsUrl ?? (inferredBackendPort ? `ws://127.0.0.1:${inferredBackendPort}` : undefined);
+  configuredHttpUrl ?? (sidecarPort ? `http://127.0.0.1:${sidecarPort}` : undefined);
 const sourcemapEnv = process.env.HONK_WEB_SOURCEMAP?.trim().toLowerCase();
 
 const buildSourcemap =
@@ -37,64 +27,15 @@ const buildSourcemap =
       ? "hidden"
       : false;
 
-function shouldCopyDesktopCoreFile(source: string): boolean {
-  return !source.endsWith(".map");
-}
-
-function resolveDevProxyTarget(wsUrl: string | undefined): string | undefined {
-  if (!wsUrl) {
-    return undefined;
-  }
-
-  try {
-    const url = new URL(wsUrl);
-    if (url.protocol === "ws:") {
-      url.protocol = "http:";
-    } else if (url.protocol === "wss:") {
-      url.protocol = "https:";
-    }
-    url.pathname = "";
-    url.search = "";
-    url.hash = "";
-    return url.toString();
-  } catch {
-    return undefined;
-  }
-}
-
-const devProxyTarget = resolveDevProxyTarget(resolvedWsUrl);
-const reactCompilerBabelPlugin = await babel({
-  exclude: ["**/node_modules/**"],
-  parserOpts: { plugins: ["typescript", "jsx"] },
-  presets: [reactCompilerPreset()],
-});
-
 export default defineConfig({
   main: {
-    plugins: [
-      {
-        name: "honk:copy-core-dist",
-        apply: "build",
-        async writeBundle() {
-          const targetDir = resolve(desktopOutDir, "core");
-          await rm(targetDir, { recursive: true, force: true });
-          await mkdir(targetDir, { recursive: true });
-          await cp(coreDistDir, targetDir, {
-            recursive: true,
-            filter: shouldCopyDesktopCoreFile,
-          });
-        },
-      },
-    ],
     build: {
       outDir: "out/main",
       sourcemap: buildSourcemap,
       emptyOutDir: true,
       externalizeDeps: {
-        // Workspace packages ship raw .ts via their exports maps, so the main
-        // process must bundle them — Node ESM cannot resolve their extensionless
-        // relative imports at runtime.
-        exclude: ["@honk/core", "@honk/shared"],
+        // Workspace packages ship raw TypeScript, so bundle them into Electron main.
+        exclude: ["@honk/shared"],
         include: ["sqlite3"],
       },
       lib: {
@@ -130,40 +71,31 @@ export default defineConfig({
     },
   },
   renderer: {
-    root: rendererRoot,
-    publicDir: resolve(appDir, "public"),
+    root: appDir,
     plugins: [
-      tanstackRouter({
-        target: "react",
-        routesDirectory: resolve(appSrcDir, "routes"),
-        generatedRouteTree: resolve(appSrcDir, "routeTree.gen.ts"),
+      stylex.vite({
+        useCSSLayers: true,
+        lightningcssOptions: {
+          targets: {
+            chrome: 123 << 16,
+            edge: 123 << 16,
+            firefox: 120 << 16,
+            safari: (17 << 16) | (5 << 8),
+          },
+        },
       }),
-      stylex.vite({ useCSSLayers: true }),
       react(),
-      reactCompilerBabelPlugin,
       tailwindcss(),
     ],
     optimizeDeps: {
-      exclude: ["@honk/honkkit"],
-      include: [
-        "@pierre/diffs",
-        "@pierre/diffs/react",
-        "@pierre/diffs/worker/worker.js",
-        "monaco-editor",
-      ],
+      exclude: ["@honk/ui"],
     },
     define: {
       "import.meta.env.VITE_HTTP_URL": JSON.stringify(resolvedHttpUrl ?? ""),
-      "import.meta.env.VITE_WS_URL": JSON.stringify(resolvedWsUrl ?? ""),
       "import.meta.env.APP_VERSION": JSON.stringify(pkg.version),
     },
     resolve: {
-      alias: {
-        "@xterm/addon-fit": resolve(appDir, "node_modules/@xterm/addon-fit"),
-        "@xterm/xterm/css/xterm.css": resolve(appDir, "node_modules/@xterm/xterm/css/xterm.css"),
-        "@xterm/xterm": resolve(appDir, "node_modules/@xterm/xterm"),
-        "~": appSrcDir,
-      },
+      extensions: [".tsx", ".ts", ".mts", ".jsx", ".js", ".mjs", ".json"],
     },
     server: {
       host,
@@ -172,24 +104,6 @@ export default defineConfig({
       fs: {
         allow: [repoRoot],
       },
-      ...(devProxyTarget
-        ? {
-            proxy: {
-              "/.well-known": {
-                target: devProxyTarget,
-                changeOrigin: true,
-              },
-              "/api": {
-                target: devProxyTarget,
-                changeOrigin: true,
-              },
-              "/attachments": {
-                target: devProxyTarget,
-                changeOrigin: true,
-              },
-            },
-          }
-        : {}),
       hmr: {
         protocol: "ws",
         host,

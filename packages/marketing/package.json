@@ -8,7 +8,7 @@
     "prebuild": "node ../honkkit/scripts/build-registry.mjs",
     "build": "vite build",
     "preview": "vite preview --port 5744",
-    "typecheck": "node ../../scripts/tsc-rc.mjs --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@honk/honkkit": "workspace:*",

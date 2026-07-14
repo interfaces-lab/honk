@@ -37,10 +37,14 @@ export const DesktopConfig = Config.all({
     Config.orElse(() => Config.url("ELECTRON_RENDERER_URL")),
     Config.option,
   ),
-  configuredBackendPort: Config.port("HONK_PORT").pipe(Config.option),
   commitHashOverride: trimmedString("HONK_COMMIT_HASH"),
   desktopLanHostOverride: trimmedString("HONK_DESKTOP_LAN_HOST"),
   otlpTracesUrl: trimmedString("HONK_OTLP_TRACES_URL"),
+  // OTLP log export (e.g. PostHog Logs: url https://us.i.posthog.com/i/v1/logs, headers
+  // `Authorization=Bearer <phc_ project token>`). Headers use the OTEL convention
+  // `key=value,key2=value2`. Unset → no log export; local file/console logging is unaffected.
+  otlpLogsUrl: trimmedString("HONK_OTLP_LOGS_URL"),
+  otlpLogsHeaders: trimmedString("HONK_OTLP_LOGS_HEADERS"),
   otlpExportIntervalMs: Config.int("HONK_OTLP_EXPORT_INTERVAL_MS").pipe(Config.withDefault(10_000)),
   appImagePath: trimmedString("APPIMAGE"),
   disableAutoUpdate: optionalBoolean("HONK_DISABLE_AUTO_UPDATE"),

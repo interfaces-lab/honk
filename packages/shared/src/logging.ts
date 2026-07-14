@@ -59,7 +59,9 @@ const IGNORABLE_STDIO_WRITE_ERROR_CODES = new Set([
 ]);
 
 const SECRET_FIELD_PATTERN =
-  /(^|[_\-.])(auth|authorization|bearer|cookie|credential|password|secret|sessiontoken|token|api[_\-.]?key)([_\-.]|$)/i;
+  /(^|[_\-.])(auth|authorization|bearer|cookie|credential|password|secret|sessiontoken|accesstoken|refreshtoken|token|api[_\-.]?key|apikey)([_\-.]|$)/i;
+const RESERVED_LOG_FIELD = "message";
+const DETAIL_FIELD = "detail";
 const REDACTED = "[redacted]";
 const MAX_SANITIZE_DEPTH = 6;
 
@@ -217,6 +219,24 @@ export function configureHonkEvlog(options: ConfigureHonkEvlogOptions): void {
   };
 }
 
+export function formatLogMessage(input: string): string {
+  return input.replace(/\s+/g, " ").trim();
+}
+
+/** Flatten log annotations; rename reserved `message` field to `detail`. */
+export function coalesceLogFields(
+  base: Readonly<Record<string, unknown>>,
+  extra?: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...base, ...extra };
+  const reserved = merged[RESERVED_LOG_FIELD];
+  if (typeof reserved !== "string") {
+    return merged;
+  }
+  const { [RESERVED_LOG_FIELD]: _message, ...rest } = merged;
+  return { ...rest, [DETAIL_FIELD]: reserved };
+}
+
 export function writeHonkLogEvent(input: HonkLogEventInput): void {
   if (!logSink || !logConfig) {
     return;
@@ -272,9 +292,9 @@ export function makeHonkEffectLogger(input: { readonly defaultService: string })
 
     writeHonkLogEvent({
       level: effectLogLevel(options.logLevel),
-      message: text(options.message),
+      message: formatLogMessage(text(options.message)),
       service,
-      fields,
+      fields: coalesceLogFields(fields),
     });
   });
 }

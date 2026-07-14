@@ -77,9 +77,14 @@ export default {
   },
   files: [
     "out/**/*",
-    "out/core/**/*",
     "!out/**/*.map",
     "resources/**/*",
+  ],
+  extraResources: [
+    {
+      from: "node_modules/opencode-ai/bin",
+      to: "opencode/bin",
+    },
   ],
   publish: resolvePublishConfig(),
   mac: {

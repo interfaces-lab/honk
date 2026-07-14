@@ -1,7 +1,4 @@
-import { createServer } from "node:net";
-
 import * as Cause from "effect/Cause";
-import * as Data from "effect/Data";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -16,34 +13,16 @@ import { installDesktopIpcHandlers } from "../ipc/desktop-ipc-handlers";
 import * as DesktopAuxEndpoint from "./desktop-aux-endpoint";
 import * as DesktopAppIdentity from "./desktop-app-identity";
 import * as DesktopApplicationMenu from "../window/desktop-application-menu";
-import * as DesktopCoreManager from "../backend/desktop-core-manager";
+import * as OpencodeSidecar from "../backend/opencode-sidecar";
 import * as DesktopEnvironment from "./desktop-environment";
 import * as DesktopLifecycle from "./desktop-lifecycle";
 import * as DesktopObservability from "./desktop-observability";
 import * as EffectLogger from "@honk/shared/effect-logger";
-import * as DesktopServerExposure from "../backend/desktop-server-exposure";
 import * as DesktopAppSettings from "../settings/desktop-app-settings";
 import * as DesktopShellEnvironment from "../shell/desktop-shell-environment";
 import * as DesktopState from "./desktop-state";
 import * as DesktopUpdates from "../updates/desktop-updates";
 import { createDesktopAuxServer } from "../aux/server";
-
-const DESKTOP_CORE_SHUTDOWN_TIMEOUT = Duration.seconds(5);
-
-class DesktopBackendPortUnavailableError extends Data.TaggedError(
-  "DesktopBackendPortUnavailableError",
-)<{
-  readonly preferredPort?: number;
-  readonly cause: unknown;
-}> {
-  override get message() {
-    const target =
-      this.preferredPort === undefined
-        ? "an ephemeral loopback port"
-        : `preferred loopback port ${this.preferredPort}`;
-    return `No desktop backend port is available for ${target}.`;
-  }
-}
 
 const bootstrapLog = EffectLogger.create({ service: "desktop-bootstrap" });
 const startupLog = EffectLogger.create({ service: "desktop-startup" });
@@ -53,62 +32,6 @@ const optionStringOrUndefined = (value: Option.Option<string>): string | undefin
     onNone: () => undefined,
     onSome: (some) => some,
   });
-
-function reserveLoopbackPort(port: number): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once("error", reject);
-    server.listen(port, "127.0.0.1", () => {
-      const address = server.address();
-      const selectedPort = typeof address === "object" && address ? address.port : port;
-      server.close((error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve(selectedPort);
-      });
-    });
-  });
-}
-
-const reserveBackendPort = (port: number) =>
-  Effect.tryPromise({
-    try: () => reserveLoopbackPort(port),
-    catch: (cause) =>
-      new DesktopBackendPortUnavailableError({
-        ...(port > 0 ? { preferredPort: port } : {}),
-        cause,
-      }),
-  });
-
-const resolveDesktopBackendPort = Effect.fn("resolveDesktopBackendPort")(function* (input: {
-  readonly configuredPort: Option.Option<number>;
-  readonly lastBackendPort: number | undefined;
-}) {
-  const { configuredPort, lastBackendPort } = input;
-  if (Option.isSome(configuredPort)) {
-    return {
-      port: configuredPort.value,
-      source: "configured",
-    } as const;
-  }
-
-  if (lastBackendPort !== undefined) {
-    const port = yield* reserveBackendPort(lastBackendPort).pipe(Effect.option);
-    if (Option.isSome(port)) {
-      return {
-        port: port.value,
-        source: "last",
-      } as const;
-    }
-  }
-
-  return {
-    port: yield* reserveBackendPort(0),
-    source: "ephemeral",
-  } as const;
-});
 
 const handleFatalStartupError = Effect.fn("desktop.startup.handleFatalStartupError")(function* (
   stage: string,
@@ -147,60 +70,19 @@ const handleFatalStartupError = Effect.fn("desktop.startup.handleFatalStartupErr
 const fatalStartupCause = <E>(stage: string, cause: Cause.Cause<E>) =>
   handleFatalStartupError(stage, Cause.pretty(cause)).pipe(Effect.andThen(Effect.failCause(cause)));
 
+const DESKTOP_OPENCODE_SIDECAR_SHUTDOWN_TIMEOUT = Duration.seconds(6);
+
 const bootstrap = Effect.gen(function* () {
-  const coreManager = yield* DesktopCoreManager.DesktopCoreManager;
+  const opencodeSidecar = yield* OpencodeSidecar.OpencodeSidecar;
   const state = yield* DesktopState.DesktopState;
-  const environment = yield* DesktopEnvironment.DesktopEnvironment;
-  const desktopSettings = yield* DesktopAppSettings.DesktopAppSettings;
-  const serverExposure = yield* DesktopServerExposure.DesktopServerExposure;
   yield* bootstrapLog.info("bootstrap start");
-
-  const settings = yield* desktopSettings.get;
-  const backendPortSelection = yield* resolveDesktopBackendPort({
-    configuredPort: environment.configuredBackendPort,
-    lastBackendPort: settings.lastBackendPort,
-  });
-  const backendPort = backendPortSelection.port;
-  yield* bootstrapLog.info("selected backend port", {
-    port: backendPort,
-    source: backendPortSelection.source,
-  });
-  if (backendPortSelection.source !== "configured" && settings.lastBackendPort !== backendPort) {
-    yield* desktopSettings.setLastBackendPort(backendPort).pipe(
-      Effect.catch((error) =>
-        bootstrapLog.warn("failed to persist selected backend port", {
-          error: error.message,
-        }),
-      ),
-    );
-  }
-
-  if (settings.serverExposureMode !== environment.defaultDesktopSettings.serverExposureMode) {
-    yield* bootstrapLog.info("bootstrap restoring persisted server exposure mode", {
-      mode: settings.serverExposureMode,
-    });
-  }
-  const serverExposureState = yield* serverExposure.configureFromSettings({ port: backendPort });
-  const backendConfig = yield* serverExposure.backendConfig;
-  yield* bootstrapLog.info("bootstrap resolved backend endpoint", {
-    baseUrl: backendConfig.httpBaseUrl.href,
-  });
-  if (serverExposureState.endpointUrl) {
-    yield* bootstrapLog.info("bootstrap enabled network access", {
-      endpointUrl: serverExposureState.endpointUrl,
-    });
-  } else if (settings.serverExposureMode === "network-accessible") {
-    yield* bootstrapLog.warn(
-      "bootstrap fell back to local-only because no advertised network host was available",
-    );
-  }
 
   yield* installDesktopIpcHandlers;
   yield* bootstrapLog.info("bootstrap ipc handlers registered");
 
   if (!(yield* Ref.get(state.quitting))) {
-    yield* coreManager.start.pipe(
-      Effect.tap(() => bootstrapLog.info("bootstrap Core start requested")),
+    yield* opencodeSidecar.start.pipe(
+      Effect.tap(() => bootstrapLog.info("bootstrap opencode sidecar start requested")),
     );
   }
   return yield* Effect.void;
@@ -282,11 +164,11 @@ const scopedProgram = Effect.scoped(
     yield* Effect.annotateCurrentSpan({ scope: "desktop", runId, processInstanceId, processRole });
 
     const shutdown = yield* DesktopLifecycle.DesktopShutdown;
-    const coreManager = yield* DesktopCoreManager.DesktopCoreManager;
+    const opencodeSidecar = yield* OpencodeSidecar.OpencodeSidecar;
 
     yield* Effect.addFinalizer(() =>
-      coreManager
-        .stop({ timeout: DESKTOP_CORE_SHUTDOWN_TIMEOUT })
+      opencodeSidecar
+        .stop({ timeout: DESKTOP_OPENCODE_SIDECAR_SHUTDOWN_TIMEOUT })
         .pipe(Effect.asVoid, Effect.ensuring(shutdown.markComplete)),
     );
 

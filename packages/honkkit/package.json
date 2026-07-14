@@ -245,7 +245,7 @@
   "scripts": {
     "registry:build": "node scripts/build-registry.mjs",
     "registry:check": "node scripts/check-registry.mjs && node scripts/build-registry.mjs --dry-run && node scripts/check-registry-install.mjs",
-    "typecheck": "pnpm run registry:check && node ../../scripts/tsc-rc.mjs --noEmit",
+    "typecheck": "pnpm run registry:check && tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {

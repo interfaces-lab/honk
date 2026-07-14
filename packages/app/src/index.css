@@ -1,333 +1,33 @@
-@import "tailwindcss";
-@import "./styles/tokens.css";
-@import "@pierre/truncate/style.css";
+/* Substrate for the rebuilt client: Tailwind core + the @honk/ui token bridge, then the
+ * Electron window-drag contract. Order matches packages/ui/dev/index.css — Tailwind first,
+ * bridge second so utilities alias the --honk-* vars StyleX emits. */
 
-@source "./**/*.{ts,tsx}";
-@source "../../honkkit/src/**/*.{ts,tsx}";
+@import "tailwindcss";
+@import "@honk/ui/tailwind.css";
+@import "streamdown/styles.css";
+/* Bundled Inter + JetBrains Mono (geometry-clone ruling) — the faces the font tokens name. */
+@import "@honk/ui/fonts.css";
+
+/* Streamdown ships compiled Tailwind class strings; include them in this package's scan. */
 @source "../node_modules/streamdown/dist/*.js";
 
-@custom-variant dark (&:is(.dark, .dark *));
-@custom-variant wco (&:is(.wco, .wco *));
-
-@theme inline {
-  /* Default duration for bare transition utilities (transition, transition-colors,
-   * …) that don't specify a duration. Named durations (duration-*, the
-   * --motion-duration-* tokens) still win where set. */
-  --default-transition-duration: 100ms;
-  --animate-skeleton: skeleton 2s -1s infinite linear;
-  --color-warning-foreground: var(--warning-foreground);
-  --color-warning: var(--warning);
-  --color-success-foreground: var(--success-foreground);
-  --color-success: var(--success);
-  --color-info-foreground: var(--info-foreground);
-  --color-info: var(--info);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --color-foreground: var(--foreground);
-  --color-background: var(--background);
-  --color-honk-sidebar: var(--honk-color-sidebar);
-  --color-honk-chat: var(--honk-color-chat);
-  --color-honk-editor: var(--honk-color-editor);
-  --color-honk-surface: var(--honk-color-surface);
-  --color-honk-elevated: var(--honk-color-elevated);
-  --color-honk-bubble: var(--honk-message-bubble-background);
-  --color-honk-bubble-opaque: var(--honk-composer-surface-opaque-background);
-  --color-honk-menu: var(--honk-menu-surface-background, var(--honk-bg-elevated));
-  --color-honk-menubar: var(--honk-color-menubar);
-  --color-honk-border: var(--honk-color-border);
-  --color-honk-stroke: var(--honk-color-stroke);
-  --color-honk-stroke-strong: var(--honk-color-stroke-strong);
-  --color-honk-hover: var(--honk-color-hover);
-  --color-honk-active: var(--honk-color-active);
-  --color-honk-bg-elevated: var(--honk-bg-elevated);
-  --color-honk-bg-quinary: var(--honk-bg-quinary);
-  --color-honk-bg-quaternary: var(--honk-bg-quaternary);
-  --color-honk-bg-tertiary: var(--honk-bg-tertiary);
-  --color-honk-bg-card: var(--honk-bg-card);
-  --color-honk-bg-secondary: var(--honk-bg-secondary);
-  --color-honk-bg-active: var(--honk-bg-active);
-  --color-honk-fg-primary: var(--honk-fg-primary);
-  --color-honk-fg-secondary: var(--honk-fg-secondary);
-  --color-honk-fg-tertiary: var(--honk-fg-tertiary);
-  --color-honk-fg-quaternary: var(--honk-fg-quaternary);
-  --color-honk-stroke-secondary: var(--honk-stroke-secondary);
-  --color-honk-stroke-tertiary: var(--honk-stroke-tertiary);
-  --color-honk-stroke-focused: var(--honk-stroke-focused);
-  --color-honk-stroke-primary: var(--honk-stroke-primary);
-  --color-honk-stroke-red-primary: var(--honk-stroke-red-primary);
-  --color-honk-stroke-quaternary: var(--honk-stroke-quaternary);
-  --color-honk-action: var(--honk-action);
-  --color-honk-diff-addition: var(--honk-diff-addition);
-  --color-honk-diff-deletion: var(--honk-diff-deletion);
-  --color-honk-fg-red-primary: var(--honk-fg-red-primary);
-  --color-honk-fg-green-primary: var(--honk-fg-green-primary);
-  --color-honk-icon-primary: var(--honk-icon-primary);
-  --color-honk-icon-secondary: var(--honk-icon-secondary);
-  --color-honk-icon-tertiary: var(--honk-icon-tertiary);
-  --color-honk-icon-quaternary: var(--honk-icon-quaternary);
-  --color-honk-icon-accent-primary: var(--honk-icon-accent-primary);
-  --color-honk-bg-primary: var(--honk-bg-primary);
-  --color-honk-bg-secondary-wash: var(--honk-bg-secondary-wash);
-  --color-honk-workbench-panel-border-faint: var(--honk-workbench-panel-border-faint);
-  --color-honk-workbench-panel-border-muted: var(--honk-workbench-panel-border-muted);
-  --color-honk-workbench-panel-border-soft: var(--honk-workbench-panel-border-soft);
-  --color-honk-workbench-panel-border-dim: var(--honk-workbench-panel-border-dim);
-  --color-honk-git-diff-editor-background: var(--honk-git-diff-editor-background);
-  --color-honk-git-diff-header-border: var(--honk-git-diff-header-border);
-  --color-honk-workbench-toolbar-hover-wash: var(--honk-workbench-toolbar-hover-wash);
-  --color-honk-workbench-terminal-foreground: var(--honk-workbench-terminal-foreground);
-  --color-honk-terminal-border: var(--honk-terminal-border);
-  --color-honk-terminal-border-subtle: var(--honk-terminal-border-subtle);
-  --color-honk-terminal-toolbar-background: var(--honk-terminal-toolbar-background);
-  --color-honk-terminal-sidebar-background: var(--honk-terminal-sidebar-background);
-  --color-honk-terminal-hover-background: var(--honk-terminal-hover-background);
-  --color-honk-terminal-active-background: var(--honk-terminal-active-background);
-  --color-honk-terminal-foreground: var(--honk-terminal-foreground);
-  --color-honk-terminal-muted-foreground: var(--honk-terminal-muted-foreground);
-  --max-width-agent-chat: min(100%, var(--agent-window-chat-max-width, 840px));
-  --font-honk: var(--honk-font-ui);
-  --font-honk-mono: var(--honk-font-mono);
-  --shadow-honk-card: var(--honk-shadow-card);
-  --shadow-honk-popup: var(--honk-shadow-popup);
-  --shadow-honk-soft: var(--honk-shadow-soft);
-  --shadow-honk-sm: var(--honk-shadow-sm);
-  --shadow-honk-base: var(--honk-shadow-base);
-  --shadow-honk-lg: var(--honk-shadow-lg);
-  --shadow-honk-xl: var(--honk-shadow-xl);
-  --shadow-honk-flat-ring: var(--honk-shadow-flat-ring);
-  --shadow-honk-toolbar: var(--honk-shadow-toolbar);
-  --shadow-honk-swatch-inset: var(--honk-swatch-inset-shadow);
-  --text-caption: var(--honk-text-caption);
-  --text-caption--line-height: var(--honk-leading-caption);
-  --text-detail: var(--honk-text-detail);
-  --text-detail--line-height: var(--honk-leading-detail);
-  --text-body: var(--honk-text-body);
-  --text-body--line-height: var(--honk-leading-body);
-  --text-title: var(--honk-text-title);
-  --text-title--line-height: var(--honk-leading-title);
-  --text-conversation: var(--conversation-text-font-size);
-  --text-conversation--line-height: var(--conversation-text-leading);
-  --text-conversation-normalized: var(--conversation-text-font-size);
-  --text-conversation-normalized--line-height: var(--honk-leading-conversation-normalized);
-  --text-heading: var(--honk-text-heading);
-  --text-heading--line-height: var(--honk-leading-heading);
-  --text-honk-code: var(--honk-code-font-size-user, 12px);
-  --text-honk-code--line-height: calc(var(--honk-code-font-size-user, 12px) * 1.45);
-  --text-honk-xs: var(--honk-text-caption);
-  --text-honk-xs--line-height: var(--honk-leading-caption);
-  --text-honk-sm: var(--honk-text-detail);
-  --text-honk-sm--line-height: var(--honk-leading-detail);
-  --text-honk-base: var(--honk-text-body);
-  --text-honk-base--line-height: var(--honk-leading-body);
-  --text-honk-lg: var(--honk-text-title);
-  --text-honk-lg--line-height: var(--honk-leading-title);
-  --text-honk-xl: var(--honk-text-heading);
-  --text-honk-xl--line-height: var(--honk-leading-heading);
-  --text-honk-tab: var(--honk-text-tab);
-  --text-honk-tab--line-height: var(--honk-leading-tab);
-  --text-honk-chrome: var(--honk-text-chrome);
-  --text-honk-chrome--line-height: var(--honk-leading-chrome);
-  --text-honk-conversation-lg: var(--honk-text-conversation-lg);
-  --text-honk-conversation-lg--line-height: var(--honk-leading-conversation-lg);
-  --text-sidebar-label: var(--honk-sidebar-label-size);
-  --text-sidebar-label--line-height: var(--honk-sidebar-label-leading);
-  --text-sidebar-subtitle: var(--honk-sidebar-subtitle-size);
-  --text-sidebar-subtitle--line-height: var(--honk-sidebar-subtitle-leading);
-  --spacing-sidebar-item: var(--honk-sidebar-item-height);
-  --spacing-sidebar-item-gap: var(--honk-sidebar-item-gap);
-  --spacing-sidebar-section-gap: var(--honk-sidebar-section-gap);
-  --spacing-sidebar-gutter: var(--honk-sidebar-gutter-inline);
-  --radius-honk: var(--honk-radius-card);
-  --radius-honk-chip: var(--honk-radius-chip);
-  --radius-honk-control: var(--honk-radius-control);
-  --radius-honk-card: var(--honk-radius-card);
-  --radius-honk-pill: var(--honk-radius-pill);
-  --radius-honk-xs: var(--honk-radius-xs);
-  --radius-honk-sm: var(--honk-radius-sm);
-  --radius-honk-base: var(--honk-radius-base);
-  --radius-honk-lg: var(--honk-radius-lg);
-  --radius-honk-xl: var(--honk-radius-xl);
-  --radius-xs: 2px;
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
-  --radius-full: 9999px;
-  @keyframes skeleton {
-    to {
-      background-position: -200% 0;
-    }
-  }
-  @keyframes agent-sidebar-status-finish {
-    0% {
-      opacity: 0.35;
-      transform: scale(0.72);
-    }
-    42% {
-      opacity: 1;
-      transform: scale(1.16);
-    }
-    100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-}
-
-@layer utilities {
-  .agent-sidebar-status-finish {
-    animation: agent-sidebar-status-finish 720ms var(--ease-shell, ease-out);
-    transform-origin: center;
-  }
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  button,
-  input,
-  textarea,
-  select {
-    font: inherit;
-    -webkit-font-smoothing: inherit;
-    -moz-osx-font-smoothing: inherit;
-  }
-  :where(
-    button,
-    a[href],
-    summary,
-    select,
-    [role="button"],
-    [role="switch"],
-    [role="menuitem"],
-    [role="menuitemcheckbox"],
-    [role="menuitemradio"],
-    [role="option"],
-    [role="tab"]
-  ) {
-    cursor: var(--honk-button-cursor, pointer);
-  }
-  html {
-    --honk-button-cursor: pointer;
-    background-color: var(--app-background);
-  }
-  html[data-electron] {
-    background-color: transparent;
-  }
-  body {
-    @apply text-foreground relative;
-    background-color: var(--app-background);
-  }
-}
-
-@layer utilities {
-  .cursor-pointer,
-  .enabled\:cursor-pointer:enabled,
-  html[data-no-button-pointer] .cursor-pointer,
-  html[data-no-button-pointer] .enabled\:cursor-pointer:enabled {
-    cursor: var(--honk-button-cursor, pointer);
-  }
-}
-
-/* Suppress all transitions during theme changes */
-.no-transitions,
-.no-transitions *,
-.no-transitions *::before,
-.no-transitions *::after {
-  transition-duration: 0s !important;
-  animation-duration: 0s !important;
-}
-
-:root {
-  --radius: 0.625rem;
-}
-
-body {
-  font-family: var(--honk-font-ui);
-  font-size: var(--honk-ui-font-size-user, 13px);
-  font-synthesis: none;
-  -webkit-font-smoothing: var(--honk-font-smoothing-webkit, antialiased);
-  -moz-osx-font-smoothing: var(--honk-font-smoothing-moz, grayscale);
-  margin: 0;
-  padding: 0;
-  min-height: 100vh;
-}
-
+/* Full-viewport mount so Shell's 100dvh frame fills the window with no stray gap. */
 html,
 body,
 #root {
   height: 100%;
-  width: 100%;
-  max-width: 100%;
-  overflow-y: hidden;
-  overflow-x: hidden;
-  overflow-x: clip;
-  overscroll-behavior-y: none;
+  margin: 0;
 }
 
-#root > * {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-}
-
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.035;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-  background-size: 256px 256px;
-}
-
-pre,
-code {
-  font-family: var(--honk-font-mono);
-  font-size: var(--honk-code-font-size-user, 12px);
-}
-
-/* Window drag region (frameless titlebar) */
-.drag-region,
+/* Window-drag contract (ADR 0025 §5): Shell.TitleBar / TabStrip mark themselves with
+ * data-shell-drag-region; interactive children opt out with data-shell-no-drag. StyleX
+ * cannot express this cross-element cascade, so the mapping lives here as plain CSS.
+ * Inert in the browser; the Electron host makes the bar drag the window. */
 [data-shell-drag-region] {
   -webkit-app-region: drag;
 }
 
-.no-drag,
-[data-no-drag],
 [data-shell-no-drag],
-.drag-region button,
-.drag-region input,
-.drag-region textarea,
-.drag-region select,
-.drag-region a,
-.drag-region [role="button"],
-.drag-region [role="tab"],
-.drag-region [data-slot="tabs-list"],
-.drag-region [data-slot="tabs-tab"],
 [data-shell-drag-region] button,
 [data-shell-drag-region] input,
 [data-shell-drag-region] textarea,
@@ -335,77 +35,31 @@ code {
 [data-shell-drag-region] a,
 [data-shell-drag-region] [role="button"],
 [data-shell-drag-region] [role="tab"],
-[data-shell-drag-region] [data-no-drag],
-[data-shell-drag-region] [data-shell-no-drag],
-[data-shell-drag-region] [data-slot="tabs-list"],
-[data-shell-drag-region] [data-slot="tabs-tab"],
-[data-shell-drag-region] [data-slot="workbench-chrome-action-group"],
-[data-shell-drag-region] [data-slot="workbench-chrome-row-end"],
-[data-shell-drag-region] [data-slot="workbench-chrome-row-trailing"],
-[data-shell-drag-region] [data-slot="workbench-chrome-trailing-section"],
-[data-shell-drag-region] [data-slot="workbench-icon-button"],
-[data-shell-drag-region] [data-slot="workbench-text-button"] {
+[data-shell-drag-region] [data-shell-no-drag] {
   -webkit-app-region: no-drag;
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Composer mode chip (composer.tsx ModeControl). The pill is the @honk/ui ghost Button primitive;
+ * its per-mode tint is pure CSS here rather than app-level StyleX — the Astryx model of overriding
+ * a primitive through plain CSS + the --honk-* custom properties the token bridge emits. The
+ * selectors carry data-slot + data-mode + the element so specificity (0,2,1) outranks the ghost
+ * variant's own atomic background/color, including its :hover (0,2,0), without !important. build
+ * (data-mode="build") has no rule and stays the plain ghost. Cursor's tint law: a translucent fill
+ * framed by a full-strength 1px ring, never a flooded solid. */
+button[data-slot="button"][data-mode="ask"] {
+  background-color: var(--honk-color-layer-01);
+  box-shadow: inset 0 0 0 1px var(--honk-color-border-muted);
+  color: var(--honk-color-text-muted);
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+button[data-slot="button"][data-mode="plan"] {
+  background-color: var(--honk-color-accent-subtle);
+  box-shadow: inset 0 0 0 1px var(--honk-color-info-border);
+  color: var(--honk-color-info-fg);
 }
 
-::-webkit-scrollbar-thumb {
-  background: oklch(0 0 0 / 0.15);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: oklch(0 0 0 / 0.25);
-}
-
-.dark ::-webkit-scrollbar-thumb {
-  background: oklch(1 0 0 / 0.1);
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: oklch(1 0 0 / 0.18);
-}
-
-.turn-chip-strip {
-  -ms-overflow-style: none;
-}
-
-.turn-chip-strip::-webkit-scrollbar {
-  display: none;
-}
-
-/* Chat collapsibles: no focus ring that reads as an extra outline on the header row */
-[data-slot="collapsible-trigger"]:focus,
-[data-slot="collapsible-trigger"]:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
-
-/* Dev: React Grab plugin toggles `html.honk-overlay-debug` */
-html.honk-overlay-debug [data-slot="tooltip-content"],
-html.honk-overlay-debug [data-slot="popover-token-menu"],
-html.honk-overlay-debug [data-slot="context-menu-popup"] {
-  outline: 2px solid oklch(0.604 0.259 311.121 / 0.88);
-  outline-offset: 2px;
-}
-
-html.honk-overlay-debug [data-tooltip-trigger],
-html.honk-overlay-debug [data-slot="tooltip-trigger"],
-html.honk-overlay-debug [data-slot="context-menu-trigger"] {
-  outline: 1px dashed oklch(0.682 0.14 237.298 / 0.85);
-  outline-offset: 2px;
-}
-
-html.honk-overlay-debug [data-slot="context-menu-root"] {
-  outline: 1px dotted oklch(0.832 0.162 87.735 / 0.45);
-  outline-offset: 1px;
+button[data-slot="button"][data-mode="debug"] {
+  background-color: color-mix(in srgb, var(--honk-color-preset-ultra) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--honk-color-preset-ultra) 34%, transparent);
+  color: var(--honk-color-preset-ultra);
 }
