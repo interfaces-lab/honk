@@ -11,6 +11,7 @@ import * as DesktopAssets from "../app/desktop-assets";
 import * as DesktopEnvironment from "../app/desktop-environment";
 import * as EffectLogger from "@honk/shared/effect-logger";
 import * as DesktopState from "../app/desktop-state";
+import { desktopGlassBackground, desktopWindowBackground } from "./desktop-theme";
 import * as ElectronShell from "../electron/electron-shell";
 import * as ElectronTheme from "../electron/electron-theme";
 import * as ElectronWindow from "../electron/electron-window";
@@ -19,23 +20,24 @@ import * as IpcChannels from "../ipc/channels";
 import * as DesktopAppSettings from "../settings/desktop-app-settings";
 
 const TITLEBAR_HEIGHT = 40;
-// opencode v2 desktop's macOS window-button seat, ported verbatim (their windows.ts ships
-// trafficLightPosition {x:14, y:14} for the same 36px titlebar) — the lights ride low with
-// the bottom-seated tab band instead of centering in the full bar.
+// Match OpenCode desktop traffic lights for the bottom-seated tab band.
 const MACOS_TRAFFIC_LIGHT_X_PX = 14;
 const MACOS_TRAFFIC_LIGHT_Y_PX = 14;
-const TITLEBAR_COLOR = "#01000000"; // #00000000 does not work correctly on Linux
+const TITLEBAR_COLOR = "#01000000"; // #00000000 breaks on Linux
 const TITLEBAR_LIGHT_SYMBOL_COLOR = "#1f2937";
 const TITLEBAR_DARK_SYMBOL_COLOR = "#f8fafc";
 const DEFAULT_WINDOW_WIDTH = 1280;
 const DEFAULT_WINDOW_HEIGHT = 800;
 const ONBOARDING_WINDOW_BACKGROUND_COLOR = "#00000000";
-// The close runs after the invoke response has crossed back to the onboarding renderer. Destroying
-// its BrowserWindow inside the handler tears down Electron's reply channel first.
+// Delay so the invoke reply reaches the onboarding renderer before destroy.
 const ONBOARDING_WINDOW_CLOSE_DELAY_MS = 120;
+// Main owns cleanup if the renderer never reports finish.
+const ONBOARDING_WINDOW_FINISH_FALLBACK_MS = 3_000;
 const TRUSTED_RENDERER_PERMISSIONS = new Set(["clipboard-sanitized-write", "notifications"]);
 const RENDERER_CONSOLE_REPEAT_LOG_WINDOW_MS = 30_000;
 const RENDERER_CONSOLE_REPEAT_LOG_MAX_ENTRIES = 256;
+const MAIN_WINDOW_ID = "main";
+const ONBOARDING_WINDOW_ID = "onboarding";
 
 type WindowTitleBarOptions = Pick<
   Electron.BrowserWindowConstructorOptions,
@@ -170,11 +172,11 @@ function getIconOption(
 }
 
 function getInitialWindowBackgroundColor(shouldUseDarkColors: boolean): string {
-  return shouldUseDarkColors ? "#1F1F1F" : "#ffffff";
+  return desktopWindowBackground(shouldUseDarkColors);
 }
 
 function getMacGlassWindowBackgroundColor(shouldUseDarkColors: boolean): string {
-  return shouldUseDarkColors ? "#40000000" : "#00FFFFFF";
+  return desktopGlassBackground(shouldUseDarkColors);
 }
 
 function getInitialWindowGlassOptions(
@@ -247,8 +249,7 @@ function registerRendererPermissions(window: Electron.BrowserWindow, trustedOrig
   const webContentsId = window.webContents.id;
   trustedRendererWebContentsIds.add(webContentsId);
   window.webContents.once("destroyed", () => {
-    // The BrowserWindow's webContents getter throws once this event fires, so retain the numeric id
-    // captured while the renderer was alive.
+    // webContents throws after this event. Keep the numeric id from while alive.
     trustedRendererWebContentsIds.delete(webContentsId);
   });
   window.webContents.session.setPermissionRequestHandler(
@@ -303,6 +304,11 @@ function syncWindowAppearance(
     if (typeof titleBarOverlay === "object") {
       window.setTitleBarOverlay(titleBarOverlay);
     }
+    window.setBackgroundColor(
+      process.platform === "darwin"
+        ? getMacGlassWindowBackgroundColor(shouldUseDarkColors)
+        : getInitialWindowBackgroundColor(shouldUseDarkColors),
+    );
     syncMacOSTrafficLightPosition(window);
   });
 }
@@ -380,6 +386,20 @@ const make = Effect.gen(function* () {
       Option.match({
         onNone: () => Effect.void,
         onSome: (window) => electronWindow.reveal(window),
+      }),
+    ),
+  );
+
+  const hideExistingMain = electronWindow.main.pipe(
+    Effect.flatMap(
+      Option.match({
+        onNone: () => Effect.void,
+        onSome: (window) =>
+          Effect.sync(() => {
+            if (!window.isDestroyed() && window.isVisible()) {
+              window.hide();
+            }
+          }),
       }),
     ),
   );
@@ -518,9 +538,7 @@ const make = Effect.gen(function* () {
         width: DEFAULT_WINDOW_WIDTH,
         height: DEFAULT_WINDOW_HEIGHT,
         center: true,
-        // Cursor glass-window minimums (WIDTH: 400, HEIGHT_GLASS: 520): the
-        // shell handles narrow widths itself — left sidebar becomes an overlay
-        // drawer and the workbench grows the window when it cannot fit.
+        // Shell handles narrow widths. Match Cursor glass-window mins.
         minWidth: 400,
         minHeight: 520,
         show: false,
@@ -532,10 +550,10 @@ const make = Effect.gen(function* () {
         ...getWindowTitleBarOptions(shouldUseDarkColors),
         webPreferences: {
           preload: environment.preloadPath,
+          additionalArguments: [`--honk-window-id=${MAIN_WINDOW_ID}`],
           contextIsolation: true,
           nodeIntegration: false,
           sandbox: true,
-          webviewTag: true,
         },
       },
     });
@@ -597,6 +615,7 @@ const make = Effect.gen(function* () {
         title: `${environment.displayName} Setup`,
         webPreferences: {
           preload: environment.preloadPath,
+          additionalArguments: [`--honk-window-id=${ONBOARDING_WINDOW_ID}`],
           contextIsolation: true,
           nodeIntegration: false,
           sandbox: true,
@@ -625,6 +644,7 @@ const make = Effect.gen(function* () {
           if (!canSendToWindow(created.window)) {
             return;
           }
+          yield* hideExistingMain;
           yield* electronWindow.reveal(created.window);
           if (!canSendToWindow(created.window)) {
             return;
@@ -642,6 +662,7 @@ const make = Effect.gen(function* () {
   ): Effect.fn.Return<Electron.BrowserWindow, DesktopWindowError> {
     const existing = yield* liveOnboardingWindow;
     if (Option.isSome(existing)) {
+      yield* hideExistingMain;
       yield* electronWindow.reveal(existing.value.window);
       return existing.value.window;
     }
@@ -654,7 +675,7 @@ const make = Effect.gen(function* () {
       return;
     }
 
-    const onboardingWindow = existing.value.window;
+    const { window: onboardingWindow, replay } = existing.value;
     scheduledOnboardingCloses.add(onboardingWindow);
     yield* Effect.sync(() => {
       setTimeout(() => {
@@ -663,16 +684,38 @@ const make = Effect.gen(function* () {
             const current = yield* Ref.get(onboardingWindowRef);
             if (Option.isSome(current) && current.value.window === onboardingWindow) {
               yield* Ref.set(onboardingWindowRef, Option.none());
-              if (!onboardingWindow.isDestroyed()) {
-                onboardingWindow.destroy();
-              }
+            }
+            if (!onboardingWindow.isDestroyed()) {
+              onboardingWindow.destroy();
             }
             yield* revealExistingMain;
+            yield* elog.info("onboarding window destroyed", {
+              replay,
+              remainingWindowCount: Electron.BrowserWindow.getAllWindows().length,
+            });
           }).pipe(Effect.withSpan("desktop.window.closeOnboardingAfterReply")),
         );
       }, ONBOARDING_WINDOW_CLOSE_DELAY_MS);
     });
   });
+
+  const scheduleOnboardingCloseFallback = (
+    expectedWindow: Electron.BrowserWindow,
+  ): Effect.Effect<void> =>
+    Effect.sync(() => {
+      setTimeout(() => {
+        void runPromise(
+          Effect.gen(function* () {
+            const current = yield* liveOnboardingWindow;
+            if (Option.isNone(current) || current.value.window !== expectedWindow) {
+              return;
+            }
+            yield* elog.warn("onboarding renderer did not finish its exit; forcing window cleanup");
+            yield* scheduleOnboardingClose;
+          }).pipe(Effect.withSpan("desktop.window.onboardingCloseFallback")),
+        );
+      }, ONBOARDING_WINDOW_FINISH_FALLBACK_MS);
+    });
 
   const waitUntilWindowReady = (window: Electron.BrowserWindow): Effect.Effect<void> =>
     Effect.promise(() => readyByWindow.get(window) ?? Promise.resolve());
@@ -711,11 +754,8 @@ const make = Effect.gen(function* () {
       if (mainWindow.isDestroyed()) {
         return;
       }
-      if (mainWindow.isMinimized()) {
-        mainWindow.restore();
-      }
-      if (!mainWindow.isVisible()) {
-        mainWindow.showInactive();
+      if (mainWindow.isVisible()) {
+        mainWindow.hide();
       }
     });
     const onboardingWindow = yield* liveOnboardingWindow;
@@ -724,6 +764,7 @@ const make = Effect.gen(function* () {
         onboardingWindow.value.window.moveTop();
         onboardingWindow.value.window.focus();
       });
+      yield* scheduleOnboardingCloseFallback(onboardingWindow.value.window);
     }
     yield* elog.info("onboarding handoff ready");
   }).pipe(Effect.withSpan("desktop.window.completeOnboarding"));
@@ -763,6 +804,7 @@ const make = Effect.gen(function* () {
     activate: Effect.gen(function* () {
       const onboardingWindow = yield* liveOnboardingWindow;
       if (Option.isSome(onboardingWindow)) {
+        yield* hideExistingMain;
         yield* electronWindow.reveal(onboardingWindow.value.window);
         return;
       }

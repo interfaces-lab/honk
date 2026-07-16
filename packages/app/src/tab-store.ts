@@ -1,110 +1,123 @@
-// Router-coupled thread-tab store (ADR 0025 §2–§3). Plain module exporting
-// {subscribe, getSnapshot, actions} — the same idiom as packages/ui/dev/tab-store.ts,
-// plus bidirectional router coupling that lives HERE (never in a component effect).
-//
-// Laws this module owns:
-//   • Home is pinned at slot 0 — not closable, not reorderable past 0, skipped by ⌘W.
-//   • activate navigates; route changes activate only already-known real thread tabs.
-//   • Closing the active tab activates a sensible neighbor; closed tabs push reopenStack.
-//   • New tabs come from OpenCode `threads.create`; no client-only draft ids.
-
-import type { HonkClient, SendMessageFile, WorkspaceState } from "./sidecar";
+import {
+  OPEN_CODE_LOCAL_SESSION_TARGET,
+  createOpenCodeTargetedSession,
+  createOpenCodeServer,
+  openCodeLocationRef,
+  openCodeMessageID,
+  openCodeSessionKey,
+  openCodeSessionRef,
+  openCodeSessionRefFromInfo,
+  parseOpenCodeSessionKey,
+  type OpenCodeClient,
+  type OpenCodeLocationRef,
+  type OpenCodePromptFileAttachment,
+  type OpenCodeServerDescriptor,
+  type OpenCodeServerKey,
+  type OpenCodeSessionInfo,
+  type OpenCodeSessionRef,
+  type OpenCodeSessionTarget,
+} from "@honk/opencode";
+import { basename } from "@honk/shared/paths";
+import type { TabDescriptor } from "@honk/ui";
 import { useSyncExternalStore } from "react";
 import { useSyncExternalStoreWithSelector } from "use-sync-external-store/with-selector";
 
-import type { TabDescriptor } from "@honk/ui";
-
 import { getSnapshot as getAppSettings } from "./app-settings-store";
+import { removeBrowserServer, removeBrowserSessions, requestBrowserOpen } from "./browser-store";
+import { readDesktopBrowserAvailability, readShellWindowID } from "./desktop-bridge";
+import { errorMessage } from "./error-message";
 import { actions as modeActions, type ModeId } from "./modes";
+import type { AppSessionSummary } from "./open-code-view";
+import { createOpenCodeTabController, type OpenCodeTabController } from "./opencode/tab-controller";
+import {
+  openCodeDraftIDFromTabKey,
+  openCodeDraftTabKey,
+  openCodeSessionTabKey,
+  openCodeTabSessionRef,
+  openCodeTabKey,
+  type OpenCodeDraftTab,
+  type OpenCodeTabKey,
+} from "./opencode/tab-model";
+import {
+  OPEN_CODE_HOME_TAB_KEY,
+  openCodeTabDescriptors,
+  type OpenCodeTabDescriptor,
+  type OpenCodeTabPresentation,
+  type OpenCodeTabPresentations,
+} from "./opencode/tab-presentation";
+import { openCodeWorkbenchToolHref, parseOpenCodeTabHref } from "./opencode/tab-route";
+import { createOpenCodeWindowTabStore, type OpenCodeTabStorage } from "./opencode/tab-store";
 import { actions as toastActions } from "./toast-store";
-import { getBoundHonkClient } from "./watch-registry";
+import { getBoundOpenCodeClient, getOpenCodeClient, subscribeSessionWatch } from "./watch-registry";
 
 export type TabStatus = TabDescriptor["status"];
-
-export type TabItem = TabDescriptor;
+export type TabItem = OpenCodeTabDescriptor;
 export type TabRepository = Extract<TabDescriptor, { kind: "thread" }>["repository"];
 
 export type ReopenEntry = {
-  item: TabItem;
-  index: number;
+  readonly item: TabItem;
+  readonly index: number;
 };
 
 export type OpenNewThreadInput = {
   readonly prompt?: string;
-  // The MODE agent this thread starts in (`honk-<mode>` — modes.ts). Soft: later prompts
-  // may override it per send.
   readonly agent?: string;
-  // The mode id the thread is born in, seeded as its per-thread override so it stays put
-  // instead of falling back to the default. Pass alongside `agent` (which is `honk-<mode>`);
-  // this is the plain id the modes store keys on.
   readonly mode?: ModeId;
-  // The preset's model bundle (presets.ts) — HARD-pinned at birth; sidecar.ts resends it
-  // on every prompt and no UI path changes it.
   readonly model?: { readonly providerID: string; readonly id: string };
   readonly variant?: string;
-  // Working directory for the new session (opencode `directory`/cwd). Omitted → sidecar default.
+  readonly server?: OpenCodeServerKey;
+  readonly location?: OpenCodeLocationRef;
+  readonly target?: OpenCodeSessionTarget;
   readonly directory?: string;
-  // File mentions from the composer's @-menu, forwarded as FilePartInputs on the first send.
-  readonly files?: readonly SendMessageFile[];
-  // A slash-command invocation (composer's /-menu): runs client.session.command on the new
-  // thread instead of a plain prompt send. `prompt` should carry the raw "/name args" text so
-  // the title still reads honestly.
-  readonly command?: { readonly name: string; readonly arguments: string };
+  readonly files?: readonly OpenCodePromptFileAttachment[];
 };
 
-type ThreadSummary = WorkspaceState["threads"][number];
-
-type ThreadCreatePayload = Parameters<HonkClient["threads"]["create"]>[0];
-type ThreadCreateSummary = Awaited<ReturnType<HonkClient["threads"]["create"]>>;
-type ThreadSendPayload = Parameters<HonkClient["threads"]["send"]>[1];
-type ThreadSendMessageId = ThreadSendPayload["messageId"];
+type ThreadSummary = AppSessionSummary;
 
 export type Snapshot = {
-  tabs: readonly TabItem[];
-  activeKey: string;
-  reopenStack: readonly ReopenEntry[];
+  readonly tabs: readonly TabItem[];
+  readonly activeKey: string;
+  readonly reopenStack: readonly ReopenEntry[];
 };
 
-// Closed tabs are undo history, not durable workspace state.
-const REOPEN_LIMIT = 10;
-const STORAGE_KEY = "honk:app-next:tabs";
-// Legacy projectless fallback used by the old app when no project picker has selected a cwd.
-const TAB_STATUSES = ["idle", "working", "needs-you", "done", "failed", "draft"] as const;
-
-const HOME_TAB: TabItem = Object.freeze({
-  key: "home",
-  kind: "home",
-  title: "Home",
-  status: "idle",
-});
-
-const DEFAULT_SNAPSHOT: Snapshot = Object.freeze({
-  tabs: Object.freeze([HOME_TAB]),
-  activeKey: HOME_TAB.key,
-  reopenStack: Object.freeze([]),
-});
-
-const listeners = new Set<() => void>();
-
-// Router is bound from main.tsx after createRouter — keeps this module free of a
-// runtime import cycle (router → shell → tab-store). Structural so we don't import
-// the concrete router type into this module.
 type BoundRouter = {
-  subscribe: (
+  readonly subscribe: (
     eventType: "onResolved",
-    fn: (event: { toLocation: { pathname: string } }) => void,
+    listener: (event: { readonly toLocation: { readonly href: string } }) => void,
   ) => () => void;
-  navigate: (opts: Record<string, unknown>) => unknown;
-  state: { location: { pathname: string } };
+  readonly navigate: (options: Record<string, unknown>) => unknown;
+  readonly state: { readonly location: { readonly href: string } };
 };
 
-let boundRouter: BoundRouter | null = null;
-let unbindRouter: (() => void) | null = null;
-// Suppresses the route→tab half while we are the ones driving navigation, so
-// activate → navigate → onResolved does not re-enter open/activate.
-let syncingFromStore = false;
+const tabStorage: OpenCodeTabStorage = Object.freeze({
+  getItem(key) {
+    return typeof window === "undefined" ? null : window.localStorage.getItem(key);
+  },
+  setItem(key, value) {
+    if (typeof window !== "undefined") window.localStorage.setItem(key, value);
+  },
+});
 
-let snapshot = hydrate();
+const windowTabStore = createOpenCodeWindowTabStore({
+  windowID: typeof window === "undefined" ? "browser" : readShellWindowID(),
+  storage: tabStorage,
+});
+const listeners = new Set<() => void>();
+const servers = new Map<OpenCodeServerKey, OpenCodeServerDescriptor>();
+let presentations: OpenCodeTabPresentations = Object.freeze({});
+let controller: OpenCodeTabController | null = null;
+let browserAutomationOpenInstalled = false;
+const retainedSessionWatches = new Map<string, () => void>();
+
+rememberStateServers();
+syncRetainedSessionWatches();
+let snapshot = projectSnapshot();
+
+windowTabStore.subscribe(() => {
+  rememberStateServers();
+  syncRetainedSessionWatches();
+  publishProjection();
+});
 
 export function subscribe(listener: () => void): () => void {
   listeners.add(listener);
@@ -118,7 +131,7 @@ export function getSnapshot(): Snapshot {
 }
 
 export function getServerSnapshot(): Snapshot {
-  return DEFAULT_SNAPSHOT;
+  return snapshot;
 }
 
 export function useTabs(): Snapshot {
@@ -126,8 +139,8 @@ export function useTabs(): Snapshot {
 }
 
 export function useTabsSelector<T>(
-  selector: (snapshot: Snapshot) => T,
-  isEqual: (a: T, b: T) => boolean = Object.is,
+  selector: (current: Snapshot) => T,
+  isEqual: (left: T, right: T) => boolean = Object.is,
 ): T {
   return useSyncExternalStoreWithSelector(
     subscribe,
@@ -138,381 +151,620 @@ export function useTabsSelector<T>(
   );
 }
 
-// Wire the store to the app router. Call once from main.tsx after createRouter.
-// Subscribes to onResolved so route changes activate (and open) tabs without any
-// component effect — ADR 0025 §1 replacement for "subscribe in useEffect".
+export function useNewSessionDraft(key: string): OpenCodeDraftTab | null {
+  return useSyncExternalStoreWithSelector(
+    subscribe,
+    () => windowTabStore.getSnapshot(),
+    () => windowTabStore.getSnapshot(),
+    (state) => {
+      const draftID = openCodeDraftIDFromTabKey(key);
+      if (draftID === null) return null;
+      const tab = state.tabs.find(
+        (candidate) => candidate.type === "draft" && candidate.draftID === draftID,
+      );
+      return tab?.type === "draft" ? tab : null;
+    },
+  );
+}
+
 export function bindRouter(router: BoundRouter): void {
-  unbindRouter?.();
-  boundRouter = router;
+  controller?.dispose();
+  controller = createOpenCodeTabController({
+    store: windowTabStore,
+    navigator: {
+      currentHref: () => router.state.location.href,
+      navigate(href, options) {
+        void router.navigate({ href, ...(options?.replace === true ? { replace: true } : {}) });
+      },
+      subscribe(listener) {
+        return router.subscribe("onResolved", (event) => {
+          listener(event.toLocation.href);
+        });
+      },
+    },
+    discardDrafts(draftIDs) {
+      let next = presentations;
+      for (const draftID of draftIDs) {
+        next = withoutPresentation(next, openCodeDraftTabKey(draftID));
+      }
+      if (next !== presentations) {
+        presentations = next;
+        publishProjection();
+      }
+    },
+  });
+}
 
-  const sync = (pathname: string): void => {
-    syncFromPathname(pathname);
-  };
-
-  // Seed from the current location before the first navigation resolves.
-  sync(router.state.location.pathname);
-
-  unbindRouter = router.subscribe("onResolved", (event) => {
-    if (syncingFromStore) {
-      // We drove this navigation; activeKey is already correct. Drop the guard
-      // so the next external route change (back button, deep link) syncs again.
-      syncingFromStore = false;
-      return;
-    }
-    sync(event.toLocation.pathname);
+export function installBrowserAutomationOpenBridge(): void {
+  if (browserAutomationOpenInstalled || typeof window === "undefined") return;
+  const availability = readDesktopBrowserAvailability();
+  if (availability.status !== "ready") return;
+  browserAutomationOpenInstalled = true;
+  availability.bridge.onBrowserAutomationOpen((request) => {
+    const ref = sessionRefForInput(request.threadId);
+    if (ref === null) return;
+    requestBrowserOpen(ref, request.url);
+    openCanonicalWorkbenchTool(ref, "browser");
   });
 }
 
 export const actions = {
-  open(item: TabItem, opts?: { activate?: boolean }): void {
-    if (item.kind === "home") {
-      return;
+  registerServer(server: OpenCodeServerDescriptor): void {
+    rememberServer(server);
+  },
+
+  removeServer(server: OpenCodeServerKey): void {
+    removeBrowserServer(server);
+    if (controller === null) {
+      windowTabStore.actions.removeServer(server);
+    } else {
+      controller.actions.removeServer(server);
     }
+    if (servers.delete(server)) publishProjection();
+  },
 
-    if (snapshot.tabs.some((tab) => tab.key === item.key)) {
-      if (opts?.activate !== false) {
-        actions.activate(item.key);
-      }
-      return;
-    }
-
-    publish(
-      Object.freeze([...snapshot.tabs, Object.freeze({ ...item })]),
-      opts?.activate === false ? snapshot.activeKey : item.key,
-      snapshot.reopenStack,
-    );
-
-    if (opts?.activate !== false) {
-      navigateToKey(item.key);
+  removeSessions(server: OpenCodeServerKey, sessionIDs: readonly string[]): void {
+    removeBrowserSessions(server, sessionIDs);
+    if (controller === null) {
+      windowTabStore.actions.removeSessions(server, sessionIDs);
+    } else {
+      controller.actions.removeSessions(server, sessionIDs);
     }
   },
 
-  // Activation is the mousedown path TabStrip already fires — we navigate here.
-  activate(key: string): void {
-    if (!snapshot.tabs.some((tab) => tab.key === key)) {
+  open(item: TabItem, options?: { readonly activate?: boolean }): void {
+    if (item.kind === "home") {
+      if (options?.activate !== false) showHome();
       return;
     }
-
-    if (snapshot.activeKey !== key) {
-      publish(snapshot.tabs, key, snapshot.reopenStack);
+    const stateTab = windowTabStore
+      .getSnapshot()
+      .tabs.find((candidate) => openCodeTabKey(candidate) === item.key);
+    const ref =
+      stateTab === undefined ? sessionRefForInput(item.key) : openCodeTabSessionRef(stateTab);
+    if (ref === null) {
+      showConnectionError("The OpenCode connection is not ready yet.");
+      return;
     }
+    rememberServerForRef(ref);
+    setPresentation(openCodeSessionKey(ref), {
+      title: item.title,
+      status: item.status,
+      repository: item.repository,
+    });
+    openSession(ref, options);
+  },
 
-    navigateToKey(key);
+  activate(key: string): void {
+    if (key === OPEN_CODE_HOME_TAB_KEY) {
+      showHome();
+      return;
+    }
+    const resolved = resolveOpenTabKey(key);
+    if (resolved === null) return;
+    if (controller === null) {
+      windowTabStore.actions.select(resolved);
+    } else {
+      controller.actions.activate(resolved);
+    }
   },
 
   close(key: string): void {
-    const index = snapshot.tabs.findIndex((tab) => tab.key === key);
-
-    // Home lives at slot 0 and never closes (the pinned-tab law / ⌘W skip).
-    if (index <= 0) {
-      return;
+    const resolved = resolveOpenTabKey(key);
+    if (resolved === null) return;
+    const closing = windowTabStore
+      .getSnapshot()
+      .tabs.find((candidate) => openCodeTabKey(candidate) === resolved);
+    if (controller === null) {
+      windowTabStore.actions.close(resolved);
+    } else {
+      controller.actions.close(resolved);
     }
-
-    const item = snapshot.tabs[index];
-    if (item === undefined) {
-      return;
-    }
-
-    const tabs = Object.freeze(snapshot.tabs.filter((tab) => tab.key !== key));
-    const fallback = tabs[Math.min(index, tabs.length - 1)] ?? HOME_TAB;
-    const wasActive = snapshot.activeKey === key;
-    const nextActive = wasActive ? fallback.key : snapshot.activeKey;
-
-    publish(
-      tabs,
-      nextActive,
-      Object.freeze([
-        ...snapshot.reopenStack.slice(-(REOPEN_LIMIT - 1)),
-        Object.freeze({ item, index }),
-      ]),
-    );
-
-    if (wasActive) {
-      navigateToKey(nextActive);
+    if (closing?.type === "session") {
+      removeBrowserSessions(closing.server, [closing.sessionID]);
     }
   },
 
   closeActive(): void {
-    actions.close(snapshot.activeKey);
+    const key = windowTabStore.getSnapshot().activeKey;
+    if (key !== null) actions.close(key);
   },
 
   reorder(from: number, to: number): void {
-    const lastIndex = snapshot.tabs.length - 1;
-    const fromIndex = clampIndex(from, lastIndex);
-    const toIndex = clampIndex(to, lastIndex);
-
-    // Home is the fixed anchor: no drag may source from it or insert before it.
-    if (fromIndex === 0 || toIndex === 0 || fromIndex === toIndex) {
+    if (controller !== null) {
+      controller.actions.reorder(from, to);
       return;
     }
-
-    const tabs = [...snapshot.tabs];
-    const [item] = tabs.splice(fromIndex, 1);
-    if (item === undefined) {
+    const fromIndex = Math.trunc(from) - 1;
+    const toIndex = Math.trunc(to) - 1;
+    const keys = windowTabStore.getSnapshot().tabs.map(openCodeTabKey);
+    if (
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= keys.length ||
+      toIndex >= keys.length ||
+      fromIndex === toIndex
+    ) {
       return;
     }
-
-    tabs.splice(toIndex, 0, item);
-    publish(Object.freeze(tabs), snapshot.activeKey, snapshot.reopenStack);
+    const [key] = keys.splice(fromIndex, 1);
+    if (key === undefined) return;
+    keys.splice(toIndex, 0, key);
+    windowTabStore.actions.reorder(keys);
   },
 
   reopen(): void {
-    const entry = snapshot.reopenStack[snapshot.reopenStack.length - 1];
-    if (entry === undefined) {
-      return;
+    if (controller === null) {
+      windowTabStore.actions.reopenClosed();
+    } else {
+      controller.actions.reopenClosed();
     }
-
-    const reopenStack = Object.freeze(snapshot.reopenStack.slice(0, -1));
-
-    if (snapshot.tabs.some((tab) => tab.key === entry.item.key)) {
-      publish(snapshot.tabs, entry.item.key, reopenStack);
-      navigateToKey(entry.item.key);
-      return;
-    }
-
-    const tabs = [...snapshot.tabs];
-    tabs.splice(Math.min(entry.index, tabs.length), 0, entry.item);
-    publish(Object.freeze(tabs), entry.item.key, reopenStack);
-    navigateToKey(entry.item.key);
   },
 
-  // ⌘N / + / Home omnibox — create in OpenCode first, then navigate to the real thread id.
-  openNew(input?: OpenNewThreadInput): void {
-    const client = getBoundHonkClient();
+  openDraft(input?: { readonly server?: OpenCodeServerKey; readonly directory?: string }): void {
+    const client =
+      input?.server === undefined ? getBoundOpenCodeClient() : getOpenCodeClient(input.server);
     if (client === null) {
-      toastActions.add({
-        type: "error",
-        title: "Not connected",
-        description: "The OpenCode connection is not ready yet.",
-      });
+      showConnectionError("The OpenCode connection is not ready yet.");
       return;
     }
-
-    void createAndOpenThread(client, input?.prompt ?? "", input);
+    rememberServer(client.server);
+    void openNewDraft(client, input?.directory);
   },
 
-  // Seam for the SDK watch adapter: swap the placeholder threadId title for a
-  // real summary without the tab store knowing about watches.
+  openNew(input?: OpenNewThreadInput, options?: { readonly replaceDraftKey?: string }): void {
+    const client =
+      input?.server === undefined ? getBoundOpenCodeClient() : getOpenCodeClient(input.server);
+    if (client === null) {
+      showConnectionError("The OpenCode connection is not ready yet.");
+      return;
+    }
+    rememberServer(client.server);
+    if (input === undefined) {
+      void openNewDraft(client);
+      return;
+    }
+    void createAndOpenThread(client, input.prompt ?? "", input, options);
+  },
+
+  openNewInWorkspace(key: string): void {
+    const tab = snapshot.tabs.find((candidate) => candidate.key === key);
+    const resolved = resolveOpenTabKey(key);
+    const stateTab =
+      resolved === null
+        ? undefined
+        : windowTabStore
+            .getSnapshot()
+            .tabs.find((candidate) => openCodeTabKey(candidate) === resolved);
+    if (
+      tab === undefined ||
+      tab.kind === "home" ||
+      tab.path === undefined ||
+      stateTab === undefined
+    ) {
+      actions.openNew();
+      return;
+    }
+    actions.openDraft({ server: stateTab.server, directory: tab.path });
+  },
+
+  closeWorkspaceTabs(key: string): void {
+    const tab = snapshot.tabs.find((candidate) => candidate.key === key);
+    if (tab === undefined || tab.kind === "home") {
+      return;
+    }
+    const keys = snapshot.tabs
+      .filter((candidate) => candidate.kind !== "home" && isSameWorkspace(candidate, tab))
+      .map((candidate) => candidate.key);
+    for (const candidateKey of keys) {
+      actions.close(candidateKey);
+    }
+  },
+
+  openSessionRoute(
+    ref: OpenCodeSessionRef,
+    href: string,
+    options?: { readonly replace?: boolean },
+  ): void {
+    rememberServerForRef(ref);
+    if (controller === null) {
+      windowTabStore.actions.openSession(ref);
+      windowTabStore.actions.rememberSessionRoute(ref, href);
+      return;
+    }
+    controller.actions.openSessionRoute(ref, href, options);
+  },
+
   setTabTitle(key: string, title: string): void {
-    publish(
-      replaceTab(key, (tab) => (tab.title === title ? tab : { ...tab, title })),
-      snapshot.activeKey,
-      snapshot.reopenStack,
-    );
+    const resolved = resolveOpenTabKey(key);
+    if (resolved !== null) setPresentation(resolved, { title });
   },
 
   setStatus(key: string, status: TabStatus): void {
-    publish(
-      replaceTab(key, (tab) => (tab.status === status ? tab : { ...tab, status })),
-      snapshot.activeKey,
-      snapshot.reopenStack,
-    );
+    const resolved = resolveOpenTabKey(key);
+    if (resolved !== null) setPresentation(resolved, { status });
   },
 
   setRepository(key: string, repository: TabRepository): void {
-    publish(
-      replaceTab(key, (tab) => {
-        if (tab.kind !== "thread" || repositoriesEqual(tab.repository, repository)) {
-          return tab;
-        }
-        return { ...tab, repository };
-      }),
-      snapshot.activeKey,
-      snapshot.reopenStack,
-    );
+    const resolved = resolveOpenTabKey(key);
+    if (resolved !== null) setPresentation(resolved, { repository });
   },
 
-  // Workspace summaries are the authority for tab chrome. Apply the whole
-  // snapshot in one publish so a streaming status update cannot briefly leave
-  // Home and its thread tab disagreeing about attention state.
+  updateDraftDirectory(key: string, directory: string): void {
+    const draftID = openCodeDraftIDFromTabKey(key);
+    if (draftID === null) return;
+    const location = openCodeLocationRef({ directory });
+    if (controller === null) {
+      windowTabStore.actions.updateDraft(draftID, {
+        location,
+        target: OPEN_CODE_LOCAL_SESSION_TARGET,
+      });
+    } else {
+      controller.actions.updateDraft(draftID, {
+        location,
+        target: OPEN_CODE_LOCAL_SESSION_TARGET,
+      });
+    }
+  },
+
+  updateDraftTarget(key: string, target: OpenCodeSessionTarget): void {
+    const draftID = openCodeDraftIDFromTabKey(key);
+    if (draftID === null) return;
+    if (controller === null) {
+      windowTabStore.actions.updateDraft(draftID, { target });
+    } else {
+      controller.actions.updateDraft(draftID, { target });
+    }
+  },
+
   syncWorkspace(
     threads: readonly ThreadSummary[],
     statusForSummary: (summary: ThreadSummary) => TabStatus,
   ): void {
-    const activeSummaries = threads.filter((thread) => thread.archivedAt === null);
-    const byId = new Map(threads.map((thread) => [String(thread.id), thread]));
-    const homeStatus = worstStatus(activeSummaries.map(statusForSummary));
-    let didChange = false;
-
-    const tabs = snapshot.tabs.map((tab) => {
-      if (tab.kind === "home") {
-        if (tab.status === homeStatus) {
-          return tab;
-        }
-        didChange = true;
-        return Object.freeze({ ...tab, status: homeStatus });
+    const client = getBoundOpenCodeClient();
+    if (client !== null) rememberServer(client.server);
+    const openSessionKeys = new Set<string>(
+      windowTabStore.getSnapshot().tabs.flatMap((tab) => {
+        const owner = openCodeTabSessionRef(tab);
+        return owner === null ? [] : [openCodeSessionTabKey(owner)];
+      }),
+    );
+    let nextPresentations: OpenCodeTabPresentations = presentations;
+    for (const thread of threads) {
+      const ref = openCodeSessionRef(thread.server, thread.id);
+      const key = openCodeSessionTabKey(ref);
+      if (!openSessionKeys.has(key)) continue;
+      rememberServerKey(thread.server);
+      const directory = thread.worktree?.path;
+      nextPresentations = withPresentation(nextPresentations, key, {
+        title: thread.title,
+        status: statusForSummary(thread),
+        repository:
+          directory === undefined || directory === null
+            ? { state: "loading" }
+            : { state: "ready", label: basename(directory) },
+      });
+      if (directory !== undefined && directory !== null) {
+        windowTabStore.actions.rememberSessionInfo(ref, {
+          title: thread.title,
+          location: { directory },
+        });
       }
-
-      const summary = byId.get(tab.key);
-      if (summary === undefined) {
-        return tab;
-      }
-
-      const status = statusForSummary(summary);
-      const repository =
-        summary.worktree?.path === undefined || summary.worktree.path === null
-          ? tab.repository
-          : { state: "ready" as const, label: basename(summary.worktree.path) };
-      if (
-        tab.title === summary.title &&
-        tab.status === status &&
-        repositoriesEqual(tab.repository, repository)
-      ) {
-        return tab;
-      }
-      didChange = true;
-      return Object.freeze({ ...tab, title: summary.title, status, repository });
-    });
-
-    if (didChange) {
-      publish(Object.freeze(tabs), snapshot.activeKey, snapshot.reopenStack);
+    }
+    if (nextPresentations !== presentations) {
+      presentations = nextPresentations;
+      publishProjection();
     }
   },
 } as const;
 
-function syncFromPathname(pathname: string): void {
-  if (pathname === "/" || pathname === "") {
-    if (snapshot.activeKey !== HOME_TAB.key) {
-      publish(snapshot.tabs, HOME_TAB.key, snapshot.reopenStack);
-    }
-    return;
-  }
+export function newSessionTabKey(draftID: string): string {
+  return openCodeDraftTabKey(draftID);
+}
 
-  const match = /^\/thread\/([^/]+)\/?$/.exec(pathname);
-  if (match === null) {
-    return;
-  }
+export function sessionRefForTabKey(key: string): OpenCodeSessionRef | null {
+  return sessionRefForInput(key);
+}
 
-  const threadId = match[1];
-  if (threadId === undefined || threadId.length === 0) {
-    return;
-  }
+export function sessionTabKey(sessionID: string): string | null {
+  const ref = sessionRefForInput(sessionID);
+  return ref === null ? null : openCodeSessionKey(ref);
+}
 
-  const existing = snapshot.tabs.find((tab) => tab.key === threadId);
-  if (existing !== undefined) {
-    if (snapshot.activeKey !== threadId) {
-      publish(snapshot.tabs, threadId, snapshot.reopenStack);
-    }
-    return;
-  }
-
-  // A direct URL is a legitimate browser-style open. Start with honest loading
-  // chrome; the workspace summary synchronizer replaces the title/status once
-  // OpenCode validates the id, while the route surface owns its unavailable state.
-  publish(
-    Object.freeze([
-      ...snapshot.tabs,
-      Object.freeze({
-        key: threadId,
-        title: "Loading thread",
-        kind: "thread" as const,
-        status: "idle" as const,
-        repository: { state: "loading" as const },
+function projectSnapshot(): Snapshot {
+  const state = windowTabStore.getSnapshot();
+  const descriptors = openCodeTabDescriptors({
+    state,
+    servers: [...servers.values()],
+    presentations,
+  });
+  const reopenStack = state.closed.map((entry): ReopenEntry => {
+    const key = openCodeTabKey(entry.tab);
+    const owner = openCodeTabSessionRef(entry.tab);
+    const ownerKey = owner === null ? key : openCodeSessionTabKey(owner);
+    const presentation = presentations[ownerKey];
+    const repository: TabRepository = presentation?.repository ?? { state: "loading" };
+    return Object.freeze({
+      index: entry.index + 1,
+      item: Object.freeze({
+        key,
+        kind: "thread",
+        title: presentation?.title ?? "Loading session",
+        status: presentation?.status ?? "idle",
+        repository,
       }),
-    ]),
-    threadId,
-    snapshot.reopenStack,
-  );
+    });
+  });
+  return Object.freeze({
+    tabs: descriptors,
+    activeKey: state.activeKey ?? OPEN_CODE_HOME_TAB_KEY,
+    reopenStack: Object.freeze(reopenStack),
+  });
 }
 
-const STATUS_SEVERITY: Readonly<Record<TabStatus, number>> = Object.freeze({
-  failed: 5,
-  "needs-you": 4,
-  working: 3,
-  draft: 2,
-  done: 1,
-  idle: 0,
-});
+function publishProjection(): void {
+  snapshot = projectSnapshot();
+  for (const listener of listeners) listener();
+}
 
-function worstStatus(statuses: readonly TabStatus[]): TabStatus {
-  let worst: TabStatus = "idle";
-  for (const status of statuses) {
-    if (STATUS_SEVERITY[status] > STATUS_SEVERITY[worst]) {
-      worst = status;
+function rememberStateServers(): void {
+  const state = windowTabStore.getSnapshot();
+  for (const tab of state.tabs) rememberServerKey(tab.server);
+  for (const entry of state.closed) rememberServerKey(entry.tab.server);
+}
+
+function syncRetainedSessionWatches(): void {
+  const tabState = windowTabStore.getSnapshot();
+  const refs = new Map<string, OpenCodeSessionRef>();
+  for (const tab of tabState.tabs) {
+    const ref = openCodeTabSessionRef(tab);
+    if (ref === null) continue;
+    refs.set(openCodeSessionKey(ref), ref);
+    const route = tabState.info[openCodeSessionTabKey(ref)]?.route;
+    const parsed = route === undefined ? null : parseOpenCodeTabHref(route);
+    if (parsed?.type !== "session") continue;
+    if (parsed.workbench?.type === "side-chat") {
+      const child = openCodeSessionRef(parsed.ref.server, parsed.workbench.sessionID);
+      refs.set(openCodeSessionKey(child), child);
     }
   }
-  return worst;
+
+  for (const [key, release] of retainedSessionWatches) {
+    if (refs.has(key)) continue;
+    release();
+    retainedSessionWatches.delete(key);
+  }
+  for (const [key, ref] of refs) {
+    if (retainedSessionWatches.has(key)) continue;
+    retainedSessionWatches.set(
+      key,
+      subscribeSessionWatch(ref, () => {}),
+    );
+  }
 }
 
-async function createAndOpenThread(
-  client: HonkClient,
-  prompt: string,
-  input?: OpenNewThreadInput,
-): Promise<void> {
-  const trimmedPrompt = prompt.trim();
-  let summary: ThreadCreateSummary;
+function rememberServerKey(key: OpenCodeServerKey): void {
+  if (!servers.has(key)) servers.set(key, createOpenCodeServer({ origin: key }));
+}
 
+function rememberServer(server: OpenCodeServerDescriptor): void {
+  const previous = servers.get(server.key);
+  if (
+    previous?.origin === server.origin &&
+    previous.label === server.label &&
+    previous.kind === server.kind
+  ) {
+    return;
+  }
+  servers.set(server.key, server);
+  publishProjection();
+}
+
+function rememberServerForRef(ref: OpenCodeSessionRef): void {
+  const client = getBoundOpenCodeClient();
+  if (client?.server.key === ref.server) {
+    rememberServer(client.server);
+  } else {
+    rememberServerKey(ref.server);
+  }
+}
+
+function sessionRefForInput(value: string): OpenCodeSessionRef | null {
+  const parsed = parseOpenCodeSessionKey(value);
+  if (parsed !== null) return parsed;
+
+  const state = windowTabStore.getSnapshot();
+  const exact = state.tabs.find((tab) => tab.type === "session" && openCodeTabKey(tab) === value);
+  if (exact?.type === "session") return openCodeSessionRef(exact.server, exact.sessionID);
+
+  const matching = state.tabs.filter((tab) => tab.type === "session" && tab.sessionID === value);
+  const currentServer = getBoundOpenCodeClient()?.server.key;
+  const current = matching.find((tab) => tab.type === "session" && tab.server === currentServer);
+  if (current?.type === "session") return openCodeSessionRef(current.server, current.sessionID);
+  const only = matching.length === 1 ? matching[0] : undefined;
+  if (only?.type === "session") return openCodeSessionRef(only.server, only.sessionID);
+
+  const client = getBoundOpenCodeClient();
+  return client === null ? null : openCodeSessionRef(client.server.key, value);
+}
+
+function resolveOpenTabKey(value: string): OpenCodeTabKey | null {
+  const exact = windowTabStore.getSnapshot().tabs.find((tab) => openCodeTabKey(tab) === value);
+  if (exact !== undefined) return openCodeTabKey(exact);
+  if (openCodeDraftIDFromTabKey(value) !== null) {
+    const key = value as OpenCodeTabKey;
+    return windowTabStore.getSnapshot().tabs.some((tab) => openCodeTabKey(tab) === key)
+      ? key
+      : null;
+  }
+  const ref = sessionRefForInput(value);
+  if (ref === null) return null;
+  const key = openCodeSessionTabKey(ref);
+  return windowTabStore.getSnapshot().tabs.some((tab) => openCodeTabKey(tab) === key) ? key : null;
+}
+
+function openSession(ref: OpenCodeSessionRef, options?: { readonly activate?: boolean }): void {
+  if (controller === null) {
+    windowTabStore.actions.openSession(ref, options);
+  } else {
+    controller.actions.openSession(ref, options);
+  }
+}
+
+function openCanonicalWorkbenchTool(
+  ref: OpenCodeSessionRef,
+  tool: "browser" | "changes",
+  options?: { readonly activate?: boolean },
+): void {
+  const href = openCodeWorkbenchToolHref(ref, tool);
+  if (controller === null) {
+    windowTabStore.actions.openSession(ref, options);
+    windowTabStore.actions.rememberSessionRoute(ref, href);
+  } else {
+    if (options?.activate === false) {
+      windowTabStore.actions.openSession(ref, options);
+      windowTabStore.actions.rememberSessionRoute(ref, href);
+      return;
+    }
+    controller.actions.openSessionRoute(ref, href);
+  }
+}
+
+function showHome(): void {
+  if (controller === null) {
+    windowTabStore.actions.showHome();
+  } else {
+    controller.actions.showHome();
+  }
+}
+
+async function openNewDraft(client: OpenCodeClient, directory?: string): Promise<void> {
+  const configuredDirectory = directory ?? getAppSettings().defaultProjectDirectory ?? undefined;
   try {
-    // With a directory, the session is scoped to that project instance; without one (`~` does not
-    // expand server-side), the sidecar's default directory governs. The folder picker feeds
-    // input.directory once the project picker lands.
-    // New tabs without an explicit directory inherit the app-wide default (the last folder a thread
-    // was started in — app-settings-store), so ⌘N / command menu / the tab "+" all land in the same
-    // project instead of the sidecar's bare default.
-    const directory = input?.directory ?? getAppSettings().defaultProjectDirectory ?? undefined;
-    const payload: ThreadCreatePayload = {
-      ...(directory !== undefined ? { cwd: directory } : {}),
-      ...(trimmedPrompt.length > 0 ? { title: trimmedPrompt } : {}),
-      ...(input?.agent !== undefined ? { agent: input.agent } : {}),
-      ...(input?.model !== undefined ? { model: input.model } : {}),
-      ...(input?.variant !== undefined ? { variant: input.variant } : {}),
+    const resolved = await client.resolveLocation(
+      configuredDirectory === undefined ? undefined : { directory: configuredDirectory },
+    );
+    const input = {
+      draftID: crypto.randomUUID(),
+      server: client.server.key,
+      location: openCodeLocationRef({ directory: resolved.project.directory }),
     };
-    summary = await client.threads.create(payload);
+    if (controller === null) {
+      windowTabStore.actions.openDraft(input);
+    } else {
+      controller.actions.openDraft(input);
+    }
   } catch (error) {
     const message = errorMessage(error);
     toastActions.add({
       type: "error",
-      title: "New thread failed",
+      title: "New session failed",
+      description: message,
+      copyableError: message,
+    });
+  }
+}
+
+async function createAndOpenThread(
+  client: OpenCodeClient,
+  prompt: string,
+  input: OpenNewThreadInput,
+  options?: { readonly replaceDraftKey?: string },
+): Promise<void> {
+  const trimmedPrompt = prompt.trim();
+  let summary: OpenCodeSessionInfo;
+  try {
+    const directory = input.directory ?? getAppSettings().defaultProjectDirectory ?? undefined;
+    const source =
+      input.location ??
+      (directory === undefined
+        ? openCodeLocationRef(await client.resolveLocation())
+        : openCodeLocationRef({ directory }));
+    summary = await createOpenCodeTargetedSession(client, {
+      source,
+      target: input.target ?? OPEN_CODE_LOCAL_SESSION_TARGET,
+      ...(input.agent === undefined ? {} : { agent: input.agent }),
+      ...(input.model === undefined
+        ? {}
+        : {
+            model: {
+              ...input.model,
+              ...(input.variant === undefined ? {} : { variant: input.variant }),
+            },
+          }),
+    });
+  } catch (error) {
+    const message = errorMessage(error);
+    toastActions.add({
+      type: "error",
+      title: "New session failed",
       description: message,
       copyableError: message,
     });
     return;
   }
 
-  const key = String(summary.id);
-  actions.open({
-    key,
+  const ref = openCodeSessionRefFromInfo(client.server.key, summary);
+  const key = openCodeSessionKey(ref);
+  setPresentation(key, {
     title: summary.title,
-    kind: "thread",
     status: "idle",
-    repository:
-      summary.worktree?.path === undefined || summary.worktree.path === null
-        ? { state: "loading" }
-        : { state: "ready", label: basename(summary.worktree.path) },
+    repository: { state: "ready", label: basename(summary.location.directory) },
   });
-
-  // Pin the birth mode as this thread's own override so it never floats on the home pill
-  // (see modes.useThreadMode). Only a constrained mode needs pinning; a build-mode thread is
-  // already the fallback, and leaving it unset keeps the store lean.
-  if (input?.mode !== undefined && input.mode !== "build") {
-    modeActions.setThreadMode(key, input.mode);
+  const draftID =
+    options?.replaceDraftKey === undefined
+      ? null
+      : openCodeDraftIDFromTabKey(options.replaceDraftKey);
+  if (draftID === null) {
+    openSession(ref);
+  } else if (controller === null) {
+    windowTabStore.actions.promoteDraft(draftID, ref, summary);
+  } else {
+    controller.actions.promoteDraft(draftID, ref, summary);
   }
 
-  if (trimmedPrompt.length === 0 && input?.command === undefined) {
+  if (input.mode !== undefined && input.mode !== "build") {
+    modeActions.setThreadMode(key, input.mode);
+  }
+  if (trimmedPrompt.length === 0 && (input.files === undefined || input.files.length === 0)) {
     return;
   }
 
   try {
-    if (input?.command !== undefined) {
-      // Slash command: opencode runs it server-side (session.command). The model stays the
-      // birth pin on the session; the mode agent rides along like a prompt send would.
-      await client.threads.runCommand(summary.id, {
-        command: input.command.name,
-        arguments: input.command.arguments,
-        ...(input.agent !== undefined ? { agent: input.agent } : {}),
-      });
-    } else {
-      await client.threads.send(summary.id, {
-        messageId: newMessageId(),
+    await client.sessions.prompt(ref, {
+      id: openCodeMessageID(crypto.randomUUID()),
+      prompt: {
         text: trimmedPrompt,
-        ...(input?.files !== undefined && input.files.length > 0 ? { files: input.files } : {}),
-      });
-    }
+        ...(input.files === undefined || input.files.length === 0
+          ? {}
+          : { files: [...input.files] }),
+      },
+    });
   } catch (error) {
     const message = errorMessage(error);
     toastActions.add({
       type: "error",
-      title: input?.command !== undefined ? "Command failed" : "Send failed",
+      title: "Send failed",
       description: message,
       copyableError: message,
       threadKey: key,
@@ -520,196 +772,67 @@ async function createAndOpenThread(
   }
 }
 
-function newMessageId(): ThreadSendMessageId {
-  return crypto.randomUUID() as ThreadSendMessageId;
+function setPresentation(key: string, update: OpenCodeTabPresentation): void {
+  const next = withPresentation(presentations, key, update);
+  if (next === presentations) return;
+  presentations = next;
+  publishProjection();
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function navigateToKey(key: string): void {
-  if (boundRouter === null) {
-    return;
-  }
-
-  const pathname = boundRouter.state.location.pathname;
-  const targetPath = key === HOME_TAB.key ? "/" : `/thread/${key}`;
-  if (pathname === targetPath || pathname === `${targetPath}/`) {
-    return;
-  }
-
-  syncingFromStore = true;
-  try {
-    const result =
-      key === HOME_TAB.key
-        ? boundRouter.navigate({ to: "/" })
-        : boundRouter.navigate({
-            to: "/thread/$threadId",
-            params: { threadId: key },
-          });
-    // Backup clear if onResolved never fires (cancelled / identical href edge).
-    void Promise.resolve(result).finally(() => {
-      syncingFromStore = false;
-    });
-  } catch {
-    syncingFromStore = false;
-  }
-}
-
-function replaceTab(key: string, update: (tab: TabItem) => TabItem): readonly TabItem[] {
-  if (key === HOME_TAB.key) {
-    return snapshot.tabs;
-  }
-
-  const index = snapshot.tabs.findIndex((tab) => tab.key === key);
-  const current = index >= 0 ? snapshot.tabs[index] : undefined;
-  if (current === undefined) {
-    return snapshot.tabs;
-  }
-
-  const next = update(current);
-  if (next === current) {
-    return snapshot.tabs;
-  }
-
-  const tabs = [...snapshot.tabs];
-  tabs[index] = Object.freeze(next);
-  return Object.freeze(tabs);
-}
-
-function publish(
-  tabs: readonly TabItem[],
-  activeKey: string,
-  reopenStack: Snapshot["reopenStack"],
-): void {
+function withPresentation(
+  source: OpenCodeTabPresentations,
+  key: string,
+  update: OpenCodeTabPresentation,
+): OpenCodeTabPresentations {
+  const current = source[key];
+  const next = Object.freeze({ ...current, ...update });
   if (
-    tabs === snapshot.tabs &&
-    activeKey === snapshot.activeKey &&
-    reopenStack === snapshot.reopenStack
+    current?.title === next.title &&
+    current?.status === next.status &&
+    repositoriesEqual(current?.repository, next.repository)
   ) {
-    return;
+    return source;
   }
-
-  snapshot = Object.freeze({ tabs, activeKey, reopenStack });
-  persist(snapshot);
-
-  for (const listener of listeners) {
-    listener();
-  }
+  return Object.freeze({ ...source, [key]: next });
 }
 
-function clampIndex(index: number, lastIndex: number): number {
-  return Math.min(Math.max(Math.trunc(index), 0), lastIndex);
+function withoutPresentation(
+  source: OpenCodeTabPresentations,
+  key: string,
+): OpenCodeTabPresentations {
+  if (source[key] === undefined) return source;
+  const next: Record<string, OpenCodeTabPresentation> = {};
+  for (const [candidate, presentation] of Object.entries(source)) {
+    if (candidate !== key) next[candidate] = presentation;
+  }
+  return Object.freeze(next);
 }
 
-function hydrate(): Snapshot {
-  if (typeof window === "undefined") {
-    return DEFAULT_SNAPSHOT;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === null) {
-      return DEFAULT_SNAPSHOT;
-    }
-
-    const parsed = JSON.parse(raw) as { tabs?: unknown; activeKey?: unknown };
-    const seen = new Set<string>([HOME_TAB.key]);
-    const tabs: TabItem[] = [HOME_TAB];
-
-    for (const value of Array.isArray(parsed.tabs) ? parsed.tabs : []) {
-      const tab = value as {
-        key?: unknown;
-        title?: unknown;
-        kind?: unknown;
-        status?: unknown;
-        repository?: unknown;
-      } | null;
-
-      if (
-        tab === null ||
-        typeof tab.key !== "string" ||
-        // Thread tabs are opencode sessions; drop anything else at hydration — pre-cutover
-        // "thread_…" ids otherwise 500 against the sidecar on every watch mount.
-        !tab.key.startsWith("ses_") ||
-        typeof tab.title !== "string" ||
-        tab.kind !== "thread" ||
-        typeof tab.status !== "string" ||
-        tab.status === "draft" ||
-        !(TAB_STATUSES as readonly string[]).includes(tab.status) ||
-        seen.has(tab.key)
-      ) {
-        continue;
-      }
-
-      seen.add(tab.key);
-      const repository = decodeRepository(tab.repository);
-      tabs.push(
-        Object.freeze({
-          key: tab.key,
-          title: tab.title,
-          kind: "thread" as const,
-          status: tab.status as TabStatus,
-          repository,
-        }),
-      );
-    }
-
-    const activeKey =
-      typeof parsed.activeKey === "string" && seen.has(parsed.activeKey)
-        ? parsed.activeKey
-        : HOME_TAB.key;
-
-    return Object.freeze({
-      tabs: Object.freeze(tabs),
-      activeKey,
-      reopenStack: DEFAULT_SNAPSHOT.reopenStack,
-    });
-  } catch {
-    return DEFAULT_SNAPSHOT;
-  }
+function repositoriesEqual(
+  left: TabRepository | undefined,
+  right: TabRepository | undefined,
+): boolean {
+  if (left === right) return true;
+  if (left === undefined || right === undefined || left.state !== right.state) return false;
+  return left.state !== "ready" || (right.state === "ready" && left.label === right.label);
 }
 
-function persist(next: Snapshot): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ tabs: next.tabs, activeKey: next.activeKey }),
-    );
-  } catch {
-    // Persistence must never break the tab plane.
-  }
-}
-
-function repositoriesEqual(a: TabRepository, b: TabRepository): boolean {
-  if (a.state !== b.state) {
+function isSameWorkspace(
+  left: Exclude<TabDescriptor, { readonly kind: "home" }>,
+  right: Exclude<TabDescriptor, { readonly kind: "home" }>,
+): boolean {
+  const leftServer =
+    left.server === undefined ? "default" : `${left.server.kind}:${left.server.label}`;
+  const rightServer =
+    right.server === undefined ? "default" : `${right.server.kind}:${right.server.label}`;
+  if (leftServer !== rightServer) {
     return false;
   }
-  return a.state !== "ready" || (b.state === "ready" && a.label === b.label);
+  const leftPath = left.path ?? `${left.repository.state}:${left.key}`;
+  const rightPath = right.path ?? `${right.repository.state}:${right.key}`;
+  return leftPath === rightPath;
 }
 
-function decodeRepository(value: unknown): TabRepository {
-  if (typeof value !== "object" || value === null) {
-    return { state: "loading" };
-  }
-  const state = Reflect.get(value, "state");
-  if (state === "ready") {
-    const label = Reflect.get(value, "label");
-    if (typeof label === "string" && label.trim().length > 0) {
-      return { state, label };
-    }
-    return { state: "unavailable" };
-  }
-  return state === "unavailable" ? { state } : { state: "loading" };
-}
-
-function basename(path: string): string {
-  const trimmed = path.replace(/[\\/]+$/, "");
-  const [last = trimmed] = trimmed.split(/[\\/]/).slice(-1);
-  return last.length > 0 ? last : path;
+function showConnectionError(description: string): void {
+  toastActions.add({ type: "error", title: "Not connected", description });
 }

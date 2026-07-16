@@ -1,25 +1,13 @@
-// First-run desktop onboarding. Electron mounts this route in a dedicated transparent fullscreen
-// window, so the dialog scrim dims the actual screen while the main app window stays uncreated.
-// The native folder picker and sidecar provider-auth API remain the source of truth for both setup
-// choices; completion hands control back to the Electron window lifecycle.
+// First-run desktop onboarding in a transparent fullscreen Electron window.
+// Native folder picking stays desktop-owned; provider inventory comes from OpenCode.
 
 import * as stylex from "@stylexjs/stylex";
-import { Button, Field, Icon, ListRow, Matrix, Spinner, Text, type Glyph } from "@honk/ui";
-import {
-  IconArrowUp,
-  IconCheckmark1,
-  IconClawd,
-  IconConsole,
-  IconFileBend,
-  IconFolderOpen,
-  IconOpenaiCodex,
-} from "@honk/ui/icons";
+import { Button, Icon, Text } from "@honk/ui";
+import { IconClawd, IconConsole, IconFolderOpen, IconOpenaiCodex } from "@honk/ui/icons";
 import {
   colorVars,
   controlVars,
-  conversationVars,
   elevationVars,
-  fontVars,
   motionVars,
   radiusVars,
   spaceVars,
@@ -36,47 +24,18 @@ import {
   pickFolder,
   subscribeOnboardingWindowShown,
 } from "./desktop-bridge";
+import { errorMessage } from "./error-message";
+import { OnboardingIntro, useReducedMotion, WorkspaceDemo } from "./onboarding-demo";
 import { OnboardingMist } from "./onboarding-mist";
-import type {
-  ProviderInventory,
-  SidecarProvider,
-  SidecarProviderAuthMethod,
-  SidecarProviderAuthPrompt,
-} from "./sidecar";
-import { getBoundHonkClient } from "./watch-registry";
+import { OnboardingProvider } from "./onboarding-provider";
 
 type OnboardingStep = "welcome" | "location" | "provider";
-type AuthProviderId = "openai" | "anthropic";
-type OAuthProviderId = Exclude<AuthProviderId, "anthropic">;
 type OnboardingIntroPhase = "running" | "skipping" | "complete";
 type OnboardingExitMode = "complete" | "dismiss";
 
-interface AuthProviderDefinition {
-  readonly id: AuthProviderId;
-  readonly label: string;
-  readonly accountLabel: string;
-  readonly icon: Glyph;
-}
-
-const AUTH_PROVIDERS: readonly AuthProviderDefinition[] = [
-  {
-    id: "openai",
-    label: "Codex",
-    accountLabel: "OpenAI / ChatGPT",
-    icon: IconOpenaiCodex,
-  },
-  {
-    id: "anthropic",
-    label: "Claude",
-    accountLabel: "Claude Code on this Mac",
-    icon: IconClawd,
-  },
-] as const;
-
 const STEP_ORDER: readonly OnboardingStep[] = ["welcome", "location", "provider"];
 
-// Reference-derived onboarding anatomy. These are fixed modal proportions and responsive cutoffs,
-// not reusable identity values; all paint, type, radius, elevation, and motion still use tokens.
+// Fixed modal proportions. Paint and type still use tokens.
 const CARD_MAX_WIDTH = "1040px";
 const CARD_WIDTH = "calc(100% - 48px)";
 const CARD_WIDTH_COMPACT = "calc(100% - 24px)";
@@ -93,12 +52,11 @@ const PROGRESS_HEIGHT = "4px";
 const PROGRESS_GAP = "4px";
 const PROGRESS_PAD_TOP = "24px";
 const FEATURE_ICON_SIZE = "34px";
-const PROVIDER_ICON_SIZE = "36px";
 const FOLDER_ICON_SIZE = "48px";
 const PROVIDER_ROW_HEIGHT = "60px";
 const PANEL_MIN_HEIGHT_COMPACT = "220px";
 const STEP_ENTER_OFFSET = "4px";
-// The rain film gets five seconds to establish the surface before setup becomes interactive.
+// Rain film runs five seconds before setup becomes interactive.
 const ONBOARDING_INTRO_DURATION = "5s";
 const ONBOARDING_INTRO_SKIP_DURATION = "420ms";
 const ONBOARDING_BACKDROP_ENTER_DURATION = "1.25s";
@@ -109,12 +67,14 @@ const ONBOARDING_SURFACE_ENTER_SCALE = 0.92;
 const ONBOARDING_SURFACE_ENTER_OFFSET = "24px";
 const ONBOARDING_SURFACE_ENTER_BLUR = "8px";
 const ONBOARDING_SURFACE_EXIT_SCALE = 0.97;
+const ONBOARDING_SURFACE_EXIT_OFFSET = "-8px";
 const ONBOARDING_SURFACE_EXIT_BLUR = "4px";
 const DEMO_COMPOSER_MIN_HEIGHT = "72px";
 const DEMO_WORK_MIN_HEIGHT = "178px";
-const DEMO_PROMPT_MAX_WIDTH = "310px";
-
-const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+// Demo sizes mirror the live composer and thread so the preview reads as the real app.
+const DEMO_COMPOSER_PAD = "16px";
+const DEMO_COMPOSER_FOOTER_HEIGHT = "44px";
+const DEMO_SEND_SIZE = "24px";
 
 const stepEnter = stylex.keyframes({
   from: {
@@ -174,7 +134,7 @@ const onboardingSurfaceExit = stylex.keyframes({
   to: {
     opacity: 0,
     scale: ONBOARDING_SURFACE_EXIT_SCALE,
-    translate: "0 -8px",
+    translate: `0 ${ONBOARDING_SURFACE_EXIT_OFFSET}`,
     filter: `blur(${ONBOARDING_SURFACE_EXIT_BLUR})`,
   },
 });
@@ -262,13 +222,11 @@ const styles = stylex.create({
     animationTimingFunction: motionVars["--honk-motion-ease-in"],
     animationFillMode: "both",
   },
-  skipAction: {
+  introSkip: {
     position: "absolute",
     zIndex: 1,
     right: CONTENT_PAD,
     bottom: CONTENT_PAD,
-    color: colorVars["--honk-color-toast-text"],
-    backgroundColor: colorVars["--honk-color-toast-subtle"],
   },
   demoStack: {
     position: "relative",
@@ -276,39 +234,39 @@ const styles = stylex.create({
     display: "grid",
     justifyItems: "center",
     gap: spaceVars["--honk-space-gutter"],
+    // Decorative. Must not intercept the real onboarding controls.
+    pointerEvents: "none",
   },
   demoComposer: {
     boxSizing: "border-box",
     width: "100%",
     minHeight: DEMO_COMPOSER_MIN_HEIGHT,
-    display: "grid",
-    gap: controlVars["--honk-control-gap"],
-    padding: spaceVars["--honk-space-panel-pad"],
-    borderRadius: radiusVars["--honk-radius-window"],
+    display: "flex",
+    flexDirection: "column",
+    borderRadius: radiusVars["--honk-radius-panel"],
     backgroundColor: colorVars["--honk-color-bg-base"],
-    boxShadow: `${CARD_RING}, ${elevationVars["--honk-elevation-floating"]}`,
+    boxShadow: elevationVars["--honk-elevation-raised"],
   },
-  demoContext: {
-    width: "fit-content",
+  demoEditor: {
+    paddingInline: DEMO_COMPOSER_PAD,
+    paddingTop: DEMO_COMPOSER_PAD,
+    paddingBottom: spaceVars["--honk-space-gutter"],
+  },
+  demoComposerFooter: {
+    display: "flex",
+    alignItems: "center",
+    gap: controlVars["--honk-control-gap"],
+    height: DEMO_COMPOSER_FOOTER_HEIGHT,
+    paddingInline: DEMO_COMPOSER_PAD,
+  },
+  demoLocationChip: {
     display: "inline-flex",
     alignItems: "center",
     gap: controlVars["--honk-control-gap"],
-    paddingBlock: controlVars["--honk-control-pad-sm"],
-    paddingInline: controlVars["--honk-control-pad-md"],
+    height: controlVars["--honk-control-h-sm"],
+    paddingInline: spaceVars["--honk-space-gutter"],
     borderRadius: radiusVars["--honk-radius-pill"],
-    backgroundColor: colorVars["--honk-color-control"],
-  },
-  demoPromptRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: spaceVars["--honk-space-gutter"],
-  },
-  demoPromptText: {
-    minWidth: 0,
-    maxWidth: DEMO_PROMPT_MAX_WIDTH,
-    flexGrow: 1,
-    overflow: "hidden",
-    whiteSpace: "nowrap",
+    color: colorVars["--honk-color-text-faint"],
   },
   demoSend: {
     width: DEMO_SEND_SIZE,
@@ -324,38 +282,10 @@ const styles = stylex.create({
     boxSizing: "border-box",
     width: "100%",
     minHeight: DEMO_WORK_MIN_HEIGHT,
-    display: "grid",
-    alignContent: "center",
-    gap: spaceVars["--honk-space-panel-pad"],
-    padding: CONTENT_PAD_COMPACT,
-    borderRadius: radiusVars["--honk-radius-window"],
-    backgroundColor: colorVars["--honk-color-bg-base"],
-    boxShadow: `${CARD_RING}, ${elevationVars["--honk-elevation-floating"]}`,
-  },
-  demoActivity: {
     display: "flex",
-    alignItems: "center",
-    gap: controlVars["--honk-control-gap"],
-    paddingInlineStart: DEMO_ACTIVITY_INDENT,
-  },
-  demoResponse: {
-    paddingInlineStart: DEMO_ACTIVITY_INDENT,
-  },
-  demoChange: {
-    display: "flex",
-    alignItems: "center",
+    flexDirection: "column",
+    justifyContent: "center",
     gap: spaceVars["--honk-space-gutter"],
-    padding: spaceVars["--honk-space-panel-pad"],
-    borderRadius: radiusVars["--honk-radius-control"],
-    backgroundColor: colorVars["--honk-color-layer-01"],
-  },
-  demoChangeIcon: {
-    width: DEMO_CHANGE_ICON_SIZE,
-    height: DEMO_CHANGE_ICON_SIZE,
-    display: "grid",
-    placeItems: "center",
-    borderRadius: radiusVars["--honk-radius-control"],
-    backgroundColor: colorVars["--honk-color-accent-subtle"],
   },
   popup: {
     position: "relative",
@@ -380,7 +310,7 @@ const styles = stylex.create({
     flexDirection: "column",
     borderRadius: radiusVars["--honk-radius-window"],
     backgroundColor: colorVars["--honk-color-bg-base"],
-    boxShadow: `${CARD_RING}, ${elevationVars["--honk-elevation-floating"]}`,
+    boxShadow: elevationVars["--honk-elevation-floating"],
     color: colorVars["--honk-color-text-primary"],
     outline: "none",
     overflow: "hidden",
@@ -490,14 +420,6 @@ const styles = stylex.create({
     display: "grid",
     gap: spaceVars["--honk-space-panel-pad"],
   },
-  eyebrow: {
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-  },
-  heading: {
-    fontSize: HEADING_SIZE,
-    lineHeight: HEADING_LEADING,
-  },
   panel: {
     minWidth: 0,
     minHeight: {
@@ -512,10 +434,6 @@ const styles = stylex.create({
       [COMPACT_MEDIA]: CONTENT_PAD_COMPACT,
     },
     backgroundColor: colorVars["--honk-color-layer-01"],
-    boxShadow: {
-      default: PANEL_HAIRLINE_VERTICAL,
-      [COMPACT_MEDIA]: PANEL_HAIRLINE_HORIZONTAL,
-    },
   },
   footer: {
     flexShrink: 0,
@@ -527,7 +445,6 @@ const styles = stylex.create({
       default: CONTENT_PAD,
       [COMPACT_MEDIA]: CONTENT_PAD_COMPACT,
     },
-    boxShadow: FOOTER_HAIRLINE,
   },
   footerSpacer: {
     flexGrow: 1,
@@ -581,9 +498,6 @@ const styles = stylex.create({
     display: "grid",
     gap: controlVars["--honk-control-gap"],
   },
-  path: {
-    overflowWrap: "anywhere",
-  },
   stack: {
     width: "100%",
     display: "grid",
@@ -599,12 +513,6 @@ const styles = stylex.create({
     display: "grid",
     gap: controlVars["--honk-control-gap"],
   },
-  providerRow: {
-    height: PROVIDER_ROW_HEIGHT,
-    paddingInline: spaceVars["--honk-space-panel-pad"],
-    backgroundColor: colorVars["--honk-color-bg-base"],
-    boxShadow: `inset 0 0 0 ${HAIRLINE} ${colorVars["--honk-color-border-muted"]}`,
-  },
   providerRowUnavailable: {
     opacity: 0.5,
     cursor: "default",
@@ -619,13 +527,7 @@ const styles = stylex.create({
     paddingInline: spaceVars["--honk-space-panel-pad"],
     borderRadius: radiusVars["--honk-radius-control"],
     backgroundColor: colorVars["--honk-color-bg-base"],
-    boxShadow: `inset 0 0 0 ${HAIRLINE} ${colorVars["--honk-color-border-muted"]}`,
-  },
-  providerIcon: {
-    width: PROVIDER_ICON_SIZE,
-    height: PROVIDER_ICON_SIZE,
-    borderRadius: radiusVars["--honk-radius-control"],
-    backgroundColor: colorVars["--honk-color-control"],
+    boxShadow: elevationVars["--honk-elevation-raised"],
   },
   providerMeta: {
     display: "inline-flex",
@@ -647,111 +549,7 @@ const styles = stylex.create({
     alignItems: "center",
     gap: spaceVars["--honk-space-gutter"],
   },
-  error: {
-    color: colorVars["--honk-color-err-fg"],
-  },
 });
-
-function subscribeReducedMotion(onStoreChange: () => void): () => void {
-  const query = window.matchMedia(REDUCED_MOTION_QUERY);
-  query.addEventListener("change", onStoreChange);
-  return () => {
-    query.removeEventListener("change", onStoreChange);
-  };
-}
-
-function getReducedMotionSnapshot(): boolean {
-  return window.matchMedia(REDUCED_MOTION_QUERY).matches;
-}
-
-function useReducedMotion(): boolean {
-  return React.useSyncExternalStore(subscribeReducedMotion, getReducedMotionSnapshot, () => false);
-}
-
-function WorkspaceDemo(): React.ReactElement {
-  return (
-    <div aria-hidden={true} {...stylex.props(styles.demoStack)}>
-      <div {...stylex.props(styles.demoComposer)}>
-        <span {...stylex.props(styles.demoContext)}>
-          <Icon icon={IconFileBend} size="xs" tone="muted" />
-          <Text size="xs" tone="muted" family="mono">
-            desktop-window.ts
-          </Text>
-        </span>
-        <div {...stylex.props(styles.demoPromptRow)}>
-          <Text size="base" xstyle={styles.demoPromptText}>
-            Animate the first-run onboarding flow
-          </Text>
-          <span {...stylex.props(styles.demoSend)}>
-            <Icon icon={IconArrowUp} size="sm" />
-          </span>
-        </div>
-      </div>
-
-      <div {...stylex.props(styles.demoWork)}>
-        <div {...stylex.props(styles.demoActivity)}>
-          <Matrix isActive grid={4} />
-          <Text size="sm" tone="muted">
-            Explored
-          </Text>
-          <Text size="sm" tone="faint" family="mono">
-            Electron window lifecycle
-          </Text>
-        </div>
-        <div {...stylex.props(styles.demoActivity)}>
-          <Matrix isActive grid={4} />
-          <Text size="sm" tone="muted">
-            Edited
-          </Text>
-          <Text size="sm" tone="faint" family="mono">
-            onboarding.tsx
-          </Text>
-        </div>
-        <Text as="p" size="base" xstyle={styles.demoResponse}>
-          The setup window now hands off only after Honk is ready.
-        </Text>
-        <div {...stylex.props(styles.demoChange)}>
-          <span {...stylex.props(styles.demoChangeIcon)}>
-            <Icon icon={IconChanges} size="sm" tone="accent" />
-          </span>
-          <div {...stylex.props(styles.featureCopy)}>
-            <Text size="sm" weight="semibold">
-              Changes ready to review
-            </Text>
-            <Text size="xs" tone="faint" family="mono">
-              3 files changed · +86 −14
-            </Text>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function OnboardingIntro({
-  phase,
-  onSkip,
-  onFinished,
-}: {
-  readonly phase: Exclude<OnboardingIntroPhase, "complete">;
-  readonly onSkip: () => void;
-  readonly onFinished: () => void;
-}): React.ReactElement {
-  return (
-    <div
-      {...stylex.props(styles.intro, phase === "skipping" && styles.introSkipping)}
-      onAnimationEnd={(event) => {
-        if (event.currentTarget === event.target) {
-          onFinished();
-        }
-      }}
-    >
-      <Button size="sm" variant="ghost" xstyle={styles.skipAction} onClick={onSkip}>
-        Skip intro
-      </Button>
-    </div>
-  );
-}
 
 function StepProgress({ step }: { readonly step: OnboardingStep }): React.ReactElement {
   const currentIndex = STEP_ORDER.indexOf(step);
@@ -791,7 +589,13 @@ function StageCopy({
   return (
     <section {...stylex.props(styles.copy)}>
       <div {...stylex.props(styles.copyInner)}>
-        <Text as="p" size="xs" tone="faint" weight="semibold" xstyle={styles.eyebrow}>
+        <Text
+          as="p"
+          size="xs"
+          tone="faint"
+          weight="semibold"
+          style={{ textTransform: "uppercase", letterSpacing: "0.08em" }}
+        >
           Setup {STEP_ORDER.indexOf(step) + 1} of {STEP_ORDER.length}
         </Text>
         <Text
@@ -800,7 +604,7 @@ function StageCopy({
           aria-level={1}
           size="xl"
           weight="semibold"
-          xstyle={styles.heading}
+          style={{ fontSize: HEADING_SIZE, lineHeight: HEADING_LEADING }}
         >
           {title}
         </Text>
@@ -870,6 +674,7 @@ function WelcomeStep({ onContinue }: { readonly onContinue: () => void }): React
         </section>
       </div>
       <div {...stylex.props(styles.footer)}>
+        <span {...stylex.props(styles.footerSpacer)} />
         <Button autoFocus size="lg" variant="primary" onClick={onContinue}>
           Let&apos;s go
         </Button>
@@ -935,14 +740,20 @@ function LocationStep({
               <Text as="p" size="base" weight="semibold">
                 {directory === null ? "No folder selected" : folderName(directory)}
               </Text>
-              <Text as="p" size="sm" tone="muted" family="mono" xstyle={styles.path}>
+              <Text
+                as="p"
+                size="sm"
+                tone="muted"
+                family="mono"
+                style={{ overflowWrap: "anywhere" }}
+              >
                 {directory ?? "Choose the folder you use for projects."}
               </Text>
             </div>
             <Button
               autoFocus={directory === null}
               size="md"
-              variant="secondary"
+              variant="neutral"
               disabled={isPicking}
               onClick={chooseFolder}
             >
@@ -956,7 +767,7 @@ function LocationStep({
         </section>
       </div>
       <div {...stylex.props(styles.footer)}>
-        <Button size="md" variant="ghost" onClick={onBack}>
+        <Button size="md" variant="quiet" onClick={onBack}>
           Back
         </Button>
         <span {...stylex.props(styles.footerSpacer)} />
@@ -969,640 +780,6 @@ function LocationStep({
         >
           Continue
         </Button>
-      </div>
-    </div>
-  );
-}
-
-type ProviderLoad =
-  | { readonly phase: "loading" }
-  | { readonly phase: "error"; readonly message: string }
-  | { readonly phase: "ready"; readonly inventory: ProviderInventory };
-
-type ProviderOAuthFlow =
-  | { readonly kind: "idle" }
-  | {
-      readonly kind: "methods";
-      readonly providerId: OAuthProviderId;
-      readonly methods: readonly SidecarProviderAuthMethod[];
-    }
-  | {
-      readonly kind: "inputs";
-      readonly providerId: OAuthProviderId;
-      readonly method: SidecarProviderAuthMethod;
-      readonly inputs: Readonly<Record<string, string>>;
-      readonly promptIndex: number;
-    }
-  | {
-      readonly kind: "starting";
-      readonly providerId: OAuthProviderId;
-      readonly methodLabel: string;
-    }
-  | {
-      readonly kind: "code";
-      readonly providerId: OAuthProviderId;
-      readonly methodIndex: number;
-      readonly url: string;
-      readonly instructions: string;
-    }
-  | {
-      readonly kind: "waiting";
-      readonly providerId: OAuthProviderId;
-      readonly url: string;
-      readonly instructions: string;
-    };
-
-function providerDefinition(providerId: AuthProviderId): AuthProviderDefinition {
-  return AUTH_PROVIDERS.find((provider) => provider.id === providerId) ?? AUTH_PROVIDERS[0]!;
-}
-
-function inventoryProvider(
-  inventory: ProviderInventory,
-  providerId: AuthProviderId,
-): SidecarProvider | null {
-  return inventory.providers.find((provider) => provider.id === providerId) ?? null;
-}
-
-function isProviderAuthPromptVisible(
-  prompt: SidecarProviderAuthPrompt,
-  inputs: Readonly<Record<string, string>>,
-): boolean {
-  if (prompt.when === undefined) {
-    return true;
-  }
-  const current = inputs[prompt.when.key];
-  if (current === undefined) {
-    return false;
-  }
-  return prompt.when.op === "eq" ? current === prompt.when.value : current !== prompt.when.value;
-}
-
-function nextProviderAuthPromptIndex(
-  method: SidecarProviderAuthMethod,
-  start: number,
-  inputs: Readonly<Record<string, string>>,
-): number | null {
-  for (let index = start; index < method.prompts.length; index += 1) {
-    const prompt = method.prompts[index];
-    if (prompt !== undefined && isProviderAuthPromptVisible(prompt, inputs)) {
-      return index;
-    }
-  }
-  return null;
-}
-
-function requireClient(): NonNullable<ReturnType<typeof getBoundHonkClient>> {
-  const client = getBoundHonkClient();
-  if (client === null) {
-    throw new Error("Honk is not connected to its local engine yet.");
-  }
-  return client;
-}
-
-async function readProviderInventory(): Promise<ProviderInventory> {
-  return requireClient().listProviders();
-}
-
-function openAuthorizationPage(url: string): void {
-  if (url.length > 0) {
-    window.open(url, "_blank", "noopener");
-  }
-}
-
-function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause);
-}
-
-function ProviderStatusList({
-  inventory,
-  onConnectCodex,
-}: {
-  readonly inventory: ProviderInventory;
-  readonly onConnectCodex: () => void;
-}): React.ReactElement {
-  return (
-    <div {...stylex.props(styles.providerList)}>
-      {AUTH_PROVIDERS.map((definition) => {
-        const provider = inventoryProvider(inventory, definition.id);
-        const oauthMethods =
-          provider?.authMethods.filter((method) => method.type === "oauth") ?? [];
-        const isManagedClaude = definition.id === "anthropic";
-        const isConnected = provider?.connected === true;
-        const canConnectCodex = !isManagedClaude && !isConnected && oauthMethods.length > 0;
-        const status = isConnected
-          ? isManagedClaude
-            ? "Managed locally"
-            : "Connected"
-          : canConnectCodex
-            ? "Sign in"
-            : "Unavailable";
-        const content = (
-          <>
-            <ListRow.Slot xstyle={styles.providerIcon}>
-              <Icon icon={definition.icon} size="md" tone="muted" />
-            </ListRow.Slot>
-            <ListRow.Title>{definition.label}</ListRow.Title>
-            <ListRow.Subtitle>{definition.accountLabel}</ListRow.Subtitle>
-            <ListRow.Meta>
-              <span {...stylex.props(styles.providerMeta)}>
-                {isConnected ? <Icon icon={IconCheckmark1} size="xs" tone="ok" /> : null}
-                {status}
-              </span>
-            </ListRow.Meta>
-          </>
-        );
-
-        if (!canConnectCodex) {
-          return (
-            <div
-              key={definition.id}
-              {...stylex.props(
-                styles.providerStatusRow,
-                !isConnected && styles.providerRowUnavailable,
-              )}
-            >
-              {content}
-            </div>
-          );
-        }
-
-        return (
-          <ListRow key={definition.id} xstyle={styles.providerRow} onClick={onConnectCodex}>
-            {content}
-          </ListRow>
-        );
-      })}
-    </div>
-  );
-}
-
-function OAuthFlowPanel({
-  flow,
-  textInputRef,
-  codeInputRef,
-  onChooseMethod,
-  onSubmitPrompt,
-  onCompleteCode,
-}: {
-  readonly flow: Exclude<ProviderOAuthFlow, { readonly kind: "idle" }>;
-  readonly textInputRef: React.RefObject<HTMLInputElement | null>;
-  readonly codeInputRef: React.RefObject<HTMLInputElement | null>;
-  readonly onChooseMethod: (providerId: OAuthProviderId, method: SidecarProviderAuthMethod) => void;
-  readonly onSubmitPrompt: (value: string) => void;
-  readonly onCompleteCode: () => void;
-}): React.ReactElement {
-  const definition = providerDefinition(flow.providerId);
-
-  if (flow.kind === "methods") {
-    return (
-      <div {...stylex.props(styles.stack)}>
-        <div {...stylex.props(styles.oauthHeading)}>
-          <Text as="p" size="base" weight="semibold">
-            Sign in to {definition.label}
-          </Text>
-          <Text as="p" size="sm" tone="muted">
-            Choose the OAuth method you want to use.
-          </Text>
-        </div>
-        <div {...stylex.props(styles.providerList)}>
-          {flow.methods.map((method, index) => (
-            <ListRow
-              key={method.index}
-              autoFocus={index === 0}
-              xstyle={styles.providerRow}
-              onClick={() => {
-                onChooseMethod(flow.providerId, method);
-              }}
-            >
-              <ListRow.Slot xstyle={styles.providerIcon}>
-                <Icon icon={definition.icon} size="md" tone="muted" />
-              </ListRow.Slot>
-              <ListRow.Title>{method.label}</ListRow.Title>
-            </ListRow>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (flow.kind === "inputs") {
-    const prompt = flow.method.prompts[flow.promptIndex];
-    if (prompt === undefined) {
-      return (
-        <Text as="p" size="sm" tone="muted">
-          This OAuth method did not provide its next prompt.
-        </Text>
-      );
-    }
-    return (
-      <div {...stylex.props(styles.stack)}>
-        <div {...stylex.props(styles.oauthHeading)}>
-          <Text as="p" size="base" weight="semibold">
-            {flow.method.label}
-          </Text>
-          <Text as="p" size="sm" tone="muted">
-            {prompt.message}
-          </Text>
-        </div>
-        {prompt.type === "text" ? (
-          <div {...stylex.props(styles.tightStack)}>
-            <Field size="lg">
-              <Field.Input
-                key={`${flow.method.index}:${prompt.key}`}
-                ref={textInputRef}
-                autoFocus
-                autoComplete="off"
-                spellCheck={false}
-                placeholder={prompt.placeholder ?? "Required…"}
-                aria-label={prompt.message}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    onSubmitPrompt(textInputRef.current?.value ?? "");
-                  }
-                }}
-              />
-            </Field>
-            <div {...stylex.props(styles.oauthActions)}>
-              <Button
-                size="md"
-                variant="primary"
-                onClick={() => {
-                  onSubmitPrompt(textInputRef.current?.value ?? "");
-                }}
-              >
-                Continue
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div {...stylex.props(styles.providerList)}>
-            {prompt.options.map((option, index) => (
-              <ListRow
-                key={option.value}
-                autoFocus={index === 0}
-                xstyle={styles.providerRow}
-                onClick={() => {
-                  onSubmitPrompt(option.value);
-                }}
-              >
-                <ListRow.Title>{option.label}</ListRow.Title>
-                {option.hint === undefined ? null : (
-                  <ListRow.Subtitle>{option.hint}</ListRow.Subtitle>
-                )}
-              </ListRow>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (flow.kind === "code") {
-    return (
-      <div {...stylex.props(styles.stack)}>
-        <div {...stylex.props(styles.oauthHeading)}>
-          <Text as="p" size="base" weight="semibold">
-            Finish signing in to {definition.label}
-          </Text>
-          <Text as="p" size="sm" tone="muted">
-            {flow.instructions}
-          </Text>
-        </div>
-        <Field size="lg">
-          <Field.Input
-            ref={codeInputRef}
-            autoFocus
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="Paste authorization code…"
-            aria-label={`${definition.label} authorization code`}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                onCompleteCode();
-              }
-            }}
-          />
-        </Field>
-        <div {...stylex.props(styles.oauthActions)}>
-          <Button size="md" variant="primary" onClick={onCompleteCode}>
-            Complete sign-in
-          </Button>
-          {flow.url.length > 0 ? (
-            <Button
-              size="md"
-              variant="ghost"
-              onClick={() => {
-                openAuthorizationPage(flow.url);
-              }}
-            >
-              Open browser again
-            </Button>
-          ) : null}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div {...stylex.props(styles.stack)}>
-      <div {...stylex.props(styles.waitingRow)}>
-        <Spinner size="md" />
-        <Text as="p" size="base" weight="semibold">
-          {flow.kind === "starting" ? `Starting ${flow.methodLabel}…` : "Waiting for your browser…"}
-        </Text>
-      </div>
-      {flow.kind === "waiting" ? (
-        <>
-          <Text as="p" size="sm" tone="muted">
-            {flow.instructions}
-          </Text>
-          {flow.url.length > 0 ? (
-            <div {...stylex.props(styles.oauthActions)}>
-              <Button
-                size="md"
-                variant="ghost"
-                onClick={() => {
-                  openAuthorizationPage(flow.url);
-                }}
-              >
-                Open browser again
-              </Button>
-            </div>
-          ) : null}
-        </>
-      ) : (
-        <Text as="p" size="sm" tone="muted">
-          Honk is asking the local engine to prepare the OAuth flow.
-        </Text>
-      )}
-    </div>
-  );
-}
-
-function ProviderStep({
-  onBack,
-  onComplete,
-  isCompleting,
-  completionError,
-}: {
-  readonly onBack: () => void;
-  readonly onComplete: () => void;
-  readonly isCompleting: boolean;
-  readonly completionError: string | null;
-}): React.ReactElement {
-  const [load, setLoad] = React.useState<ProviderLoad>({ phase: "loading" });
-  const [flow, setFlow] = React.useState<ProviderOAuthFlow>({ kind: "idle" });
-  const [authError, setAuthError] = React.useState<string | null>(null);
-  const loadSequence = React.useRef(0);
-  const authSequence = React.useRef(0);
-  const loadStarted = React.useRef(false);
-  const textInputRef = React.useRef<HTMLInputElement>(null);
-  const codeInputRef = React.useRef<HTMLInputElement>(null);
-
-  const refresh = (): void => {
-    const sequence = ++loadSequence.current;
-    setLoad({ phase: "loading" });
-    void readProviderInventory()
-      .then((inventory) => {
-        if (loadSequence.current === sequence) {
-          setLoad({ phase: "ready", inventory });
-        }
-      })
-      .catch((cause: unknown) => {
-        if (loadSequence.current === sequence) {
-          setLoad({ phase: "error", message: errorMessage(cause) });
-        }
-      });
-  };
-
-  const loadOnMount = (node: HTMLDivElement | null): void => {
-    if (node !== null && !loadStarted.current) {
-      loadStarted.current = true;
-      refresh();
-    }
-  };
-
-  const finishAuthentication = async (
-    providerId: OAuthProviderId,
-    sequence: number,
-  ): Promise<void> => {
-    const inventory = await readProviderInventory();
-    if (authSequence.current !== sequence) {
-      return;
-    }
-    const provider = inventoryProvider(inventory, providerId);
-    if (provider?.connected !== true) {
-      throw new Error(
-        `${providerDefinition(providerId).label} did not report a connected account.`,
-      );
-    }
-    loadSequence.current += 1;
-    setLoad({ phase: "ready", inventory });
-    setFlow({ kind: "idle" });
-  };
-
-  const failAuthentication = (cause: unknown, sequence: number): void => {
-    if (authSequence.current !== sequence) {
-      return;
-    }
-    setFlow({ kind: "idle" });
-    setAuthError(errorMessage(cause));
-  };
-
-  const startOauth = (
-    providerId: OAuthProviderId,
-    method: SidecarProviderAuthMethod,
-    inputs: Readonly<Record<string, string>>,
-  ): void => {
-    const sequence = ++authSequence.current;
-    setAuthError(null);
-    setFlow({ kind: "starting", providerId, methodLabel: method.label });
-    void (async () => {
-      const client = requireClient();
-      const authorization = await client.authorizeProviderOauth(providerId, method.index, inputs);
-      if (authSequence.current !== sequence) {
-        return;
-      }
-      openAuthorizationPage(authorization.url);
-      if (authorization.method === "code") {
-        setFlow({
-          kind: "code",
-          providerId,
-          methodIndex: method.index,
-          url: authorization.url,
-          instructions: authorization.instructions,
-        });
-        return;
-      }
-      setFlow({
-        kind: "waiting",
-        providerId,
-        url: authorization.url,
-        instructions: authorization.instructions,
-      });
-      await client.completeProviderOauth(providerId, method.index);
-      await finishAuthentication(providerId, sequence);
-    })().catch((cause: unknown) => {
-      failAuthentication(cause, sequence);
-    });
-  };
-
-  const beginOauth = (providerId: OAuthProviderId, method: SidecarProviderAuthMethod): void => {
-    const inputs: Readonly<Record<string, string>> = {};
-    const promptIndex = nextProviderAuthPromptIndex(method, 0, inputs);
-    setAuthError(null);
-    if (promptIndex === null) {
-      startOauth(providerId, method, inputs);
-      return;
-    }
-    setFlow({ kind: "inputs", providerId, method, inputs, promptIndex });
-  };
-
-  const connectCodex = (): void => {
-    if (load.phase !== "ready") {
-      return;
-    }
-    const providerId: OAuthProviderId = "openai";
-    const provider = inventoryProvider(load.inventory, providerId);
-    if (provider === null) {
-      setAuthError("Codex is unavailable from the local engine.");
-      return;
-    }
-    if (provider.connected) {
-      setAuthError(null);
-      setFlow({ kind: "idle" });
-      return;
-    }
-    const oauthMethods = provider.authMethods.filter((method) => method.type === "oauth");
-    if (oauthMethods.length === 0) {
-      setAuthError(`${providerDefinition(providerId).label} did not provide an OAuth method.`);
-      return;
-    }
-    if (oauthMethods.length === 1) {
-      beginOauth(providerId, oauthMethods[0]!);
-      return;
-    }
-    setAuthError(null);
-    setFlow({ kind: "methods", providerId, methods: oauthMethods });
-  };
-
-  const submitPrompt = (value: string): void => {
-    if (flow.kind !== "inputs") {
-      return;
-    }
-    const prompt = flow.method.prompts[flow.promptIndex];
-    const normalized = value.trim();
-    if (prompt === undefined || normalized.length === 0) {
-      return;
-    }
-    const inputs = { ...flow.inputs, [prompt.key]: normalized };
-    const promptIndex = nextProviderAuthPromptIndex(flow.method, flow.promptIndex + 1, inputs);
-    if (promptIndex === null) {
-      startOauth(flow.providerId, flow.method, inputs);
-      return;
-    }
-    setFlow({ ...flow, inputs, promptIndex });
-  };
-
-  const completeCode = (): void => {
-    if (flow.kind !== "code") {
-      return;
-    }
-    const code = codeInputRef.current?.value.trim() ?? "";
-    if (code.length === 0) {
-      return;
-    }
-    const sequence = authSequence.current;
-    const { providerId, methodIndex, url, instructions } = flow;
-    setAuthError(null);
-    setFlow({ kind: "waiting", providerId, url, instructions });
-    void (async () => {
-      await requireClient().completeProviderOauth(providerId, methodIndex, code);
-      await finishAuthentication(providerId, sequence);
-    })().catch((cause: unknown) => {
-      failAuthentication(cause, sequence);
-    });
-  };
-
-  const cancelAuth = (): void => {
-    authSequence.current += 1;
-    setAuthError(null);
-    setFlow({ kind: "idle" });
-  };
-
-  return (
-    <div ref={loadOnMount} {...stylex.props(styles.stage)}>
-      <div {...stylex.props(styles.body)}>
-        <StageCopy step="provider" title="Set up coding accounts">
-          <Text as="p" size="base" tone="muted">
-            Codex signs in through your browser. Claude uses the Claude Code session already on this
-            Mac, so Honk never asks for an Anthropic API key.
-          </Text>
-          <Text as="p" size="sm" tone="faint">
-            Codex sign-in is optional and remains available later in Settings.
-          </Text>
-        </StageCopy>
-        <section {...stylex.props(styles.panel)} aria-label="Coding accounts">
-          <div {...stylex.props(styles.stack)}>
-            {load.phase === "loading" ? (
-              <div {...stylex.props(styles.waitingRow)}>
-                <Spinner size="md" />
-                <Text as="p" size="sm" tone="muted">
-                  Checking Codex and Claude…
-                </Text>
-              </div>
-            ) : load.phase === "error" ? (
-              <div {...stylex.props(styles.stack)}>
-                <Text as="p" role="alert" size="sm" xstyle={styles.error}>
-                  {load.message}
-                </Text>
-                <div {...stylex.props(styles.oauthActions)}>
-                  <Button autoFocus size="md" variant="secondary" onClick={refresh}>
-                    Retry
-                  </Button>
-                </div>
-              </div>
-            ) : flow.kind === "idle" ? (
-              <ProviderStatusList inventory={load.inventory} onConnectCodex={connectCodex} />
-            ) : (
-              <OAuthFlowPanel
-                flow={flow}
-                textInputRef={textInputRef}
-                codeInputRef={codeInputRef}
-                onChooseMethod={beginOauth}
-                onSubmitPrompt={submitPrompt}
-                onCompleteCode={completeCode}
-              />
-            )}
-            {authError === null ? null : (
-              <Text as="p" role="alert" size="sm" xstyle={styles.error}>
-                {authError}
-              </Text>
-            )}
-            {completionError === null ? null : (
-              <Text as="p" role="alert" size="sm" xstyle={styles.error}>
-                {completionError}
-              </Text>
-            )}
-          </div>
-        </section>
-      </div>
-      <div {...stylex.props(styles.footer)}>
-        <Button size="md" variant="ghost" onClick={flow.kind === "idle" ? onBack : cancelAuth}>
-          {flow.kind === "idle" ? "Back" : "Cancel"}
-        </Button>
-        <span {...stylex.props(styles.footerSpacer)} />
-        {flow.kind === "idle" ? (
-          <Button
-            autoFocus
-            size="md"
-            variant="primary"
-            disabled={isCompleting}
-            onClick={onComplete}
-          >
-            {isCompleting ? "Opening Honk…" : "Start using Honk"}
-          </Button>
-        ) : null}
       </div>
     </div>
   );
@@ -1743,7 +920,7 @@ function DesktopOnboarding({
               }}
             />
           ) : (
-            <ProviderStep
+            <OnboardingProvider
               onBack={() => {
                 setStep("location");
               }}

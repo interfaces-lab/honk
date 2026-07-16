@@ -1,0 +1,46 @@
+{
+  "$schema": "../node_modules/oxlint/configuration_schema.json",
+  "jsPlugins": [
+    {
+      "name": "honk",
+      "specifier": "./oxlint-plugin.mjs"
+    }
+  ],
+  "categories": {
+    "correctness": "off"
+  },
+  "overrides": [
+    {
+      "files": ["packages/ui/src/**/*.{ts,tsx}", "packages/ui/dev/**/*.{ts,tsx}"],
+      "rules": {
+        "honk/design-no-banned-imports": "error",
+        "honk/design-no-border-shorthand": "error",
+        "honk/design-no-container-queries": "error",
+        "honk/design-no-cross-element": "error",
+        "honk/design-no-duplicate-define-vars": "error",
+        "honk/design-no-host-styling": "error",
+        "honk/design-no-null-stylex-overrides": "error",
+        "honk/design-no-raw-values": "error",
+        "honk/design-no-use-effect": "error"
+      }
+    },
+    {
+      "files": ["packages/app/src/**/*.{ts,tsx}"],
+      "rules": {
+        "honk/design-no-border-shorthand": "error",
+        "honk/design-no-canonical-control-overrides": "error",
+        "honk/design-no-container-queries": "error",
+        "honk/design-no-cross-element": "error",
+        "honk/design-no-null-stylex-overrides": "error",
+        "honk/design-no-raw-button": "error",
+        "honk/design-no-raw-values": "error"
+      }
+    },
+    {
+      "files": ["packages/mobile/**/*.{ts,tsx}"],
+      "rules": {
+        "honk/design-no-canonical-control-overrides": "error"
+      }
+    }
+  ]
+}

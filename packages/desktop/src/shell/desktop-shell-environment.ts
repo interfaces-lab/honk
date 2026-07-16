@@ -6,6 +6,7 @@ import * as Option from "effect/Option";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import * as DesktopEnvironment from "../app/desktop-environment";
+import { trimNonEmptyOption } from "../trim-non-empty-option";
 
 type EnvironmentPatch = Record<string, string>;
 
@@ -58,16 +59,10 @@ const LOGIN_SHELL_TIMEOUT = Duration.seconds(5);
 const LAUNCHCTL_TIMEOUT = Duration.seconds(2);
 const PROCESS_TERMINATE_GRACE = Duration.seconds(1);
 
-const trimNonEmpty = (value: string | null | undefined): Option.Option<string> =>
-  Option.fromNullishOr(value).pipe(
-    Option.map((entry) => entry.trim()),
-    Option.filter((entry) => entry.length > 0),
-  );
-
 const pathDelimiter = (platform: NodeJS.Platform) => (platform === "win32" ? ";" : ":");
 
 const readEnvPath = (env: NodeJS.ProcessEnv): Option.Option<string> =>
-  trimNonEmpty(env.PATH ?? env.Path ?? env.path);
+  trimNonEmptyOption(env.PATH ?? env.Path ?? env.path);
 
 const pathComparisonKey = (entry: string, platform: NodeJS.Platform) => {
   const normalized = entry.trim().replace(/^"+|"+$/g, "");
@@ -107,9 +102,9 @@ const listLoginShellCandidates = (config: ShellEnvironmentConfig): ReadonlyArray
   const candidates: string[] = [];
 
   for (const candidate of [
-    trimNonEmpty(config.env.SHELL),
+    trimNonEmptyOption(config.env.SHELL),
     config.userShell,
-    trimNonEmpty(fallback),
+    trimNonEmptyOption(fallback),
   ]) {
     if (Option.isNone(candidate) || seen.has(candidate.value)) continue;
     seen.add(candidate.value);
@@ -120,19 +115,19 @@ const listLoginShellCandidates = (config: ShellEnvironmentConfig): ReadonlyArray
 };
 
 const knownWindowsCliDirs = (env: NodeJS.ProcessEnv): ReadonlyArray<string> => [
-  ...trimNonEmpty(env.APPDATA).pipe(
+  ...trimNonEmptyOption(env.APPDATA).pipe(
     Option.match({
       onNone: () => [],
       onSome: (value) => [`${value}\\npm`],
     }),
   ),
-  ...trimNonEmpty(env.LOCALAPPDATA).pipe(
+  ...trimNonEmptyOption(env.LOCALAPPDATA).pipe(
     Option.match({
       onNone: () => [],
       onSome: (value) => [`${value}\\Programs\\nodejs`, `${value}\\Volta\\bin`, `${value}\\pnpm`],
     }),
   ),
-  ...trimNonEmpty(env.USERPROFILE).pipe(
+  ...trimNonEmptyOption(env.USERPROFILE).pipe(
     Option.match({
       onNone: () => [],
       onSome: (value) => [`${value}\\.bun\\bin`, `${value}\\scoop\\shims`],
@@ -235,7 +230,7 @@ const readLaunchctlPath: Effect.Effect<
   command: "/bin/launchctl",
   args: ["getenv", "PATH"],
   timeout: LAUNCHCTL_TIMEOUT,
-}).pipe(Effect.map(trimNonEmpty));
+}).pipe(Effect.map(trimNonEmptyOption));
 
 const readWindowsEnvironment = Effect.fn("desktop.shellEnvironment.readWindowsEnvironment")(
   function* (
@@ -278,9 +273,9 @@ const installWindowsEnvironment = Effect.fn("desktop.shellEnvironment.installWin
       loadProfile: true,
     });
     const mergedPath = mergePaths("win32", [
-      trimNonEmpty(profile.PATH),
-      trimNonEmpty(knownWindowsCliDirs(config.env).join(";")),
-      trimNonEmpty(noProfile.PATH),
+      trimNonEmptyOption(profile.PATH),
+      trimNonEmptyOption(knownWindowsCliDirs(config.env).join(";")),
+      trimNonEmptyOption(noProfile.PATH),
       readEnvPath(config.env),
     ]);
 
@@ -320,7 +315,7 @@ const installPosixEnvironment = Effect.fn("desktop.shellEnvironment.installPosix
         ? yield* readLaunchctlPath
         : Option.none<string>();
     const mergedPath = mergePaths(config.platform, [
-      trimNonEmpty(shellEnvironment.PATH).pipe(Option.orElse(() => launchctlPath)),
+      trimNonEmptyOption(shellEnvironment.PATH).pipe(Option.orElse(() => launchctlPath)),
       readEnvPath(config.env),
     ]);
 

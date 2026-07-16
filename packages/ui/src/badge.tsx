@@ -1,17 +1,7 @@
-// The badge — a small labelled chip (a count, a short status word, a "NEW"). A pure StyleX display
-// leaf like StatusDot/Text/Icon: not interactive, so no Base UI, only the token bus. A badge that
-// needs to be clickable is a Button, not a Badge.
-//
-// TONE mirrors the button's neutral/accent split plus the status FILLS: the pale status background
-// (*-bg) under the status foreground (*-fg) — the same chip language the whole surface speaks. NOTE
-// there is no `info` tone: the status family carries ok/warn/err with a full bg+fg+border triplet
-// but info only has a foreground (tokens.stylex.ts) — a badge needs a background, so rather than
-// invent an unsourced info-bg, info is left out until the real opencode blue ramp is ported. (The
-// StatusDot has an info tone because a dot only needs the foreground.)
-
 import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
+import { applyStyle, type HonkStyle, type StyleProp } from "./style";
 import {
   colorVars,
   controlVars,
@@ -19,16 +9,15 @@ import {
   radiusVars,
 } from "./tokens.stylex";
 
+// No info tone. Status info has no background token and a badge needs one.
 type BadgeTone = "neutral" | "accent" | "ok" | "warn" | "err" | "outline";
 type BadgeSize = "sm" | "md";
 
-// Badge anatomy — named intrinsics (the tooltip/button precedent), smaller than the interactive
-// control scale: a chip is not a control. minWidth = height so a single glyph reads as a coin.
 const BADGE_H_SM = "16px";
 const BADGE_H_MD = "20px";
 const BADGE_PAD_SM = "4px";
 const BADGE_PAD_MD = "6px";
-// The outline tone's hairline, as an inset shadow (no layout shift) — the button ring idiom.
+// Inset ring so outline tone never shifts layout.
 const BADGE_RING = `inset 0 0 0 1px ${colorVars["--honk-color-border-base"]}`;
 
 const styles = stylex.create({
@@ -101,19 +90,19 @@ interface BadgeProps {
   tone?: BadgeTone;
   size?: BadgeSize;
   children: React.ReactNode;
-  xstyle?: stylex.StyleXStyles;
+  style?: StyleProp<HonkStyle>;
 }
 
 function Badge({
   tone = "neutral",
   size = "md",
   children,
-  xstyle,
+  style,
 }: BadgeProps): React.ReactElement {
   return (
     <span
       data-slot="badge"
-      {...stylex.props(styles.root, sizeStyles[size], toneStyles[tone], xstyle)}
+      {...applyStyle(stylex.props(styles.root, sizeStyles[size], toneStyles[tone]), style)}
     >
       {children}
     </span>

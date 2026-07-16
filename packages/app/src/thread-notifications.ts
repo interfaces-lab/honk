@@ -1,24 +1,17 @@
-// Thread attention + completion notifications (WP7). Module-level subscriber on
-// the workspace watch — install from main.tsx, never from a component effect.
-//
-// Matrix shipped (parity rethink on completions + attention scoping fix):
-//   needsAttention rising (non-active thread):
-//     focused  → warning toast (global, unscoped) + Open action
-//     hidden   → same toast + OS Notification
-//   running → idle (non-active thread):
-//     focused  → info toast (always for non-active — parity open question answer)
-//     hidden   → info toast + OS Notification
-//   Active thread: suppress both (you're already looking at it).
+// Workspace watch subscriber for attention/completion toasts.
+// Install from main.tsx, never from a component effect.
 
-import type { WorkspaceState } from "./sidecar";
+import { openCodeSessionKey, openCodeSessionRef } from "@honk/opencode";
+import { basename } from "@honk/shared/paths";
 
 import { tabStatusFromSummary } from "./command-menu-model";
 import { isWindowForeground, showSystemThreadNotification } from "./notification-permission";
+import type { AppSessionSummary } from "./open-code-view";
 import { actions as tabActions, getSnapshot as getTabSnapshot } from "./tab-store";
 import { actions as toastActions } from "./toast-store";
-import { getWorkspaceWatchSnapshot, subscribeWorkspaceWatch } from "./watch-registry";
+import { getSessionInventoryWatchSnapshot, subscribeSessionInventoryWatch } from "./watch-registry";
 
-type ThreadSummary = WorkspaceState["threads"][number];
+type ThreadSummary = AppSessionSummary;
 
 type TrackedThread = {
   readonly needsAttention: boolean;
@@ -28,7 +21,7 @@ type TrackedThread = {
 
 const MAX_TRACKED = 200;
 
-const previousById = new Map<string, TrackedThread>();
+const previousByKey = new Map<string, TrackedThread>();
 let installed = false;
 let unsubscribeWatch: (() => void) | null = null;
 
@@ -39,7 +32,7 @@ function threadLabel(title: string): string {
 
 function openThread(thread: ThreadSummary): void {
   tabActions.open({
-    key: thread.id,
+    key: summaryKey(thread),
     title: thread.title,
     kind: "thread",
     status: tabStatusFromSummary(thread),
@@ -50,14 +43,12 @@ function openThread(thread: ThreadSummary): void {
   });
 }
 
-function basename(path: string): string {
-  const trimmed = path.replace(/[\\/]+$/, "");
-  const [last = trimmed] = trimmed.split(/[\\/]/).slice(-1);
-  return last.length > 0 ? last : path;
+function summaryKey(summary: Pick<ThreadSummary, "id" | "server">): string {
+  return openCodeSessionKey(openCodeSessionRef(summary.server, summary.id));
 }
 
-function isActiveThread(threadId: string): boolean {
-  return getTabSnapshot().activeKey === threadId;
+function isActiveThread(thread: ThreadSummary): boolean {
+  return getTabSnapshot().activeKey === summaryKey(thread);
 }
 
 function trackSummary(summary: ThreadSummary): TrackedThread {
@@ -69,23 +60,23 @@ function trackSummary(summary: ThreadSummary): TrackedThread {
 }
 
 function capMemory(nextIds: ReadonlySet<string>): void {
-  for (const id of [...previousById.keys()]) {
-    if (!nextIds.has(id)) {
-      previousById.delete(id);
+  for (const key of [...previousByKey.keys()]) {
+    if (!nextIds.has(key)) {
+      previousByKey.delete(key);
     }
   }
-  // Hard cap if the workspace is huge — drop oldest insertion order.
-  while (previousById.size > MAX_TRACKED) {
-    const oldest = previousById.keys().next().value;
+  // Map preserves insertion order, so keys().next() drops the oldest.
+  while (previousByKey.size > MAX_TRACKED) {
+    const oldest = previousByKey.keys().next().value;
     if (oldest === undefined) {
       break;
     }
-    previousById.delete(oldest);
+    previousByKey.delete(oldest);
   }
 }
 
 function emitAttention(summary: ThreadSummary): void {
-  if (isActiveThread(summary.id)) {
+  if (isActiveThread(summary)) {
     return;
   }
 
@@ -115,7 +106,7 @@ function emitAttention(summary: ThreadSummary): void {
 }
 
 function emitCompletion(summary: ThreadSummary): void {
-  if (isActiveThread(summary.id)) {
+  if (isActiveThread(summary)) {
     return;
   }
 
@@ -145,19 +136,20 @@ function emitCompletion(summary: ThreadSummary): void {
 }
 
 function onWorkspaceChange(): void {
-  const { state } = getWorkspaceWatchSnapshot();
+  const { state } = getSessionInventoryWatchSnapshot();
   if (state === null) {
     return;
   }
 
-  const threads = state.threads;
-  const nextIds = new Set(threads.map((thread) => thread.id));
+  const threads = state.rootSessions;
+  const nextIds = new Set(threads.map(summaryKey));
 
   for (const summary of threads) {
-    const previous = previousById.get(summary.id);
+    const key = summaryKey(summary);
+    const previous = previousByKey.get(key);
     if (previous === undefined) {
-      // First sighting — seed without alerting (avoid boot storms).
-      previousById.set(summary.id, trackSummary(summary));
+      // Seed on first sighting so a full workspace boot does not alert.
+      previousByKey.set(key, trackSummary(summary));
       continue;
     }
 
@@ -169,7 +161,7 @@ function onWorkspaceChange(): void {
       emitCompletion(summary);
     }
 
-    previousById.set(summary.id, trackSummary(summary));
+    previousByKey.set(key, trackSummary(summary));
   }
 
   capMemory(nextIds);
@@ -186,13 +178,13 @@ export function installThreadNotifications(): void {
   installed = true;
   // Seed from whatever the registry already has (may be connecting/null).
   onWorkspaceChange();
-  unsubscribeWatch = subscribeWorkspaceWatch(onWorkspaceChange);
+  unsubscribeWatch = subscribeSessionInventoryWatch(onWorkspaceChange);
 }
 
-/** Test / hot-reload seam — not used in production boot. */
+/** Test and hot-reload only. */
 export function uninstallThreadNotifications(): void {
   unsubscribeWatch?.();
   unsubscribeWatch = null;
   installed = false;
-  previousById.clear();
+  previousByKey.clear();
 }

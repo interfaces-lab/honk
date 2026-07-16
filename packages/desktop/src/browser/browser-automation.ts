@@ -71,9 +71,19 @@ interface BrowserConsoleEntry {
   readonly timestamp: string;
 }
 
+interface BrowserNetworkEntry {
+  readonly type: "request" | "response" | "failure";
+  readonly timestamp: string;
+  readonly requestId?: string;
+  readonly url?: string;
+  readonly method?: string;
+  readonly status?: number;
+  readonly errorText?: string;
+}
+
 interface BrowserDiagnostics {
   readonly consoleEntries: BrowserConsoleEntry[];
-  readonly networkEntries: unknown[];
+  readonly networkEntries: BrowserNetworkEntry[];
 }
 
 interface BrowserControlSession {
@@ -86,6 +96,7 @@ interface BrowserControlSession {
     params: Record<string, unknown>,
   ) => void;
   readonly diagnostics: BrowserDiagnostics;
+  diagnosticsEnabled: boolean;
 }
 
 interface BrowserOwner {
@@ -319,11 +330,50 @@ function consoleTextFromParams(params: Record<string, unknown>): string {
     .join(" ");
 }
 
-function networkEntryFromParams(method: string, params: Record<string, unknown>): unknown {
+function objectField(value: unknown, key: string): unknown {
+  return typeof value === "object" && value !== null ? Reflect.get(value, key) : undefined;
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function networkEntryFromParams(
+  method: string,
+  params: Record<string, unknown>,
+): BrowserNetworkEntry {
+  const requestId = optionalString(params["requestId"]);
+  const timestamp = new Date().toISOString();
+  if (method === "Network.requestWillBeSent") {
+    const request = params["request"];
+    const url = optionalString(objectField(request, "url"));
+    const requestMethod = optionalString(objectField(request, "method"));
+    return {
+      type: "request",
+      timestamp,
+      ...(requestId === undefined ? {} : { requestId }),
+      ...(url === undefined ? {} : { url }),
+      ...(requestMethod === undefined ? {} : { method: requestMethod }),
+    };
+  }
+  if (method === "Network.responseReceived") {
+    const response = params["response"];
+    const url = optionalString(objectField(response, "url"));
+    const status = objectField(response, "status");
+    return {
+      type: "response",
+      timestamp,
+      ...(requestId === undefined ? {} : { requestId }),
+      ...(url === undefined ? {} : { url }),
+      ...(typeof status === "number" ? { status } : {}),
+    };
+  }
+  const errorText = optionalString(params["errorText"]);
   return {
-    method,
-    timestamp: new Date().toISOString(),
-    params,
+    type: "failure",
+    timestamp,
+    ...(requestId === undefined ? {} : { requestId }),
+    ...(errorText === undefined ? {} : { errorText }),
   };
 }
 
@@ -448,8 +498,17 @@ function waitConditionScript(input: BrowserAutomationWaitForInput): string {
   })()`;
 }
 
-async function waitForLoad(contents: Electron.WebContents, timeout: number): Promise<void> {
-  if (!contents.isLoading()) return;
+async function navigateWebContents(
+  contents: Electron.WebContents,
+  url: string,
+  readiness: NonNullable<BrowserAutomationNavigateInput["readiness"]>,
+  timeout: number,
+): Promise<void> {
+  if (readiness === "none") {
+    void contents.loadURL(url).catch(() => undefined);
+    return;
+  }
+
   await new Promise<void>((resolve, reject) => {
     const timeoutId = setTimeout(() => {
       cleanup();
@@ -457,20 +516,38 @@ async function waitForLoad(contents: Electron.WebContents, timeout: number): Pro
     }, timeout);
     const cleanup = () => {
       clearTimeout(timeoutId);
-      contents.off("did-stop-loading", onDone);
+      if (readiness === "domContentLoaded") {
+        contents.off("dom-ready", onDone);
+      } else {
+        contents.off("did-finish-load", onDone);
+      }
       contents.off("did-fail-load", onFail);
     };
     const onDone = () => {
       cleanup();
       resolve();
     };
-    const onFail = (_event: Electron.Event, errorCode: number, errorDescription: string) => {
-      if (errorCode === -3) return;
+    const onFail = (
+      _event: Electron.Event,
+      errorCode: number,
+      errorDescription: string,
+      _validatedURL: string,
+      isMainFrame: boolean,
+    ) => {
+      if (!isMainFrame || errorCode === -3) return;
       cleanup();
       reject(new Error(errorDescription || `Browser navigation failed (${errorCode}).`));
     };
-    contents.on("did-stop-loading", onDone);
+    if (readiness === "domContentLoaded") {
+      contents.on("dom-ready", onDone);
+    } else {
+      contents.on("did-finish-load", onDone);
+    }
     contents.on("did-fail-load", onFail);
+    void contents.loadURL(url).catch((cause: unknown) => {
+      cleanup();
+      reject(cause);
+    });
   });
 }
 
@@ -690,16 +767,10 @@ const makeDesktopBrowserAutomation = Effect.fn("browserAutomation.make")(functio
             catch: (cause) => browserAutomationError("attachDebugger", cause),
           }).pipe(Effect.onError(() => Scope.close(scope, Exit.void).pipe(Effect.ignore)));
 
-          yield* Effect.all(
-            ["Runtime.enable", "Accessibility.enable", "Network.enable", "Log.enable"].map(
-              (method) =>
-                Effect.tryPromise({
-                  try: () => contents.debugger.sendCommand(method),
-                  catch: (cause) => browserAutomationError(method, cause),
-                }),
-            ),
-            { concurrency: "unbounded", discard: true },
-          ).pipe(Effect.onError(() => Scope.close(scope, Exit.void).pipe(Effect.ignore)));
+          yield* Effect.tryPromise({
+            try: () => contents.debugger.sendCommand("Runtime.enable"),
+            catch: (cause) => browserAutomationError("Runtime.enable", cause),
+          }).pipe(Effect.onError(() => Scope.close(scope, Exit.void).pipe(Effect.ignore)));
 
           const session: BrowserControlSession = {
             webContentsId: contents.id,
@@ -707,6 +778,7 @@ const makeDesktopBrowserAutomation = Effect.fn("browserAutomation.make")(functio
             semaphore,
             onMessage,
             diagnostics,
+            diagnosticsEnabled: false,
           };
           return [
             session,
@@ -741,15 +813,23 @@ const makeDesktopBrowserAutomation = Effect.fn("browserAutomation.make")(functio
   const register = Effect.fn("browserAutomation.register")(function* (
     input: BrowserAutomationRegisterInput,
   ) {
-    yield* SynchronizedRef.update(hostsRef, (hosts) => {
+    const shouldDetachControl = yield* SynchronizedRef.modify(hostsRef, (hosts) => {
       const existing = hosts.get(input.webContentsId);
-      return replaceMap(hosts, (copy) => {
-        copy.set(input.webContentsId, {
-          ...input,
-          focusedAt: input.active ? Date.now() : (existing?.focusedAt ?? 0),
-        });
-      });
+      return [
+        existing?.visible === true && !input.visible,
+        replaceMap(hosts, (copy) => {
+          copy.set(input.webContentsId, {
+            ...input,
+            focusedAt: input.active ? Date.now() : (existing?.focusedAt ?? 0),
+          });
+        }),
+      ] as const;
     });
+    const contents = Electron.webContents.fromId(input.webContentsId);
+    if (contents !== undefined && !contents.isDestroyed()) {
+      contents.setBackgroundThrottling(true);
+    }
+    if (shouldDetachControl) yield* detachControlSession(input.webContentsId);
   });
 
   const unregister = Effect.fn("browserAutomation.unregister")(function* (input: {
@@ -779,16 +859,15 @@ const makeDesktopBrowserAutomation = Effect.fn("browserAutomation.make")(functio
       catch: (cause) => browserAutomationError("normalizeUrl", cause),
     });
     yield* Effect.tryPromise({
-      try: () => owner.contents.loadURL(url),
+      try: () =>
+        navigateWebContents(
+          owner.contents,
+          url,
+          input.readiness ?? "load",
+          timeoutMs(input.timeoutMs),
+        ),
       catch: (cause) => browserAutomationError("navigate", cause),
     });
-    if (input.readiness !== "none") {
-      const timeout = timeoutMs(input.timeoutMs);
-      yield* Effect.tryPromise({
-        try: () => waitForLoad(owner.contents, timeout),
-        catch: (cause) => browserAutomationError("navigation", cause),
-      });
-    }
     return statusFor(owner.record, owner.contents);
   });
 
@@ -805,15 +884,13 @@ const makeDesktopBrowserAutomation = Effect.fn("browserAutomation.make")(functio
       : null;
     const request: BrowserAutomationOpenRequest = {
       threadId,
-      ...(url ? { url } : {}),
       show: input.show ?? true,
       reuseExistingTab: input.reuseExistingTab ?? true,
     };
     yield* electronWindow.sendAll(IpcChannels.BROWSER_AUTOMATION_OPEN_CHANNEL, request);
     const owner = yield* waitForOwner(threadId, timeoutMs(undefined));
     if (url) {
-      yield* navigate(threadId, { url, readiness: "load" });
-      return yield* status(threadId);
+      return yield* navigate(threadId, { url, readiness: "load" });
     }
     return statusFor(owner.record, owner.contents);
   });
@@ -822,14 +899,20 @@ const makeDesktopBrowserAutomation = Effect.fn("browserAutomation.make")(functio
     const owner = yield* requireOwner(threadId);
     return yield* withControlSession(owner.contents, (send, session) =>
       Effect.gen(function* () {
-        yield* Effect.all([send("Runtime.enable"), send("Accessibility.enable")], {
-          concurrency: "unbounded",
-          discard: true,
-        });
-        const result = yield* evaluateWithDebugger<PageSnapshotResult>(
-          send,
-          snapshotScript(),
-          true,
+        if (!session.diagnosticsEnabled) {
+          yield* Effect.all(
+            [send("Accessibility.enable"), send("Network.enable"), send("Log.enable")],
+            { concurrency: "unbounded", discard: true },
+          );
+          session.diagnosticsEnabled = true;
+        }
+        const [result, accessibilityTree, sourceImage] = yield* Effect.all(
+          [
+            evaluateWithDebugger<PageSnapshotResult>(send, snapshotScript(), true),
+            send("Accessibility.getFullAXTree"),
+            attemptPromise("capturePage", () => owner.contents.capturePage()),
+          ] as const,
+          { concurrency: "unbounded" },
         );
         if (!isPageSnapshotResult(result)) {
           return yield* browserAutomationError(
@@ -837,10 +920,6 @@ const makeDesktopBrowserAutomation = Effect.fn("browserAutomation.make")(functio
             new Error("Browser snapshot did not return page metadata."),
           );
         }
-        const accessibilityTree = yield* send("Accessibility.getFullAXTree");
-        const sourceImage = yield* attemptPromise("capturePage", () =>
-          owner.contents.capturePage(),
-        );
         const sourceSize = sourceImage.getSize();
         const image =
           sourceSize.width > MAX_SCREENSHOT_WIDTH

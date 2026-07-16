@@ -11,7 +11,7 @@ import { normalizeRemoteOrigin, parseOpenCodeConnection } from "./pairing";
 import { useRemote } from "./remote-context";
 import { ActionButton, BodyText, DetailText, Page, useHonkTheme } from "./ui";
 
-const CONSUMED_PAIRING_DIGEST_KEY = "honk.mobile.consumed-pairing.v1";
+const CONSUMED_PAIRING_DIGEST_KEY = "honk.mobile.consumed-pairing";
 
 export function ConnectScreen(): React.ReactElement {
   const theme = useHonkTheme();
@@ -19,9 +19,9 @@ export function ConnectScreen(): React.ReactElement {
   const params = useLocalSearchParams<{ origin?: string; password?: string; token?: string }>();
   const remote = useRemote();
   const [form, setForm] = React.useState(() => ({
-    origin: params.origin ?? remote.origin ?? "",
+    origin: params.origin ?? remote.activeServer?.descriptor.origin ?? "",
     connectionValue: params.password ?? params.token ?? "",
-    defaultCwd: remote.defaultCwd,
+    defaultDirectory: remote.activeServer?.defaultDirectory ?? "",
   }));
   const [localError, setLocalError] = React.useState<string | null>(null);
   const consumedUrl = React.useRef<string | null>(null);
@@ -41,11 +41,11 @@ export function ConnectScreen(): React.ReactElement {
           : { origin, password: candidate.credential.value };
       await remote.connect({
         ...connection,
-        defaultCwd: form.defaultCwd,
+        defaultDirectory: form.defaultDirectory,
       });
       router.replace("/");
     },
-    [form.defaultCwd, remote],
+    [form.defaultDirectory, remote],
   );
 
   React.useEffect(() => {
@@ -65,7 +65,6 @@ export function ConnectScreen(): React.ReactElement {
         linkingUrl,
       );
       if ((await SecureStore.getItemAsync(CONSUMED_PAIRING_DIGEST_KEY)) === digest) return;
-      await SecureStore.setItemAsync(CONSUMED_PAIRING_DIGEST_KEY, digest);
       setForm((current) => ({
         ...current,
         origin: candidate.origin,
@@ -73,6 +72,7 @@ export function ConnectScreen(): React.ReactElement {
       }));
       setLocalError(null);
       await connectValue(linkingUrl, form.origin);
+      await SecureStore.setItemAsync(CONSUMED_PAIRING_DIGEST_KEY, digest);
     })().catch((cause: unknown) => {
       setLocalError(cause instanceof Error ? cause.message : "Pairing failed.");
     });
@@ -122,13 +122,17 @@ export function ConnectScreen(): React.ReactElement {
             </DetailText>
           </View>
 
-          {remote.hasCredential ? (
+          {remote.servers.map((server) => (
             <View
+              key={server.descriptor.key}
               style={[
                 styles.saved,
                 {
                   backgroundColor: theme.colors.layer01,
-                  borderColor: theme.colors.borderBase,
+                  borderColor:
+                    server.descriptor.key === remote.activeServerKey
+                      ? theme.colors.accent
+                      : theme.colors.borderBase,
                   borderRadius: theme.metrics.radius.panel,
                   borderWidth: theme.metrics.field.borderWidth,
                   gap: theme.metrics.space.contentGap,
@@ -137,56 +141,75 @@ export function ConnectScreen(): React.ReactElement {
               ]}
             >
               <BodyText style={{ fontWeight: theme.metrics.font.weightSemibold }}>
-                Saved connection
+                {server.descriptor.label}
               </BodyText>
-              <DetailText selectable>{remote.origin}</DetailText>
-              <DetailText>Status: {remote.status}</DetailText>
-              <ActionButton label="Retry connection" onPress={() => void remote.retry()} />
-              <ActionButton
-                label="Forget this device"
-                onPress={() => void remote.disconnect()}
-                tone="destructive"
-              />
+              <DetailText selectable>{server.descriptor.origin}</DetailText>
+              <DetailText>Status: {server.status}</DetailText>
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: theme.metrics.space.contentGap,
+                }}
+              >
+                <ActionButton
+                  label="Use server"
+                  onPress={() => remote.selectServer(server.descriptor.key)}
+                  tone="neutral"
+                />
+                <ActionButton
+                  label="Retry"
+                  onPress={() => void remote.retry(server.descriptor.key)}
+                  tone="neutral"
+                />
+                <ActionButton
+                  label="Forget"
+                  onPress={() => void remote.disconnect(server.descriptor.key)}
+                  tone="destructive"
+                />
+              </View>
             </View>
-          ) : (
-            <View style={{ gap: theme.metrics.space.rowGap }}>
-              <TextField
-                autoCapitalize="none"
-                autoComplete="url"
-                autoCorrect={false}
-                inputMode="url"
-                label="Honk host address"
-                onChangeText={(origin) => setForm((current) => ({ ...current, origin }))}
-                placeholder="https://honk.example.com"
-                value={form.origin}
-              />
-              <TextField
-                autoCapitalize="none"
-                autoComplete="off"
-                autoCorrect={false}
-                label="Attach link or password"
-                onChangeText={(connectionValue) =>
-                  setForm((current) => ({ ...current, connectionValue }))
-                }
-                placeholder="honk://connect?origin=…"
-                secureTextEntry={!form.connectionValue.includes("://")}
-                value={form.connectionValue}
-              />
-              <TextField
-                autoCapitalize="none"
-                autoCorrect={false}
-                label="Default project folder"
-                onChangeText={(defaultCwd) => setForm((current) => ({ ...current, defaultCwd }))}
-                placeholder="/Users/you/Developer/project"
-                value={form.defaultCwd}
-              />
-              <ActionButton
-                label="Connect to Honk"
-                onPress={() => void submit()}
-                pending={pending}
-              />
-            </View>
-          )}
+          ))}
+
+          <View style={{ gap: theme.metrics.space.rowGap }}>
+            <TextField
+              autoCapitalize="none"
+              autoComplete="url"
+              autoCorrect={false}
+              inputMode="url"
+              label="Honk host address"
+              onChangeText={(origin) => setForm((current) => ({ ...current, origin }))}
+              placeholder="https://honk.example.com"
+              value={form.origin}
+            />
+            <TextField
+              autoCapitalize="none"
+              autoComplete="off"
+              autoCorrect={false}
+              label="Attach link or password"
+              onChangeText={(connectionValue) =>
+                setForm((current) => ({ ...current, connectionValue }))
+              }
+              placeholder="honk://connect?origin=…"
+              secureTextEntry={!form.connectionValue.includes("://")}
+              value={form.connectionValue}
+            />
+            <TextField
+              autoCapitalize="none"
+              autoCorrect={false}
+              label="Default project folder"
+              onChangeText={(defaultDirectory) =>
+                setForm((current) => ({ ...current, defaultDirectory }))
+              }
+              placeholder="/Users/you/Developer/project"
+              value={form.defaultDirectory}
+            />
+            <ActionButton
+              label={remote.hasCredential ? "Add server" : "Connect to Honk"}
+              onPress={() => void submit()}
+              pending={pending}
+            />
+          </View>
 
           {(localError ?? remote.error) ? (
             <DetailText accessibilityLiveRegion="polite" style={{ color: theme.colors.errFg }}>

@@ -79,6 +79,7 @@
   --spacing-gutter: var(--honk-space-gutter);
   --spacing-panel-pad: var(--honk-space-panel-pad);
   --spacing-control-pad-x: var(--honk-space-control-pad-x);
+  --spacing-control-gap: var(--honk-control-gap);
 
   /* ── Shell ────────────────────────────────────────────────────────────────
    * Fixed window-chrome geometry, exposed through the spacing namespace so

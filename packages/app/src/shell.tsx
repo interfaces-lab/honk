@@ -1,87 +1,86 @@
-// The root shell frame — the opencode v2 INSET FLOATING SHEET anatomy (2026-07-12 rework):
-// deep root → 36px titlebar (tab strip · trailing) → Stage carrying the 8px sheet gutter →
-// ONE floating Sheet hosting the route outlet. No rail/sidebar column in this anatomy —
-// opencode v2 keeps the project nav inside the home sheet, and honk follows (home.tsx's
-// 280px grid column, settings in its footer). Hotkeys mount here so no leaf component binds
-// ⌘W / ⌘N / ⌘⇧T / ⌘1–9 / ⌘K / ⌘O itself.
+// Shell mounts the one hotkey registry. Leaf routes do not bind shell chords.
 
-import * as stylex from "@stylexjs/stylex";
-import { Badge, Shell, TabStrip, TooltipProvider } from "@honk/ui";
+import { Shell, TabStrip, TooltipProvider } from "@honk/ui";
 import { Outlet } from "@tanstack/react-router";
 import * as React from "react";
 
 import { useAppearanceTheme } from "./appearance-store";
 import { CommandMenuOverlay } from "./command-menu";
+import { shouldUseDesktopGlass } from "./desktop-bridge";
+import { HonkDesktopExtensionLayout } from "./desktop-extensions/layout";
+import { useIsHonkDesktopTabStripHidden } from "./desktop-extensions/runtime";
+import { DevChannelChip } from "./dev-channel-chip";
 import { useShellHotkeys } from "./hotkeys";
+import { DevelopmentPerformanceMonitor } from "./performance-monitor";
+import { SettingsOverlay } from "./settings";
+import { OpenTabContextMenu } from "./tab-context-menu";
 import { actions, useTabsSelector } from "./tab-store";
 import { ToastViewport } from "./toast";
 import { TitleBarTrailing } from "./update-pill";
 
-// Shell declares its own color-scheme (beats <html>). Pin via xstyle the same way
-// packages/ui/dev does for the Theme dial — never a duplicate token set.
-const schemeStyles = stylex.create({
+// Shell colorScheme beats html. Plain-object style hatch matches packages/ui/dev Theme dial.
+const schemeStyles: Record<string, React.CSSProperties> = {
   system: { colorScheme: "light dark" },
   light: { colorScheme: "light" },
   dark: { colorScheme: "dark" },
-});
-
-function DevChannelChip(): React.ReactElement {
-  // The DEV channel chip is the only mode trace in the titlebar; data-shell-no-drag so
-  // it never steals the titlebar drag region.
-  return (
-    <span data-shell-no-drag="">
-      <Badge tone="warn" size="sm">
-        DEV
-      </Badge>
-    </span>
-  );
-}
+};
+const newYorkStageStyle: React.CSSProperties = { paddingLeft: 0 };
 
 function AppShell({
   isInteractive = true,
 }: {
   readonly isInteractive?: boolean;
 }): React.ReactElement {
-  // Titlebar trailing: update pill (desktop, actionable only) + DEV chip in dev builds.
   const trailing = (
     <TitleBarTrailing>{import.meta.env.DEV ? <DevChannelChip /> : null}</TitleBarTrailing>
   );
 
-  // Selectors keep strip re-renders to tab-list / active-key changes only.
+  // Selectors limit strip re-renders to tab list and active key.
   const tabs = useTabsSelector((s) => s.tabs);
   const activeKey = useTabsSelector((s) => s.activeKey);
+  const isTabStripHidden = useIsHonkDesktopTabStripHidden();
   const theme = useAppearanceTheme();
 
-  // ONE registry for the shell route — command-menu WP extends the same defaults map.
   useShellHotkeys(undefined, isInteractive);
 
   return (
     <TooltipProvider>
-      <Shell xstyle={schemeStyles[theme]}>
-        <Shell.TitleBar trailing={trailing}>
-          {/* No separate Home button: honk pins Home as the tab strip's slot-0 tab (tab-store
-              law) — opencode's home button + tabless-home arrangement would double the chrome. */}
-          <TabStrip
-            tabs={tabs}
-            activeKey={activeKey}
-            // TabStrip fires onActivate on mousedown (browser-grade); the store navigates.
-            onActivate={actions.activate}
-            // Hover-reveal × and middle-click both land here — TabStrip already emits both.
-            onClose={actions.close}
-            onReorder={actions.reorder}
-            onNew={actions.openNew}
-          />
-        </Shell.TitleBar>
-        <Shell.Stage>
-          {/* Every route paints inside the same floating sheet (opencode v2: home sheet m-2,
-              session frame p-2 — identical geometry, hoisted here so no route re-declares it). */}
-          <Shell.Sheet>
-            <Outlet />
-          </Shell.Sheet>
-        </Shell.Stage>
-        {/* Single overlay mount — ⌘K / ⌘O doors; Home embeds the same menu inline. */}
+      <Shell material={shouldUseDesktopGlass() ? "glass" : "solid"} style={schemeStyles[theme]}>
+        <HonkDesktopExtensionLayout>
+          {isTabStripHidden ? null : (
+            <Shell.TitleBar trailing={trailing}>
+              {/* Home is tab-store slot 0. A separate Home button would duplicate chrome. */}
+              <TabStrip
+                tabs={tabs}
+                activeKey={activeKey}
+                onActivate={(key) => {
+                  actions.activate(key);
+                }}
+                onClose={(key) => {
+                  actions.close(key);
+                }}
+                onReorder={(from, to) => {
+                  actions.reorder(from, to);
+                }}
+                onNew={() => {
+                  actions.openNew();
+                }}
+                renderContextMenu={(tab, children) => (
+                  <OpenTabContextMenu tab={tab}>{children}</OpenTabContextMenu>
+                )}
+              />
+            </Shell.TitleBar>
+          )}
+          <Shell.Stage style={isTabStripHidden ? newYorkStageStyle : undefined}>
+            <Shell.Sheet>
+              <Outlet />
+            </Shell.Sheet>
+          </Shell.Stage>
+        </HonkDesktopExtensionLayout>
+        {import.meta.env.DEV ? <DevelopmentPerformanceMonitor /> : null}
+        {/* Shell overlays leave the Home/thread route mounted. */}
+        <SettingsOverlay />
         <CommandMenuOverlay />
-        {/* Status chrome — bottom-right toast stack (WP7). */}
         <ToastViewport />
       </Shell>
     </TooltipProvider>

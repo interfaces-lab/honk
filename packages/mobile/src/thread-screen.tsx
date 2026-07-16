@@ -16,53 +16,123 @@ import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
 import { Redirect, Stack, router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type {
-  PermissionRequest,
-  QuestionRequest,
-  SendMessageFile,
-  SidecarAgent,
-  ThreadState,
-  WatchStatus,
+import {
+  openCodeMessageID,
+  openCodeServerKey,
+  openCodeSessionKey,
+  openCodeSessionRef,
+  type Message,
+  type OpenCodeClient,
+  type OpenCodePermissionRequest,
+  type OpenCodePromptFileAttachment,
+  type OpenCodeQuestionRequest,
+  type OpenCodeSessionInfo,
+  type OpenCodeSessionRef,
+  type Part,
 } from "@honk/opencode";
+import { Picker } from "@honk/ui";
 import { TextField } from "@honk/ui/text-field";
 
 import { Conversation } from "./conversation";
 import { useRemote } from "./remote-context";
-import {
-  ActionButton,
-  ChoiceButton,
-  DetailText,
-  EmptyState,
-  LoadingState,
-  Page,
-  useHonkTheme,
-} from "./ui";
+import { ActionButton, DetailText, EmptyState, LoadingState, Page, useHonkTheme } from "./ui";
 
 const MAX_ATTACHMENTS = 4;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const RELOAD_DEBOUNCE_MS = 150;
+const RECONNECT_DELAY_MS = 1_500;
+
+type SessionConnection = "connecting" | "live" | "reconnecting";
 
 interface ComposerImage {
   readonly id: string;
   readonly uri: string;
-  readonly file: SendMessageFile;
+  readonly file: OpenCodePromptFileAttachment;
 }
 
-const draftKey = (threadId: string): string => `honk.mobile.draft.${threadId}`;
+interface SessionViewState {
+  readonly info: OpenCodeSessionInfo;
+  readonly messages: readonly Message[];
+  readonly parts: readonly Part[];
+  readonly running: boolean;
+  readonly questions: readonly OpenCodeQuestionRequest[];
+  readonly permissions: readonly OpenCodePermissionRequest[];
+}
+
+interface StoredDraft {
+  readonly sessionKey: string;
+  readonly text: string;
+}
+
+function draftKey(ref: OpenCodeSessionRef): string {
+  let hash = 0x811c9dc5;
+  for (const character of openCodeSessionKey(ref)) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `honk.mobile.opencode.draft.${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+function decodeDraft(raw: string | null, ref: OpenCodeSessionRef): string {
+  if (raw === null) return "";
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return "";
+    const sessionKey = Reflect.get(value, "sessionKey");
+    const text = Reflect.get(value, "text");
+    return sessionKey === openCodeSessionKey(ref) && typeof text === "string" ? text : "";
+  } catch {
+    return "";
+  }
+}
 
 const errorMessage = (cause: unknown, fallback: string): string =>
   cause instanceof Error ? cause.message : fallback;
 
+async function loadSession(
+  client: OpenCodeClient,
+  ref: OpenCodeSessionRef,
+): Promise<SessionViewState> {
+  const [transcript, active, questions, permissions] = await Promise.all([
+    client.sessions.transcript(ref),
+    client.sessions.active(),
+    client.sessions.questions(ref).catch(() => []),
+    client.sessions.permissions(ref).catch(() => []),
+  ]);
+  return {
+    info: transcript.info,
+    messages: transcript.messages,
+    parts: transcript.parts,
+    running: active[ref.sessionID] !== undefined,
+    questions,
+    permissions,
+  };
+}
+
 export function ThreadScreen(): React.ReactElement {
   const theme = useHonkTheme();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ threadId: string }>();
-  const threadId = params.threadId;
+  const params = useLocalSearchParams<{ serverKey: string; sessionId: string }>();
   const remote = useRemote();
-  const [state, setState] = React.useState<ThreadState | null>(null);
-  const [watchStatus, setWatchStatus] = React.useState<WatchStatus>("reconnecting");
-  const [questions, setQuestions] = React.useState<readonly QuestionRequest[]>([]);
-  const [permissions, setPermissions] = React.useState<readonly PermissionRequest[]>([]);
-  const [agents, setAgents] = React.useState<readonly SidecarAgent[]>([]);
+  const serverKey = params.serverKey ?? "";
+  const sessionId = params.sessionId ?? "";
+  const ref = React.useMemo(
+    () =>
+      serverKey.length === 0 || sessionId.length === 0
+        ? null
+        : openCodeSessionRef(openCodeServerKey(serverKey), sessionId),
+    [serverKey, sessionId],
+  );
+  const client = ref === null ? null : remote.clientFor(ref.server);
+  const indexedInfo =
+    ref === null
+      ? null
+      : (remote.sessions.find(
+          (session) => session.ref.server === ref.server && session.ref.sessionID === ref.sessionID,
+        )?.info ?? null);
+  const [state, setState] = React.useState<SessionViewState | null>(null);
+  const [connection, setConnection] = React.useState<SessionConnection>("connecting");
+  const [agents, setAgents] = React.useState<readonly string[]>([]);
   const [agent, setAgent] = React.useState<string | null>(null);
   const [draft, setDraft] = React.useState("");
   const [draftReady, setDraftReady] = React.useState(false);
@@ -71,78 +141,123 @@ export function ThreadScreen(): React.ReactElement {
   const [error, setError] = React.useState<string | null>(null);
   const scrollRef = React.useRef<ScrollView>(null);
   const nearBottomRef = React.useRef(true);
-  const threadSeq = state?.seq ?? null;
-  const threadCwd = state?.cwd ?? null;
-  const threadAgent = state?.summary.agent ?? null;
+  const sessionDirectory = state?.info.location.directory ?? null;
+  const sessionAgent = state?.info.agent ?? null;
 
   React.useEffect(() => {
-    const client = remote.client;
-    if (client === null || threadId.length === 0) return;
+    if (client === null || ref === null) return;
     setState(null);
-    const watch = client.threads.watch(threadId, {
-      onChange: setState,
-      onStatus: setWatchStatus,
+    setConnection("connecting");
+    const controller = new AbortController();
+    let disposed = false;
+    let reloadTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const reload = (): void => {
+      if (disposed || reloadTimer !== null) return;
+      reloadTimer = setTimeout(() => {
+        reloadTimer = null;
+        void loadSession(client, ref)
+          .then((next) => {
+            if (!disposed) setState(next);
+          })
+          .catch((cause: unknown) => {
+            if (!disposed) setError(errorMessage(cause, "The session could not be refreshed."));
+          });
+      }, RELOAD_DEBOUNCE_MS);
+    };
+
+    const wait = (): Promise<void> =>
+      new Promise((resolve) => {
+        const timeout = setTimeout(done, RECONNECT_DELAY_MS);
+        function done(): void {
+          clearTimeout(timeout);
+          controller.signal.removeEventListener("abort", done);
+          resolve();
+        }
+        controller.signal.addEventListener("abort", done, { once: true });
+      });
+
+    void (async () => {
+      while (!disposed) {
+        try {
+          const next = await loadSession(client, ref);
+          if (disposed) return;
+          setState(next);
+          setConnection("live");
+          for await (const _event of client.sessions.events(ref, undefined, controller.signal)) {
+            if (disposed) return;
+            reload();
+          }
+          if (disposed) return;
+          setConnection("reconnecting");
+        } catch (cause) {
+          if (disposed) return;
+          setConnection("reconnecting");
+          setError(errorMessage(cause, "The session connection failed."));
+        }
+        await wait();
+      }
+    })();
+
+    return () => {
+      disposed = true;
+      if (reloadTimer !== null) clearTimeout(reloadTimer);
+      controller.abort();
+    };
+  }, [client, ref]);
+
+  React.useEffect(() => {
+    if (indexedInfo === null) return;
+    setState((current) => {
+      if (current === null || indexedInfo.time.updated < current.info.time.updated) return current;
+      return current.info === indexedInfo ? current : { ...current, info: indexedInfo };
     });
-    return () => watch.close();
-  }, [remote.client, threadId]);
+  }, [indexedInfo]);
 
   React.useEffect(() => {
     let active = true;
     setDraftReady(false);
-    void SecureStore.getItemAsync(draftKey(threadId)).then((saved) => {
+    if (ref === null) return;
+    void SecureStore.getItemAsync(draftKey(ref)).then((saved) => {
       if (!active) return;
-      setDraft(saved ?? "");
+      setDraft(decodeDraft(saved, ref));
       setDraftReady(true);
     });
     return () => {
       active = false;
     };
-  }, [threadId]);
+  }, [ref]);
 
   React.useEffect(() => {
-    if (!draftReady) return;
+    if (!draftReady || ref === null) return;
     const timeout = setTimeout(() => {
-      const key = draftKey(threadId);
+      const key = draftKey(ref);
       if (draft === "") void SecureStore.deleteItemAsync(key);
-      else void SecureStore.setItemAsync(key, draft);
+      else {
+        const value: StoredDraft = { sessionKey: openCodeSessionKey(ref), text: draft };
+        void SecureStore.setItemAsync(key, JSON.stringify(value));
+      }
     }, 250);
     return () => clearTimeout(timeout);
-  }, [draft, draftReady, threadId]);
+  }, [draft, draftReady, ref]);
 
   React.useEffect(() => {
     let active = true;
-    const client = remote.client;
-    if (client === null || threadSeq === null) return;
-    void Promise.all([client.threads.questions(threadId), client.threads.permissions(threadId)])
-      .then(([nextQuestions, nextPermissions]) => {
+    if (client === null || sessionDirectory === null) return;
+    void client.agents
+      .list({ directory: sessionDirectory })
+      .then((result) => {
         if (!active) return;
-        setQuestions(nextQuestions);
-        setPermissions(nextPermissions);
-      })
-      .catch((cause: unknown) => {
-        if (active) setError(errorMessage(cause, "Pending requests could not be loaded."));
-      });
-    return () => {
-      active = false;
-    };
-  }, [remote.client, threadId, threadSeq]);
-
-  React.useEffect(() => {
-    let active = true;
-    const client = remote.client;
-    if (client === null || threadCwd === null) return;
-    void client
-      .listAgents(threadCwd)
-      .then((nextAgents) => {
-        if (!active) return;
-        const primaryAgents = nextAgents.filter((candidate) => candidate.mode !== "subagent");
+        const primaryAgents = result.data
+          .filter((candidate) => candidate.mode !== "subagent" && !candidate.hidden)
+          .map((candidate) => candidate.id);
         setAgents(primaryAgents);
         setAgent(
           (current) =>
             current ??
-            threadAgent ??
-            primaryAgents.find((candidate) => candidate.name === "build")?.name ??
-            primaryAgents[0]?.name ??
+            sessionAgent ??
+            primaryAgents.find((candidate) => candidate === "build") ??
+            primaryAgents[0] ??
             null,
         );
       })
@@ -152,10 +267,10 @@ export function ThreadScreen(): React.ReactElement {
     return () => {
       active = false;
     };
-  }, [remote.client, threadAgent, threadCwd]);
+  }, [client, sessionAgent, sessionDirectory]);
 
-  if (remote.client === null) return <Redirect href="/connect" />;
-  if (state === null) return <LoadingState label="Opening task…" />;
+  if (ref === null || client === null) return <Redirect href="/connect" />;
+  if (state === null) return <LoadingState label="Opening session…" />;
 
   const chooseImages = async (): Promise<void> => {
     const remaining = MAX_ATTACHMENTS - attachments.length;
@@ -186,9 +301,8 @@ export function ThreadScreen(): React.ReactElement {
           id,
           uri: asset.uri,
           file: {
-            filename: asset.fileName ?? `image-${id}.jpg`,
-            mime,
-            path: `data:${mime};base64,${asset.base64}`,
+            uri: `data:${mime};base64,${asset.base64}`,
+            name: asset.fileName ?? `image-${id}.jpg`,
           },
         });
       }
@@ -205,11 +319,17 @@ export function ThreadScreen(): React.ReactElement {
     setSending(true);
     setError(null);
     try {
-      await remote.client?.threads.send(threadId, {
-        messageId: `mobile_${Crypto.randomUUID()}`,
-        text,
-        ...(agent !== null ? { agent } : {}),
-        files: attachments.map((attachment) => attachment.file),
+      if (agent !== null && agent !== state.info.agent) {
+        await client.sessions.switchAgent(ref, agent);
+      }
+      await client.sessions.prompt(ref, {
+        id: openCodeMessageID(Crypto.randomUUID()),
+        prompt: {
+          text,
+          ...(attachments.length > 0
+            ? { files: attachments.map((attachment) => attachment.file) }
+            : {}),
+        },
       });
       setDraft("");
       setAttachments([]);
@@ -226,10 +346,10 @@ export function ThreadScreen(): React.ReactElement {
   const interrupt = async (): Promise<void> => {
     setError(null);
     try {
-      await remote.client?.threads.interrupt(threadId);
+      await client.sessions.interrupt(ref);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     } catch (cause) {
-      setError(errorMessage(cause, "The task could not be stopped."));
+      setError(errorMessage(cause, "The session could not be stopped."));
     }
   };
 
@@ -237,21 +357,44 @@ export function ThreadScreen(): React.ReactElement {
     requestId: string,
     answers: readonly (readonly string[])[],
   ): Promise<void> => {
-    await remote.client?.threads.answerQuestion(threadId, requestId, answers);
-    setQuestions((current) => current.filter((request) => request.id !== requestId));
+    await client.sessions.replyQuestion(ref, requestId, {
+      answers: answers.map((answer) => [...answer]),
+    });
+    setState((current) =>
+      current === null
+        ? null
+        : {
+            ...current,
+            questions: current.questions.filter((request) => request.id !== requestId),
+          },
+    );
   };
 
   const rejectQuestion = async (requestId: string): Promise<void> => {
-    await remote.client?.threads.rejectQuestion(threadId, requestId);
-    setQuestions((current) => current.filter((request) => request.id !== requestId));
+    await client.sessions.rejectQuestion(ref, requestId);
+    setState((current) =>
+      current === null
+        ? null
+        : {
+            ...current,
+            questions: current.questions.filter((request) => request.id !== requestId),
+          },
+    );
   };
 
   const answerPermission = async (
     requestId: string,
     reply: "once" | "always" | "reject",
   ): Promise<void> => {
-    await remote.client?.threads.answerPermission(threadId, requestId, reply);
-    setPermissions((current) => current.filter((request) => request.id !== requestId));
+    await client.sessions.replyPermission(ref, requestId, reply);
+    setState((current) =>
+      current === null
+        ? null
+        : {
+            ...current,
+            permissions: current.permissions.filter((request) => request.id !== requestId),
+          },
+    );
   };
 
   const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
@@ -259,18 +402,23 @@ export function ThreadScreen(): React.ReactElement {
     nearBottomRef.current = contentSize.height - (contentOffset.y + layoutMeasurement.height) < 96;
   };
 
-  const running = state.summary.status === "running";
+  const running = state.running;
 
   return (
     <Page>
-      <Stack.Title>{state.summary.title}</Stack.Title>
+      <Stack.Title>{state.info.title}</Stack.Title>
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Menu icon="ellipsis">
           <Stack.Toolbar.MenuAction
             icon="slider.horizontal.3"
-            onPress={() => router.push({ pathname: "/task/[threadId]", params: { threadId } })}
+            onPress={() =>
+              router.push({
+                pathname: "/session/[serverKey]/[sessionId]/settings",
+                params: { serverKey: ref.server, sessionId: ref.sessionID },
+              })
+            }
           >
-            Task settings
+            Session details
           </Stack.Toolbar.MenuAction>
           {running ? (
             <Stack.Toolbar.MenuAction
@@ -278,7 +426,7 @@ export function ThreadScreen(): React.ReactElement {
               icon="stop.circle"
               onPress={() => void interrupt()}
             >
-              Stop task
+              Stop session
             </Stack.Toolbar.MenuAction>
           ) : null}
         </Stack.Toolbar.Menu>
@@ -306,24 +454,27 @@ export function ThreadScreen(): React.ReactElement {
           onScroll={onScroll}
           scrollEventThrottle={32}
         >
-          {watchStatus === "live" ? null : (
+          {connection === "live" ? null : (
             <DetailText accessibilityLiveRegion="polite" style={{ color: theme.colors.warnFg }}>
-              Connection {watchStatus}
+              Connection {connection}
             </DetailText>
           )}
-          {state.messages.length === 0 && questions.length === 0 && permissions.length === 0 ? (
+          {state.messages.length === 0 &&
+          state.questions.length === 0 &&
+          state.permissions.length === 0 ? (
             <EmptyState
-              body="Send the first instruction to start this task."
+              body="Send the first instruction to start this session."
               title="Ready when you are"
             />
           ) : (
             <Conversation
+              messages={state.messages}
               onAnswerPermission={answerPermission}
               onAnswerQuestion={answerQuestion}
               onRejectQuestion={rejectQuestion}
-              permissions={permissions}
-              questions={questions}
-              state={state}
+              permissions={state.permissions}
+              parts={state.parts}
+              questions={state.questions}
             />
           )}
         </ScrollView>
@@ -345,7 +496,7 @@ export function ThreadScreen(): React.ReactElement {
               {attachments.map((attachment) => (
                 <View key={attachment.id} style={styles.attachmentPreview}>
                   <Image
-                    accessibilityLabel={attachment.file.filename ?? "Attached image"}
+                    accessibilityLabel={attachment.file.name ?? "Attached image"}
                     source={{ uri: attachment.uri }}
                     style={{
                       borderRadius: theme.metrics.radius.control,
@@ -354,7 +505,7 @@ export function ThreadScreen(): React.ReactElement {
                     }}
                   />
                   <Pressable
-                    accessibilityLabel={`Remove ${attachment.file.filename ?? "image"}`}
+                    accessibilityLabel={`Remove ${attachment.file.name ?? "image"}`}
                     accessibilityRole="button"
                     onPress={() =>
                       setAttachments((current) =>
@@ -383,20 +534,17 @@ export function ThreadScreen(): React.ReactElement {
             </View>
           )}
 
-          {agents.length === 0 ? null : (
-            <View style={[styles.rail, { gap: theme.metrics.space.compactGap }]}>
-              {agents.map((candidate) => {
-                const selected = candidate.name === agent;
-                return (
-                  <ChoiceButton
-                    key={candidate.name}
-                    label={candidate.name}
-                    onPress={() => setAgent(candidate.name)}
-                    selected={selected}
-                  />
-                );
-              })}
-            </View>
+          {agents.length === 0 || agent === null ? null : (
+            <Picker.Root value={agent} onValueChange={setAgent}>
+              <Picker.Trigger size="sm" accessibilityLabel="Agent">
+                <DetailText>{agent}</DetailText>
+              </Picker.Trigger>
+              <Picker.Popup label="Agent">
+                {agents.map((candidate) => (
+                  <Picker.Option key={candidate} value={candidate} label={candidate} />
+                ))}
+              </Picker.Popup>
+            </Picker.Root>
           )}
 
           <TextField

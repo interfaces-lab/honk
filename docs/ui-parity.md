@@ -40,7 +40,6 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
 8. **Open — deferred to later grills**: chat-pane tiling, multitask/subagent orchestration UX,
    `/goal` as a product concept, env-mode/worktree selection placement in the composer.
 
-
 ## composer
 
 - **Prompt text editor (Lexical)** `keep` `client-local`
@@ -113,8 +112,8 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
   An interaction mode for coordinating background subagents, gated behind the multitaskModeEnabled local feature flag.
   — Feature-flagged and tied to subagent orchestration; re-decide whether it ships and how it maps to core subagent capabilities.
 - **Image attachments (attach button, drag-drop, paste)** `keep` `core-v1`
-  + button opens a file picker; also drag-drop and clipboard paste; validates image type, per-file size limit (MB), and max attachment count with toast errors; disabled while pending user input / connecting.
-  — Attachments upload per-send (GAPS: upload image attachments supported). Core capability; keep.
+  - button opens a file picker; also drag-drop and clipboard paste; validates image type, per-file size limit (MB), and max attachment count with toast errors; disabled while pending user input / connecting.
+    — Attachments upload per-send (GAPS: upload image attachments supported). Core capability; keep.
 - **Image attachment strip** `keep` `client-local`
   Thumbnail strip above the input with per-image remove and expand-to-view.
   — Standard attachment management; stored in the draft, sent to core.
@@ -195,6 +194,7 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
   — Shell-integration glue; keep as local wiring, but simplify in the rewrite.
 
 **Open questions:**
+
 - Does core/v1 actually emit subagent orchestration activities (subagent.thread.started, subagent.item.*, subagent.content.delta) so the subagent tray has data, or is it inert like the queue? thread-sync maps these kinds but core's production of them is unverified.
 - How should the creation-time model+thinking selection reach the thread-create command in the rewrite, given the current picker writes only to a dead in-memory preferences stub? Does the core thread-create input carry modelSelection/thinkingLevel?
 - ADR 0005 says queued input is projected state, but GAPS says core does not project queued messages to UI and lacks update/reorder/send-now endpoints. Will the rewrite add a core queue projection + those mutations, or drop edit/reorder/send-now and keep only enqueue/cancel?
@@ -380,6 +380,7 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
   — MissingActiveThreadFallback; loading state.
 
 **Open questions:**
+
 - Does core/v1 emit reasoning/thinking as its own Part type, or must the rewrite keep inferring 'thinking' from a WorkLogEntry tone? The tone-based path is the only surviving reasoning source now that runtime-thinking is dead.
 - Await/monitoring-background and browser-MCP tool groups are currently keyed off runtime/Cursor-browser-provider metadata that only arrived via the dead runtime store — does core/v1 surface long-running/background tool state at all, or do these group flavors disappear entirely?
 - GAPS.md says plan-markdown updates and patch Parts without a turnId aren't served by the core dispatch adapter — should inline plan editing and turnless patch rendering be cut from the rewrite, or is core gaining those endpoints before the UI rewrite?
@@ -411,7 +412,7 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
   — No loading affordance during the one moment the app is most likely to be slow (cold Core, remote latency). The rewrite needs a real connecting state, doubly so for remote clients.
 - **Pairing-token deep-link exchange + URL stripping** `keep` `core-v1`
   getPairingTokenFromUrl reads a token from the URL hash (#token=) or query (?token=); it is exchanged for a durable web session and then stripped from the address bar via history.replaceState.
-  — The ADR 0019 web-entry path (one-time pairing token delivered as a /#token= URL). Correct and needed for remote parity; keep. Its gap is that there's no UI to *generate* such a link (see pairing issuance) and no manual fallback.
+  — The ADR 0019 web-entry path (one-time pairing token delivered as a /#token= URL). Correct and needed for remote parity; keep. Its gap is that there's no UI to _generate_ such a link (see pairing issuance) and no manual fallback.
 - **Manual pairing-token entry (submitServerAuthCredential)** `rethink` `core-v1`
   auth.ts exports submitServerAuthCredential to accept a pasted pairing token, but no component renders an input for it. A web client that lands without a #token= has only 'Reload Window' and dead-ends.
   — ADR 0022 mandates full remote parity, but web onboarding currently has no way to enter a credential — a hard dead-end. The rewrite must wire a token/paste entry (or QR scan) path.
@@ -454,11 +455,12 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
 - **Generic error boundary + not-found status pages** `keep` `client-local`
   RootRouteErrorView shows 'Something went wrong' with Reload Window and Copy Error (copies stack/JSON); RootRouteNotFoundView shows 'Page not found' with Go Home and Reload Window.
   — Baseline app chrome, unrelated to auth logic. Keep (restyle in the rewrite).
-- **Dev-standalone auth bypass (/dev/honkkit)** `keep` `client-local`
-  In DEV, the /dev/honkkit route short-circuits beforeLoad to authenticated+devStandalone, rendering the honkkit gallery without a Core.
+- **Standalone component gallery** `keep` `client-local`
+  The `packages/ui` Vite gallery renders shared components without a running Core.
   — Dev-only harness for component work; harmless. Keep as a dev aid.
 
 **Open questions:**
+
 - ADR 0022 wants owner-issued pairing (link/QR) as the remote-onboarding entry, but the desktop 'Open in Browser' currently forwards the raw core-app-secret owner bearer in a /#token= URL. Should the rewrite replace this with a scoped single-use pairing token even for the same-machine browser hand-off, or is owner-secret forwarding acceptable on loopback?
 - Where should provider account connection (Codex/Cursor/Claude Code) live in the rewrite — a dedicated first-run step, a persistent Accounts area, or both? Today it is only reachable deep in Settings, which conflicts with it being the de facto 'sign in'.
 - The exposure-mode control is desktop-settings + IPC today (local-only default) but ADR 0022 makes it a Core-served, loud opt-in reachable from any owner client. Does the exposure decision move entirely into the Core (so a paired phone owner could flip it), and what tier gating/UX does 'public exposure is a loud opt-in' imply?
@@ -610,6 +612,7 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
   — Uses native menu via local-api — desktop-only; remote clients need an in-app menu for parity (the per-row Unarchive button already covers the common case).
 
 **Open questions:**
+
 - ADR 0014 pins model+thinking at thread creation — should Settings retain any 'default for new threads' seed for model/thinking/interaction-mode, and if so where does it persist on Core (which has per-send InteractionMode but no persistent default per GAPS)?
 - Does the new Core expose skill discovery to all clients, or is the Skills browser dropped entirely? Same question for the static Subagents cards — real registry or cut.
 - Which settings become Core-backed (synced across a user's devices for remote parity) vs intentionally per-device client-local (theme, fonts, hue, reduce-transparency, font smoothing)? Today the split is accidental (server vs client vs appearance planes).
@@ -731,7 +734,7 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
   Agent / Ask / Plan / Debug entries set the focused composer's per-send interaction mode (with keybinding labels); Multitask is added only when a local feature flag is on.
   — Interaction mode is per-send, not model — survives ADR 0014 (which only kills mid-thread model switching). Keep Agent/Ask/Plan/Debug; treat Multitask as flagged scaffolding.
 - **Palette: dev/feature-flag entries** `kill` `client-local`
-  Enable/Disable Multitask Mode (local flag), Open Dev Panel, Copy server trace path (DEV), Open Component System / HonkKit (DEV).
+  Enable/Disable Multitask Mode (local flag), Open Dev Panel, Copy server trace path (DEV), Open Component System (DEV).
   — Developer-only tooling mixed into the shipping palette, gated only by import.meta.env.DEV or a local flag. Move to a separate dev registry so the product palette stays trustworthy.
 - **Palette: workspace utilities** `rethink` `aux`
   Open workspace in editor (preferred external editor), Copy workspace path, Open settings, Open keyboard shortcuts (opens the keybindings file in an editor).
@@ -759,6 +762,7 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
   — readHonkRuntimeApi().abort() always rejects ('Runtime host unavailable after core cutover') and agent-runtime-store no longer receives events, so stopping a git action is severed. Don't port this wiring; route stop through the core interrupt used elsewhere.
 
 **Open questions:**
+
 - Should shell layout state (tilesets, tab sets, panel widths, terminal/browser sessions) sync across devices through the Core, or remain per-device localStorage? Current implementation is device-local, which collides with ADR 0022 remote parity (a phone opens a workspace blank).
 - How does chat-pane tiling (split/drag-to-tile/relocate) translate to touch and small screens — is it a desktop-only power feature that gracefully collapses to single-pane on phone, or must it be fully touch-redesigned?
 - Does an embedded browser panel ship in the product? It is currently an Electron webview with no web/mobile equivalent; if it ships, it needs a remote-parity design, and if not, the Browser tab and browser-automation-open bridge should be dropped.
@@ -857,6 +861,7 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
   — Inherently native-window chrome; keep as desktop-only.
 
 **Open questions:**
+
 - Which organizational state (pins, unread, filters, project order, expand/collapse) should be account-synced through Core vs kept per-device? Today all of it is localStorage-only, violating the spirit of ADR 0022 remote parity.
 - Will Core serve one authoritative per-row status (running/needs_attention/stopped/error + latestReadableAt + needsAttention incl. plan proposals) so the sidebar stops reconstructing state from session.activeTurnId + client visit boundaries?
 - Does the rewrite keep project-first grouping backed by a stable Core projectId (retiring cwd-string keys, worktree special-casing, and 'retained empty project' logic)?
@@ -868,14 +873,14 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
 ## status-notifications
 
 - **In-thread working/waiting status row** `keep` `core-v1`
-  Between send and first output, the timeline shows a status row (WorkingStatusRow) labelled 'Planning next moves', escalating to 'This is taking a bit longer...' after 15s of the active turn (waiting-status.ts thresholds). Drives off active-turn startedAt.
+  Between send and first output, the timeline shows a status row labelled 'Planning next moves', escalating to 'Taking longer than expected…' after 15s of the active turn (waiting-status.ts thresholds). Drives off active-turn startedAt.
   — Core exposes activeTurn timing; a pre-first-token 'agent is working' affordance is essential. Copy/threshold are tunable, but the capability stays. status-row.tsx renders via step-renderer.tsx:499.
 - **Animated 'thinking' matrix loader glyph** `keep` `client-local`
   Dot-matrix diagonal-sweep animation (ChatLoaderGlyph / ChatLoaderMatrix) used as the running spinner in the sidebar and status row; grid auto-sizes to line height/extent and honors prefers-reduced-motion (falls to a static 0.55-opacity state).
-  — Pure presentational, reduced-motion-aware, remote-safe. A distinctive good-taste indicator worth carrying into the new design system (honkkit/conversation-loader.tsx).
+  — Pure presentational, reduced-motion-aware, remote-safe. The shared implementation lives in `packages/ui/src/matrix.tsx`.
 - **Sidebar thread status-dot state machine** `keep` `core-v1`
   Each sidebar row shows a StatusDot whose state is derived (view-model.ts threadState): error(critical) / stopped(inactive) / needs_attention(warning) / running(animated glyph) / idle, plus overlays: unread→doneUnseen(accent) vs doneSeen(quaternary), draft(hollow ring), archived(archive icon). StatusSlot hides the dot for idle/seen/non-draft rows.
-  — A single well-modeled StatusDotState vocabulary (honkkit/status-dot.tsx) drives the whole sidebar. Preserve the vocabulary; only the needs_attention input changes (see below).
+  — A single well-modeled status vocabulary (`packages/ui/src/status-dot.tsx`) drives the whole sidebar. Preserve the vocabulary; only the needs_attention input changes (see below).
 - **Sidebar 'finishing' transition animation** `keep` `client-local`
   When a row goes running→settled, StatusSlot plays a 720ms finish pulse (agent-sidebar-status-finish) before resting on the seen/unseen dot; resets on row identity change.
   — Small motion polish that signals completion; remote-safe. status.tsx:60-106.
@@ -944,6 +949,7 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
   — Not a shipped capability — a design artifact. Fold its indicator inventory into the rewrite's design system, then retire the loose HTML file.
 
 **Open questions:**
+
 - Which toast library survives as the single pipeline — base-UI (currently mounted) or sonner — and who owns migrating the ~30 sonner call sites?
 - Should thread-completion produce an in-app toast (not only a background OS notification), and should its body carry the assistant's summary line rather than generic 'Finished working.'?
 - Post-ADR-0007, how is 'attention' typed (ask-question Part vs plan-proposal Part), and how does each type map to the sidebar dot color and to any toast/OS alert?
@@ -1015,6 +1021,7 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
   — Dead placeholder shipping as a greyed-out control with no behavior — it advertises a feature that does nothing. Remove it; if a manual 'hand this browser to the agent' action is wanted, design it deliberately rather than leaving an inert stub.
 
 **Open questions:**
+
 - Does the browser panel survive as a cross-platform feature at all, or is it explicitly scoped as desktop-only shell chrome? ADR 0022 says remote parity is absolute, but an Electron `<webview>` has no phone/browser equivalent without a server-side/streamed browser session — this is a product decision the rewrite must make before touching the code.
 - Where does the agent-facing automation get re-wired? The engine exists but its tool-trigger path was deleted with the runtime/server. Is the plan to re-expose open/navigate/snapshot/click/... as core/v1 agent tools, and if so does the browser session live in desktop-main (register/unregister as today) or move server-side for remote parity?
 - Is general web browsing in scope, or only local-preview? The empty state and localhost discovery suggest the real job is 'preview my dev server + let the agent inspect it.' If so, arbitrary-URL browsing, cookie/cache management, and DevTools may be out of scope for the rewrite rather than features to port.
@@ -1127,6 +1134,7 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
   — Prevents ghost-file resurrection; a correctness-grade behavior that any editor rewrite must reproduce, ideally centralized rather than hooked in at each call site.
 
 **Open questions:**
+
 - Does the new product keep full in-app code editing (Monaco write path, save, conflict handling), or narrow the Files surface to read + Add-to-Chat annotation? The answer determines how much of the aux filesystem write plane (writeFile/createDirectory/renamePath/deleteFile) must be built into Core.
 - Should editor view state (open file, active path, nav history, placement) stay per-device in localStorage, or follow the user across clients under ADR 0022 remote parity? Currently it is client-local only.
 - Git-status tree decoration depends on the aux git bridge; is per-file working-tree status part of the Core workspace/thread read model, or does the tree keep a separate git subscription after the aux fold?
@@ -1224,6 +1232,7 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
   — Small polish over aux-backed filter state; keep.
 
 **Open questions:**
+
 - Should 'Viewed' review state and the unified/split preference move from per-device localStorage into Core (per-user/per-thread) so a phone/browser client sees the same review progress (ADR 0022)?
 - Is the 'Branch' filter + commit-comparison meant to ship? It needs a real Core branch-diff endpoint; right now it's an empty stub. Build it or cut it.
 - Should this panel surface Core turn-checkpoints/revert (core/v1 checkpoints group with revertTurn), which today are only surfaced in chat user-message.tsx — or should git stay working-tree-only and leave turn-revert to the timeline?
@@ -1288,6 +1297,7 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
   — Small editorial layer that makes plans read cleanly (title in chrome, body without duplication). Presentation logic worth carrying forward regardless of wire.
 
 **Open questions:**
+
 - Does the new Core serve a plan-Part edit/update mutation, or are proposed plans immutable once emitted? Today thread.proposed-plan.update is dispatched by two editors but unsupported by the core dispatch adapter (GAPS.md), so all plan editing is dead under core. If plans are immutable, both Tiptap editors should be cut; if editable, a raw-text edit needs a served endpoint.
 - Is there a live task/todo checklist in the new product distinct from proposed plans? The current 'Tasks' view depends on turn.plan.updated activities that the core projection never emits (activePlan is always null under core). Decide whether TodoWrite progress is rebuilt from core tool parts or dropped.
 - Should plan dismissal and build progress be thread state served by the Core (for ADR 0022 remote parity) instead of per-device localStorage?
@@ -1368,6 +1378,7 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
   — Shell chrome shared across workbench tabs; keep. Fullscreen/window behavior is desktop chrome and inherently shell-level.
 
 **Open questions:**
+
 - Will Core add subprocess-activity events? Without them the running indicator and the confirm-close-running-process guard cannot function, and the rewrite must choose between adding the event or cutting both.
 - Will Core gain a real clear-history verb, or does the rewrite redefine 'clear' as a purely visual/soft clear? This determines whether the clear shortcut can be made honest.
 - Does the rewrite keep both tabs and a sessions rail, or consolidate to one? If tabs win, the sub-chrome rail-toggle row goes away.
@@ -1376,7 +1387,7 @@ per ADR 0022), `electron-local` (shell chrome IPC), `client-local` (pure UI stat
 
 ## Addenda — critic findings (uncovered by the sweep)
 
-The thread top bar (chat-header.tsx + workspace-toolbar.tsx) was claimed by no auditor; its capabilities below join the checklist. packages/marketing is out of scope for the app rewrite but stays a honkkit consumer until migrated (ADR 0023).
+The thread top bar (chat-header.tsx + workspace-toolbar.tsx) was claimed by no auditor; its capabilities below join the checklist. `packages/marketing` consumes the shared UI package directly (ADR 0023).
 
 - **Chat-title button + rich hover tooltip** _[thread top bar (chat-header.tsx)]_
   The thread-title control in the content-pane top bar opens a tooltip surfacing repo/branch, workspace path, surface label, model label, and context label (ChatTitleTooltipContent). Also hosts the overlay-mode-only 'Toggle sidebar' button. Appears in no surface list.

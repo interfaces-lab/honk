@@ -14,6 +14,7 @@ import * as DesktopAuxEndpoint from "./desktop-aux-endpoint";
 import * as DesktopAppIdentity from "./desktop-app-identity";
 import * as DesktopApplicationMenu from "../window/desktop-application-menu";
 import * as OpencodeSidecar from "../backend/opencode-sidecar";
+import * as DesktopRemoteHost from "../backend/desktop-remote-host";
 import * as DesktopEnvironment from "./desktop-environment";
 import * as DesktopLifecycle from "./desktop-lifecycle";
 import * as DesktopObservability from "./desktop-observability";
@@ -74,6 +75,7 @@ const DESKTOP_OPENCODE_SIDECAR_SHUTDOWN_TIMEOUT = Duration.seconds(6);
 
 const bootstrap = Effect.gen(function* () {
   const opencodeSidecar = yield* OpencodeSidecar.OpencodeSidecar;
+  const remoteHost = yield* DesktopRemoteHost.DesktopRemoteHost;
   const state = yield* DesktopState.DesktopState;
   yield* bootstrapLog.info("bootstrap start");
 
@@ -84,6 +86,7 @@ const bootstrap = Effect.gen(function* () {
     yield* opencodeSidecar.start.pipe(
       Effect.tap(() => bootstrapLog.info("bootstrap opencode sidecar start requested")),
     );
+    yield* Effect.forkScoped(remoteHost.start);
   }
   return yield* Effect.void;
 }).pipe(Effect.withSpan("desktop.bootstrap"));

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { IconApple, IconArrowDown, IconChevronDownMedium } from "central-icons";
 
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@honk/honkkit/menu";
-import { cn } from "@honk/honkkit/utils";
+import { Menu } from "@honk/ui";
 
+import { cn } from "../lib/classes";
 import {
   defaultMacDesktopArch,
   MAC_DESKTOP_ARCH_OPTIONS,
@@ -48,8 +48,8 @@ export function DesktopDownloadControls(props: { className?: string; showSection
         </p>
       ) : null}
 
-      <Menu open={menuOpen} onOpenChange={setMenuOpen}>
-        <MenuTrigger
+      <Menu.Root open={menuOpen} onOpenChange={setMenuOpen}>
+        <Menu.Trigger
           aria-expanded={menuOpen}
           aria-label="Choose Mac download architecture"
           className={archSelectorClassName}
@@ -66,18 +66,21 @@ export function DesktopDownloadControls(props: { className?: string; showSection
             )}
             aria-hidden
           />
-        </MenuTrigger>
-        <MenuPopup
+        </Menu.Trigger>
+        <Menu.Popup
           align="end"
           aria-label="Mac download architectures"
-          className="min-w-[var(--anchor-width)] w-[var(--anchor-width)] max-w-[calc(100vw-2rem)]"
+          style={{
+            minWidth: "var(--anchor-width)",
+            width: "var(--anchor-width)",
+            maxWidth: "calc(100vw - 2rem)",
+          }}
           side="bottom"
           sideOffset={6}
         >
           {MAC_DESKTOP_ARCH_OPTIONS.map((option) => (
-            <MenuItem
+            <Menu.Item
               key={option.arch}
-              className="min-h-9 gap-2 rounded-md px-2.5"
               onClick={() => {
                 setArch(option.arch);
                 setMenuOpen(false);
@@ -85,10 +88,10 @@ export function DesktopDownloadControls(props: { className?: string; showSection
             >
               <IconApple className="size-4 shrink-0 opacity-80" aria-hidden />
               <MacArchLabel archLabel={option.label} />
-            </MenuItem>
+            </Menu.Item>
           ))}
-        </MenuPopup>
-      </Menu>
+        </Menu.Popup>
+      </Menu.Root>
 
       <a
         className={downloadButtonClassName}

@@ -31,6 +31,7 @@ import * as DesktopEnvironment from "../app/desktop-environment";
 import * as DesktopLifecycle from "../app/desktop-lifecycle";
 import * as DesktopObservability from "../app/desktop-observability";
 import * as OpencodeSidecar from "../backend/opencode-sidecar";
+import * as DesktopRemoteHost from "../backend/desktop-remote-host";
 import * as DesktopQuitGuard from "../app/desktop-quit-guard";
 import * as DesktopServerExposure from "../backend/desktop-server-exposure";
 import * as DesktopClientSettings from "../settings/desktop-client-settings";
@@ -40,6 +41,7 @@ import * as DesktopState from "../app/desktop-state";
 import * as DesktopUpdates from "../updates/desktop-updates";
 import * as DesktopWindow from "../window/desktop-window";
 import * as DesktopBrowserAutomation from "../browser/browser-automation";
+import * as DesktopBrowserViews from "../browser/browser-views";
 
 const currentDirname = NodePath.dirname(NodeUrl.fileURLToPath(import.meta.url));
 
@@ -82,6 +84,7 @@ const desktopFoundationLayer = Layer.mergeAll(
 
 const desktopServerExposureLayer = DesktopServerExposure.layer.pipe(
   Layer.provideMerge(DesktopServerExposure.networkInterfacesLayer),
+  Layer.provideMerge(DesktopServerExposure.tailscaleEndpointLayer),
   Layer.provideMerge(desktopFoundationLayer),
 );
 
@@ -89,14 +92,22 @@ const desktopWindowLayer = DesktopWindow.layer.pipe(Layer.provideMerge(desktopSe
 
 const opencodeSidecarLayer = OpencodeSidecar.layer.pipe(Layer.provideMerge(desktopWindowLayer));
 
-const desktopUpdatesLayer = DesktopUpdates.layer.pipe(Layer.provideMerge(opencodeSidecarLayer));
+const desktopRemoteHostLayer = DesktopRemoteHost.layer.pipe(
+  Layer.provideMerge(opencodeSidecarLayer),
+);
+
+const desktopUpdatesLayer = DesktopUpdates.layer.pipe(Layer.provideMerge(desktopRemoteHostLayer));
+
+const desktopBrowserLayer = DesktopBrowserViews.layer.pipe(
+  Layer.provideMerge(DesktopBrowserAutomation.layer),
+);
 
 const desktopApplicationLayer = Layer.mergeAll(
   DesktopLifecycle.layer,
   DesktopQuitGuard.layer,
   DesktopApplicationMenu.layer,
   DesktopShellEnvironment.layer,
-  DesktopBrowserAutomation.layer,
+  desktopBrowserLayer,
   DesktopAuxEndpoint.layer,
   DesktopPty.layer,
 ).pipe(

@@ -1,11 +1,7 @@
 import { Schema } from "effect";
 
-import type {
-  BrowserAutomationOpenRequest,
-  BrowserAutomationRegisterInput,
-  BrowserAutomationUnregisterInput,
-} from "./browser-automation";
-import { NonNegativeInt, PortSchema } from "./base-schemas";
+import type { BrowserAutomationOpenRequest } from "./browser-automation";
+import { NonNegativeInt, PortSchema, ThreadId } from "./base-schemas";
 import type { ClientSettings } from "./client-settings";
 import type { EditorId } from "./editor";
 import type {
@@ -209,23 +205,76 @@ export const DesktopUpdateCheckResultSchema = Schema.Struct({
   state: DesktopUpdateStateSchema,
 });
 
-export type DesktopServerExposureMode = "local-only" | "network-accessible";
+export type DesktopServerExposureMode = "local-only" | "network-accessible" | "tailscale";
 
 export const DesktopServerExposureModeSchema = Schema.Literals([
   "local-only",
   "network-accessible",
+  "tailscale",
 ]);
 
 export interface DesktopServerExposureState {
   mode: DesktopServerExposureMode;
+  localUrl: string | null;
   endpointUrl: string | null;
+  customUrl: string | null;
   advertisedHost: string | null;
 }
 
 export const DesktopServerExposureStateSchema = Schema.Struct({
   mode: DesktopServerExposureModeSchema,
+  localUrl: Schema.NullOr(Schema.String),
   endpointUrl: Schema.NullOr(Schema.String),
+  customUrl: Schema.NullOr(Schema.String),
   advertisedHost: Schema.NullOr(Schema.String),
+});
+
+export type DesktopRemoteHostStatus = "disabled" | "starting" | "ready" | "error";
+
+export interface DesktopRemoteHostDevice {
+  id: string;
+  label: string;
+  createdAt: string;
+  revokedAt: string | null;
+}
+
+export interface DesktopRemoteHostState {
+  status: DesktopRemoteHostStatus;
+  publicUrl: string | null;
+  localUrl: string | null;
+  errorMessage: string | null;
+  devices: readonly DesktopRemoteHostDevice[];
+}
+
+export interface DesktopRemotePairingLink {
+  url: string;
+  mobileUrl: string;
+  expiresAt: string;
+}
+
+export const DesktopRemoteHostStatusSchema = Schema.Literals([
+  "disabled",
+  "starting",
+  "ready",
+  "error",
+]);
+export const DesktopRemoteHostDeviceSchema = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+  createdAt: Schema.String,
+  revokedAt: Schema.NullOr(Schema.String),
+});
+export const DesktopRemoteHostStateSchema = Schema.Struct({
+  status: DesktopRemoteHostStatusSchema,
+  publicUrl: Schema.NullOr(Schema.String),
+  localUrl: Schema.NullOr(Schema.String),
+  errorMessage: Schema.NullOr(Schema.String),
+  devices: Schema.Array(DesktopRemoteHostDeviceSchema),
+});
+export const DesktopRemotePairingLinkSchema = Schema.Struct({
+  url: Schema.String,
+  mobileUrl: Schema.String,
+  expiresAt: Schema.String,
 });
 
 export interface DesktopWindowChromeState {
@@ -254,6 +303,78 @@ export const PickFolderOptionsSchema = Schema.Struct({
   initialPath: Schema.optionalKey(Schema.NullOr(Schema.String)),
 });
 
+export const DesktopPtyOpenOptions = Schema.Struct({
+  id: Schema.String,
+  cwd: Schema.String,
+  cols: Schema.Number,
+  rows: Schema.Number,
+});
+export type DesktopPtyOpenOptions = typeof DesktopPtyOpenOptions.Type;
+
+export interface DesktopPtyBridge {
+  readonly open: (options: DesktopPtyOpenOptions) => Promise<void>;
+  readonly write: (id: string, data: string) => void;
+  readonly resize: (id: string, cols: number, rows: number) => void;
+  readonly close: (id: string) => void;
+  readonly onData: (id: string, listener: (data: string) => void) => () => void;
+  readonly onExit: (id: string, listener: (code: number) => void) => () => void;
+}
+
+export const DesktopBrowserViewBounds = Schema.Struct({
+  x: Schema.Number,
+  y: Schema.Number,
+  width: Schema.Number,
+  height: Schema.Number,
+});
+export type DesktopBrowserViewBounds = typeof DesktopBrowserViewBounds.Type;
+
+export const DesktopBrowserViewSyncInput = Schema.Struct({
+  browserId: Schema.String,
+  surfaceId: Schema.String,
+  workspaceKey: Schema.String,
+  tabId: Schema.String,
+  threadId: ThreadId,
+  bounds: DesktopBrowserViewBounds,
+  visible: Schema.Boolean,
+  active: Schema.Boolean,
+});
+export type DesktopBrowserViewSyncInput = typeof DesktopBrowserViewSyncInput.Type;
+
+export const DesktopBrowserViewDetachInput = Schema.Struct({
+  browserId: Schema.String,
+  surfaceId: Schema.String,
+});
+export type DesktopBrowserViewDetachInput = typeof DesktopBrowserViewDetachInput.Type;
+
+export const DesktopBrowserViewDestroyInput = Schema.Struct({
+  browserId: Schema.String,
+});
+export type DesktopBrowserViewDestroyInput = typeof DesktopBrowserViewDestroyInput.Type;
+
+export const DesktopBrowserViewCommandInput = Schema.Union([
+  Schema.Struct({
+    browserId: Schema.String,
+    type: Schema.Literal("navigate"),
+    url: Schema.String,
+  }),
+  Schema.Struct({
+    browserId: Schema.String,
+    type: Schema.Literals(["back", "forward", "reload", "picture-in-picture"]),
+  }),
+]);
+export type DesktopBrowserViewCommandInput = typeof DesktopBrowserViewCommandInput.Type;
+
+export const DesktopBrowserViewState = Schema.Struct({
+  browserId: Schema.String,
+  committedUrl: Schema.String,
+  isLoading: Schema.Boolean,
+  loadError: Schema.NullOr(Schema.String),
+  canGoBack: Schema.Boolean,
+  canGoForward: Schema.Boolean,
+  canPictureInPicture: Schema.Boolean,
+});
+export type DesktopBrowserViewState = typeof DesktopBrowserViewState.Type;
+
 export type DesktopRendererDiagnosticLevel = "error" | "warn" | "info" | "debug";
 
 export const DesktopRendererDiagnosticLevelSchema = Schema.Literals([
@@ -277,30 +398,28 @@ export const DesktopRendererDiagnosticInputSchema = Schema.Struct({
 
 export interface DesktopBridge<RuntimeApi = unknown> {
   getAppBranding: () => DesktopAppBranding | null;
-  getBrowserWebviewPreloadPath?: () => string | null;
-  registerBrowserAutomationHost?: (input: BrowserAutomationRegisterInput) => Promise<void>;
-  unregisterBrowserAutomationHost?: (input: BrowserAutomationUnregisterInput) => Promise<void>;
-  onBrowserAutomationOpen?: (listener: (input: BrowserAutomationOpenRequest) => void) => () => void;
-  detectLocalhostPorts?: (ports: readonly number[]) => Promise<readonly number[]>;
-  clearBrowserPartitionStorage?: (input: {
-    storages: readonly (
-      | "cachestorage"
-      | "cookies"
-      | "filesystem"
-      | "indexdb"
-      | "localstorage"
-      | "serviceworkers"
-      | "shadercache"
-      | "websql"
-    )[];
-  }) => Promise<void>;
+  /** Stable for this desktop window across reloads and relaunches. */
+  getWindowID: () => string;
+  syncBrowserView: (input: DesktopBrowserViewSyncInput) => Promise<DesktopBrowserViewState>;
+  detachBrowserView: (input: DesktopBrowserViewDetachInput) => Promise<void>;
+  commandBrowserView: (input: DesktopBrowserViewCommandInput) => Promise<DesktopBrowserViewState>;
+  destroyBrowserView: (input: DesktopBrowserViewDestroyInput) => Promise<void>;
+  onBrowserViewState: (listener: (state: DesktopBrowserViewState) => void) => () => void;
+  onBrowserAutomationOpen: (listener: (input: BrowserAutomationOpenRequest) => void) => () => void;
+  pty?: DesktopPtyBridge;
   getWindowChromeState: () => DesktopWindowChromeState;
   onWindowChromeState: (listener: (state: DesktopWindowChromeState) => void) => () => void;
   setActiveWorkState: (state: DesktopActiveWorkState) => Promise<void>;
   getClientSettings: () => Promise<ClientSettings | null>;
   setClientSettings: (settings: ClientSettings) => Promise<void>;
+  protectRemoteCredential?: (credential: string) => Promise<string>;
+  revealRemoteCredential?: (protectedCredential: string) => Promise<string>;
   getServerExposureState: () => Promise<DesktopServerExposureState>;
   setServerExposureMode: (mode: DesktopServerExposureMode) => Promise<DesktopServerExposureState>;
+  setServerExposurePublicUrl?: (publicUrl: string | null) => Promise<DesktopServerExposureState>;
+  getRemoteHostState: () => Promise<DesktopRemoteHostState>;
+  issueRemotePairing: (label: string | null) => Promise<DesktopRemotePairingLink>;
+  revokeRemoteDevice: (deviceID: string) => Promise<DesktopRemoteHostState>;
   pickFolder: (options?: PickFolderOptions) => Promise<string | null>;
   completeOnboarding: () => Promise<void>;
   finishOnboarding: () => Promise<void>;
@@ -330,12 +449,8 @@ export interface DesktopBridge<RuntimeApi = unknown> {
 }
 
 /**
- * APIs bound to the local app shell, not to any particular backend environment.
- *
- * These capabilities describe the desktop/browser host that the user is
- * currently running: dialogs, editor/external-link opening, context menus, and
- * app-level settings persistence. Server config operations stay generic here
- * so desktop/web shells can bind their own transport.
+ * Local shell APIs. Dialogs, shell openers, context menus, client settings.
+ * Server config stays generic for each host's transport.
  */
 export interface LocalApi<RuntimeApi = unknown, ServerApi = unknown> {
   runtime?: RuntimeApi;
@@ -362,12 +477,8 @@ export interface LocalApi<RuntimeApi = unknown, ServerApi = unknown> {
 }
 
 /**
- * APIs bound to a specific backend environment connection.
- *
- * These operations must always be routed with explicit environment context.
- * They represent remote stateful capabilities such as terminal, project, and
- * git operations. Filesystem and orchestration stay generic here so the app can
- * bind the active environment transport.
+ * Environment-scoped APIs. Always route with explicit environment context.
+ * Filesystem and orchestration stay generic for the active transport.
  */
 export interface EnvironmentApi<FilesystemApi = unknown, OrchestrationApi = unknown> {
   terminal: {

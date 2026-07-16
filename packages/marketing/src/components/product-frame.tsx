@@ -1,6 +1,4 @@
-import "~/lib/diff-rendering";
-
-import { cn } from "@honk/honkkit/utils";
+import { cn } from "../lib/classes";
 
 import { marketingDemoThreadTitle } from "./product-frame/demo-data";
 import { MarketingChat } from "./product-frame/marketing-chat";
@@ -14,7 +12,7 @@ function MarketingWorkspace() {
 
   return (
     <div
-      className="honk-marketing-preview @container/marketing-workspace flex h-full min-h-0 flex-col overflow-hidden font-honk text-body text-honk-fg-primary antialiased"
+      className="honk-marketing-preview @container/marketing-workspace flex h-full min-h-0 flex-col overflow-hidden font-ui text-body text-primary antialiased"
       data-honk-glass-mode="false"
     >
       <MarketingWorkspaceHeader threadTitle={marketingDemoThreadTitle(scene.activeThreadId)} />

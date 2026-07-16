@@ -1,7 +1,4 @@
-@import "tailwindcss";
 @import "../../app/src/index.css";
-@import "../../app/src/styles/app.css";
-@import "@honk/honkkit/styles.css";
 
 @source "./**/*.{ts,tsx}";
 
@@ -30,8 +27,8 @@
 :root {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --honk-font-ui: var(--font-geist-sans);
-  --honk-font-mono: var(--font-geist-mono);
+  --honk-font-family-ui: var(--font-geist-sans);
+  --honk-font-family-mono: var(--font-geist-mono);
 }
 
 /* Marketing is a scrollable landing page; undo the app shell scroll lock from index.css. */

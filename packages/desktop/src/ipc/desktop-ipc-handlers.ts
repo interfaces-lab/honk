@@ -1,6 +1,12 @@
 import * as Effect from "effect/Effect";
 
 import * as DesktopIpc from "./desktop-ipc";
+import {
+  commandBrowserView,
+  destroyBrowserView,
+  detachBrowserView,
+  syncBrowserView,
+} from "./methods/browser-view";
 import { getAuxEndpoint } from "./methods/aux-endpoint";
 import { getOpencodeSidecar } from "./methods/opencode-sidecar";
 import {
@@ -11,20 +17,22 @@ import {
 } from "./methods/onboarding";
 import { closePty, openPty, resizePty, writePty } from "./methods/pty";
 import { getClientSettings, setClientSettings } from "./methods/client-settings";
+import { protectRemoteCredential, revealRemoteCredential } from "./methods/remote-credentials";
 import { logRendererDiagnostic } from "./methods/renderer-diagnostics";
-import { getServerExposureState, setServerExposureMode } from "./methods/server-exposure";
+import { getRemoteHostState, issueRemotePairing, revokeRemoteDevice } from "./methods/remote-host";
+import {
+  getServerExposureState,
+  setServerExposureMode,
+  setServerExposurePublicUrl,
+} from "./methods/server-exposure";
 import { checkForUpdate, downloadUpdate, getUpdateState, installUpdate } from "./methods/updates";
 import {
-  clearBrowserPartitionStorage,
-  detectLocalhostPorts,
   expandWindowWidth,
   getAppBranding,
-  getBrowserWebviewPreloadPath,
   getWindowChromeState,
   openInEditor,
   openExternal,
   pickFolder,
-  registerBrowserAutomationHost,
   setActiveWorkState,
   setBackgroundColor,
   setDisplayZoom,
@@ -32,18 +40,18 @@ import {
   setVibrancy,
   showContextMenu,
   showItemInFolder,
-  unregisterBrowserAutomationHost,
 } from "./methods/window";
 
 export const installDesktopIpcHandlers = Effect.gen(function* () {
   const ipc = yield* DesktopIpc.DesktopIpc;
 
   yield* ipc.handleSync(getAppBranding);
-  yield* ipc.handleSync(getBrowserWebviewPreloadPath);
   yield* ipc.handleSync(getWindowChromeState);
 
   yield* ipc.handle(getClientSettings);
   yield* ipc.handle(setClientSettings);
+  yield* ipc.handle(protectRemoteCredential);
+  yield* ipc.handle(revealRemoteCredential);
   yield* ipc.handle(getAuxEndpoint);
   yield* ipc.handle(getOpencodeSidecar);
   yield* ipc.handle(completeOnboarding);
@@ -58,12 +66,16 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
 
   yield* ipc.handle(getServerExposureState);
   yield* ipc.handle(setServerExposureMode);
+  yield* ipc.handle(setServerExposurePublicUrl);
+  yield* ipc.handle(getRemoteHostState);
+  yield* ipc.handle(issueRemotePairing);
+  yield* ipc.handle(revokeRemoteDevice);
 
   yield* ipc.handle(pickFolder);
-  yield* ipc.handle(registerBrowserAutomationHost);
-  yield* ipc.handle(unregisterBrowserAutomationHost);
-  yield* ipc.handle(detectLocalhostPorts);
-  yield* ipc.handle(clearBrowserPartitionStorage);
+  yield* ipc.handle(syncBrowserView);
+  yield* ipc.handle(detachBrowserView);
+  yield* ipc.handle(commandBrowserView);
+  yield* ipc.handle(destroyBrowserView);
   yield* ipc.handle(setActiveWorkState);
   yield* ipc.handle(setTheme);
   yield* ipc.handle(setBackgroundColor);

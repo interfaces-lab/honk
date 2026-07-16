@@ -9,19 +9,31 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts"
     },
+    "./host": {
+      "types": "./src/host.ts",
+      "import": "./src/host.ts"
+    },
     "./native": {
       "types": "./src/native.ts",
       "import": "./src/native.ts"
+    },
+    "./pairing": {
+      "types": "./src/host-plugin/pairing.ts",
+      "import": "./src/host-plugin/pairing.ts"
     }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "check:host-plugin": "node scripts/generate-host-plugin-manifest.mjs --check",
+    "check:protocol-boundary": "node scripts/check-protocol-boundary.mjs",
+    "generate:host-plugin": "node scripts/generate-host-plugin-manifest.mjs",
+    "typecheck": "pnpm run check:host-plugin && pnpm run check:protocol-boundary && tsc --noEmit"
   },
   "dependencies": {
-    "@opencode-ai/sdk": "1.17.20",
+    "@opencode-ai/sdk": "1.18.1",
     "react-native-sse": "1.2.1"
   },
   "devDependencies": {
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

@@ -1,104 +1,68 @@
 import * as React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Link, type Href } from "expo-router";
-import type { ThreadSummary } from "@honk/opencode";
+import { StyleSheet, View } from "react-native";
+import { router, type Href } from "expo-router";
+import { ListRow, Matrix } from "@honk/ui";
 
 import { formatTimestamp } from "./format";
-import { DetailText, useHonkTheme } from "./ui";
+import type { RemoteSession } from "./remote-context";
+import { useHonkTheme } from "./ui";
 
-const statusLabel = (thread: ThreadSummary): string => {
-  if (thread.needsAttention) return "Needs attention";
-  if (thread.status === "running") return "Running";
-  if (thread.status === "failed") return "Failed";
+function statusLabel(session: RemoteSession): string {
+  if (session.needsAttention) return "Needs attention";
+  if (session.status === "running") return "Running";
+  if (session.status === "failed") return "Failed";
   return "Idle";
-};
+}
 
 export function ThreadRow({
   href,
-  thread,
+  session,
 }: {
   readonly href: Href;
-  readonly thread: ThreadSummary;
+  readonly session: RemoteSession;
 }): React.ReactElement {
   const theme = useHonkTheme();
-  const emphasized = thread.needsAttention || thread.status === "failed";
-  const active = emphasized || thread.status === "running";
-  const statusColor =
-    thread.status === "running"
+  const emphasized = session.needsAttention || session.status === "failed";
+  const active = emphasized || session.status === "running";
+  const statusColor = session.needsAttention
+    ? theme.colors.warnFg
+    : session.status === "running"
       ? theme.colors.accent
-      : emphasized
+      : session.status === "failed"
         ? theme.colors.errFg
         : theme.colors.textMuted;
-  const model = thread.model === null ? (thread.agent ?? "Honk") : thread.model.id;
+  const model = session.info.model?.id ?? session.info.agent ?? "Honk";
 
   return (
-    <Link asChild href={href}>
-      <Pressable
-        accessibilityHint="Opens this task"
-        accessibilityLabel={`${thread.title}, ${statusLabel(thread)}`}
-        style={({ pressed }) => [
-          styles.root,
-          {
-            backgroundColor: pressed ? theme.colors.statePress : theme.colors.bgBase,
-            borderBottomColor: theme.colors.borderMuted,
-            borderBottomWidth: theme.metrics.field.borderWidth,
-            gap: theme.metrics.space.rowGap,
-            paddingVertical: theme.metrics.feed.rowPaddingBlock,
-          },
-        ]}
-      >
-        <View style={[styles.statusSlot, { marginTop: theme.metrics.space.contentGap }]}>
+    <ListRow
+      accessibilityLabel={`${session.info.title}, ${statusLabel(session)}`}
+      onClick={() => router.push(href)}
+    >
+      <ListRow.Slot>
+        <View style={styles.statusSlot}>
           {active ? (
-            <View
-              style={[
-                styles.statusMark,
-                {
-                  backgroundColor: statusColor,
-                  borderRadius: theme.metrics.radius.pill,
-                },
-              ]}
+            <Matrix
+              color={statusColor}
+              isActive={session.needsAttention || session.status === "running"}
+              variant={session.needsAttention ? "attention" : "working"}
             />
           ) : null}
         </View>
-        <View style={[styles.content, { gap: theme.metrics.space.compactGap }]}>
-          <Text
-            allowFontScaling
-            numberOfLines={2}
-            style={{
-              color: theme.colors.textPrimary,
-              fontSize: theme.metrics.font.bodySize,
-              fontWeight: emphasized
-                ? theme.metrics.font.weightSemibold
-                : theme.metrics.font.weightMedium,
-              lineHeight: theme.metrics.font.bodyLeading,
-            }}
-          >
-            {thread.title}
-          </Text>
-          <DetailText numberOfLines={1}>
-            {active ? `${statusLabel(thread)} · ` : ""}
-            {model} · {formatTimestamp(thread.updatedAt)}
-          </DetailText>
-        </View>
-      </Pressable>
-    </Link>
+      </ListRow.Slot>
+      <ListRow.Content>
+        <ListRow.Title>{session.info.title}</ListRow.Title>
+        <ListRow.Description>
+          {active ? `${statusLabel(session)} · ` : ""}
+          {model} · {session.server.label} · {formatTimestamp(session.info.time.updated)}
+        </ListRow.Description>
+      </ListRow.Content>
+    </ListRow>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-  },
-  content: {
-    flex: 1,
-  },
-  statusMark: {
-    height: 8,
-    width: 8,
-  },
   statusSlot: {
-    height: 8,
-    width: 8,
+    height: 20,
+    width: 20,
   },
 });

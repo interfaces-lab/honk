@@ -9,7 +9,33 @@
  */
 export default {
   extends: ["stylelint-config-standard"],
-  ignoreFiles: ["**/node_modules/**", "**/dist/**"],
+  ignoreFiles: ["**/node_modules/**", "**/dist/**", "**/out/**"],
+  overrides: [
+    {
+      files: ["packages/app/src/**/*.css", "packages/ui/src/**/*.css"],
+      ignoreFiles: ["**/*.module.css", "**/platform-tokens.css"],
+      rules: {
+        // Product component anatomy belongs to StyleX. Global CSS is reserved for the root,
+        // scroll/window contracts, generated tokens, and vendor baseline imports.
+        "selector-disallowed-list": [
+          "/\\[data-slot(?:\\]|[~|^$*]?=)/",
+          "/\\[data-sonner-/",
+          "/\\.xterm(?:\\b|[.:\\[])/",
+        ],
+      },
+    },
+    {
+      files: ["packages/app/src/**/*.module.css", "packages/ui/src/**/*.module.css"],
+      rules: {
+        // Scoped third-party adapters still consume theme variables. Literal paint values would
+        // fork the palette from theme.ts and fail dark/native parity.
+        "declaration-property-value-disallowed-list": {
+          "/^(?:background|background-color|border(?:-.*)?-color|box-shadow|color|outline-color)$/":
+            ["/#[0-9a-f]{3,8}\\b/i", "/\\b(?:hsl|hsla|lab|lch|oklch|rgb|rgba)\\(/i"],
+        },
+      },
+    },
+  ],
   rules: {
     "at-rule-no-unknown": [
       true,

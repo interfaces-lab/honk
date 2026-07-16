@@ -1,11 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { IconGithub, IconX } from "central-icons";
 
-import { cn } from "@honk/honkkit/utils";
-
 import { AudienceRail } from "../components/audience-rail/audience-rail";
 import { DesktopDownloadControls } from "../components/desktop-download-controls";
 import { ProductFrame } from "../components/product-frame";
+import { cn } from "../lib/classes";
 
 export const Route = createFileRoute("/")({
   component: MarketingPage,

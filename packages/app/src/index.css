@@ -1,12 +1,12 @@
 /* Substrate for the rebuilt client: Tailwind core + the @honk/ui token bridge, then the
  * Electron window-drag contract. Order matches packages/ui/dev/index.css — Tailwind first,
- * bridge second so utilities alias the --honk-* vars StyleX emits. */
+ * generated first-paint tokens before the bridge so utilities and substrate CSS
+ * resolve even before the StyleX runtime mounts. */
 
 @import "tailwindcss";
+@import "@honk/ui/platform-tokens.css";
 @import "@honk/ui/tailwind.css";
 @import "streamdown/styles.css";
-/* Bundled Inter + JetBrains Mono (geometry-clone ruling) — the faces the font tokens name. */
-@import "@honk/ui/fonts.css";
 
 /* Streamdown ships compiled Tailwind class strings; include them in this package's scan. */
 @source "../node_modules/streamdown/dist/*.js";
@@ -17,6 +17,143 @@ body,
 #root {
   height: 100%;
   margin: 0;
+}
+
+/* Hue and intensity use native range geometry so pointer, keyboard, and assistive interactions
+ * stay platform-correct. The rest of the settings surface remains on shared controls. */
+.honk-appearance-tint-slider {
+  --_appearance-slider-thumb-size: calc(var(--honk-control-h-sm) / 2);
+  --_appearance-slider-track-size: calc(var(--honk-control-h-sm) / 5);
+
+  width: 100%;
+  height: var(--honk-control-h-sm);
+  margin: 0;
+  appearance: none;
+  cursor: pointer;
+  background: transparent;
+  outline: none;
+}
+
+.honk-appearance-tint-slider:focus-visible {
+  outline: var(--honk-control-focus-ring-width) solid var(--honk-color-accent);
+  outline-offset: var(--honk-control-focus-ring-offset);
+}
+
+.honk-appearance-tint-slider::-webkit-slider-runnable-track {
+  height: var(--_appearance-slider-track-size);
+  border-radius: var(--honk-radius-control);
+  background: var(--_appearance-slider-track);
+}
+
+.honk-appearance-tint-slider::-webkit-slider-thumb {
+  width: var(--_appearance-slider-thumb-size);
+  height: var(--_appearance-slider-thumb-size);
+  margin-top: calc(
+    (var(--_appearance-slider-track-size) - var(--_appearance-slider-thumb-size)) / 2
+  );
+  appearance: none;
+  border: var(--honk-control-focus-ring-width) solid var(--honk-color-bg-base);
+  border-radius: var(--honk-radius-pill);
+  background: hsl(var(--honk-settings-tint-hue) var(--honk-settings-tint-intensity) 50%);
+  box-shadow: 0 0 0 var(--honk-control-focus-ring-width) var(--honk-color-border-muted);
+}
+
+.honk-appearance-tint-slider::-moz-range-track {
+  height: var(--_appearance-slider-track-size);
+  border-radius: var(--honk-radius-control);
+  background: var(--_appearance-slider-track);
+}
+
+.honk-appearance-tint-slider::-moz-range-thumb {
+  width: var(--_appearance-slider-thumb-size);
+  height: var(--_appearance-slider-thumb-size);
+  border: var(--honk-control-focus-ring-width) solid var(--honk-color-bg-base);
+  border-radius: var(--honk-radius-pill);
+  background: hsl(var(--honk-settings-tint-hue) var(--honk-settings-tint-intensity) 50%);
+  box-shadow: 0 0 0 var(--honk-control-focus-ring-width) var(--honk-color-border-muted);
+}
+
+.honk-appearance-tint-slider[data-variant="hue"] {
+  --honk-settings-tint-hue: 210;
+  --honk-settings-tint-intensity: 100%;
+  --_appearance-slider-track: linear-gradient(
+    to right,
+    hsl(0 100% 50%),
+    hsl(60 100% 50%),
+    hsl(120 100% 50%),
+    hsl(180 100% 50%),
+    hsl(240 100% 50%),
+    hsl(300 100% 50%),
+    hsl(360 100% 50%)
+  );
+}
+
+.honk-appearance-tint-slider[data-variant="intensity"] {
+  --honk-settings-tint-intensity: 100%;
+  --_appearance-slider-track: linear-gradient(
+    to right,
+    hsl(var(--honk-settings-tint-hue) 0% 50%),
+    hsl(var(--honk-settings-tint-hue) 100% 50%)
+  );
+}
+
+.honk-appearance-tint-swatch {
+  background: hsl(var(--honk-settings-tint-hue) var(--honk-settings-tint-intensity) 50%);
+}
+
+.honk-appearance-tint-swatch[data-muted] {
+  background: var(--honk-color-border-base);
+}
+
+/* Reading and workbench scrollports use a stable lane so content never changes width when it
+ * starts overflowing. The platform scrollbar keeps native wheel, trackpad, keyboard, and assistive
+ * behavior, while its visual treatment follows OpenCode's useful proportion: a narrow thumb inside
+ * a wider transparent hit lane, hidden until the user is interacting with that surface. */
+[data-honk-scrollport] {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  overscroll-behavior: contain;
+}
+
+[data-honk-scrollport="balanced"] {
+  scrollbar-gutter: stable both-edges;
+}
+
+[data-honk-scrollport]:hover {
+  scrollbar-color: var(--honk-color-border-base) transparent;
+}
+
+[data-honk-scrollport]::-webkit-scrollbar {
+  width: var(--honk-space-panel-pad);
+  height: var(--honk-space-panel-pad);
+}
+
+[data-honk-scrollport]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-honk-scrollport]::-webkit-scrollbar-thumb {
+  border: calc(var(--honk-space-panel-pad) / 3) solid transparent;
+  border-radius: var(--honk-radius-pill);
+  background-color: transparent;
+  background-clip: padding-box;
+  transition: background-color var(--honk-motion-duration-hover) var(--honk-motion-ease-out);
+}
+
+[data-honk-scrollport]:hover::-webkit-scrollbar-thumb {
+  background-color: var(--honk-color-border-base);
+}
+
+[data-honk-scrollport]::-webkit-scrollbar-thumb:hover,
+[data-honk-scrollport]::-webkit-scrollbar-thumb:active {
+  background-color: var(--honk-color-border-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-honk-scrollport]::-webkit-scrollbar-thumb {
+    transition-duration: 0s;
+  }
 }
 
 /* Window-drag contract (ADR 0025 §5): Shell.TitleBar / TabStrip mark themselves with
@@ -37,29 +174,4 @@ body,
 [data-shell-drag-region] [role="tab"],
 [data-shell-drag-region] [data-shell-no-drag] {
   -webkit-app-region: no-drag;
-}
-
-/* Composer mode chip (composer.tsx ModeControl). The pill is the @honk/ui ghost Button primitive;
- * its per-mode tint is pure CSS here rather than app-level StyleX — the Astryx model of overriding
- * a primitive through plain CSS + the --honk-* custom properties the token bridge emits. The
- * selectors carry data-slot + data-mode + the element so specificity (0,2,1) outranks the ghost
- * variant's own atomic background/color, including its :hover (0,2,0), without !important. build
- * (data-mode="build") has no rule and stays the plain ghost. Cursor's tint law: a translucent fill
- * framed by a full-strength 1px ring, never a flooded solid. */
-button[data-slot="button"][data-mode="ask"] {
-  background-color: var(--honk-color-layer-01);
-  box-shadow: inset 0 0 0 1px var(--honk-color-border-muted);
-  color: var(--honk-color-text-muted);
-}
-
-button[data-slot="button"][data-mode="plan"] {
-  background-color: var(--honk-color-accent-subtle);
-  box-shadow: inset 0 0 0 1px var(--honk-color-info-border);
-  color: var(--honk-color-info-fg);
-}
-
-button[data-slot="button"][data-mode="debug"] {
-  background-color: color-mix(in srgb, var(--honk-color-preset-ultra) 14%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--honk-color-preset-ultra) 34%, transparent);
-  color: var(--honk-color-preset-ultra);
 }

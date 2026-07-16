@@ -5,8 +5,9 @@
 import * as stylex from "@stylexjs/stylex";
 import { Prose } from "@honk/ui";
 import { proseCodeBlockStyle } from "@honk/ui/prose-code-block";
+import { honkTheme, type ThemeMode } from "@honk/ui/theme";
 import * as React from "react";
-import type { ShikiTransformer } from "shiki";
+import { codeToHtml, type ShikiTransformer, type ThemeRegistrationRaw } from "shiki";
 import { type Components, Streamdown } from "streamdown";
 
 const styles = stylex.create({
@@ -19,11 +20,63 @@ const styles = stylex.create({
   },
 });
 
-// Fenced code runs through Shiki. Both arms of a light/dark pair are baked into the token spans
-// via defaultColor "light-dark()", so the CSS `color-scheme` the shell already sets on the root
-// resolves the theme — no per-render theme prop, no `.dark` class, no client-side re-highlight on
-// theme switch (matches how the rest of the shell reads light-dark() token pairs).
-const SHIKI_THEMES = { light: "github-light", dark: "github-dark" } as const;
+// Fenced code runs through Shiki. Both arms of a light/dark pair bake into the token spans via
+// defaultColor "light-dark()", so the shell's root CSS color-scheme resolves the theme with no
+// per-render theme prop, .dark class, or client re-highlight on theme switch.
+function createHonkShikiTheme(mode: ThemeMode): ThemeRegistrationRaw {
+  const colors = honkTheme.colors[mode];
+  return {
+    name: `honk-${mode}`,
+    type: mode,
+    colors: {
+      "editor.background": colors.bgBase,
+      "editor.foreground": colors.textPrimary,
+    },
+    settings: [
+      {
+        scope: ["comment", "punctuation.definition.comment", "string.comment"],
+        settings: { foreground: colors.syntaxComment, fontStyle: "italic" },
+      },
+      {
+        scope: ["keyword", "storage", "storage.type", "keyword.control"],
+        settings: { foreground: colors.syntaxKeyword },
+      },
+      {
+        scope: ["string", "string.quoted", "string.template"],
+        settings: { foreground: colors.syntaxString },
+      },
+      {
+        scope: ["constant.numeric", "constant.language", "constant.character"],
+        settings: { foreground: colors.syntaxNumber },
+      },
+      {
+        scope: ["entity.name.function", "support.function", "meta.function-call"],
+        settings: { foreground: colors.syntaxFunction },
+      },
+      {
+        scope: ["entity.name.type", "entity.name.class", "support.type", "support.class"],
+        settings: { foreground: colors.syntaxType },
+      },
+      {
+        scope: ["variable.other.property", "support.variable.property", "meta.object-literal.key"],
+        settings: { foreground: colors.syntaxProperty },
+      },
+      {
+        scope: ["punctuation", "meta.brace", "meta.delimiter"],
+        settings: { foreground: colors.syntaxPunctuation },
+      },
+      {
+        scope: ["invalid", "invalid.illegal"],
+        settings: { foreground: colors.errFg },
+      },
+    ],
+  };
+}
+
+const SHIKI_THEMES = {
+  light: createHonkShikiTheme("light"),
+  dark: createHonkShikiTheme("dark"),
+} as const;
 const HIGHLIGHT_FENCE_LANGUAGE_REGEX = /language-([\w.+#-]+)/;
 const MAX_HIGHLIGHT_CACHE_ENTRIES = 500;
 const highlightCache = new Map<string, string>();
@@ -67,9 +120,7 @@ function rememberHighlightedHtml(key: string, html: string): void {
   highlightCache.set(key, html);
 }
 
-// shiki is a heavy grammar/theme registry; import it lazily so it code-splits out of first paint.
 async function highlightCodeToHtml(code: string, language: string): Promise<string> {
-  const { codeToHtml } = await import("shiki");
   try {
     return await codeToHtml(code, {
       lang: language,
@@ -78,7 +129,7 @@ async function highlightCodeToHtml(code: string, language: string): Promise<stri
       transformers: SHIKI_TRANSFORMERS,
     });
   } catch {
-    // Unknown/unloadable grammar — fall back to plaintext so the block still renders styled.
+    // Unknown or unloadable grammar. Fall back to plaintext so the block still renders styled.
     return codeToHtml(code, {
       lang: "text",
       themes: SHIKI_THEMES,
@@ -154,33 +205,31 @@ function ShikiCodeBlock({
   readonly language: string;
 }): React.ReactElement {
   const cacheKey = `${language}\0${code}`;
-  const [html, setHtml] = React.useState<string | null>(() => highlightCache.get(cacheKey) ?? null);
+  const cachedHtml = highlightCache.get(cacheKey) ?? null;
+  const [highlighted, setHighlighted] = React.useState<{
+    readonly cacheKey: string;
+    readonly html: string;
+  } | null>(null);
+  const html = cachedHtml ?? (highlighted?.cacheKey === cacheKey ? highlighted.html : null);
 
   React.useEffect(() => {
-    const cached = highlightCache.get(cacheKey);
-    if (cached != null) {
-      setHtml(cached);
-      return undefined;
-    }
-    setHtml(null);
+    if (cachedHtml !== null) return undefined;
     let active = true;
     void highlightCodeToHtml(code, language).then(
       (result) => {
         if (!active) return;
         rememberHighlightedHtml(cacheKey, result);
-        setHtml(result);
+        setHighlighted({ cacheKey, html: result });
       },
-      () => {
-        if (active) setHtml(null);
-      },
+      () => undefined,
     );
     return () => {
       active = false;
     };
-  }, [cacheKey, code, language]);
+  }, [cacheKey, cachedHtml, code, language]);
 
   if (html != null) {
-    // Shiki output is trusted, self-generated markup — token spans with inline colors only.
+    // Shiki output is trusted self-generated markup: token spans with inline colors only.
     return (
       <div {...stylex.props(styles.highlightWrap)} dangerouslySetInnerHTML={{ __html: html }} />
     );

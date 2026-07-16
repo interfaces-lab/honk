@@ -1,19 +1,13 @@
-// Long-form reading primitives for assistant output. The family keeps the text column narrow and
-// rhythmic while code, tables, and media can use the full conversation lane. Markdown parsing is
-// deliberately outside this package: @honk/ui owns the rendered anatomy, and consumers map their
-// parser's semantic leaves onto this compound.
-
 import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
 import { proseCodeBlockStyle } from "./prose-code-block";
+import { applyStyle, type HonkStyle, type StyleProp } from "./style";
 import { colorVars, fontVars, proseVars, radiusVars, spaceVars } from "./tokens.stylex";
 
-// A blockquote's rule is structural hairline geometry, shared with separators and table rows but
-// private to this component's markup, so it stays a named intrinsic rather than a theme value.
+// Blockquote rule is private hairline geometry, not a theme token.
 const PROSE_HAIRLINE = "1px";
-// Making Software uses a 2px inline-code inset and a 2px underline offset at the same 14px prose
-// size. These are glyph-adjacent anatomy, not layout vocabulary, so they stay private intrinsics.
+// Inline code inset and link underline offset are glyph anatomy, not layout tokens.
 const INLINE_CODE_INSET = "2px";
 const LINK_UNDERLINE_OFFSET = "2px";
 
@@ -72,7 +66,7 @@ const styles = stylex.create({
   },
   listItem: {
     marginBlockEnd: {
-      default: proseVars["--honk-prose-flow-gap"],
+      default: proseVars["--honk-prose-item-gap"],
       ":last-child": 0,
     },
   },
@@ -152,7 +146,7 @@ type ProseElementProps<Tag extends keyof React.JSX.IntrinsicElements> = Omit<
   React.ComponentPropsWithoutRef<Tag>,
   "className" | "style"
 > & {
-  xstyle?: stylex.StyleXStyles;
+  style?: StyleProp<HonkStyle>;
 };
 
 type ProseRootProps = ProseElementProps<"div">;
@@ -178,15 +172,15 @@ interface ProseListProps extends ProseElementProps<"ul"> {
   ordered?: boolean;
 }
 
-function ProseRoot({ xstyle, ...props }: ProseRootProps): React.ReactElement {
-  return <div data-slot="prose" {...stylex.props(styles.root, xstyle)} {...props} />;
+function ProseRoot({ style, ...props }: ProseRootProps): React.ReactElement {
+  return <div data-slot="prose" {...applyStyle(stylex.props(styles.root), style)} {...props} />;
 }
 
-function Paragraph({ xstyle, ...props }: ProseParagraphProps): React.ReactElement {
+function Paragraph({ style, ...props }: ProseParagraphProps): React.ReactElement {
   return (
     <p
       data-slot="prose-paragraph"
-      {...stylex.props(styles.measure, styles.flow, styles.paragraph, xstyle)}
+      {...applyStyle(stylex.props(styles.measure, styles.flow, styles.paragraph), style)}
       {...props}
     />
   );
@@ -194,90 +188,94 @@ function Paragraph({ xstyle, ...props }: ProseParagraphProps): React.ReactElemen
 
 const headingElements = { 1: "h1", 2: "h2", 3: "h3" } as const;
 
-function Heading({ level = 2, xstyle, ...props }: ProseHeadingProps): React.ReactElement {
+function Heading({ level = 2, style, ...props }: ProseHeadingProps): React.ReactElement {
   const Component = headingElements[level];
   return (
     <Component
       data-slot="prose-heading"
-      {...stylex.props(
-        styles.measure,
-        styles.heading,
-        level === 1 ? styles.headingLarge : styles.headingSmall,
-        xstyle,
+      {...applyStyle(
+        stylex.props(
+          styles.measure,
+          styles.heading,
+          level === 1 ? styles.headingLarge : styles.headingSmall,
+        ),
+        style,
       )}
       {...props}
     />
   );
 }
 
-function List({ ordered = false, xstyle, ...props }: ProseListProps): React.ReactElement {
+function List({ ordered = false, style, ...props }: ProseListProps): React.ReactElement {
   const Component = ordered ? "ol" : "ul";
   return (
     <Component
       data-slot="prose-list"
-      {...stylex.props(
-        styles.measure,
-        styles.flow,
-        styles.list,
-        ordered ? styles.ordered : styles.unordered,
-        xstyle,
+      {...applyStyle(
+        stylex.props(
+          styles.measure,
+          styles.flow,
+          styles.list,
+          ordered ? styles.ordered : styles.unordered,
+        ),
+        style,
       )}
       {...props}
     />
   );
 }
 
-function ListItem({ xstyle, ...props }: ProseListItemProps): React.ReactElement {
-  return <li {...stylex.props(styles.listItem, xstyle)} {...props} />;
+function ListItem({ style, ...props }: ProseListItemProps): React.ReactElement {
+  return <li {...applyStyle(stylex.props(styles.listItem), style)} {...props} />;
 }
 
-function Link({ xstyle, ...props }: ProseLinkProps): React.ReactElement {
-  return <a {...stylex.props(styles.link, xstyle)} {...props} />;
+function Link({ style, ...props }: ProseLinkProps): React.ReactElement {
+  return <a {...applyStyle(stylex.props(styles.link), style)} {...props} />;
 }
 
-function Strong({ xstyle, ...props }: ProseStrongProps): React.ReactElement {
-  return <strong {...stylex.props(styles.strong, xstyle)} {...props} />;
+function Strong({ style, ...props }: ProseStrongProps): React.ReactElement {
+  return <strong {...applyStyle(stylex.props(styles.strong), style)} {...props} />;
 }
 
-function InlineCode({ xstyle, ...props }: ProseInlineCodeProps): React.ReactElement {
-  return <code {...stylex.props(styles.inlineCode, xstyle)} {...props} />;
+function InlineCode({ style, ...props }: ProseInlineCodeProps): React.ReactElement {
+  return <code {...applyStyle(stylex.props(styles.inlineCode), style)} {...props} />;
 }
 
-function CodeBlock({ xstyle, ...props }: ProseCodeBlockProps): React.ReactElement {
-  return <pre {...stylex.props(proseCodeBlockStyle, xstyle)} {...props} />;
+function CodeBlock({ style, ...props }: ProseCodeBlockProps): React.ReactElement {
+  return <pre {...applyStyle(stylex.props(proseCodeBlockStyle), style)} {...props} />;
 }
 
-function Blockquote({ xstyle, ...props }: ProseBlockquoteProps): React.ReactElement {
+function Blockquote({ style, ...props }: ProseBlockquoteProps): React.ReactElement {
   return (
     <blockquote
-      {...stylex.props(styles.measure, styles.flow, styles.blockquote, xstyle)}
+      {...applyStyle(stylex.props(styles.measure, styles.flow, styles.blockquote), style)}
       {...props}
     />
   );
 }
 
-function Rule({ xstyle, ...props }: ProseRuleProps): React.ReactElement {
-  return <hr {...stylex.props(styles.measure, styles.rule, xstyle)} {...props} />;
+function Rule({ style, ...props }: ProseRuleProps): React.ReactElement {
+  return <hr {...applyStyle(stylex.props(styles.measure, styles.rule), style)} {...props} />;
 }
 
-function Table({ xstyle, ...props }: ProseTableProps): React.ReactElement {
+function Table({ style, ...props }: ProseTableProps): React.ReactElement {
   return (
     <div {...stylex.props(styles.tableWrap)}>
-      <table {...stylex.props(styles.table, xstyle)} {...props} />
+      <table {...applyStyle(stylex.props(styles.table), style)} {...props} />
     </div>
   );
 }
 
-function TableHeader({ xstyle, ...props }: ProseTableHeaderProps): React.ReactElement {
-  return <th {...stylex.props(styles.tableCell, styles.tableHead, xstyle)} {...props} />;
+function TableHeader({ style, ...props }: ProseTableHeaderProps): React.ReactElement {
+  return <th {...applyStyle(stylex.props(styles.tableCell, styles.tableHead), style)} {...props} />;
 }
 
-function TableData({ xstyle, ...props }: ProseTableDataProps): React.ReactElement {
-  return <td {...stylex.props(styles.tableCell, xstyle)} {...props} />;
+function TableData({ style, ...props }: ProseTableDataProps): React.ReactElement {
+  return <td {...applyStyle(stylex.props(styles.tableCell), style)} {...props} />;
 }
 
-function Image({ xstyle, ...props }: ProseImageProps): React.ReactElement {
-  return <img {...stylex.props(styles.image, xstyle)} {...props} />;
+function Image({ style, ...props }: ProseImageProps): React.ReactElement {
+  return <img {...applyStyle(stylex.props(styles.image), style)} {...props} />;
 }
 
 const Prose = Object.assign(ProseRoot, {

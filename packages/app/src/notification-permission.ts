@@ -1,5 +1,4 @@
-// Browser/OS notification permission (WP7). Module-level store + request helper —
-// parity rethink: remote users need an explicit enable affordance (desktop auto-grants).
+// Browser/OS notification permission store. Remote users need an explicit enable; desktop auto-grants.
 
 import { useSyncExternalStore } from "react";
 

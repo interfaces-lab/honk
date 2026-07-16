@@ -4,6 +4,12 @@ export function normalizePathSeparators(path: string, separator: PathSeparator =
   return separator === "/" ? path.replaceAll("\\", "/") : path.replaceAll("/", "\\");
 }
 
+export function basename(path: string): string {
+  const normalized = path.replace(/[\\/]+$/, "");
+  const name = normalized.split(/[\\/]/).at(-1) ?? "";
+  return name.length > 0 ? name : path;
+}
+
 export function isWindowsDrivePath(path: string): boolean {
   return /^[A-Za-z]:([/\\]|$)/.test(path);
 }

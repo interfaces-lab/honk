@@ -1,4 +1,9 @@
 import * as NodeOS from "node:os";
+import {
+  resolveTailscaleHttpsEndpoint,
+  TailscaleUnavailableError,
+  type TailscaleHttpsEndpoint,
+} from "@honk/cli/host";
 import type {
   DesktopServerExposureMode,
   DesktopServerExposureState,
@@ -31,7 +36,7 @@ export type DesktopNetworkInterfaces = Readonly<
   Record<string, readonly DesktopNetworkInterfaceInfo[] | undefined>
 >;
 
-interface ResolvedDesktopServerExposure {
+export interface ResolvedDesktopServerExposure {
   readonly mode: DesktopServerExposureMode;
   readonly bindHost: string;
   readonly localHttpUrl: string;
@@ -66,11 +71,13 @@ const resolveLanAdvertisedHost = (
   return null;
 };
 
-const resolveDesktopServerExposure = (input: {
+export const resolveDesktopServerExposure = (input: {
   readonly mode: DesktopServerExposureMode;
   readonly port: number;
   readonly networkInterfaces: DesktopNetworkInterfaces;
   readonly advertisedHostOverride?: string;
+  readonly publicUrl: string | null;
+  readonly tailscaleEndpoint: TailscaleHttpsEndpoint | null;
 }): ResolvedDesktopServerExposure => {
   const localHttpUrl = `http://${DESKTOP_LOOPBACK_HOST}:${input.port}`;
   const localWsUrl = `ws://${DESKTOP_LOOPBACK_HOST}:${input.port}`;
@@ -86,6 +93,17 @@ const resolveDesktopServerExposure = (input: {
     };
   }
 
+  if (input.mode === "tailscale") {
+    return {
+      mode: input.mode,
+      bindHost: DESKTOP_LOOPBACK_HOST,
+      localHttpUrl,
+      localWsUrl,
+      endpointUrl: input.tailscaleEndpoint?.url ?? null,
+      advertisedHost: input.tailscaleEndpoint?.magicDnsName ?? null,
+    };
+  }
+
   const advertisedHost = resolveLanAdvertisedHost(
     input.networkInterfaces,
     input.advertisedHostOverride,
@@ -96,18 +114,32 @@ const resolveDesktopServerExposure = (input: {
     bindHost: DESKTOP_LAN_BIND_HOST,
     localHttpUrl,
     localWsUrl,
-    endpointUrl: advertisedHost ? `http://${advertisedHost}:${input.port}` : null,
+    endpointUrl: input.publicUrl,
     advertisedHost,
   };
 };
 
-export class DesktopServerExposureNoNetworkAddressError extends Data.TaggedError(
-  "DesktopServerExposureNoNetworkAddressError",
-)<{
-  readonly port: number;
-}> {
+export class DesktopServerExposurePublicUrlRequiredError extends Data.TaggedError(
+  "DesktopServerExposurePublicUrlRequiredError",
+)<{}> {
   override get message() {
-    return `No reachable network address is available for desktop network access on port ${this.port}.`;
+    return "A public HTTPS URL is required before remote access can be enabled.";
+  }
+}
+
+export class DesktopServerExposurePublicUrlError extends Data.TaggedError(
+  "DesktopServerExposurePublicUrlError",
+)<{}> {
+  override get message() {
+    return "The public Honk URL must be an HTTPS origin without credentials, a path, or query parameters.";
+  }
+}
+
+export class DesktopServerExposureTailscaleError extends Data.TaggedError(
+  "DesktopServerExposureTailscaleError",
+)<{}> {
+  override get message() {
+    return "Tailscale must be installed, connected, and have MagicDNS enabled.";
   }
 }
 
@@ -122,7 +154,9 @@ export class DesktopServerExposurePersistenceError extends Data.TaggedError(
 }
 
 export type DesktopServerExposureSetModeError =
-  | DesktopServerExposureNoNetworkAddressError
+  | DesktopServerExposurePublicUrlRequiredError
+  | DesktopServerExposurePublicUrlError
+  | DesktopServerExposureTailscaleError
   | DesktopServerExposurePersistenceError;
 
 export interface DesktopServerExposureBackendConfig {
@@ -145,6 +179,9 @@ export interface DesktopServerExposureShape {
   readonly setMode: (
     mode: DesktopServerExposureMode,
   ) => Effect.Effect<DesktopServerExposureChange, DesktopServerExposureSetModeError>;
+  readonly setPublicUrl: (
+    publicUrl: string | null,
+  ) => Effect.Effect<DesktopServerExposureChange, DesktopServerExposureSetModeError>;
 }
 
 export class DesktopServerExposure extends Context.Service<
@@ -161,6 +198,15 @@ export class DesktopNetworkInterfacesService extends Context.Service<
   DesktopNetworkInterfacesServiceShape
 >()("honk/desktop/ServerExposure/NetworkInterfaces") {}
 
+export interface DesktopTailscaleEndpointServiceShape {
+  readonly resolve: Effect.Effect<TailscaleHttpsEndpoint, TailscaleUnavailableError>;
+}
+
+export class DesktopTailscaleEndpointService extends Context.Service<
+  DesktopTailscaleEndpointService,
+  DesktopTailscaleEndpointServiceShape
+>()("honk/desktop/ServerExposure/TailscaleEndpoint") {}
+
 interface RuntimeState {
   readonly requestedMode: DesktopServerExposureMode;
   readonly mode: DesktopServerExposureMode;
@@ -170,6 +216,7 @@ interface RuntimeState {
   readonly localWsUrl: string;
   readonly httpBaseUrl: URL;
   readonly endpointUrl: Option.Option<string>;
+  readonly customUrl: Option.Option<string>;
   readonly advertisedHost: Option.Option<string>;
 }
 
@@ -182,6 +229,7 @@ const runtimeStateFromResolvedExposure = (input: {
   readonly requestedMode: DesktopServerExposureMode;
   readonly exposure: ResolvedDesktopServerExposure;
   readonly port: number;
+  readonly customUrl: string | null;
 }): RuntimeState => ({
   requestedMode: input.requestedMode,
   mode: input.exposure.mode,
@@ -191,6 +239,7 @@ const runtimeStateFromResolvedExposure = (input: {
   localWsUrl: input.exposure.localWsUrl,
   httpBaseUrl: new URL(input.exposure.localHttpUrl),
   endpointUrl: Option.fromNullishOr(input.exposure.endpointUrl),
+  customUrl: Option.fromNullishOr(input.customUrl),
   advertisedHost: Option.fromNullishOr(input.exposure.advertisedHost),
 });
 
@@ -201,13 +250,18 @@ const initialRuntimeState = (): RuntimeState =>
       mode: DEFAULT_DESKTOP_SETTINGS.serverExposureMode,
       port: 0,
       networkInterfaces: {},
+      publicUrl: DEFAULT_DESKTOP_SETTINGS.serverPublicUrl,
+      tailscaleEndpoint: null,
     }),
     port: 0,
+    customUrl: DEFAULT_DESKTOP_SETTINGS.serverPublicUrl,
   });
 
 const toContractState = (state: RuntimeState): DesktopServerExposureState => ({
   mode: state.mode,
+  localUrl: state.port === 0 ? null : state.localHttpUrl,
   endpointUrl: Option.getOrNull(state.endpointUrl),
+  customUrl: Option.getOrNull(state.customUrl),
   advertisedHost: Option.getOrNull(state.advertisedHost),
 });
 
@@ -222,30 +276,27 @@ function resolveRuntimeState(input: {
   readonly port: number;
   readonly networkInterfaces: DesktopNetworkInterfaces;
   readonly advertisedHostOverride: Option.Option<string>;
+  readonly publicUrl: string | null;
+  readonly tailscaleEndpoint: TailscaleHttpsEndpoint | null;
 }): ResolvedRuntimeState {
   const advertisedHostOverride = Option.getOrUndefined(input.advertisedHostOverride);
   const requestedExposure = resolveDesktopServerExposure({
     mode: input.requestedMode,
     port: input.port,
     networkInterfaces: input.networkInterfaces,
+    publicUrl: input.publicUrl,
+    tailscaleEndpoint: input.tailscaleEndpoint,
     ...(advertisedHostOverride ? { advertisedHostOverride } : {}),
   });
   const unavailable =
-    input.requestedMode === "network-accessible" && requestedExposure.endpointUrl === null;
-  const exposure = unavailable
-    ? resolveDesktopServerExposure({
-        mode: "local-only",
-        port: input.port,
-        networkInterfaces: input.networkInterfaces,
-        ...(advertisedHostOverride ? { advertisedHostOverride } : {}),
-      })
-    : requestedExposure;
+    input.requestedMode !== "local-only" && requestedExposure.endpointUrl === null;
 
   return {
     state: runtimeStateFromResolvedExposure({
       requestedMode: input.requestedMode,
-      exposure,
+      exposure: requestedExposure,
       port: input.port,
+      customUrl: input.publicUrl,
     }),
     unavailable,
   };
@@ -254,11 +305,35 @@ function resolveRuntimeState(input: {
 const requiresBackendRelaunch = (previous: RuntimeState, next: RuntimeState): boolean =>
   previous.port !== next.port ||
   previous.bindHost !== next.bindHost ||
-  previous.localHttpUrl !== next.localHttpUrl;
+  previous.localHttpUrl !== next.localHttpUrl ||
+  Option.getOrNull(previous.endpointUrl) !== Option.getOrNull(next.endpointUrl);
+
+export function normalizeDesktopServerPublicUrl(value: string | null): string | null {
+  const input = value?.trim() ?? "";
+  if (input.length === 0) return null;
+  try {
+    const url = new URL(input);
+    if (
+      url.protocol !== "https:" ||
+      url.username.length > 0 ||
+      url.password.length > 0 ||
+      (url.pathname !== "" && url.pathname !== "/") ||
+      url.search.length > 0 ||
+      url.hash.length > 0
+    ) {
+      throw new DesktopServerExposurePublicUrlError();
+    }
+    return url.origin;
+  } catch (cause) {
+    if (cause instanceof DesktopServerExposurePublicUrlError) throw cause;
+    throw new DesktopServerExposurePublicUrlError();
+  }
+}
 
 const make = Effect.gen(function* () {
   const config = yield* DesktopConfig.DesktopConfig;
   const networkInterfaces = yield* DesktopNetworkInterfacesService;
+  const tailscaleEndpoint = yield* DesktopTailscaleEndpointService;
   const desktopSettings = yield* DesktopAppSettingsService.DesktopAppSettings;
   const stateRef = yield* Ref.make(initialRuntimeState());
 
@@ -272,11 +347,17 @@ const make = Effect.gen(function* () {
       yield* Effect.annotateCurrentSpan({ port });
       const settings: DesktopSettings = yield* desktopSettings.get;
       const currentNetworkInterfaces = yield* readNetworkInterfaces;
+      const resolvedTailscaleEndpoint =
+        settings.serverExposureMode === "tailscale"
+          ? yield* tailscaleEndpoint.resolve.pipe(Effect.orElseSucceed(() => null))
+          : null;
       const resolved = resolveRuntimeState({
         requestedMode: settings.serverExposureMode,
         port,
         networkInterfaces: currentNetworkInterfaces,
         advertisedHostOverride: config.desktopLanHostOverride,
+        publicUrl: normalizeDesktopServerPublicUrl(settings.serverPublicUrl),
+        tailscaleEndpoint: resolvedTailscaleEndpoint,
       });
       yield* Ref.set(stateRef, resolved.state);
       return toContractState(resolved.state);
@@ -288,16 +369,26 @@ const make = Effect.gen(function* () {
   ) {
     yield* Effect.annotateCurrentSpan({ mode });
     const previous = yield* Ref.get(stateRef);
+    const settings = yield* desktopSettings.get;
     const currentNetworkInterfaces = yield* readNetworkInterfaces;
+    const resolvedTailscaleEndpoint =
+      mode === "tailscale"
+        ? yield* tailscaleEndpoint.resolve.pipe(
+            Effect.mapError(() => new DesktopServerExposureTailscaleError()),
+          )
+        : null;
     const resolved = resolveRuntimeState({
       requestedMode: mode,
       port: previous.port,
       networkInterfaces: currentNetworkInterfaces,
       advertisedHostOverride: config.desktopLanHostOverride,
+      publicUrl: normalizeDesktopServerPublicUrl(settings.serverPublicUrl),
+      tailscaleEndpoint: resolvedTailscaleEndpoint,
     });
 
     if (resolved.unavailable) {
-      return yield* new DesktopServerExposureNoNetworkAddressError({ port: previous.port });
+      if (mode === "tailscale") return yield* new DesktopServerExposureTailscaleError();
+      return yield* new DesktopServerExposurePublicUrlRequiredError();
     }
 
     const change = yield* desktopSettings
@@ -311,11 +402,56 @@ const make = Effect.gen(function* () {
     };
   });
 
+  const setPublicUrl = Effect.fn("desktop.serverExposure.setPublicUrl")(function* (
+    publicUrl: string | null,
+  ) {
+    const normalized = yield* Effect.try({
+      try: () => normalizeDesktopServerPublicUrl(publicUrl),
+      catch: () => new DesktopServerExposurePublicUrlError(),
+    });
+    const previous = yield* Ref.get(stateRef);
+    const currentNetworkInterfaces = yield* readNetworkInterfaces;
+    const currentTailscaleUrl = Option.getOrNull(previous.endpointUrl);
+    const currentTailscaleDnsName = Option.getOrNull(previous.advertisedHost);
+    const currentTailscaleEndpoint =
+      previous.requestedMode === "tailscale" &&
+      currentTailscaleUrl !== null &&
+      currentTailscaleDnsName !== null
+        ? {
+            url: currentTailscaleUrl,
+            magicDnsName: currentTailscaleDnsName,
+            tailnetIpv4Addresses: Object.freeze([]),
+          }
+        : null;
+    const resolved = resolveRuntimeState({
+      requestedMode: previous.requestedMode,
+      port: previous.port,
+      networkInterfaces: currentNetworkInterfaces,
+      advertisedHostOverride: config.desktopLanHostOverride,
+      publicUrl: normalized,
+      tailscaleEndpoint: currentTailscaleEndpoint,
+    });
+    if (resolved.unavailable && previous.requestedMode === "network-accessible") {
+      return yield* new DesktopServerExposurePublicUrlRequiredError();
+    }
+    const change = yield* desktopSettings
+      .setServerPublicUrl(normalized)
+      .pipe(Effect.mapError((cause) => new DesktopServerExposurePersistenceError({ cause })));
+    yield* Ref.set(stateRef, resolved.state);
+    return {
+      state: toContractState(resolved.state),
+      requiresRelaunch:
+        previous.mode === "network-accessible" &&
+        (change.changed || requiresBackendRelaunch(previous, resolved.state)),
+    };
+  });
+
   return DesktopServerExposure.of({
     getState,
     backendConfig,
     configureFromSettings,
     setMode,
+    setPublicUrl,
   });
 });
 
@@ -325,5 +461,15 @@ export const networkInterfacesLayer = Layer.succeed(
   DesktopNetworkInterfacesService,
   DesktopNetworkInterfacesService.of({
     read: Effect.sync(() => NodeOS.networkInterfaces()),
+  }),
+);
+
+export const tailscaleEndpointLayer = Layer.succeed(
+  DesktopTailscaleEndpointService,
+  DesktopTailscaleEndpointService.of({
+    resolve: Effect.tryPromise({
+      try: () => resolveTailscaleHttpsEndpoint(),
+      catch: () => new TailscaleUnavailableError(),
+    }),
   }),
 );

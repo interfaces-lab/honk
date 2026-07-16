@@ -13,15 +13,12 @@ const workspaceFiles = [
   "packages/desktop/package.json",
   "packages/app/package.json",
   "packages/shared/package.json",
-  "packages/honkkit/package.json",
+  "packages/ui/package.json",
   "packages/release-scripts/package.json",
   "scripts/package.json",
 ] as const;
 
-const releasePackageFiles = [
-  "packages/desktop/package.json",
-  "packages/app/package.json",
-] as const;
+const releasePackageFiles = ["packages/desktop/package.json", "packages/app/package.json"] as const;
 
 function copyWorkspaceManifestFixture(targetRoot: string): void {
   for (const relativePath of workspaceFiles) {

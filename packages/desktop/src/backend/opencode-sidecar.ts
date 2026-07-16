@@ -25,14 +25,8 @@ import * as EffectLogger from "@honk/shared/effect-logger";
 import * as DesktopWindow from "../window/desktop-window";
 import { writeHonkOpencodeConfig } from "./opencode-config";
 
-// Supervises a plain `opencode serve` process (the "sidecar") for the desktop.
-//
-// honk speaks to opencode at the sidecar altitude: Electron owns the process
-// lifecycle (spawn / health-check / restart-on-crash / kill-on-quit) and the
-// renderer talks to the server over HTTP with @opencode-ai/sdk. This mirrors the
-// existing desktop Core supervisor (`desktop-core-manager.ts`) but readiness is
-// an HTTP health probe against opencode's `/global/health` endpoint instead of a
-// discovery file, since opencode has no discovery handshake.
+// Supervises `opencode serve` for desktop. Electron owns process lifecycle.
+// Renderer talks over HTTP via @opencode-ai/sdk. Readiness is /global/health.
 
 const SIDECAR_HOST = "127.0.0.1";
 const INITIAL_RESTART_DELAY = Duration.millis(500);
@@ -41,8 +35,7 @@ const HEALTH_TIMEOUT = Duration.minutes(1);
 const HEALTH_INTERVAL = Duration.millis(150);
 const HEALTH_REQUEST_TIMEOUT = Duration.seconds(3);
 const TERMINATE_GRACE = Duration.seconds(5);
-// Plugin resolution may trigger an on-demand install in OpenCode's cache. It
-// runs after readiness in the managed run scope so it never delays the shell.
+// Warm plugins after ready so the first prompt does not pay install cost.
 const WARMUP_REQUEST_TIMEOUT = Duration.seconds(90);
 
 type SidecarRunRequirements = ChildProcessSpawner.ChildProcessSpawner | Scope.Scope;
@@ -55,15 +48,12 @@ export type OpencodeSidecarStatus =
   | "stopped"
   | "error";
 
-/** The endpoint snapshot exposed to the renderer through the desktop bridge. */
+/** Endpoint snapshot for the desktop bridge. */
 export interface OpencodeSidecarSnapshot {
   readonly status: OpencodeSidecarStatus;
-  /** `http://127.0.0.1:<port>` once a port is reserved, else null. */
+  /** `http://127.0.0.1:<port>` once reserved, else null. */
   readonly url: string | null;
-  /**
-   * Server password for HTTP Basic auth (`opencode:<password>`). opencode runs
-   * unsecured without it; honk always sets one even on loopback.
-   */
+  /** HTTP Basic password (`opencode:<password>`). Always set, even on loopback. */
   readonly password: string | null;
 }
 
@@ -87,9 +77,7 @@ class OpencodeSidecarSpawnError extends Data.TaggedError("OpencodeSidecarSpawnEr
   }
 }
 
-// Raised when HONK_OPENCODE_PORT names a port that is already taken. The message
-// mirrors dev.ts's port-conflict reporting idiom (owner-lookup + free-it hint) so
-// the fix is obvious in the log.
+// HONK_OPENCODE_PORT taken. Message mirrors scripts/dev.ts conflict hints.
 class OpencodeSidecarPortConflictError extends Data.TaggedError(
   "OpencodeSidecarPortConflictError",
 )<{
@@ -107,8 +95,7 @@ class OpencodeSidecarPortConflictError extends Data.TaggedError(
 
 const MAX_PORT = 65_535;
 
-// Parse an env-provided exact port. Returns undefined for unset/blank/invalid so
-// the caller falls back to ephemeral allocation.
+// Unset or invalid env port falls back to ephemeral allocation.
 function parseOverridePort(value: string | undefined): number | undefined {
   if (value === undefined) return undefined;
   const trimmed = value.trim();
@@ -119,7 +106,6 @@ function parseOverridePort(value: string | undefined): number | undefined {
 }
 
 interface SidecarSession {
-  /** Resolved absolute path (or bare PATH name) of the opencode binary. */
   readonly binaryPath: string;
   readonly port: number;
   readonly password: string;
@@ -160,9 +146,8 @@ const initialState: SidecarState = {
 const calculateRestartDelay = (attempt: number): Duration.Duration =>
   Duration.min(Duration.times(INITIAL_RESTART_DELAY, 2 ** attempt), MAX_RESTART_DELAY);
 
-// Reserve a free loopback port by binding an ephemeral listener and releasing it.
-// The tiny race window before the sidecar rebinds is acceptable on loopback and
-// matches how the desktop reserves its Core port.
+// Bind an ephemeral listener, release it, then hand the port to the sidecar.
+// Small race on loopback is acceptable, same as Core port reservation.
 function reserveLoopbackPort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = createServer();
@@ -181,9 +166,7 @@ function reserveLoopbackPort(): Promise<number> {
   });
 }
 
-// Verify an exact port is free on the sidecar host by binding it briefly. Rejects
-// (e.g. EADDRINUSE) when taken so the caller can surface a clear conflict error.
-// Only the sidecar host matters here: the server binds `--hostname 127.0.0.1`.
+// Probe bind on 127.0.0.1 so EADDRINUSE surfaces before spawn.
 function reserveExactPort(port: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const server = createServer();
@@ -202,9 +185,7 @@ function reserveExactPort(port: number): Promise<void> {
   });
 }
 
-// Ordered opencode binary candidates. `HONK_OPENCODE_BIN` wins for local dev and
-// tests; packaged builds resolve a bundled binary under resources; dev falls back
-// to the pnpm-installed shim, then to `opencode` on PATH.
+// HONK_OPENCODE_BIN, then packaged resources, then node_modules/.bin, then PATH.
 function opencodeBinaryCandidates(
   environment: DesktopEnvironment.DesktopEnvironmentShape,
 ): string[] {
@@ -229,13 +210,11 @@ const resolveOpencodeBinary = Effect.fn("desktop.opencodeSidecar.resolveBinary")
     const exists = yield* fileSystem.exists(candidate).pipe(Effect.orElseSucceed(() => false));
     if (exists) return candidate;
   }
-  // Last resort: rely on PATH resolution. If opencode is not installed the spawn
-  // fails, surfacing an error status and a restart backoff.
+  // Bare PATH name. Missing install fails on spawn.
   return environment.platform === "win32" ? "opencode.exe" : "opencode";
 });
 
-// Probe opencode's health endpoint with HTTP Basic auth, matching opencode's own
-// desktop sidecar health check (`/global/health`).
+// GET /global/health with HTTP Basic, same as OpenCode's own desktop check.
 const checkHealth = (url: string, password: string): Effect.Effect<boolean> =>
   Effect.tryPromise({
     try: async () => {
@@ -260,20 +239,8 @@ const waitForHealthy = (session: SidecarSession): Effect.Effect<void, string> =>
     Effect.mapError(() => "opencode sidecar failed health check within timeout"),
   );
 
-// Resolve configured plugins after the sidecar reports healthy, reducing the
-// chance that the first prompt pays an on-demand install without delaying the
-// renderer's connection.
-//
-// opencode does NOT load plugins at serve boot: the server creates a project
-// instance per request keyed by the `directory` param / `x-opencode-directory`
-// header (see opencode `cli/cmd/serve.ts`), and plugins load with that instance.
-// npm plugins are installed on demand into opencode's own cache
-// (`Npm.add` -> `<xdgCache>/opencode/packages/<pkg>@<version>`, flock-guarded and
-// idempotent, using opencode's bundled installer — no external npm). Left alone,
-// that install would run on the user's first prompt and could stall or fail
-// offline. Instead honk issues the first instance request itself — listing agents
-// for the backend directory — which triggers plugin resolution/install up front.
-// Failure is non-fatal: OpenCode still resolves lazily on the first prompt.
+// Plugins load per project instance, not at serve boot. Warm with an agent list
+// so install does not hit the first user prompt. Failure is non-fatal.
 const warmUpPlugins = (session: SidecarSession): Effect.Effect<void> =>
   Effect.tryPromise({
     try: async () => {
@@ -353,8 +320,7 @@ const runOpencodeProcess = Effect.fn("desktop.opencodeSidecar.runProcess")(funct
   yield* waitForHealthy(session).pipe(
     Effect.matchEffect({
       onFailure: (message) => options.onReadinessFailure(message),
-      // Publish the healthy endpoint first. This whole branch already runs in a
-      // scoped background fiber, so plugin warm-up remains managed by the run.
+      // Publish ready first. Warm-up stays in this scoped fiber.
       onSuccess: () => options.onReady.pipe(Effect.andThen(warmUpPlugins(session))),
     }),
     Effect.forkScoped,
@@ -410,8 +376,7 @@ const makeOpencodeSidecar = Effect.fn("desktop.opencodeSidecar.make")(function* 
     ),
   );
 
-  // Resolve the run session once (stable port + password + generated config) and
-  // cache it so restarts keep the same URL the renderer already read.
+  // Cache session so restarts keep the URL the renderer already has.
   const resolveSession = Effect.fn("desktop.opencodeSidecar.resolveSession")(function* () {
     const existing = yield* Ref.get(state).pipe(Effect.map((current) => current.session));
     if (Option.isSome(existing)) return existing.value;
@@ -423,9 +388,7 @@ const makeOpencodeSidecar = Effect.fn("desktop.opencodeSidecar.make")(function* 
     const binaryPath = yield* resolveOpencodeBinary(environment).pipe(
       Effect.provideService(FileSystem.FileSystem, fileSystem),
     );
-    // Dev drives a deterministic sidecar (scripts/dev.ts) via these overrides so
-    // it can point app-next's Vite at a known origin. Absent overrides, keep the
-    // production behavior: ephemeral port + generated password.
+    // Dev overrides pin origin for Vite. Else ephemeral port + generated password.
     const portOverride = parseOverridePort(process.env.HONK_OPENCODE_PORT);
     const port =
       portOverride === undefined
@@ -451,11 +414,11 @@ const makeOpencodeSidecar = Effect.fn("desktop.opencodeSidecar.make")(function* 
       configPath: location.configPath,
       cwd: environment.backendCwd,
       env: {
-        // Merge the honk-managed config on top of the user's own opencode config
-        // rather than replacing it (nearest-wins). Never point at the user's dir.
+        // OPENCODE_CONFIG merges over user config. Never point at the user dir.
         OPENCODE_CONFIG: location.configPath,
         OPENCODE_SERVER_PASSWORD: password,
         OPENCODE_CLIENT: "honk-desktop",
+        OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS: "true",
         NO_PROXY: mergeLoopbackNoProxy(process.env.NO_PROXY),
         no_proxy: mergeLoopbackNoProxy(process.env.no_proxy),
       },
@@ -681,8 +644,7 @@ const makeOpencodeSidecar = Effect.fn("desktop.opencodeSidecar.make")(function* 
   return OpencodeSidecar.of({ start, stop, snapshot });
 });
 
-// Ensure loopback hosts are in NO_PROXY so health checks and SDK calls to the
-// sidecar never route through a corporate proxy.
+// Keep loopback in NO_PROXY so sidecar traffic skips corporate proxies.
 function mergeLoopbackNoProxy(existing: string | undefined): string {
   const loopback = ["127.0.0.1", "localhost", "::1"];
   const items = (existing ?? "")

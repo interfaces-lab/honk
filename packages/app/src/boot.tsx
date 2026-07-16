@@ -1,7 +1,4 @@
-// Boot / gate surfaces — the rewrite of the blank bootstrap + dead-end auth failure page
-// (ui-parity onboarding-auth rethink). Structure from the onboarding wireframe §A/C:
-// centered splash for connecting; card with paste field for requires-auth; explicit failure
-// with Retry for unreachable. Zero useEffect — connection lifecycle is connection-store.
+// Connection gate surfaces. Lifecycle lives in connection-store. No useEffect here.
 
 import * as stylex from "@stylexjs/stylex";
 import { Button, Matrix, Shell, StatusDot, Text } from "@honk/ui";
@@ -22,31 +19,23 @@ import {
   useConnection,
   type ConnectionSnapshot,
 } from "./connection-store";
-import { readDesktopOnboardingWindowContext } from "./desktop-bridge";
+import { readDesktopOnboardingWindowContext, shouldUseDesktopGlass } from "./desktop-bridge";
 import { DesktopOnboarding } from "./onboarding";
 import { AppShell } from "./shell";
 
-// ── Anatomy (named intrinsics — gate chrome, not identity vocabulary) ────────────────────────
-
 const GATE_CARD_WIDTH = "320px";
-// Splash brand geometry — the boot wordmark is a one-off larger than the prose ramp's 16px cap, so
-// its size is a named intrinsic (like the gate card width), not a Text size step.
+// Wordmark is larger than the prose ramp's 16px cap, so its size stays a named intrinsic.
 const SPLASH_WORDMARK_SIZE = "24px";
 const SPLASH_GAP = "16px";
 const FIELD_MIN_HEIGHT = "36px";
-const DETAILS_MAX_HEIGHT = "12rem";
-// The details panel bleeds out to the card's inner edge so its light background isn't double-inset
-// (card padding + its own padding) from the outer border; its own padding then supplies the single
-// text inset that lines up with the title and description above it.
-const DETAILS_BLEED = `calc(-1 * ${spaceVars["--honk-space-panel-pad"]})`;
 const HAIRLINE = "1px";
 const FIELD_RING = `inset 0 0 0 ${HAIRLINE} ${colorVars["--honk-color-border-base"]}`;
 
-const schemeStyles = stylex.create({
+const schemeStyles: Record<"system" | "light" | "dark", React.CSSProperties> = {
   system: { colorScheme: "light dark" },
   light: { colorScheme: "light" },
   dark: { colorScheme: "dark" },
-});
+};
 
 const styles = stylex.create({
   center: {
@@ -61,16 +50,6 @@ const styles = stylex.create({
     gap: SPLASH_GAP,
     justifyItems: "center",
     textAlign: "center",
-  },
-  // The boot wordmark: larger than the prose ramp so "honk" reads as a brand mark, not body text.
-  wordmark: {
-    fontSize: SPLASH_WORDMARK_SIZE,
-    lineHeight: 1.1,
-  },
-  // The matrix glyph is honk's signature working mark; on the splash it carries the one brand-hue
-  // moment (accent) instead of the muted smudge it read as before.
-  splashGlyph: {
-    color: colorVars["--honk-color-accent"],
   },
   card: {
     width: "100%",
@@ -115,15 +94,27 @@ const styles = stylex.create({
     gap: controlVars["--honk-control-gap"],
     alignItems: "center",
   },
+  status: {
+    flexGrow: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: spaceVars["--honk-space-panel-pad"],
+    padding: spaceVars["--honk-space-panel-pad"],
+    minHeight: 0,
+    minWidth: 0,
+    width: "100%",
+    boxSizing: "border-box",
+  },
+  statusCopy: {
+    display: "grid",
+    gap: controlVars["--honk-control-gap"],
+  },
   details: {
-    maxHeight: DETAILS_MAX_HEIGHT,
+    flexGrow: 1,
+    minHeight: 0,
     overflow: "auto",
-    marginBlock: 0,
-    marginInline: DETAILS_BLEED,
-    paddingBlock: controlVars["--honk-control-pad-sm"],
-    paddingInline: spaceVars["--honk-space-panel-pad"],
-    borderRadius: radiusVars["--honk-radius-control"],
-    backgroundColor: colorVars["--honk-color-layer-01"],
+    margin: 0,
+    padding: 0,
     color: colorVars["--honk-color-text-faint"],
     fontFamily: fontVars["--honk-font-family-mono"],
     fontSize: fontVars["--honk-font-size-caption"],
@@ -133,13 +124,10 @@ const styles = stylex.create({
     textAlign: "start",
   },
   centerFill: {
-    // Stage is a plain relative canvas; stretch so the gate centers in the full pane.
     alignSelf: "stretch",
     width: "100%",
   },
 });
-
-// ── Shared gate frame (Shell-compatible deep root; no tab strip until authenticated) ─────────
 
 function GateFrame(props: {
   readonly children: React.ReactNode;
@@ -154,7 +142,7 @@ function GateFrame(props: {
     </span>
   ) : undefined;
   return (
-    <Shell xstyle={schemeStyles[theme]}>
+    <Shell material={shouldUseDesktopGlass() ? "glass" : "solid"} style={schemeStyles[theme]}>
       <Shell.TitleBar trailing={trailing} />
       <Shell.Stage>
         <Shell.Sheet>
@@ -165,16 +153,18 @@ function GateFrame(props: {
   );
 }
 
-function ConnectingSplash(props: {
-  readonly origin: string | null;
-}): React.ReactElement {
+function ConnectingSplash(props: { readonly origin: string | null }): React.ReactElement {
   return (
     <GateFrame originChip={props.origin}>
       <div {...stylex.props(styles.splash)}>
-        <Text size="xl" weight="semibold" xstyle={styles.wordmark}>
+        <Text
+          size="xl"
+          weight="semibold"
+          style={{ fontSize: SPLASH_WORDMARK_SIZE, lineHeight: 1.1 }}
+        >
           honk
         </Text>
-        <Matrix isActive grid={6} xstyle={styles.splashGlyph} />
+        <Matrix isActive grid={6} style={{ color: colorVars["--honk-color-accent"] }} />
       </div>
     </GateFrame>
   );
@@ -184,7 +174,7 @@ function RequiresAuthCard(props: {
   readonly origin: string | null;
   readonly errorMessage: string | null;
 }): React.ReactElement {
-  // Uncontrolled input — submit reads the DOM value so we never need effect-synced state.
+  // Uncontrolled. Submit reads the DOM so we never sync field state in an effect.
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>): void => {
@@ -216,7 +206,7 @@ function RequiresAuthCard(props: {
           <Button type="submit" variant="primary" size="sm">
             Attach
           </Button>
-          <Button type="button" variant="secondary" size="sm" onClick={connectionActions.retry}>
+          <Button type="button" variant="neutral" size="sm" onClick={connectionActions.retry}>
             Retry
           </Button>
         </div>
@@ -270,15 +260,11 @@ function GateByStatus(props: { readonly connection: ConnectionSnapshot }): React
         />
       );
     case "authenticated":
-      // RootGate never renders this branch — authenticated mounts AppShell.
+      // RootGate mounts AppShell for authenticated. This branch is unreachable there.
       return <ConnectingSplash origin={props.connection.origin} />;
   }
 }
 
-/**
- * Root route component: gate until authenticated, then the real shell + outlet.
- * Reads the connection store via useSyncExternalStore (no effects).
- */
 export function RootGate(): React.ReactElement {
   const connection = useConnection();
   const onboardingWindow = readDesktopOnboardingWindowContext();
@@ -290,8 +276,6 @@ export function RootGate(): React.ReactElement {
   }
   return <GateByStatus connection={connection} />;
 }
-
-// ── Router error / not-found (parity keep, restyled on @honk/ui) ─────────────────────────────
 
 function errorDetails(error: unknown): string {
   if (error instanceof Error) {
@@ -327,21 +311,21 @@ function StatusCard(props: {
 }): React.ReactElement {
   const theme = useAppearanceTheme();
   return (
-    <Shell xstyle={schemeStyles[theme]}>
+    <Shell material={shouldUseDesktopGlass() ? "glass" : "solid"} style={schemeStyles[theme]}>
       <Shell.TitleBar />
       <Shell.Stage>
         <Shell.Sheet>
-          <div {...stylex.props(styles.center, styles.centerFill)}>
-            <div {...stylex.props(styles.card)}>
-              <Text size="base" weight="semibold" align="center">
+          <div {...stylex.props(styles.status)}>
+            <div {...stylex.props(styles.statusCopy)}>
+              <Text size="base" weight="semibold">
                 {props.title}
               </Text>
-              <Text size="sm" tone="muted" align="center">
+              <Text size="sm" tone="muted">
                 {props.description}
               </Text>
-              {props.details ? <pre {...stylex.props(styles.details)}>{props.details}</pre> : null}
-              <div {...stylex.props(styles.actions)}>{props.actions}</div>
             </div>
+            {props.details ? <pre {...stylex.props(styles.details)}>{props.details}</pre> : null}
+            <div {...stylex.props(styles.actions)}>{props.actions}</div>
           </div>
         </Shell.Sheet>
       </Shell.Stage>
@@ -351,7 +335,6 @@ function StatusCard(props: {
 
 export function RootErrorView({ error }: ErrorComponentProps): React.ReactElement {
   const details = errorDetails(error);
-  // Local UI flag for the copy button label — set from the click handler, not an effect.
   const [copied, setCopied] = React.useState(false);
 
   return (
@@ -366,7 +349,7 @@ export function RootErrorView({ error }: ErrorComponentProps): React.ReactElemen
           </Button>
           <Button
             type="button"
-            variant="secondary"
+            variant="neutral"
             size="sm"
             onClick={() => {
               window.location.reload();
@@ -376,7 +359,7 @@ export function RootErrorView({ error }: ErrorComponentProps): React.ReactElemen
           </Button>
           <Button
             type="button"
-            variant="ghost"
+            variant="quiet"
             size="sm"
             onClick={() => {
               void copyText(details).then(() => {
@@ -412,7 +395,7 @@ export function RootNotFoundView(): React.ReactElement {
           </Button>
           <Button
             type="button"
-            variant="secondary"
+            variant="neutral"
             size="sm"
             onClick={() => {
               window.location.reload();

@@ -32,11 +32,6 @@ export default defineConfig({
     react(),
   ],
   optimizeDeps: {
-    exclude: ["@honk/honkkit"],
-  },
-  resolve: {
-    alias: {
-      "~": path.resolve(marketingDir, "../app/src"),
-    },
+    exclude: ["@honk/ui"],
   },
 });

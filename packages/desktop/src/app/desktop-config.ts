@@ -2,10 +2,7 @@ import * as Config from "effect/Config";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Option from "effect/Option";
 
-const trimNonEmptyOption = (value: string): Option.Option<string> => {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? Option.some(trimmed) : Option.none();
-};
+import { trimNonEmptyOption } from "../trim-non-empty-option";
 
 const trimmedString = (name: string) =>
   Config.string(name).pipe(Config.option, Config.map(Option.flatMap(trimNonEmptyOption)));
@@ -39,6 +36,7 @@ export const DesktopConfig = Config.all({
   ),
   commitHashOverride: trimmedString("HONK_COMMIT_HASH"),
   desktopLanHostOverride: trimmedString("HONK_DESKTOP_LAN_HOST"),
+  desktopRemotePort: Config.port("HONK_DESKTOP_REMOTE_PORT").pipe(Config.withDefault(3773)),
   otlpTracesUrl: trimmedString("HONK_OTLP_TRACES_URL"),
   // OTLP log export (e.g. PostHog Logs: url https://us.i.posthog.com/i/v1/logs, headers
   // `Authorization=Bearer <phc_ project token>`). Headers use the OTEL convention

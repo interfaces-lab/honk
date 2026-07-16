@@ -3,6 +3,7 @@
  * vocabulary. Order matters: Tailwind core first, then the bridge that aliases the
  * `--honk-*` vars (emitted by the StyleX build of tokens.stylex.ts) into utility names. */
 @import "tailwindcss";
+@import "../src/platform-tokens.css";
 @import "../src/tailwind.css";
 
 /* Full-viewport mount. The Shell frame is height:100dvh; guarantee the html → body → #root chain

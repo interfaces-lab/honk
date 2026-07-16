@@ -1,7 +1,4 @@
-import type {
-  DesktopAppBranding,
-  DesktopRuntimeInfo,
-} from "@honk/shared/desktop-api";
+import type { DesktopAppBranding, DesktopRuntimeInfo } from "@honk/shared/desktop-api";
 import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -46,13 +43,13 @@ export interface DesktopEnvironmentShape {
   readonly stateDir: string;
   readonly desktopSettingsPath: string;
   readonly clientSettingsPath: string;
+  readonly remoteHostStatePath: string;
   readonly serverSettingsPath: string;
   readonly logDir: string;
   readonly rootDir: string;
   readonly appRoot: string;
   readonly backendCwd: string;
   readonly preloadPath: string;
-  readonly browserWebviewPreloadPath: string;
   readonly appUpdateYmlPath: string;
   readonly devServerUrl: Option.Option<URL>;
   readonly commitHashOverride: Option.Option<string>;
@@ -129,13 +126,13 @@ const makeDesktopEnvironment = Effect.fn("desktop.environment.make")(function* (
     stateDir,
     desktopSettingsPath: path.join(stateDir, "desktop-settings.json"),
     clientSettingsPath: path.join(stateDir, "client-settings.json"),
+    remoteHostStatePath: path.join(stateDir, "remote-host.json"),
     serverSettingsPath: path.join(stateDir, "settings.json"),
     logDir: path.join(stateDir, "logs"),
     rootDir,
     appRoot,
     backendCwd: defaultBackendCwd,
     preloadPath: path.join(input.dirname, "../preload/index.js"),
-    browserWebviewPreloadPath: path.join(input.dirname, "../preload/browser-webview.js"),
     appUpdateYmlPath: input.isPackaged
       ? path.join(resourcesPath, "app-update.yml")
       : path.join(input.appPath, "dev-app-update.yml"),

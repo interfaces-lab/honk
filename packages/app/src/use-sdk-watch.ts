@@ -1,85 +1,68 @@
 // React bindings for the SDK watch registry (ADR 0025 §2).
 // Zero useEffect: subscribe via useSyncExternalStore; list-shaped reads use
-// useSyncExternalStoreWithSelector so row memoization rides the reducer's
-// structural sharing. Selectors are held in refs so an inline `(s) => …`
-// does not change the store subscribe identity every render (which would
-// churn the registry's refcount).
+// useSyncExternalStoreWithSelector so row memoization rides the registry's
+// structural sharing. Only the server-scoped subscription closures are stable;
+// the selector hook handles changing selector functions without resubscribing.
 
-import { useCallback, useRef, useSyncExternalStore } from "react";
+import { openCodeSessionRef, type OpenCodeSessionRef } from "@honk/opencode";
+import { useCallback, useSyncExternalStore } from "react";
 import { useSyncExternalStoreWithSelector } from "use-sync-external-store/with-selector";
 
 import {
-  getThreadWatchServerSnapshot,
-  getThreadWatchSnapshot,
+  getSessionWatchServerSnapshot,
+  getSessionWatchSnapshot,
   getWorkspaceWatchServerSnapshot,
   getWorkspaceWatchSnapshot,
-  subscribeThreadWatch,
+  subscribeSessionWatch,
   subscribeWorkspaceWatch,
-  type ThreadWatchSnapshot,
+  type SessionWatchSnapshot,
   type WorkspaceWatchSnapshot,
 } from "./watch-registry";
 
-function useStableSelector<Snapshot, Selection>(
-  selector: (snapshot: Snapshot) => Selection,
-): (snapshot: Snapshot) => Selection {
-  const selectorRef = useRef(selector);
-  selectorRef.current = selector;
-  return useCallback((snapshot: Snapshot) => selectorRef.current(snapshot), []);
-}
-
-function useStableEqual<Selection>(
-  isEqual: ((a: Selection, b: Selection) => boolean) | undefined,
-): ((a: Selection, b: Selection) => boolean) | undefined {
-  const isEqualRef = useRef(isEqual);
-  isEqualRef.current = isEqual;
-  return useCallback((a: Selection, b: Selection) => {
-    const compare = isEqualRef.current;
-    return compare === undefined ? Object.is(a, b) : compare(a, b);
-  }, []);
-}
-
-/** Full thread watch wrapper: `{ state, status }` from the registry. */
-export function useThreadWatch(threadId: string): ThreadWatchSnapshot {
+/** Full session watch wrapper: `{ state, status }` from the registry. */
+export function useSessionWatch(ref: OpenCodeSessionRef): SessionWatchSnapshot {
+  const { server, sessionID } = ref;
   const subscribe = useCallback(
-    (listener: () => void) => subscribeThreadWatch(threadId, listener),
-    [threadId],
+    (listener: () => void) =>
+      subscribeSessionWatch(openCodeSessionRef(server, sessionID), listener),
+    [server, sessionID],
   );
   const getSnapshot = useCallback(
-    () => getThreadWatchSnapshot(threadId),
-    [threadId],
+    () => getSessionWatchSnapshot(openCodeSessionRef(server, sessionID)),
+    [server, sessionID],
   );
-  return useSyncExternalStore(subscribe, getSnapshot, getThreadWatchServerSnapshot);
+  return useSyncExternalStore(subscribe, getSnapshot, getSessionWatchServerSnapshot);
 }
 
 /**
- * Select a slice of the thread watch snapshot. Prefer this for list rows so
- * unchanged item refs from the reducer do not re-render siblings.
+ * Select a slice of the session watch snapshot. Prefer this for list rows so
+ * unchanged item refs from the registry do not re-render siblings.
  */
-export function useThreadWatchSelector<Selection>(
-  threadId: string,
-  selector: (snapshot: ThreadWatchSnapshot) => Selection,
+export function useSessionWatchSelector<Selection>(
+  ref: OpenCodeSessionRef,
+  selector: (snapshot: SessionWatchSnapshot) => Selection,
   isEqual?: (a: Selection, b: Selection) => boolean,
 ): Selection {
+  const { server, sessionID } = ref;
   const subscribe = useCallback(
-    (listener: () => void) => subscribeThreadWatch(threadId, listener),
-    [threadId],
+    (listener: () => void) =>
+      subscribeSessionWatch(openCodeSessionRef(server, sessionID), listener),
+    [server, sessionID],
   );
   const getSnapshot = useCallback(
-    () => getThreadWatchSnapshot(threadId),
-    [threadId],
+    () => getSessionWatchSnapshot(openCodeSessionRef(server, sessionID)),
+    [server, sessionID],
   );
-  const stableSelector = useStableSelector(selector);
-  const stableEqual = useStableEqual(isEqual);
   return useSyncExternalStoreWithSelector(
     subscribe,
     getSnapshot,
-    getThreadWatchServerSnapshot,
-    stableSelector,
-    stableEqual,
+    getSessionWatchServerSnapshot,
+    selector,
+    isEqual,
   );
 }
 
-/** Workspace / thread-summary watch — Home list and tab titles. */
+/** Workspace / session-inventory watch for the Home list and tab titles. */
 export function useWorkspaceWatch(): WorkspaceWatchSnapshot {
   return useSyncExternalStore(
     subscribeWorkspaceWatch,
@@ -88,21 +71,23 @@ export function useWorkspaceWatch(): WorkspaceWatchSnapshot {
   );
 }
 
+export const useSessionInventoryWatch = useWorkspaceWatch;
+
 /**
- * Select a slice of the workspace watch snapshot (e.g. one ThreadSummary by id
+ * Select a slice of the workspace watch snapshot (e.g. one session row by id
  * for a tab title).
  */
 export function useWorkspaceWatchSelector<Selection>(
   selector: (snapshot: WorkspaceWatchSnapshot) => Selection,
   isEqual?: (a: Selection, b: Selection) => boolean,
 ): Selection {
-  const stableSelector = useStableSelector(selector);
-  const stableEqual = useStableEqual(isEqual);
   return useSyncExternalStoreWithSelector(
     subscribeWorkspaceWatch,
     getWorkspaceWatchSnapshot,
     getWorkspaceWatchServerSnapshot,
-    stableSelector,
-    stableEqual,
+    selector,
+    isEqual,
   );
 }
+
+export const useSessionInventoryWatchSelector = useWorkspaceWatchSelector;

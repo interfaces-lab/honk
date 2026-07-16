@@ -1,24 +1,9 @@
-// The curated glyph set — @honk/ui's window onto central-icons. The raw pack
-// (@central-icons-react/round-outlined-radius-2-stroke-1.5) ships 2041 glyphs; @app only draws a
-// small reviewed subset. This module re-exports that subset under the pack names so the rewrite
-// imports its icons from @honk/ui — one curated, reviewed surface — instead
-// of reaching into the 2041-glyph pack ad hoc. Adding a new glyph to the app becomes a deliberate
-// edit here, not a fresh deep import buried in a feature file.
-//
-// Names are the pack's own (no renaming): the central-icons vocabulary is the established
-// spelling across the codebase, and inventing semantic aliases (IconSend, IconDelete…) would be
-// bespoke jargon that drifts from the source. The CATEGORIES below are ours, though — grouped by
-// what each glyph actually DOES in production (from the usage map), not by how its name is spelt,
-// so a reader can find "the copy icon" by function.
-//
-// A pure re-export leaf: NO logic, NO styles, NO effects (ADR 0025). The only value this file
-// mints is ICON_CATALOG, a plain data description of the grouping so the dev gallery can render
-// the set from data. Rendering, sizing, and tone all belong to <Icon> (./icon.tsx); here we only
-// name and group the glyph components.
-
 import type { Glyph } from "./icon";
 import {
   IconArchive1,
+  IconArrowLeft,
+  IconArrowRight,
+  IconArrowRotateClockwise,
   IconArrowUp,
   IconBarsThree,
   IconBranch,
@@ -35,6 +20,7 @@ import {
   IconCircleCheck,
   IconClawd,
   IconClipboard,
+  IconComputerUse,
   IconConsole,
   IconConsoleSimple,
   IconCrossMedium,
@@ -50,30 +36,31 @@ import {
   IconFolderAddRight,
   IconFolderOpen,
   IconGlobe,
-  IconHome,
+  IconHomeRoofDoor,
   IconLayoutSidebar,
   IconMagnifyingGlass,
+  IconMinusSmall,
   IconOpenaiCodex,
   IconPencilLine,
   IconPin,
+  IconPictureInPicture,
   IconPlusSmall,
   IconSettingsGear2,
+  IconServer,
   IconSidebarSimpleRightWide,
   IconStepBack,
   IconSummary,
   IconTrashCan,
   IconUnpin,
+  IconWindowSquare,
+  IconWindowSquarePlus,
 } from "central-icons";
 
-// ── Re-export surface, grouped by production function ────────────────────────────────────────
-// Each `export` block below is one category; the section comment says what the glyphs do in the
-// app. This is the surface consumers deep-import ("@honk/ui/icons"). ICON_CATALOG at the bottom
-// mirrors these exact groups, in this exact order — the two are kept in lockstep by hand (a name
-// can't be in an export block without a catalog row, or the gallery would silently miss it).
-
-// Navigation & disclosure — moving through content: expanding a row (right/down), stepping back
-// through history (left / revert).
+// Navigation
 export {
+  IconArrowLeft,
+  IconArrowRight,
+  IconArrowRotateClockwise,
   IconChevronRightMedium,
   IconChevronDownMedium,
   IconChevronLeftMedium,
@@ -82,12 +69,10 @@ export {
   IconStepBack,
 };
 
-// Files & folders — the filesystem vocabulary: a closed/open/new folder, a files placeholder, a
-// single file.
+// Files
 export { IconFolder1, IconFolderOpen, IconFolderAddRight, IconFiles, IconFileBend };
 
-// Content actions — acting on the thing in front of you: edit, delete, copy, accept, send a
-// message (arrow-up), add/new (+), preview.
+// Content actions
 export {
   IconPencilLine,
   IconTrashCan,
@@ -96,25 +81,23 @@ export {
   IconArrowUp,
   IconPlusSmall,
   IconEyeOpen,
+  IconPictureInPicture,
+  IconMinusSmall,
 };
 
-// Triage & thread state — organizing threads in the sidebar: pin, unpin, archive.
+// Triage
 export { IconPin, IconUnpin, IconArchive1 };
 
-// Close & dismiss — the × family, one per weight: small (chips, tabs), medium (thread item), and
-// the filled default variant (attachments, banners, terminal rail).
+// Close
 export { IconCrossSmall, IconCrossMedium, IconCrossMediumDefault };
 
-// Status & feedback — glyphs that report a state: a success node, an error/alert, and an
-// ask/prompt bubble. (A summary is a view, not a state — it lives under Workspace & chrome.)
+// Status
 export { IconCircleCheck, IconExclamationCircle, IconBubbleQuestion };
 
-// Model providers — identity glyphs used by the composer's model selector.
+// Model providers
 export { IconClawd, IconOpenaiCodex };
 
-// Workspace & chrome — the surrounding tooling and views: menu and overflow handles, the browser
-// and terminal surfaces, the Home anchor, settings, skills/blocks, git branch, the workbench panel
-// toggle, a summary view, plus search and filter.
+// Workspace
 export {
   IconBarsThree,
   IconDotGrid1x3Horizontal,
@@ -123,7 +106,7 @@ export {
   IconConsoleSimple,
   IconGlobe,
   IconChanges,
-  IconHome,
+  IconHomeRoofDoor,
   IconSettingsGear2,
   IconBuildingBlocks,
   IconBranch,
@@ -132,19 +115,14 @@ export {
   IconSummary,
   IconMagnifyingGlass,
   IconFilter2,
+  IconServer,
+  IconComputerUse,
+  IconWindowSquare,
+  IconWindowSquarePlus,
 };
 
-// ── ICON_CATALOG — the grouping as data ──────────────────────────────────────────────────────
-// One row per category, each carrying its glyphs as [name, component] pairs. The dev gallery maps
-// over this to render every glyph under its category header; any future "icon picker" reads the
-// same structure. Category set, order, and membership match the re-export blocks above exactly —
-// this is the machine-readable copy of that taxonomy.
-
-// The shape of one catalog section. Exported so a consumer (e.g. the gallery) can type a section
-// prop without re-deriving it.
 interface IconCatalogSection {
   readonly category: string;
-  // [name, glyph]: the pack name (for the label) paired with the component (for <Icon icon=…>).
   readonly glyphs: readonly (readonly [name: string, glyph: Glyph])[];
 }
 
@@ -180,6 +158,8 @@ const ICON_CATALOG: readonly IconCatalogSection[] = [
       ["IconArrowUp", IconArrowUp],
       ["IconPlusSmall", IconPlusSmall],
       ["IconEyeOpen", IconEyeOpen],
+      ["IconPictureInPicture", IconPictureInPicture],
+      ["IconMinusSmall", IconMinusSmall],
     ],
   },
   {
@@ -223,7 +203,7 @@ const ICON_CATALOG: readonly IconCatalogSection[] = [
       ["IconConsoleSimple", IconConsoleSimple],
       ["IconGlobe", IconGlobe],
       ["IconChanges", IconChanges],
-      ["IconHome", IconHome],
+      ["IconHomeRoofDoor", IconHomeRoofDoor],
       ["IconSettingsGear2", IconSettingsGear2],
       ["IconBuildingBlocks", IconBuildingBlocks],
       ["IconBranch", IconBranch],
@@ -232,6 +212,10 @@ const ICON_CATALOG: readonly IconCatalogSection[] = [
       ["IconSummary", IconSummary],
       ["IconMagnifyingGlass", IconMagnifyingGlass],
       ["IconFilter2", IconFilter2],
+      ["IconServer", IconServer],
+      ["IconComputerUse", IconComputerUse],
+      ["IconWindowSquare", IconWindowSquare],
+      ["IconWindowSquarePlus", IconWindowSquarePlus],
     ],
   },
 ];

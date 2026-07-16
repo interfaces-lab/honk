@@ -4,6 +4,8 @@ import { realpathSync, watch, type FSWatcher } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { Option, Schema } from "effect";
+import { PositiveInt, TrimmedNonEmptyString } from "@honk/shared/base-schemas";
 import {
   GitCommandError,
   GitHubCliError,
@@ -1058,17 +1060,37 @@ function toStatusPr(pr: PullRequestInfo): GitStatusRemoteResult["pr"] {
 	};
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+const RawGitHubPullRequestSchema = Schema.Struct({
+	number: PositiveInt,
+	title: TrimmedNonEmptyString,
+	url: TrimmedNonEmptyString,
+	baseRefName: TrimmedNonEmptyString,
+	headRefName: TrimmedNonEmptyString,
+	state: Schema.optional(Schema.Unknown),
+	mergedAt: Schema.optional(Schema.Unknown),
+	updatedAt: Schema.optional(Schema.Unknown),
+	isCrossRepository: Schema.optional(Schema.Unknown),
+	headRepository: Schema.optional(Schema.Unknown),
+	headRepositoryOwner: Schema.optional(Schema.Unknown),
+});
 
-function readString(value: unknown): string | null {
-	return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
-}
+const GitHubRepositoryCloneUrlsSchema = Schema.Struct({
+	nameWithOwner: TrimmedNonEmptyString,
+	url: TrimmedNonEmptyString,
+	sshUrl: TrimmedNonEmptyString,
+});
 
-function readPositiveInteger(value: unknown): number | null {
-	return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
-}
+const decodeRawGitHubPullRequest = Schema.decodeUnknownOption(RawGitHubPullRequestSchema);
+const decodeGitHubRepositoryCloneUrls = Schema.decodeUnknownOption(GitHubRepositoryCloneUrlsSchema);
+const decodeGitHubJsonRecord = Schema.decodeUnknownOption(Schema.Record(Schema.String, Schema.Unknown));
+const decodeGitHubOptionalString = Schema.decodeUnknownOption(Schema.String);
+const decodeGitHubOptionalBoolean = Schema.decodeUnknownOption(Schema.Boolean);
+const decodeGitHubHeadRepository = Schema.decodeUnknownOption(
+	Schema.Struct({ nameWithOwner: TrimmedNonEmptyString }),
+);
+const decodeGitHubHeadRepositoryOwner = Schema.decodeUnknownOption(
+	Schema.Struct({ login: TrimmedNonEmptyString }),
+);
 
 function normalizeGitHubPullRequestState(input: {
 	readonly state?: string | null;
@@ -1082,38 +1104,34 @@ function normalizeGitHubPullRequestState(input: {
 }
 
 function normalizeGitHubPullRequestRecord(value: unknown): PullRequestInfo | null {
-	if (!isRecord(value)) {
+	const decoded = decodeRawGitHubPullRequest(value);
+	if (Option.isNone(decoded)) {
 		return null;
 	}
-	const number = readPositiveInteger(value.number);
-	const title = readString(value.title);
-	const url = readString(value.url);
-	const baseRefName = readString(value.baseRefName);
-	const headRefName = readString(value.headRefName);
-	if (!number || !title || !url || !baseRefName || !headRefName) {
-		return null;
-	}
-	const headRepository = isRecord(value.headRepository) ? value.headRepository : null;
-	const headRepositoryOwner = isRecord(value.headRepositoryOwner) ? value.headRepositoryOwner : null;
-	const headRepositoryNameWithOwner = readString(headRepository?.nameWithOwner);
+	const record = decoded.value;
+	const headRepository = Option.getOrNull(decodeGitHubHeadRepository(record.headRepository));
+	const headRepositoryOwner = Option.getOrNull(
+		decodeGitHubHeadRepositoryOwner(record.headRepositoryOwner),
+	);
+	const headRepositoryNameWithOwner = headRepository?.nameWithOwner ?? null;
 	const ownerFromRepository = headRepositoryNameWithOwner?.includes("/")
 		? (headRepositoryNameWithOwner.split("/")[0] ?? null)
 		: null;
-	const headRepositoryOwnerLogin = readString(headRepositoryOwner?.login) ?? ownerFromRepository;
+	const headRepositoryOwnerLogin = headRepositoryOwner?.login ?? ownerFromRepository;
+	const updatedAtRaw = Option.getOrNull(decodeGitHubOptionalString(record.updatedAt));
+	const isCrossRepository = decodeGitHubOptionalBoolean(record.isCrossRepository);
 	return {
-		number,
-		title,
-		url,
-		baseRefName,
-		headRefName,
+		number: record.number,
+		title: record.title,
+		url: record.url,
+		baseRefName: record.baseRefName,
+		headRefName: record.headRefName,
 		state: normalizeGitHubPullRequestState({
-			state: typeof value.state === "string" ? value.state : null,
-			mergedAt: typeof value.mergedAt === "string" ? value.mergedAt : null,
+			state: Option.getOrNull(decodeGitHubOptionalString(record.state)),
+			mergedAt: Option.getOrNull(decodeGitHubOptionalString(record.mergedAt)),
 		}),
-		updatedAt: typeof value.updatedAt === "string" && value.updatedAt.trim() ? value.updatedAt : null,
-		...(typeof value.isCrossRepository === "boolean"
-			? { isCrossRepository: value.isCrossRepository }
-			: {}),
+		updatedAt: updatedAtRaw !== null && updatedAtRaw.trim() ? updatedAtRaw : null,
+		...(Option.isSome(isCrossRepository) ? { isCrossRepository: isCrossRepository.value } : {}),
 		...(headRepositoryNameWithOwner ? { headRepositoryNameWithOwner } : {}),
 		...(headRepositoryOwnerLogin ? { headRepositoryOwnerLogin } : {}),
 	};
@@ -1156,16 +1174,14 @@ function parseGitHubPullRequestJson(raw: string): GitHubPullRequestSummary {
 
 function parseGitHubRepositoryCloneUrls(raw: string): GitHubRepositoryCloneUrls {
 	const parsed: unknown = JSON.parse(raw);
-	if (!isRecord(parsed)) {
+	const decoded = decodeGitHubRepositoryCloneUrls(parsed);
+	if (Option.isSome(decoded)) {
+		return decoded.value;
+	}
+	if (Option.isNone(decodeGitHubJsonRecord(parsed))) {
 		throw new Error("GitHub CLI returned invalid repository JSON.");
 	}
-	const nameWithOwner = readString(parsed.nameWithOwner);
-	const url = readString(parsed.url);
-	const sshUrl = readString(parsed.sshUrl);
-	if (!nameWithOwner || !url || !sshUrl) {
-		throw new Error("GitHub CLI returned incomplete repository JSON.");
-	}
-	return { nameWithOwner, url, sshUrl };
+	throw new Error("GitHub CLI returned incomplete repository JSON.");
 }
 
 async function statFile(filePath: string): Promise<{ readonly isFile: boolean; readonly size: number } | null> {

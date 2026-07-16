@@ -53,10 +53,6 @@
       "entry": ["src/**/*.ts", "test/**/*.{ts,tsx}"],
       "project": ["src/**/*.ts", "test/**/*.{ts,tsx}"]
     },
-    "packages/honkkit": {
-      "entry": ["src/**/*.tsx", "src/**/*.ts", "test/**/*.{ts,tsx}"],
-      "project": ["src/**/*.{ts,tsx}", "test/**/*.{ts,tsx}"]
-    },
     "packages/app": {
       "entry": [
         "src/main.tsx",

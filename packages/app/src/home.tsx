@@ -1,18 +1,18 @@
-// Home — one centered composer lane above a two-column browser: projects on the left, grouped
-// threads on the right. The composer spans the grid so it is visually centered in the sheet
-// instead of inheriting the thread-list column's offset.
-// Honest watch states: Spinner while connecting with no snapshot; empty copy when zero
-// threads; quiet notice on closed/unauthorized (reconnect UX is another WP).
-
 import * as stylex from "@stylexjs/stylex";
+import {
+  openCodeLocationRef,
+  openCodeSessionKey,
+  openCodeSessionRef,
+  type OpenCodeServerKey,
+} from "@honk/opencode";
+import { basename } from "@honk/shared/paths";
 import { Icon, ListRow, Matrix, Spinner, StatusDot, Text } from "@honk/ui";
 import { colorVars, controlVars, fontVars, radiusVars, spaceVars } from "@honk/ui/tokens.stylex";
 import { IconFolderAddRight, IconSettingsGear2 } from "@honk/ui/icons";
-import { useNavigate } from "@tanstack/react-router";
 import * as React from "react";
 
 import { useAppSettings } from "./app-settings-store";
-import { Composer } from "./composer";
+import { HomeComposer } from "./composer/home-composer";
 import { pickFolder } from "./desktop-bridge";
 import {
   statusDotPulse,
@@ -20,37 +20,38 @@ import {
   tabStatusFromSummary,
   type CommandMenuThread,
 } from "./command-menu-model";
-import { DEFAULT_SETTINGS_SECTION } from "./settings";
+import { actions as settingsActions } from "./settings-store";
 import { actions as tabActions, type TabStatus } from "./tab-store";
-import { useWorkspaceWatch } from "./use-sdk-watch";
+import { useSessionInventoryWatch } from "./use-sdk-watch";
 
-// ── Anatomy (opencode home.tsx, v2) ──────────────────────────────────────────────────────────
-// The sheet interior grid: max-w-[1080px], lg:grid-cols-[280px_minmax(0,720px)] lg:gap-8
-// lg:px-6; below lg it stacks (auto/1fr) at gap-4 px-3.
 const HOME_MAX_WIDTH = "1080px";
 const NAV_COLUMN = "280px";
 const CONTENT_COLUMN = "minmax(0, 720px)";
 const COMPOSER_MAX_WIDTH = "720px";
-// opencode's lg breakpoint (Tailwind 1024px) — the two-column threshold.
 const LG_MEDIA = "@media (min-width: 1024px)";
-// Home's responsive grid geometry is page anatomy, not reusable design vocabulary.
 const HOME_GAP = "16px";
 const HOME_GAP_LARGE = "32px";
 const HOME_PAD_LARGE = "24px";
-const COMPOSER_PAD_TOP = "24px";
-const COMPOSER_PAD_TOP_LARGE = "48px";
+// Fixed lane so multiline composer growth moves up without resizing the browser columns.
+const COMPOSER_LANE_HEIGHT = "256px";
 const NAV_MOBILE_MAX_HEIGHT = "240px";
 const HOME_FINE_GAP = "4px";
 const HAIRLINE = "1px";
 const SCROLL_PAD_BOTTOM = "64px";
 const NEGATIVE_PANEL_PAD = "-12px";
-// Nav rows share @honk/ui ListRow's control-scale recipe — 28px tall, control radius, control
-// inline pad (10px), control gap — so the left project rows and the right thread rows read as one
-// row system. hover/selected draw an inset 0.5px ring instead of a border.
-const NAV_ROW_RING = `inset 0 0 0 0.5px ${colorVars["--honk-color-border-muted"]}`;
-// Branch pills stay a glance, not a column — cap before they starve the row title.
 const BRANCH_CHIP_MAX_WIDTH = "160px";
 const PROJECT_ALL_KEY = "all";
+// OpenCode Home deliberately keeps the default inventory bounded while search owns deep history.
+const HOME_SESSION_LIMIT = 64;
+// Project avatar footprint; leading slots on the Add/Settings rows match it so titles line up.
+const AVATAR_SIZE = "20px";
+const LEADING_SLOT_STYLE = {
+  width: AVATAR_SIZE,
+  height: AVATAR_SIZE,
+} satisfies React.CSSProperties;
+// Thread status badge: corner nudge past the avatar edge, and the base-surface ring around the dot.
+const AVATAR_BADGE_OFFSET = "-3px";
+const AVATAR_BADGE_RING = "1.5px";
 
 const styles = stylex.create({
   grid: {
@@ -68,18 +69,20 @@ const styles = stylex.create({
     },
   },
   composerLane: {
+    boxSizing: "border-box",
     width: "100%",
     maxWidth: COMPOSER_MAX_WIDTH,
+    height: COMPOSER_LANE_HEIGHT,
     marginInline: "auto",
     flexShrink: 0,
-    paddingTop: {
-      default: COMPOSER_PAD_TOP,
-      [LG_MEDIA]: COMPOSER_PAD_TOP_LARGE,
-    },
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "flex-end",
     paddingBottom: HOME_GAP,
   },
   columns: {
-    flexGrow: 1,
+    height: `calc(100% - ${COMPOSER_LANE_HEIGHT})`,
+    flexShrink: 0,
     minHeight: 0,
     display: "grid",
     gridTemplateColumns: {
@@ -96,7 +99,6 @@ const styles = stylex.create({
     },
   },
 
-  // ── Left column: the project nav (opencode HomeProjectColumn) ────────────────────────────
   nav: {
     minWidth: 0,
     minHeight: 0,
@@ -119,6 +121,64 @@ const styles = stylex.create({
     color: colorVars["--honk-color-text-muted"],
     fontWeight: fontVars["--honk-font-weight-medium"],
   },
+  avatar: {
+    display: "grid",
+    placeItems: "center",
+    flexShrink: 0,
+    boxSizing: "border-box",
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: radiusVars["--honk-radius-avatar"],
+    fontSize: fontVars["--honk-font-size-caption"],
+    fontWeight: fontVars["--honk-font-weight-semibold"],
+    lineHeight: 1,
+    textTransform: "uppercase",
+    userSelect: "none",
+  },
+  avatarPink: {
+    backgroundColor: colorVars["--honk-color-avatar-pink-bg"],
+    color: colorVars["--honk-color-avatar-pink-fg"],
+  },
+  avatarMint: {
+    backgroundColor: colorVars["--honk-color-avatar-mint-bg"],
+    color: colorVars["--honk-color-avatar-mint-fg"],
+  },
+  avatarOrange: {
+    backgroundColor: colorVars["--honk-color-avatar-orange-bg"],
+    color: colorVars["--honk-color-avatar-orange-fg"],
+  },
+  avatarPurple: {
+    backgroundColor: colorVars["--honk-color-avatar-purple-bg"],
+    color: colorVars["--honk-color-avatar-purple-fg"],
+  },
+  avatarCyan: {
+    backgroundColor: colorVars["--honk-color-avatar-cyan-bg"],
+    color: colorVars["--honk-color-avatar-cyan-fg"],
+  },
+  avatarLime: {
+    backgroundColor: colorVars["--honk-color-avatar-lime-bg"],
+    color: colorVars["--honk-color-avatar-lime-fg"],
+  },
+  // Positioning context for a thread's status badge overlaid on its project avatar.
+  avatarWrap: {
+    position: "relative",
+    display: "grid",
+    placeItems: "center",
+    flexShrink: 0,
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+  },
+  // Corner badge; the base-surface ring lifts the status dot off the avatar tint.
+  avatarBadge: {
+    position: "absolute",
+    right: AVATAR_BADGE_OFFSET,
+    bottom: AVATAR_BADGE_OFFSET,
+    display: "grid",
+    placeItems: "center",
+    padding: AVATAR_BADGE_RING,
+    borderRadius: radiusVars["--honk-radius-pill"],
+    backgroundColor: colorVars["--honk-color-bg-base"],
+  },
   navRows: {
     minHeight: 0,
     display: "flex",
@@ -128,71 +188,10 @@ const styles = stylex.create({
     scrollbarWidth: "none",
     paddingRight: spaceVars["--honk-space-panel-pad"],
   },
-  navRow: {
-    position: "relative",
-    flexShrink: 0,
-    height: controlVars["--honk-control-h-md"],
-    minWidth: 0,
-    display: "flex",
-    alignItems: "center",
-    gap: controlVars["--honk-control-gap"],
-    boxSizing: "border-box",
-    paddingInline: controlVars["--honk-control-pad-md"],
-    borderRadius: radiusVars["--honk-radius-control"],
-    borderStyle: "none",
-    textAlign: "left",
-    cursor: "default",
-    fontFamily: "inherit",
-    fontSize: fontVars["--honk-font-size-body"],
-    fontWeight: fontVars["--honk-font-weight-book"],
-    color: {
-      default: colorVars["--honk-color-text-muted"],
-      ":hover": { "@media (hover: hover)": colorVars["--honk-color-text-primary"] },
-    },
-    backgroundColor: {
-      default: "transparent",
-      ":hover": { "@media (hover: hover)": colorVars["--honk-color-layer-01"] },
-    },
-    boxShadow: {
-      default: "none",
-      ":hover": { "@media (hover: hover)": NAV_ROW_RING },
-    },
-  },
-  navRowSelected: {
-    color: {
-      default: colorVars["--honk-color-text-primary"],
-      ":hover": { "@media (hover: hover)": colorVars["--honk-color-text-primary"] },
-    },
-    backgroundColor: {
-      default: colorVars["--honk-color-accent-subtle"],
-      ":hover": { "@media (hover: hover)": colorVars["--honk-color-accent-subtle"] },
-    },
-    boxShadow: {
-      default: NAV_ROW_RING,
-      ":hover": { "@media (hover: hover)": NAV_ROW_RING },
-    },
-  },
-  navRowLabel: {
-    minWidth: 0,
-    flexGrow: 1,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-  navRowMeta: {
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    gap: controlVars["--honk-control-gap"],
-    color: colorVars["--honk-color-text-faint"],
-    fontVariantNumeric: "tabular-nums",
-    fontSize: fontVars["--honk-font-size-detail"],
-  },
   navSpacer: {
     flexGrow: 1,
     minHeight: 0,
   },
-  // v2 HomeUtilityNav: mb-8 mt-4 — the Settings/help cluster seated off the sheet corner.
   navFooter: {
     flexShrink: 0,
     display: "flex",
@@ -202,11 +201,7 @@ const styles = stylex.create({
     marginBottom: HOME_GAP_LARGE,
     paddingRight: spaceVars["--honk-space-panel-pad"],
   },
-  navFooterRow: {
-    color: colorVars["--honk-color-text-faint"],
-  },
 
-  // ── Right column: grouped thread list ────────────────────────────────────────────────────
   content: {
     minWidth: 0,
     minHeight: 0,
@@ -219,8 +214,7 @@ const styles = stylex.create({
     flexShrink: 1,
     flexBasis: "0%",
     minHeight: 0,
-    marginTop: spaceVars["--honk-space-panel-pad"],
-    // v2: -mr-3 + pr-3 content — the scrollbar rides the gutter, rows keep their inset.
+    // Scrollbar rides the gutter; rows keep their inset.
     marginRight: NEGATIVE_PANEL_PAD,
     display: "flex",
     flexDirection: "column",
@@ -230,16 +224,18 @@ const styles = stylex.create({
   scrollContent: {
     display: "flex",
     flexDirection: "column",
-    paddingTop: spaceVars["--honk-space-panel-pad"],
     paddingRight: spaceVars["--honk-space-panel-pad"],
     paddingBottom: SCROLL_PAD_BOTTOM,
   },
   groupHead: {
+    position: "sticky",
+    top: 0,
     display: "flex",
     alignItems: "center",
     gap: controlVars["--honk-control-gap"],
     paddingBlock: controlVars["--honk-control-gap"],
     paddingInline: spaceVars["--honk-space-control-pad-x"],
+    backgroundColor: colorVars["--honk-color-bg-base"],
     color: colorVars["--honk-color-text-faint"],
     fontSize: fontVars["--honk-font-size-detail"],
     fontWeight: fontVars["--honk-font-weight-semibold"],
@@ -253,8 +249,6 @@ const styles = stylex.create({
   },
   chip: {
     display: "inline-block",
-    // The branch name is secondary — it never wins the space contest against the
-    // thread title, so the pill caps and ellipsizes.
     maxWidth: BRANCH_CHIP_MAX_WIDTH,
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -283,12 +277,11 @@ const styles = stylex.create({
 });
 
 function HomePage(): React.ReactElement {
-  const watch = useWorkspaceWatch();
+  const watch = useSessionInventoryWatch();
   const appSettings = useAppSettings();
-  const threads = activeThreads(watch.state?.threads ?? EMPTY_THREADS);
+  const threads = activeThreads(watch.state?.rootSessions ?? EMPTY_THREADS);
   const [projectKey, setProjectKey] = React.useState(PROJECT_ALL_KEY);
-  // A folder aimed at directly (Add project / the composer's location chip) — it wins over
-  // the nav selection until a project row is clicked again.
+  // Explicit folder pick beats the nav selection until a project row is clicked again.
   const [pickedDirectory, setPickedDirectory] = React.useState<string | null>(null);
   const projectFilters = buildProjectFilters(threads);
   const selectedProjectKey = projectFilters.some((project) => project.key === projectKey)
@@ -299,8 +292,7 @@ function HomePage(): React.ReactElement {
   const isConnecting = watch.status === "connecting" && watch.state === null;
   const isDisconnected = watch.status === "closed" || watch.status === "unauthorized";
 
-  // Where a new thread lands: an explicitly picked folder > the selected project's worktree >
-  // the settings default > the sidecar's own default (undefined).
+  // New-session project: picked folder, then the selected project root, then the saved default.
   const selectedProject = projectFilters.find((project) => project.key === selectedProjectKey);
   const projectDirectory =
     selectedProjectKey === PROJECT_ALL_KEY ? null : (selectedProject?.directory ?? null);
@@ -338,9 +330,14 @@ function HomePage(): React.ReactElement {
   return (
     <div {...stylex.props(styles.grid)}>
       <div {...stylex.props(styles.composerLane)}>
-        <Composer
-          {...(targetDirectory !== undefined ? { directory: targetDirectory } : {})}
+        <HomeComposer
+          {...(targetDirectory !== undefined
+            ? { location: openCodeLocationRef({ directory: targetDirectory }) }
+            : {})}
           {...(targetLabel !== undefined ? { directoryLabel: targetLabel } : {})}
+          {...(selectedProject?.server === null || selectedProject?.server === undefined
+            ? {}
+            : { server: selectedProject.server })}
           recentDirectories={watch.state?.recentDirectories ?? EMPTY_DIRECTORIES}
           onDirectoryPicked={(path) => {
             setPickedDirectory(path);
@@ -401,7 +398,78 @@ function HomePage(): React.ReactElement {
   );
 }
 
-// ── Left column ──────────────────────────────────────────────────────────────────────────────
+const AVATAR_COLOR_STYLES = [
+  styles.avatarPink,
+  styles.avatarMint,
+  styles.avatarOrange,
+  styles.avatarPurple,
+  styles.avatarCyan,
+  styles.avatarLime,
+] as const;
+
+// Deterministic per-project tint: FNV-ish hash of the stable project key into the fixed palette.
+function avatarColorIndex(key: string): number {
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  return hash % AVATAR_COLOR_STYLES.length;
+}
+
+function ProjectAvatar({
+  label,
+  colorKey,
+}: {
+  readonly label: string;
+  readonly colorKey: string;
+}): React.ReactElement {
+  const initial = (label.trim()[0] ?? "?").toUpperCase();
+  return (
+    <span
+      {...stylex.props(styles.avatar, AVATAR_COLOR_STYLES[avatarColorIndex(colorKey)])}
+      aria-hidden
+    >
+      {initial}
+    </span>
+  );
+}
+
+// Live states earn a corner badge; idle/done/draft rows stay a clean avatar since the
+// group header ("Working" / "Needs you") already carries the status.
+function threadBadge(status: TabStatus): { tone: "info" | "warn" | "err"; pulse: boolean } | null {
+  switch (status) {
+    case "working":
+      return { tone: "info", pulse: true };
+    case "needs-you":
+      return { tone: "warn", pulse: true };
+    case "failed":
+      return { tone: "err", pulse: false };
+    default:
+      return null;
+  }
+}
+
+function ThreadAvatar({
+  label,
+  colorKey,
+  status,
+}: {
+  readonly label: string;
+  readonly colorKey: string;
+  readonly status: TabStatus;
+}): React.ReactElement {
+  const badge = threadBadge(status);
+  return (
+    <span {...stylex.props(styles.avatarWrap)} title={label}>
+      <ProjectAvatar label={label} colorKey={colorKey} />
+      {badge !== null && (
+        <span {...stylex.props(styles.avatarBadge)}>
+          <StatusDot tone={badge.tone} pulse={badge.pulse} />
+        </span>
+      )}
+    </span>
+  );
+}
 
 function ProjectNav({
   projects,
@@ -414,73 +482,52 @@ function ProjectNav({
   readonly onSelect: (key: string) => void;
   readonly onAddProject: () => void;
 }): React.ReactElement {
-  const navigate = useNavigate();
-
   return (
     <aside {...stylex.props(styles.nav)} aria-label="Projects">
       <div {...stylex.props(styles.navHead)}>Projects</div>
       <div {...stylex.props(styles.navRows)}>
         {projects.map((project) => (
-          <NavRow
+          <ListRow
             key={project.key}
             isSelected={project.key === selectedKey}
+            aria-current={project.key === selectedKey ? "page" : undefined}
             onClick={() => {
               onSelect(project.key);
             }}
           >
-            <span {...stylex.props(styles.navRowLabel)}>{project.label}</span>
-            <span {...stylex.props(styles.navRowMeta)}>
+            <ProjectAvatar label={project.label} colorKey={project.key} />
+            <ListRow.Content>
+              <ListRow.Title>{project.label}</ListRow.Title>
+            </ListRow.Content>
+            <ListRow.Meta>
               {project.statuses[0] !== undefined && (
                 <HomeStatusGlyph status={project.statuses[0]} />
               )}
               {project.count}
-            </span>
-          </NavRow>
+            </ListRow.Meta>
+          </ListRow>
         ))}
-        {/* Aim a new thread at any folder — the picked path lands on the composer's location
-            chip; the folder becomes a real project row once its first thread exists. */}
-        <NavRow xstyle={styles.navFooterRow} onClick={onAddProject}>
-          <Icon icon={IconFolderAddRight} size="sm" tone="muted" />
-          <span {...stylex.props(styles.navRowLabel)}>Add project</span>
-        </NavRow>
+        <ListRow onClick={onAddProject}>
+          <ListRow.Slot style={LEADING_SLOT_STYLE}>
+            <Icon icon={IconFolderAddRight} size="sm" tone="muted" />
+          </ListRow.Slot>
+          <ListRow.Title>Add project</ListRow.Title>
+        </ListRow>
       </div>
       <div {...stylex.props(styles.navSpacer)} />
-      {/* The utility footer — the old rail's settings gear lives here now (v2 HomeUtilityNav). */}
       <div {...stylex.props(styles.navFooter)}>
-        <NavRow
-          xstyle={styles.navFooterRow}
+        <ListRow
           onClick={() => {
-            void navigate({ to: "/settings", search: { section: DEFAULT_SETTINGS_SECTION } });
+            settingsActions.open();
           }}
         >
-          <Icon icon={IconSettingsGear2} size="sm" tone="muted" />
-          <span {...stylex.props(styles.navRowLabel)}>Settings</span>
-        </NavRow>
+          <ListRow.Slot style={LEADING_SLOT_STYLE}>
+            <Icon icon={IconSettingsGear2} size="sm" tone="muted" />
+          </ListRow.Slot>
+          <ListRow.Title>Settings</ListRow.Title>
+        </ListRow>
       </div>
     </aside>
-  );
-}
-
-function NavRow({
-  isSelected = false,
-  onClick,
-  children,
-  xstyle,
-}: {
-  readonly isSelected?: boolean;
-  readonly onClick: () => void;
-  readonly children: React.ReactNode;
-  readonly xstyle?: stylex.StyleXStyles;
-}): React.ReactElement {
-  return (
-    <button
-      type="button"
-      aria-pressed={isSelected}
-      {...stylex.props(styles.navRow, isSelected && styles.navRowSelected, xstyle)}
-      onClick={onClick}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -489,19 +536,21 @@ const EMPTY_DIRECTORIES: readonly string[] = Object.freeze([]);
 
 function activeThreads(threads: readonly CommandMenuThread[]): readonly CommandMenuThread[] {
   return threads
-    .filter((t) => t.archivedAt === null)
+    .filter((thread) => thread.archivedAt === null && thread.parentSessionId === null)
     .slice()
     .sort((a, b) => {
       const byUpdated = b.updatedAt.localeCompare(a.updatedAt);
       return byUpdated === 0 ? String(a.id).localeCompare(String(b.id)) : byUpdated;
-    });
+    })
+    .slice(0, HOME_SESSION_LIMIT);
 }
 
 type ProjectFilter = {
   readonly key: string;
   readonly label: string;
-  // The project's worktree path — the composer's target when this row is selected.
+  // Worktree path used as the composer cwd when this row is selected.
   readonly directory: string | null;
+  readonly server: OpenCodeServerKey | null;
   readonly count: number;
   readonly statuses: readonly TabStatus[];
 };
@@ -515,7 +564,12 @@ type ThreadGroups = {
 function buildProjectFilters(threads: readonly CommandMenuThread[]): readonly ProjectFilter[] {
   const byProject = new Map<
     string,
-    { label: string; directory: string | null; threads: CommandMenuThread[] }
+    {
+      label: string;
+      directory: string | null;
+      server: OpenCodeServerKey;
+      threads: CommandMenuThread[];
+    }
   >();
 
   for (const thread of threads) {
@@ -524,14 +578,12 @@ function buildProjectFilters(threads: readonly CommandMenuThread[]): readonly Pr
     if (existing === undefined) {
       byProject.set(key, {
         label: projectLabel(thread),
-        directory: thread.worktree?.path ?? null,
+        directory: thread.projectDirectory,
+        server: thread.server,
         threads: [thread],
       });
     } else {
       existing.threads.push(thread);
-      if (existing.directory === null && thread.worktree?.path != null) {
-        existing.directory = thread.worktree.path;
-      }
     }
   }
 
@@ -540,6 +592,7 @@ function buildProjectFilters(threads: readonly CommandMenuThread[]): readonly Pr
       key,
       label: value.label,
       directory: value.directory,
+      server: value.server,
       count: value.threads.length,
       statuses: statusRoll(value.threads),
     }))
@@ -550,6 +603,7 @@ function buildProjectFilters(threads: readonly CommandMenuThread[]): readonly Pr
       key: PROJECT_ALL_KEY,
       label: "All",
       directory: null,
+      server: null,
       count: threads.length,
       statuses: statusRoll(threads),
     },
@@ -588,29 +642,23 @@ function groupHomeThreads(threads: readonly CommandMenuThread[]): ThreadGroups {
 
 function projectKey(thread: CommandMenuThread): string {
   if (thread.projectId !== null) {
-    return `project:${String(thread.projectId)}`;
+    return `server:${thread.server}:project:${String(thread.projectId)}`;
   }
   const worktreePath = thread.worktree?.path;
   if (worktreePath !== undefined && worktreePath !== null) {
-    return `cwd:${worktreePath}`;
+    return `server:${thread.server}:cwd:${worktreePath}`;
   }
-  return "anywhere";
+  return `server:${thread.server}:anywhere`;
 }
 
 function projectLabel(thread: CommandMenuThread): string {
-  if (thread.worktree?.path !== undefined && thread.worktree.path !== null) {
-    return basename(thread.worktree.path);
+  if (thread.projectDirectory.length > 0) {
+    return basename(thread.projectDirectory);
   }
   if (thread.projectId !== null) {
     return String(thread.projectId);
   }
   return "Anywhere";
-}
-
-function basename(path: string): string {
-  const trimmed = path.replace(/[\\/]+$/, "");
-  const [last = trimmed] = trimmed.split(/[\\/]/).slice(-1);
-  return last.length > 0 ? last : path;
 }
 
 const STATUS_ORDER: readonly TabStatus[] = Object.freeze([
@@ -645,7 +693,10 @@ function ThreadGroup({
         <span {...stylex.props(styles.count)}>{threads.length}</span>
       </div>
       {threads.map((thread) => (
-        <HomeThreadRow key={String(thread.id)} thread={thread} />
+        <HomeThreadRow
+          key={openCodeSessionKey(openCodeSessionRef(thread.server, thread.id))}
+          thread={thread}
+        />
       ))}
     </>
   );
@@ -653,14 +704,13 @@ function ThreadGroup({
 
 function HomeThreadRow({ thread }: { thread: CommandMenuThread }): React.ReactElement {
   const status = tabStatusFromSummary(thread);
-  const subtitle = `${projectLabel(thread)} · ${threadStatusLabel(thread)}`;
   const branch = thread.worktree?.branch;
 
   return (
     <ListRow
       onClick={() => {
         tabActions.open({
-          key: String(thread.id),
+          key: openCodeSessionKey(openCodeSessionRef(thread.server, thread.id)),
           title: thread.title,
           kind: "thread",
           status,
@@ -671,11 +721,10 @@ function HomeThreadRow({ thread }: { thread: CommandMenuThread }): React.ReactEl
         });
       }}
     >
-      <ListRow.Slot>
-        <HomeStatusGlyph status={status} />
-      </ListRow.Slot>
-      <ListRow.Title>{thread.title}</ListRow.Title>
-      <ListRow.Subtitle>{subtitle}</ListRow.Subtitle>
+      <ThreadAvatar label={projectLabel(thread)} colorKey={projectKey(thread)} status={status} />
+      <ListRow.Content>
+        <ListRow.Title>{thread.title}</ListRow.Title>
+      </ListRow.Content>
       <ListRow.Meta>
         {branch !== undefined && branch !== null ? (
           <span {...stylex.props(styles.chip)}>{branch}</span>
@@ -690,25 +739,10 @@ function HomeStatusGlyph({ status }: { status: TabStatus }): React.ReactElement 
   if (status === "working") {
     return <Matrix grid={4} isActive />;
   }
+  if (status === "needs-you") {
+    return <Matrix grid={4} variant="attention" />;
+  }
   return <StatusDot tone={statusDotTone(status)} pulse={statusDotPulse(status)} />;
-}
-
-function threadStatusLabel(thread: CommandMenuThread): string {
-  if (thread.needsAttention) {
-    return "needs input";
-  }
-  switch (thread.status) {
-    case "running":
-      return "working";
-    case "failed":
-      return "failed";
-    case "idle":
-      return "idle";
-    default: {
-      const _exhaustive: never = thread.status;
-      return _exhaustive;
-    }
-  }
 }
 
 const MINUTE_MS = 60 * 1000;

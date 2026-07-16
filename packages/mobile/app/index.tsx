@@ -9,6 +9,6 @@ export default function IndexRoute(): React.ReactElement {
   if (remote.status === "restoring") {
     return <LoadingState label="Restoring Honk connection…" />;
   }
-  if (remote.client === null) return <Redirect href="/connect" />;
+  if (remote.servers.length === 0 || remote.client === null) return <Redirect href="/connect" />;
   return <Redirect href="/(tabs)/home" />;
 }

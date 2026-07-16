@@ -19,8 +19,11 @@ export default function HomeLayout(): React.ReactElement {
         headerTintColor: theme.colors.textPrimary,
       }}
     >
-      <Stack.Screen name="index" options={{ title: "Tasks" }} />
-      <Stack.Screen name="[threadId]" options={{ headerLargeTitle: false }} />
+      <Stack.Screen name="index" options={{ title: "Sessions" }} />
+      <Stack.Screen
+        name="server/[serverKey]/session/[sessionId]"
+        options={{ headerLargeTitle: false }}
+      />
     </Stack>
   );
 }

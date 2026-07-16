@@ -1,24 +1,15 @@
-// The input surface — the one primitive that draws "a place you type": the control well,
-// the hairline ring, the field radius, and the crisp accent focus ring. Callers compose the
-// inside (scope chips, the bare input, hint keys, a submit control) as flex children; the
-// container owns geometry and focus so no call site ever hand-rolls another ring recipe.
-// Zero logic, zero effects — focus is CSS :focus-within, never a React focus state.
-//
-//   Field          the surface: flex row, ring, radius, focus outline
-//   └ Field.Input  the bare text input: transparent, unstyled, fills the row
-
 import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
+import { applyStyle, type HonkStyle, type StyleProp } from "./style";
 import { colorVars, controlVars, fontVars, radiusVars } from "./tokens.stylex";
 
 type FieldSize = "md" | "lg";
 
-// A hairline ring drawn as an inset shadow (not a border, so it never shifts layout).
+// Hairline is an inset shadow so the ring never shifts layout.
 const RING_BASE = `inset 0 0 0 1px ${colorVars["--honk-color-border-base"]}`;
 const RING_HOVER = `inset 0 0 0 1px ${colorVars["--honk-color-border-strong"]}`;
-// Focus ring intrinsics — the same 1px hairline + 2px gap recipe button.tsx and checkbox.tsx
-// draw; control anatomy, not tokens. Drawn with `outline` so it never collides with the ring.
+// Outline focus ring sits outside the inset ring without colliding.
 const FOCUS_RING_WIDTH = "1px";
 const FOCUS_RING_OFFSET = "2px";
 
@@ -29,8 +20,6 @@ const sx = stylex.create({
     gap: controlVars["--honk-control-gap"],
     width: "100%",
     boxSizing: "border-box",
-    // Bluesky's TextField rests on contrast_50 rather than the near-white contrast_25 layer;
-    // this is the same semantic control fill used by neutral buttons.
     backgroundColor: colorVars["--honk-color-control"],
     borderRadius: radiusVars["--honk-radius-field"],
     boxShadow: {
@@ -42,8 +31,6 @@ const sx = stylex.create({
     outlineWidth: FOCUS_RING_WIDTH,
     outlineOffset: FOCUS_RING_OFFSET,
   },
-  // Sizes ride the shared control scale: md is the standard 28px field; lg is the hero
-  // surface (omnibox) — the 32px step plus block padding so inner chips get breathing room.
   sizeMd: {
     minHeight: controlVars["--honk-control-h-md"],
     paddingBlock: 0,
@@ -76,26 +63,30 @@ const sx = stylex.create({
 
 interface FieldProps extends Omit<React.ComponentPropsWithoutRef<"div">, "className" | "style"> {
   size?: FieldSize;
-  // Caller override, merged last (charter merge order).
-  xstyle?: stylex.StyleXStyles;
+  style?: StyleProp<HonkStyle>;
 }
 
-function FieldRoot({ size = "md", xstyle, children, ...rest }: FieldProps): React.ReactElement {
+function FieldRoot({ size = "md", style, children, ...rest }: FieldProps): React.ReactElement {
   return (
-    <div {...rest} {...stylex.props(sx.root, size === "lg" ? sx.sizeLg : sx.sizeMd, xstyle)}>
+    <div
+      {...rest}
+      {...applyStyle(stylex.props(sx.root, size === "lg" ? sx.sizeLg : sx.sizeMd), style)}
+    >
       {children}
     </div>
   );
 }
 
-interface FieldInputProps
-  extends Omit<React.ComponentPropsWithoutRef<"input">, "className" | "style"> {
+interface FieldInputProps extends Omit<
+  React.ComponentPropsWithoutRef<"input">,
+  "className" | "style"
+> {
   ref?: React.Ref<HTMLInputElement>;
-  xstyle?: stylex.StyleXStyles;
+  style?: StyleProp<HonkStyle>;
 }
 
-function FieldInput({ xstyle, ...rest }: FieldInputProps): React.ReactElement {
-  return <input {...rest} {...stylex.props(sx.input, xstyle)} />;
+function FieldInput({ style, ...rest }: FieldInputProps): React.ReactElement {
+  return <input {...rest} {...applyStyle(stylex.props(sx.input), style)} />;
 }
 
 const Field = Object.assign(FieldRoot, { Input: FieldInput });

@@ -169,9 +169,7 @@ const make = Effect.gen(function* () {
                 },
                 { type: "separator" as const },
               ]),
-          // ADR 0025 §5: next shell owns ⌘W via the renderer hotkey registry.
-          // Darwin File→Close is the ⌘W thief; move it to ⌘⇧W. Win/Linux File is
-          // Quit (no Ctrl+W) — the windowMenu override below frees Ctrl+W there.
+          // ADR 0025 §5: renderer owns ⌘W. Move Darwin File→Close to ⌘⇧W.
           environment.platform === "darwin"
             ? { role: "close" as const, accelerator: "CmdOrCtrl+Shift+W" }
             : { role: "quit" as const },
@@ -193,8 +191,7 @@ const make = Effect.gen(function* () {
           { role: "togglefullscreen" },
         ],
       },
-      // Win/Linux `windowMenu` also binds Ctrl+W to Close Window; override so the
-      // next shell's scoped ⌘W registry is not stolen (ADR 0025 §5).
+      // Win/Linux windowMenu also steals Ctrl+W. Override per ADR 0025 §5.
       environment.platform !== "darwin"
         ? {
             label: "Window",

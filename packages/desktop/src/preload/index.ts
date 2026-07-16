@@ -1,12 +1,10 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type {
-  BrowserAutomationOpenRequest,
-  BrowserAutomationRegisterInput,
-  BrowserAutomationUnregisterInput,
-} from "@honk/shared/browser-automation";
+import type { BrowserAutomationOpenRequest } from "@honk/shared/browser-automation";
 import type {
   DesktopAppBranding,
   DesktopBridge,
+  DesktopBrowserViewState,
+  DesktopPtyBridge,
   DesktopRendererDiagnosticInput,
   DesktopUpdateState,
   DesktopWindowChromeState,
@@ -21,19 +19,6 @@ interface DesktopOpencodeSidecarEndpoint {
   readonly status: "idle" | "starting" | "ready" | "restarting" | "stopped" | "error";
   readonly url: string | null;
   readonly password: string | null;
-}
-
-interface DesktopPtyBridge {
-  readonly open: (options: {
-    readonly cwd: string;
-    readonly cols: number;
-    readonly rows: number;
-  }) => Promise<{ readonly id: string }>;
-  readonly write: (id: string, data: string) => void;
-  readonly resize: (id: string, cols: number, rows: number) => void;
-  readonly close: (id: string) => void;
-  readonly onData: (id: string, listener: (data: string) => void) => () => void;
-  readonly onExit: (id: string, listener: (code: number) => void) => () => void;
 }
 
 type DesktopBridgeWithAux = DesktopBridge<never> & {
@@ -64,12 +49,12 @@ const UPDATE_CHECK_CHANNEL = "desktop:update-check";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const GET_APP_BRANDING_CHANNEL = "desktop:get-app-branding";
-const GET_BROWSER_WEBVIEW_PRELOAD_PATH_CHANNEL = "desktop:get-browser-webview-preload-path";
-const REGISTER_BROWSER_AUTOMATION_HOST_CHANNEL = "desktop:register-browser-automation-host";
-const UNREGISTER_BROWSER_AUTOMATION_HOST_CHANNEL = "desktop:unregister-browser-automation-host";
+const SYNC_BROWSER_VIEW_CHANNEL = "desktop:sync-browser-view";
+const DETACH_BROWSER_VIEW_CHANNEL = "desktop:detach-browser-view";
+const COMMAND_BROWSER_VIEW_CHANNEL = "desktop:command-browser-view";
+const DESTROY_BROWSER_VIEW_CHANNEL = "desktop:destroy-browser-view";
+const BROWSER_VIEW_STATE_CHANNEL = "desktop:browser-view-state";
 const BROWSER_AUTOMATION_OPEN_CHANNEL = "desktop:browser-automation-open";
-const DETECT_LOCALHOST_PORTS_CHANNEL = "desktop:detect-localhost-ports";
-const CLEAR_BROWSER_PARTITION_STORAGE_CHANNEL = "desktop:clear-browser-partition-storage";
 const GET_AUX_ENDPOINT_CHANNEL = "desktop:get-aux-endpoint";
 const GET_OPENCODE_SIDECAR_CHANNEL = "desktop:get-opencode-sidecar";
 const GET_WINDOW_CHROME_STATE_CHANNEL = "desktop:get-window-chrome-state";
@@ -77,8 +62,14 @@ const WINDOW_CHROME_STATE_CHANNEL = "desktop:window-chrome-state";
 const SET_ACTIVE_WORK_STATE_CHANNEL = "desktop:set-active-work-state";
 const GET_CLIENT_SETTINGS_CHANNEL = "desktop:get-client-settings";
 const SET_CLIENT_SETTINGS_CHANNEL = "desktop:set-client-settings";
+const PROTECT_REMOTE_CREDENTIAL_CHANNEL = "desktop:protect-remote-credential";
+const REVEAL_REMOTE_CREDENTIAL_CHANNEL = "desktop:reveal-remote-credential";
 const GET_SERVER_EXPOSURE_STATE_CHANNEL = "desktop:get-server-exposure-state";
 const SET_SERVER_EXPOSURE_MODE_CHANNEL = "desktop:set-server-exposure-mode";
+const SET_SERVER_EXPOSURE_PUBLIC_URL_CHANNEL = "desktop:set-server-exposure-public-url";
+const GET_REMOTE_HOST_STATE_CHANNEL = "desktop:get-remote-host-state";
+const ISSUE_REMOTE_PAIRING_CHANNEL = "desktop:issue-remote-pairing";
+const REVOKE_REMOTE_DEVICE_CHANNEL = "desktop:revoke-remote-device";
 const LOG_RENDERER_DIAGNOSTIC_CHANNEL = "desktop:log-renderer-diagnostic";
 const PTY_OPEN_CHANNEL = "desktop:pty-open";
 const PTY_WRITE_CHANNEL = "desktop:pty-write";
@@ -86,6 +77,13 @@ const PTY_RESIZE_CHANNEL = "desktop:pty-resize";
 const PTY_CLOSE_CHANNEL = "desktop:pty-close";
 const PTY_DATA_CHANNEL = "desktop:pty-data";
 const PTY_EXIT_CHANNEL = "desktop:pty-exit";
+const WINDOW_ID_ARGUMENT_PREFIX = "--honk-window-id=";
+
+function readWindowID(): string {
+  const argument = process.argv.find((value) => value.startsWith(WINDOW_ID_ARGUMENT_PREFIX));
+  const windowID = argument?.slice(WINDOW_ID_ARGUMENT_PREFIX.length).trim() ?? "";
+  return windowID.length > 0 ? windowID : "main";
+}
 
 function readWindowChromeState(): DesktopWindowChromeState {
   const state: unknown = ipcRenderer.sendSync(GET_WINDOW_CHROME_STATE_CHANNEL);
@@ -107,14 +105,21 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     }
     return result as DesktopAppBranding;
   },
-  getBrowserWebviewPreloadPath: () => {
-    const result: unknown = ipcRenderer.sendSync(GET_BROWSER_WEBVIEW_PRELOAD_PATH_CHANNEL);
-    return typeof result === "string" && result.length > 0 ? result : null;
+  getWindowID: readWindowID,
+  syncBrowserView: (input) => ipcRenderer.invoke(SYNC_BROWSER_VIEW_CHANNEL, input),
+  detachBrowserView: (input) => ipcRenderer.invoke(DETACH_BROWSER_VIEW_CHANNEL, input),
+  commandBrowserView: (input) => ipcRenderer.invoke(COMMAND_BROWSER_VIEW_CHANNEL, input),
+  destroyBrowserView: (input) => ipcRenderer.invoke(DESTROY_BROWSER_VIEW_CHANNEL, input),
+  onBrowserViewState: (listener) => {
+    const wrappedListener = (_event: IpcRendererEvent, state: DesktopBrowserViewState) => {
+      listener(state);
+    };
+
+    ipcRenderer.on(BROWSER_VIEW_STATE_CHANNEL, wrappedListener);
+    return () => {
+      ipcRenderer.removeListener(BROWSER_VIEW_STATE_CHANNEL, wrappedListener);
+    };
   },
-  registerBrowserAutomationHost: (input: BrowserAutomationRegisterInput) =>
-    ipcRenderer.invoke(REGISTER_BROWSER_AUTOMATION_HOST_CHANNEL, input),
-  unregisterBrowserAutomationHost: (input: BrowserAutomationUnregisterInput) =>
-    ipcRenderer.invoke(UNREGISTER_BROWSER_AUTOMATION_HOST_CHANNEL, input),
   onBrowserAutomationOpen: (listener) => {
     const wrappedListener = (_event: IpcRendererEvent, input: BrowserAutomationOpenRequest) => {
       listener(input);
@@ -125,9 +130,6 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       ipcRenderer.removeListener(BROWSER_AUTOMATION_OPEN_CHANNEL, wrappedListener);
     };
   },
-  detectLocalhostPorts: (ports) => ipcRenderer.invoke(DETECT_LOCALHOST_PORTS_CHANNEL, ports),
-  clearBrowserPartitionStorage: (input) =>
-    ipcRenderer.invoke(CLEAR_BROWSER_PARTITION_STORAGE_CHANNEL, input),
   getAuxEndpoint: () => ipcRenderer.invoke(GET_AUX_ENDPOINT_CHANNEL),
   getOpencodeSidecar: () => ipcRenderer.invoke(GET_OPENCODE_SIDECAR_CHANNEL),
   getWindowChromeState: readWindowChromeState,
@@ -144,8 +146,17 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   setActiveWorkState: (state) => ipcRenderer.invoke(SET_ACTIVE_WORK_STATE_CHANNEL, state),
   getClientSettings: () => ipcRenderer.invoke(GET_CLIENT_SETTINGS_CHANNEL),
   setClientSettings: (settings) => ipcRenderer.invoke(SET_CLIENT_SETTINGS_CHANNEL, settings),
+  protectRemoteCredential: (credential) =>
+    ipcRenderer.invoke(PROTECT_REMOTE_CREDENTIAL_CHANNEL, credential),
+  revealRemoteCredential: (protectedCredential) =>
+    ipcRenderer.invoke(REVEAL_REMOTE_CREDENTIAL_CHANNEL, protectedCredential),
   getServerExposureState: () => ipcRenderer.invoke(GET_SERVER_EXPOSURE_STATE_CHANNEL),
   setServerExposureMode: (mode) => ipcRenderer.invoke(SET_SERVER_EXPOSURE_MODE_CHANNEL, mode),
+  setServerExposurePublicUrl: (publicUrl) =>
+    ipcRenderer.invoke(SET_SERVER_EXPOSURE_PUBLIC_URL_CHANNEL, publicUrl),
+  getRemoteHostState: () => ipcRenderer.invoke(GET_REMOTE_HOST_STATE_CHANNEL),
+  issueRemotePairing: (label) => ipcRenderer.invoke(ISSUE_REMOTE_PAIRING_CHANNEL, label),
+  revokeRemoteDevice: (deviceID) => ipcRenderer.invoke(REVOKE_REMOTE_DEVICE_CHANNEL, deviceID),
   pickFolder: (options) => ipcRenderer.invoke(PICK_FOLDER_CHANNEL, options),
   completeOnboarding: () => ipcRenderer.invoke(COMPLETE_ONBOARDING_CHANNEL),
   finishOnboarding: () => ipcRenderer.invoke(FINISH_ONBOARDING_CHANNEL),
@@ -199,8 +210,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(LOG_RENDERER_DIAGNOSTIC_CHANNEL, input),
   pty: {
     open: (options) => ipcRenderer.invoke(PTY_OPEN_CHANNEL, options),
-    // Fire-and-forget: the contract types these as `=> void`, so discard the
-    // invoke promise rather than exposing it to the renderer.
+    // Contract is `=> void`. Discard the invoke promise.
     write: (id, data) => {
       void ipcRenderer.invoke(PTY_WRITE_CHANNEL, { id, data });
     },

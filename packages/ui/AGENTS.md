@@ -4,15 +4,15 @@
 the same product capabilities and semantic component contracts; their markup, interaction
 primitives, and presentation may differ when the platform requires it.
 
-Native support is incremental: the Expo consumer exercises the platform-resolved TextField, but the
-rest of the package remains web-only until each component gains a real native renderer. Never imply
-package-wide native parity from one proof component, and do not add placeholder native files or
-unused React Native dependencies.
+Native support is incremental: the Expo consumer now exercises platform-resolved Text, Button,
+IconButton, Picker, ListRow, Checkbox, Switch, Matrix, and TextField leaves. The rest of the package
+remains web-only until each component gains a real native renderer. Never imply package-wide native
+parity from these leaves, and do not add placeholder native files or unused React Native
+dependencies.
 
 ## Required reading
 
-- Read the repository `AGENTS.md`, `.agents/skills/design/SKILL.md`, `.design/README.md`, and
-  `.agents/skills/honk-ui/SKILL.md` first.
+- Read the repository `AGENTS.md`, `.agents/skills/design/SKILL.md`, and `.design/README.md` first.
 - For web implementation, also read the StyleX and styling-token skills completely.
 - For native implementation, use the installed Expo/native-UI skills and verify APIs against the
   consumer's installed Expo and React Native versions.
@@ -49,8 +49,6 @@ elements, refs, events, focus management, gestures, animation, and styling.
   APIs; platform resolution stays behind this package's exports.
 - Shared component contracts and future machine-readable component metadata belong in core and must
   remain importable without a DOM or React Native runtime.
-- The `honk-ui` skill is workflow guidance. It validates the Expo consumer through its package
-  typecheck and the repository design lint; do not introduce a parallel UI-specific CLI.
 
 ## Web renderer
 
@@ -59,7 +57,8 @@ elements, refs, events, focus management, gestures, animation, and styling.
 - Existing web-only primitives read values from `tokens.stylex.ts`. Cross-platform primitives read
   shared values from the generated `platform-tokens.stylex.ts`; no raw design values at call sites.
 - Tailwind remains a token-backed layout channel, not a component override channel.
-- Plain CSS is limited to globals, third-party surfaces, and native/Electron chrome contracts.
+- Plain global CSS is limited to roots/resets, vendor baseline imports, and native/Electron chrome
+  contracts. Component-scoped third-party DOM adapters use a colocated CSS module and token vars.
 - Keep hover behind `(hover: hover)` and pair motion with reduced-motion behavior.
 
 ## Native renderer
@@ -75,10 +74,12 @@ elements, refs, events, focus management, gestures, animation, and styling.
   system chrome to platform semantic colors, but it must not invent a second component vocabulary.
 - Continue to use `central-icons`. Do not copy Bluesky's icon set or add another icon library.
 
-`theme.ts` is the representation-neutral source for values shared by web and native.
-`platform-tokens.stylex.ts` is generated from it, while native renderers resolve a concrete theme
-directly. CSS expressions in the remaining web-only token source are representations, not a second
-cross-platform palette.
+`theme.ts` is the representation-neutral source for values shared by web and native. Light colors
+come from Cursor 3.11.25's bundled workbench core and Cursor Light theme; dark colors restore
+Honk's Cursor-derived git palette. The
+`platform-tokens.stylex.ts` and first-paint CSS files are generated from that source, while native
+renderers resolve a concrete theme directly. CSS expressions in the remaining web-only token source
+are representations, not a second cross-platform palette.
 
 ## Bluesky research protocol for mobile components
 

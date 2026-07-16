@@ -1,12 +1,14 @@
-// The model presets behind the composer's selector. Every thread is born from one preset that
-// pins an Agent + Oracle model bundle, and a thread's preset never changes after creation.
-// The authoritative model/variant ids live in the generated opencode config (the sidecar
-// supervisor writes the agent definitions); this module is the UI's view of that table —
-// display labels + the persisted "which stop is dialed" state (plain store, tab-store idiom).
+// Every thread pins one Main + Sidekick bundle at birth. The main model rides every prompt.
+// The Honk plugin keeps a persistent child session on the paired sidekick.
 
+import {
+  HONK_AGENT_PAIRINGS,
+  type HonkModelArm,
+  type HonkPresetStop,
+} from "@honk/opencode/pairing";
 import { useSyncExternalStore } from "react";
 
-export type PresetId = "low" | "medium" | "high" | "ultra";
+export type PresetId = HonkPresetStop;
 
 export type PresetModel = {
   readonly providerID: string;
@@ -16,61 +18,36 @@ export type PresetModel = {
 export type PresetDefinition = {
   readonly id: PresetId;
   readonly label: string;
-  // The model bundle this stop hard-pins (sent explicitly on create + every prompt; the
-  // MODE agent carries no model of its own). Ids MUST match the desktop config generator's
-  // OPENCODE_MODEL_IDS (packages/desktop/src/backend/opencode-config.ts).
-  readonly agentModel: PresetModel;
-  readonly agentVariant: string;
-  // Readout lines under the dial — the models this stop pins, as the user reads them.
-  readonly agentLabel: string;
-  readonly oracleLabel: string;
+  // Hard-pinned on create and every prompt. The mode agent carries no model.
+  readonly mainModel: PresetModel;
+  readonly mainVariant: string;
+  readonly sidekickModel: PresetModel;
+  readonly mainLabel: string;
+  readonly sidekickLabel: string;
 };
 
-const SOL: PresetModel = Object.freeze({ providerID: "openai", id: "gpt-5.6-sol" });
-const FABLE: PresetModel = Object.freeze({ providerID: "anthropic", id: "claude-fable-5" });
+function modelLabel(model: HonkModelArm): string {
+  const family = model.providerID === "anthropic" ? "Fable 5" : "Sol";
+  return `${family} ${model.variant}`;
+}
 
-// Table per the grill: medium/high/ultra verbatim from the reference screenshots; low is the
-// shipped default completion (flagged for veto in the grill summary).
-export const PRESETS: readonly PresetDefinition[] = Object.freeze([
-  {
-    id: "low",
-    label: "low",
-    agentModel: SOL,
-    agentVariant: "low",
-    agentLabel: "GPT-5.6 Sol low",
-    oracleLabel: "GPT-5.6 Sol medium",
-  },
-  {
-    id: "medium",
-    label: "medium",
-    agentModel: SOL,
-    agentVariant: "medium",
-    agentLabel: "GPT-5.6 Sol medium",
-    oracleLabel: "GPT-5.6 Sol high",
-  },
-  {
-    id: "high",
-    label: "high",
-    agentModel: SOL,
-    agentVariant: "xhigh",
-    agentLabel: "GPT-5.6 Sol xhigh",
-    oracleLabel: "Fable 5 high",
-  },
-  {
-    id: "ultra",
-    label: "ultra",
-    agentModel: FABLE,
-    agentVariant: "high",
-    agentLabel: "Fable 5 high",
-    oracleLabel: "GPT-5.6 Sol high",
-  },
-]);
+export const PRESETS: readonly PresetDefinition[] = Object.freeze(
+  HONK_AGENT_PAIRINGS.map((pairing) => ({
+    id: pairing.stop,
+    label: pairing.stop,
+    mainModel: { providerID: pairing.main.providerID, id: pairing.main.id },
+    mainVariant: pairing.main.variant,
+    sidekickModel: { providerID: pairing.sidekick.providerID, id: pairing.sidekick.id },
+    mainLabel: modelLabel(pairing.main),
+    sidekickLabel: modelLabel(pairing.sidekick),
+  })),
+);
 
 export function presetById(id: string): PresetDefinition {
   return PRESETS.find((preset) => preset.id === id) ?? PRESETS[1]!;
 }
 
-const STORAGE_KEY = "honk:app-next:preset";
+const STORAGE_KEY = "honk:app:preset";
 const DEFAULT_PRESET: PresetId = "medium";
 
 const listeners = new Set<() => void>();
@@ -93,7 +70,6 @@ export function useSelectedPreset(): PresetId {
 }
 
 export const actions = {
-  // Accepts the selector's string id and validates before changing the persisted preset.
   select(id: string): void {
     if (!isPresetId(id) || id === selected) {
       return;
@@ -129,6 +105,6 @@ function persist(id: PresetId): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, id);
   } catch {
-    // Persistence must never break the composer.
+    // localStorage failure must not break the composer.
   }
 }

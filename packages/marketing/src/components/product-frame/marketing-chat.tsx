@@ -1,28 +1,20 @@
-import { ConversationBubble } from "@honk/honkkit/conversation-bubble";
-import { ToolCallRenderer } from "~/components/chat/message/tool-renderer";
-import { cn } from "@honk/honkkit/utils";
+import { ToolCallLine, UserMessage, WorkGroup } from "@honk/ui";
 import { useEffect, useRef } from "react";
 
-import { useMarketingResolvedTheme } from "../../hooks/use-marketing-resolved-theme";
-
+import { cn } from "../../lib/classes";
 import { MarketingComposer } from "./marketing-composer";
 import type { MarketingTimelineItem } from "./demo-animation";
 import type { MarketingDemoThreadId } from "./demo-data";
 
 const COMPOSER_RESERVE_PX = 112;
 
-function TimelineMessage(props: {
-  item: MarketingTimelineItem;
-  entering: boolean;
-  resolvedTheme: "light" | "dark";
-  stepIndex: number;
-}) {
+function TimelineMessage(props: { item: MarketingTimelineItem; entering: boolean }) {
   if (props.item.kind === "user") {
     return (
       <div className={cn("w-full min-w-0", props.entering && "marketing-demo-enter")}>
-        <ConversationBubble role="user">
-          <div className="text-conversation text-honk-fg-primary">{props.item.text}</div>
-        </ConversationBubble>
+        <UserMessage>
+          <div className="text-body text-primary">{props.item.text}</div>
+        </UserMessage>
       </div>
     );
   }
@@ -31,25 +23,37 @@ function TimelineMessage(props: {
     return (
       <div className={cn("w-full min-w-0", props.entering && "marketing-demo-enter")}>
         <div className="box-border flex w-full min-w-0" data-assistant-transcript-row="">
-          <ConversationBubble role="assistant">
-            <div className="text-conversation text-honk-fg-primary">{props.item.text}</div>
-          </ConversationBubble>
+          <div className="w-full min-w-0 text-body text-primary">{props.item.text}</div>
         </div>
       </div>
     );
   }
 
+  const tool = props.item.toolCall.tool.value;
+  const detail = tool.path ?? tool.details;
   return (
     <div className={cn("w-full min-w-0", props.entering && "marketing-demo-enter")}>
-      <ToolCallRenderer
-        key={`${props.stepIndex}-${props.item.callId}-${props.item.loading ? "loading" : "done"}`}
-        callId={props.item.callId}
-        toolCall={props.item.toolCall}
-        loading={props.item.loading}
-        conversationDensity="detailed"
-        defaultEditExpanded={props.item.defaultEditExpanded ?? false}
-        resolvedTheme={props.resolvedTheme}
-      />
+      {props.item.preview === undefined ? (
+        <ToolCallLine
+          verb={tool.action}
+          detail={detail}
+          state={props.item.loading ? "running" : "done"}
+          added={tool.stats?.additions}
+          removed={tool.stats?.deletions}
+        />
+      ) : (
+        <WorkGroup>
+          <WorkGroup.Header
+            verb={tool.action}
+            detail={detail}
+            added={tool.stats?.additions}
+            removed={tool.stats?.deletions}
+          />
+          <WorkGroup.Preview isScrollable>
+            <WorkGroup.OutputStrip>{props.item.preview}</WorkGroup.OutputStrip>
+          </WorkGroup.Preview>
+        </WorkGroup>
+      )}
     </div>
   );
 }
@@ -59,7 +63,6 @@ export function MarketingChat(props: {
   messages: readonly MarketingTimelineItem[];
   stepIndex: number;
 }) {
-  const resolvedTheme = useMarketingResolvedTheme();
   const timelineRef = useRef<HTMLDivElement>(null);
   const previousStepRef = useRef(props.stepIndex);
 
@@ -76,12 +79,12 @@ export function MarketingChat(props: {
   }, [props.messages.length, props.stepIndex]);
 
   return (
-    <div className="relative flex h-full min-h-0 w-full flex-col bg-honk-chat">
+    <div className="relative flex size-full min-h-0 flex-col bg-base">
       <div
         key={props.activeThreadId}
         ref={timelineRef}
         data-chat-timeline-scroll=""
-        className="mx-auto flex min-h-0 w-full max-w-agent-chat flex-1 flex-col overflow-y-auto overscroll-y-contain px-4 pt-3"
+        className="max-w-agent-chat mx-auto flex min-h-0 w-full flex-1 flex-col overflow-y-auto overscroll-y-contain px-4 pt-3"
         style={{
           gap: "var(--chat-timeline-row-gap)",
           paddingBottom: `calc(${COMPOSER_RESERVE_PX}px + var(--chat-timeline-row-gap))`,
@@ -92,8 +95,6 @@ export function MarketingChat(props: {
             key={`${props.stepIndex}-${index}`}
             entering={index === props.messages.length - 1}
             item={item}
-            resolvedTheme={resolvedTheme}
-            stepIndex={props.stepIndex}
           />
         ))}
       </div>
@@ -101,11 +102,11 @@ export function MarketingChat(props: {
       <div
         aria-hidden
         data-chat-bottom-gradient-overlay=""
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-32 bg-[linear-gradient(to_top,var(--honk-shell-center-surface-background)_0,color-mix(in_srgb,var(--honk-shell-center-surface-background)_82%,transparent)_52%,transparent_100%)]"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-32 bg-[linear-gradient(to_top,var(--honk-color-bg-base)_0,color-mix(in_srgb,var(--honk-color-bg-base)_82%,transparent)_52%,transparent_100%)]"
       />
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-4 pb-3">
-        <div className="pointer-events-auto mx-auto w-full max-w-agent-chat">
+        <div className="max-w-agent-chat pointer-events-auto mx-auto w-full">
           <MarketingComposer />
         </div>
       </div>

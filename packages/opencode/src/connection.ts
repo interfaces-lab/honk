@@ -14,7 +14,7 @@ export type OpenCodeConnectionCandidate = {
 
 const isObject = (value: unknown): value is object => typeof value === "object" && value !== null;
 
-/** Normalize an `opencode serve` base URL without carrying paths or embedded credentials. */
+/** Strip paths and embedded credentials from an `opencode serve` base URL. */
 export function normalizeOpenCodeOrigin(value: string): string {
   let url: URL;
   try {
@@ -33,6 +33,26 @@ export function normalizeOpenCodeOrigin(value: string): string {
   }
   const pathname = url.pathname.replace(/\/+$/, "");
   return `${url.origin}${pathname === "" || pathname === "/" ? "" : pathname}`;
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  return (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "127.0.0.1" ||
+    hostname.startsWith("127.") ||
+    hostname === "::1" ||
+    hostname === "[::1]"
+  );
+}
+
+export function normalizeRemoteOpenCodeOrigin(value: string): string {
+  const origin = normalizeOpenCodeOrigin(value);
+  const url = new URL(origin);
+  if (url.protocol !== "https:" && !isLoopbackHost(url.hostname)) {
+    throw new Error("Remote Honk hosts must use HTTPS.");
+  }
+  return origin;
 }
 
 function utf8Bytes(value: string): number[] {
@@ -79,10 +99,10 @@ function base64Utf8(value: string): string {
 }
 
 export function openCodeAuthorizationHeader(password: string): string {
+  // HTTP Basic username is fixed as "opencode".
   return `Basic ${base64Utf8(`opencode:${password}`)}`;
 }
 
-/** Fail fast before constructing the long-lived SDK client and SSE stream. */
 export async function probeOpenCodeConnection(
   connection: OpenCodeConnection,
   fetchImpl: OpenCodeFetch = fetch,
@@ -119,7 +139,7 @@ function pairingTokenFromUrl(url: URL): string | null {
   return secret !== null && secret.trim().length > 0 ? secret.trim() : null;
 }
 
-/** Parse a Honk attach link, an authenticated HTTP URL, or a raw password plus fallback host. */
+/** Accept a Honk attach link, authenticated HTTP URL, or raw password with fallback host. */
 export function parseOpenCodeConnection(
   value: string,
   fallbackOrigin?: string,
@@ -158,7 +178,7 @@ export function parseOpenCodeConnection(
   }
 }
 
-/** Password stays in the fragment so normal HTTP referrers and server logs do not receive it. */
+/** Keep the password in the fragment so referrers and server logs do not see it. */
 export function createOpenCodeAttachUrl(connection: OpenCodeConnection): string {
   const origin = normalizeOpenCodeOrigin(connection.origin);
   const query = new URLSearchParams({ origin });

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import * as path from "node:path";
+import { Exit, Schema } from "effect";
 import { CommandId } from "@honk/shared/base-schemas";
 import type {
   ServerConfig,
@@ -16,29 +17,27 @@ import {
   ProjectId as ProjectIdSchema,
   ThreadId,
 } from "@honk/shared/base-schemas";
-import type {
+import {
   GitCheckoutInput,
-  GitCreateBranchInput,
-  GitCreateWorktreeInput,
+  type GitCreateBranchInput,
+  type GitCreateWorktreeInput,
   GitDiscardPathsInput,
   GitFileImageInput,
-  GitFilePatchInput,
+  type GitFilePatchInput,
   GitInitInput,
-  GitListBranchesInput,
-  GitPreparePullRequestThreadInput,
+  type GitListBranchesInput,
+  type GitPreparePullRequestThreadInput,
   GitPullInput,
   GitPullRequestRefInput,
-  GitRemoveWorktreeInput,
-  GitRunStackedActionInput,
-  GitStackedAction,
+  type GitRemoveWorktreeInput,
+  type GitRunStackedActionInput,
+  type GitStackedAction,
   GitStatusInput,
 } from "@honk/shared/git";
-import {
-  type KeybindingRule,
-  THREAD_JUMP_KEYBINDING_COMMANDS,
-} from "@honk/shared/keybindings";
+import { KeybindingRule } from "@honk/shared/keybindings";
 import type { ModelSelection } from "@honk/shared/model";
-import type { ProjectScript } from "@honk/shared/project-scripts";
+import { ProjectScript } from "@honk/shared/project-scripts";
+import { formatSchemaIssues } from "@honk/shared/schema-json";
 import type { ServerSettingsPatch } from "@honk/shared/server-settings";
 
 import { createDesktopAuxGitService, type DesktopAuxGitService } from "./git";
@@ -77,7 +76,6 @@ export interface DesktopAuxServerSnapshot {
 }
 
 type JsonHandler = (body: unknown, url: URL) => Promise<unknown>;
-type ModelSelectionPatch = NonNullable<ServerSettingsPatch["textGenerationModelSelection"]>;
 type ProjectCreateCommand = Extract<
 	ClientOrchestrationCommand,
 	{ readonly type: "project.create" }
@@ -90,35 +88,6 @@ type ProjectDeleteCommand = Extract<
 	ClientOrchestrationCommand,
 	{ readonly type: "project.delete" }
 >;
-
-const STATIC_KEYBINDING_COMMANDS = new Set<string>([
-	"threadTree.toggle",
-	"commandPalette.toggle",
-	"composer.cycleInteractionMode",
-	"composer.mode.agent",
-	"composer.mode.ask",
-	"composer.mode.plan",
-	"composer.mode.debug",
-	"composer.mode.multitask",
-	"composer.send",
-	"composer.interrupt",
-	"chat.new",
-	"chat.newLocal",
-	"route.back",
-	"threadSelection.clear",
-	"editor.openFavorite",
-	"editor.saveFile",
-	"editor.addSelectionToChat",
-	"editorPanel.toggleFullscreen",
-	"browser.focusLocationBar",
-	"terminal.toggle",
-	"terminal.split",
-	"terminal.new",
-	"terminal.close",
-	"thread.previous",
-	"thread.next",
-	...THREAD_JUMP_KEYBINDING_COMMANDS,
-]);
 
 function toPlatformOs(platform: NodeJS.Platform): ServerConfig["environment"]["platform"]["os"] {
 	switch (platform) {
@@ -140,15 +109,42 @@ function toPlatformArch(processArch: string): ServerConfig["environment"]["platf
 	return "other";
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+const BodyRecord = Schema.Record(Schema.String, Schema.Unknown);
+const decodeBodyRecord = Schema.decodeUnknownExit(BodyRecord);
+
+/** Unwrap a schema decode `Exit`, throwing a helpful `formatSchemaIssues` message on failure. */
+function decoded<A>(exit: Exit.Exit<A, Schema.SchemaError>, label: string): A {
+	if (Exit.isFailure(exit)) {
+		const detail = formatSchemaIssues(exit.cause)
+			.map((issue) => (issue.path.length > 0 ? `${issue.path.join(".")}: ${issue.message}` : issue.message))
+			.join("; ");
+		throw new Error(detail.length > 0 ? `Invalid ${label}: ${detail}` : `Invalid ${label}.`);
+	}
+	return exit.value;
+}
+
+/**
+ * Schema-backed replacement for the old hand-rolled `isRecord`: returns the
+ * object (as a plain mutable copy) or `null` for arrays / null / primitives.
+ */
+function asRecord(value: unknown): Record<string, unknown> | null {
+	const exit = decodeBodyRecord(value);
+	if (Exit.isFailure(exit)) {
+		return null;
+	}
+	const record: Record<string, unknown> = {};
+	for (const [key, entry] of Object.entries(exit.value)) {
+		record[key] = entry;
+	}
+	return record;
 }
 
 function requireBodyRecord(body: unknown, label: string): Record<string, unknown> {
-	if (!isRecord(body)) {
+	const record = asRecord(body);
+	if (!record) {
 		throw new Error(`${label} body must be a JSON object.`);
 	}
-	return body;
+	return record;
 }
 
 function requireString(record: Record<string, unknown>, key: string): string {
@@ -174,14 +170,6 @@ function optionalNumber(record: Record<string, unknown>, key: string): number | 
 	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function requireStringArray(record: Record<string, unknown>, key: string): string[] {
-	const value = record[key];
-	if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || entry.trim().length === 0)) {
-		throw new Error(`${key} must be a non-empty string array.`);
-	}
-	return value;
-}
-
 function optionalStringArray(record: Record<string, unknown>, key: string): string[] | undefined {
 	const value = record[key];
 	if (value === undefined) {
@@ -191,16 +179,6 @@ function optionalStringArray(record: Record<string, unknown>, key: string): stri
 		throw new Error(`${key} must be a string array.`);
 	}
 	return value;
-}
-
-function isKeybindingCommand(value: unknown): value is KeybindingRule["command"] {
-	if (typeof value !== "string") {
-		return false;
-	}
-	if (STATIC_KEYBINDING_COMMANDS.has(value)) {
-		return true;
-	}
-	return /^script\.[a-z0-9][a-z0-9-]*\.run$/.test(value);
 }
 
 function isGitStackedAction(value: unknown): value is GitStackedAction {
@@ -213,46 +191,37 @@ function isGitStackedAction(value: unknown): value is GitStackedAction {
 	);
 }
 
+const decodeGitStatusInput = Schema.decodeUnknownExit(GitStatusInput);
 function requireGitStatusInput(body: unknown): GitStatusInput {
-	const record = requireBodyRecord(body, "git status");
-	const scope = record.scope;
-	if (scope !== undefined && scope !== "full" && scope !== "local") {
-		throw new Error("git status scope must be full or local.");
-	}
-	return {
-		cwd: requireString(record, "cwd"),
-		...(scope ? { scope } : {}),
-	};
+	return decoded(decodeGitStatusInput(body), "git status");
 }
 
+const decodeKeybindingRule = Schema.decodeUnknownExit(KeybindingRule);
 function requireKeybindingRule(body: unknown): KeybindingRule {
-	const record = requireBodyRecord(body, "keybinding");
-	if (typeof record.key !== "string" || !isKeybindingCommand(record.command)) {
-		throw new Error("keybinding requires key and command.");
-	}
-	return {
-		key: record.key,
-		command: record.command,
-		...(typeof record.when === "string" ? { when: record.when } : {}),
-	};
+	return decoded(decodeKeybindingRule(body), "keybinding");
 }
 
+type ModelSelectionPatch = NonNullable<ServerSettingsPatch["textGenerationModelSelection"]>;
+
+// A settings patch is applied field-by-field: each off-spec field is dropped and
+// the valid subset is applied (HTTP 200). A strict whole-object decode would throw
+// on any bad field, and because validator throws surface as 500 here, that would
+// turn one stray field into a failed settings save. So we keep the lenient shape.
 function requireSettingsPatch(body: unknown): ServerSettingsPatch {
 	const record = requireBodyRecord(body, "settings patch");
-	const patch = isRecord(record.patch) ? record.patch : record;
-	const selectionRecord = isRecord(patch.textGenerationModelSelection)
-		? patch.textGenerationModelSelection
-		: null;
+	const patch = asRecord(record.patch) ?? record;
+	const selectionRecord = asRecord(patch.textGenerationModelSelection);
 	const selectionOptions =
 		selectionRecord && Array.isArray(selectionRecord.options)
 			? selectionRecord.options.flatMap((entry) => {
-					if (!isRecord(entry) || typeof entry.id !== "string") {
+					const option = asRecord(entry);
+					if (!option || typeof option.id !== "string") {
 						return [];
 					}
-					if (typeof entry.value !== "string" && typeof entry.value !== "boolean") {
+					if (typeof option.value !== "string" && typeof option.value !== "boolean") {
 						return [];
 					}
-					return [{ id: entry.id, value: entry.value }];
+					return [{ id: option.id, value: option.value }];
 				})
 			: undefined;
 	const textGenerationModelSelection: ModelSelectionPatch | undefined = selectionRecord
@@ -264,7 +233,7 @@ function requireSettingsPatch(body: unknown): ServerSettingsPatch {
 				...(selectionOptions !== undefined ? { options: selectionOptions } : {}),
 			}
 		: undefined;
-	const observabilityRecord = isRecord(patch.observability) ? patch.observability : null;
+	const observabilityRecord = asRecord(patch.observability);
 	const observability: NonNullable<ServerSettingsPatch["observability"]> | undefined =
 		observabilityRecord
 			? {
@@ -291,26 +260,30 @@ function requireSettingsPatch(body: unknown): ServerSettingsPatch {
 	};
 }
 
+// Lenient like the original: non-array `options` is dropped, an empty `options`
+// list is omitted, and raw (untrimmed, possibly empty) option values are kept —
+// matching what clients persist through /projects/create and /projects/meta-update.
 function requireModelSelection(value: unknown, label: string): ModelSelection {
-	if (!isRecord(value)) {
+	const record = asRecord(value);
+	if (!record) {
 		throw new Error(`${label} must be a model selection.`);
 	}
-	const options =
-		Array.isArray(value.options)
-			? value.options.flatMap((entry, index) => {
-					if (!isRecord(entry)) {
-						throw new Error(`${label}.options[${index}] must be an object.`);
-					}
-					const optionValue = entry.value;
-					if (typeof optionValue !== "string" && typeof optionValue !== "boolean") {
-						throw new Error(`${label}.options[${index}].value must be a string or boolean.`);
-					}
-					return [{ id: requireString(entry, "id"), value: optionValue }];
-				})
-			: undefined;
+	const options = Array.isArray(record.options)
+		? record.options.flatMap((entry, index) => {
+				const option = asRecord(entry);
+				if (!option) {
+					throw new Error(`${label}.options[${index}] must be an object.`);
+				}
+				const optionValue = option.value;
+				if (typeof optionValue !== "string" && typeof optionValue !== "boolean") {
+					throw new Error(`${label}.options[${index}].value must be a string or boolean.`);
+				}
+				return [{ id: requireString(option, "id"), value: optionValue }];
+			})
+		: undefined;
 	return {
-		instanceId: requireString(value, "instanceId"),
-		model: requireString(value, "model"),
+		instanceId: requireString(record, "instanceId"),
+		model: requireString(record, "model"),
 		...(options !== undefined && options.length > 0 ? { options } : {}),
 	};
 }
@@ -326,34 +299,9 @@ function optionalModelSelection(
 	return value === null ? null : requireModelSelection(value, key);
 }
 
-function requireProjectScriptIcon(value: unknown, label: string): ProjectScript["icon"] {
-	switch (value) {
-		case "play":
-		case "test":
-		case "lint":
-		case "configure":
-		case "build":
-		case "debug":
-			return value;
-		default:
-			throw new Error(`${label} is invalid.`);
-	}
-}
-
+const decodeProjectScript = Schema.decodeUnknownExit(ProjectScript);
 function requireProjectScript(value: unknown, index: number): ProjectScript {
-	if (!isRecord(value)) {
-		throw new Error(`scripts[${index}] must be an object.`);
-	}
-	if (typeof value.runOnWorktreeCreate !== "boolean") {
-		throw new Error(`scripts[${index}].runOnWorktreeCreate must be a boolean.`);
-	}
-	return {
-		id: requireString(value, "id"),
-		name: requireString(value, "name"),
-		command: requireString(value, "command"),
-		icon: requireProjectScriptIcon(value.icon, `scripts[${index}].icon`),
-		runOnWorktreeCreate: value.runOnWorktreeCreate,
-	};
+	return decoded(decodeProjectScript(value), `scripts[${index}]`);
 }
 
 function optionalProjectScripts(
@@ -414,18 +362,14 @@ function requireProjectDeleteCommand(body: unknown): ProjectDeleteCommand {
 	};
 }
 
+const decodeGitPullInput = Schema.decodeUnknownExit(GitPullInput);
 function requireGitPullInput(body: unknown): GitPullInput {
-	const record = requireBodyRecord(body, "git pull");
-	return { cwd: requireString(record, "cwd") };
+	return decoded(decodeGitPullInput(body), "git pull");
 }
 
+const decodeGitDiscardPathsInput = Schema.decodeUnknownExit(GitDiscardPathsInput);
 function requireGitDiscardPathsInput(body: unknown): GitDiscardPathsInput {
-	const record = requireBodyRecord(body, "git discard");
-	const paths = requireStringArray(record, "paths");
-	if (paths.length === 0) {
-		throw new Error("paths must not be empty.");
-	}
-	return { cwd: requireString(record, "cwd"), paths };
+	return decoded(decodeGitDiscardPathsInput(body), "git discard");
 }
 
 function requireGitFilePatchInput(body: unknown): GitFilePatchInput {
@@ -437,9 +381,9 @@ function requireGitFilePatchInput(body: unknown): GitFilePatchInput {
 	};
 }
 
+const decodeGitFileImageInput = Schema.decodeUnknownExit(GitFileImageInput);
 function requireGitFileImageInput(body: unknown): GitFileImageInput {
-	const record = requireBodyRecord(body, "git file image");
-	return { cwd: requireString(record, "cwd"), path: requireString(record, "path") };
+	return decoded(decodeGitFileImageInput(body), "git file image");
 }
 
 function requireGitListBranchesInput(body: unknown): GitListBranchesInput {
@@ -488,19 +432,19 @@ function requireGitCreateBranchInput(body: unknown): GitCreateBranchInput {
 	};
 }
 
+const decodeGitCheckoutInput = Schema.decodeUnknownExit(GitCheckoutInput);
 function requireGitCheckoutInput(body: unknown): GitCheckoutInput {
-	const record = requireBodyRecord(body, "git checkout");
-	return { cwd: requireString(record, "cwd"), branch: requireString(record, "branch") };
+	return decoded(decodeGitCheckoutInput(body), "git checkout");
 }
 
+const decodeGitInitInput = Schema.decodeUnknownExit(GitInitInput);
 function requireGitInitInput(body: unknown): GitInitInput {
-	const record = requireBodyRecord(body, "git init");
-	return { cwd: requireString(record, "cwd") };
+	return decoded(decodeGitInitInput(body), "git init");
 }
 
+const decodeGitPullRequestRefInput = Schema.decodeUnknownExit(GitPullRequestRefInput);
 function requireGitPullRequestRefInput(body: unknown): GitPullRequestRefInput {
-	const record = requireBodyRecord(body, "git pull request");
-	return { cwd: requireString(record, "cwd"), reference: requireString(record, "reference") };
+	return decoded(decodeGitPullRequestRefInput(body), "git pull request");
 }
 
 function requireGitPreparePullRequestThreadInput(body: unknown): GitPreparePullRequestThreadInput {

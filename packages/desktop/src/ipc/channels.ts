@@ -20,24 +20,29 @@ export const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 export const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 export const UPDATE_CHECK_CHANNEL = "desktop:update-check";
 export const GET_APP_BRANDING_CHANNEL = "desktop:get-app-branding";
-export const GET_BROWSER_WEBVIEW_PRELOAD_PATH_CHANNEL = "desktop:get-browser-webview-preload-path";
-export const REGISTER_BROWSER_AUTOMATION_HOST_CHANNEL = "desktop:register-browser-automation-host";
-export const UNREGISTER_BROWSER_AUTOMATION_HOST_CHANNEL =
-  "desktop:unregister-browser-automation-host";
+export const SYNC_BROWSER_VIEW_CHANNEL = "desktop:sync-browser-view";
+export const DETACH_BROWSER_VIEW_CHANNEL = "desktop:detach-browser-view";
+export const COMMAND_BROWSER_VIEW_CHANNEL = "desktop:command-browser-view";
+export const DESTROY_BROWSER_VIEW_CHANNEL = "desktop:destroy-browser-view";
+export const BROWSER_VIEW_STATE_CHANNEL = "desktop:browser-view-state";
 export const BROWSER_AUTOMATION_OPEN_CHANNEL = "desktop:browser-automation-open";
-export const DETECT_LOCALHOST_PORTS_CHANNEL = "desktop:detect-localhost-ports";
-export const CLEAR_BROWSER_PARTITION_STORAGE_CHANNEL = "desktop:clear-browser-partition-storage";
 export const GET_AUX_ENDPOINT_CHANNEL = "desktop:get-aux-endpoint";
 export const GET_OPENCODE_SIDECAR_CHANNEL = "desktop:get-opencode-sidecar";
 export const GET_CLIENT_SETTINGS_CHANNEL = "desktop:get-client-settings";
 export const SET_CLIENT_SETTINGS_CHANNEL = "desktop:set-client-settings";
+export const PROTECT_REMOTE_CREDENTIAL_CHANNEL = "desktop:protect-remote-credential";
+export const REVEAL_REMOTE_CREDENTIAL_CHANNEL = "desktop:reveal-remote-credential";
 export const GET_SERVER_EXPOSURE_STATE_CHANNEL = "desktop:get-server-exposure-state";
 export const SET_SERVER_EXPOSURE_MODE_CHANNEL = "desktop:set-server-exposure-mode";
+export const SET_SERVER_EXPOSURE_PUBLIC_URL_CHANNEL = "desktop:set-server-exposure-public-url";
+export const GET_REMOTE_HOST_STATE_CHANNEL = "desktop:get-remote-host-state";
+export const ISSUE_REMOTE_PAIRING_CHANNEL = "desktop:issue-remote-pairing";
+export const REVOKE_REMOTE_DEVICE_CHANNEL = "desktop:revoke-remote-device";
 export const GET_WINDOW_CHROME_STATE_CHANNEL = "desktop:get-window-chrome-state";
 export const WINDOW_CHROME_STATE_CHANNEL = "desktop:window-chrome-state";
 export const SET_ACTIVE_WORK_STATE_CHANNEL = "desktop:set-active-work-state";
 export const LOG_RENDERER_DIAGNOSTIC_CHANNEL = "desktop:log-renderer-diagnostic";
-// PTY bridge: renderer → main (invoke) and main → renderer (send, id-tagged payload).
+// PTY: renderer invoke to main, main send to renderer.
 export const PTY_OPEN_CHANNEL = "desktop:pty-open";
 export const PTY_WRITE_CHANNEL = "desktop:pty-write";
 export const PTY_RESIZE_CHANNEL = "desktop:pty-resize";

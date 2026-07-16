@@ -1,11 +1,5 @@
-// Command-menu UI store (ADR 0025 §2). Plain {subscribe, getSnapshot, actions} —
-// the same idiom as tab-store / appearance-store. Owns overlay open state, which
-// door opened it (⌘K vs ⌘O), the query, keyboard selection, and the submenu stack.
-// Timers/coalescing stay here if they ever appear; components stay effect-free.
-//
-// Three doors, one store: Home reads the same snapshot for its inline omnibox;
-// the shell-mounted overlay opens when `open` is true. Hotkeys dispatch here
-// (see hotkeys.ts) — never a second key listener.
+// Command-menu UI store. Own overlay state here so hotkeys and Home share one snapshot.
+// Hotkeys dispatch here (hotkeys.ts). Do not add a second key listener.
 
 import { useSyncExternalStore } from "react";
 import { useSyncExternalStoreWithSelector } from "use-sync-external-store/with-selector";
@@ -73,7 +67,7 @@ export function useCommandMenuSelector<T>(
 }
 
 export const actions = {
-  /** ⌘K — full menu (Start-new → threads → commands). Toggles if already open on the same door. */
+  /** Opens the full menu (Start-new, threads, commands). Toggles if already open on the same door. */
   openCommand(): void {
     if (snapshot.open && snapshot.door === "command") {
       actions.close();
@@ -88,7 +82,7 @@ export const actions = {
     });
   },
 
-  /** ⌘O — same overlay pre-scoped to threads. */
+  /** Opens the same overlay pre-scoped to threads. */
   openThreads(): void {
     if (snapshot.open && snapshot.door === "threads") {
       actions.close();
@@ -153,7 +147,7 @@ export const actions = {
     });
   },
 
-  /** Backspace-on-empty / explicit back — pop one frame; no-op at root. */
+  /** Backspace on empty query, or explicit back. Pops one frame; no-op at root. */
   popSubmenu(): void {
     if (snapshot.submenuStack.length === 0) {
       return;

@@ -2,18 +2,30 @@
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { access, readFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { hostname as machineHostname } from "node:os";
 import { dirname, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
+import {
+  buildHonkOpencodeConfig,
+  HONK_OPENCODE_PLUGIN_DIRECTORY,
+  HONK_OPENCODE_PLUGIN_ENTRY_FILE,
+  HONK_OPENCODE_PLUGIN_MODULES,
+} from "@honk/opencode/host";
 import open from "open";
 
 import { startHonkHost, type HonkHost, type PairingLink } from "./host";
 import { renderTerminalQrCode } from "./qr";
 import { freshAdminSecret, readHostState, resolveStatePath, type HostState } from "./state";
+import {
+  disableTailscaleHttpsServe,
+  enableTailscaleHttpsServe,
+  resolveTailscaleHttpsEndpoint,
+  type TailscaleHttpsEndpoint,
+} from "./tailscale";
 
 const VERSION = "0.6.2";
 const LOOPBACK_HOST = "127.0.0.1";
@@ -27,6 +39,8 @@ interface CliOptions {
   readonly hostname: string;
   readonly port: number;
   readonly publicUrl?: string;
+  readonly tailscaleServe: boolean;
+  readonly tailscaleServePort: number;
   readonly cwd: string;
   readonly appDist?: string;
   readonly opencodeBin?: string;
@@ -51,6 +65,8 @@ Options:
   --hostname <host>           Listener host (default: 127.0.0.1)
   --port <port>               Listener port (default: 3773; 0 chooses a free port)
   --public-url <https-url>    URL exposed by your HTTPS tunnel or reverse proxy
+  --tailscale-serve           Configure a private HTTPS endpoint with Tailscale Serve
+  --tailscale-serve-port <n>  Tailscale HTTPS port (default: 443)
   --cwd <path>                OpenCode working directory (default: current directory)
   --app-dist <path>           Honk web build override
   --opencode-bin <path>       OpenCode executable override
@@ -64,6 +80,12 @@ const parsePort = (value: string): number => {
   if (!Number.isInteger(port) || port < 0 || port > MAX_PORT) {
     throw new Error(`Invalid port: ${value}`);
   }
+  return port;
+};
+
+const parseRequiredPort = (value: string): number => {
+  const port = parsePort(value);
+  if (port === 0) throw new Error(`Invalid port: ${value}`);
   return port;
 };
 
@@ -96,6 +118,8 @@ function parseArgs(args: readonly string[]): CliOptions | "help" | "version" {
   let hostname = LOOPBACK_HOST;
   let port = DEFAULT_PORT;
   let publicUrl: string | undefined;
+  let tailscaleServe = false;
+  let tailscaleServePort = 443;
   let cwd = process.cwd();
   let appDist: string | undefined;
   let opencodeBin: string | undefined;
@@ -122,6 +146,15 @@ function parseArgs(args: readonly string[]): CliOptions | "help" | "version" {
         break;
       case "--public-url":
         publicUrl = valueAfter(args, cursor, argument);
+        cursor += 2;
+        break;
+      case "--tailscale-serve":
+        tailscaleServe = true;
+        cursor += 1;
+        break;
+      case "--tailscale-serve-port":
+        tailscaleServe = true;
+        tailscaleServePort = parseRequiredPort(valueAfter(args, cursor, argument));
         cursor += 2;
         break;
       case "--cwd":
@@ -158,6 +191,8 @@ function parseArgs(args: readonly string[]): CliOptions | "help" | "version" {
     command,
     hostname,
     port,
+    tailscaleServe,
+    tailscaleServePort,
     cwd,
     openBrowser,
     ...(publicUrl !== undefined ? { publicUrl } : {}),
@@ -176,6 +211,12 @@ const isLoopback = (hostname: string): boolean =>
   hostname === "[::1]";
 
 const validatePublicUrl = (options: CliOptions): void => {
+  if (options.tailscaleServe && options.publicUrl !== undefined) {
+    throw new Error("Use either --tailscale-serve or --public-url, not both.");
+  }
+  if (options.tailscaleServe && !isLoopback(options.hostname)) {
+    throw new Error("Tailscale Serve requires a loopback --hostname.");
+  }
   const isRemoteListener = !isLoopback(options.hostname);
   if (isRemoteListener && options.publicUrl === undefined) {
     throw new Error(
@@ -234,9 +275,7 @@ const firstExisting = async (candidates: readonly string[]): Promise<string | nu
     try {
       await access(resolve(candidate, "index.html"));
       return candidate;
-    } catch {
-      // Try the next packaged or workspace location.
-    }
+    } catch {}
   }
   return null;
 };
@@ -269,13 +308,36 @@ const mergeNoProxy = (value: string | undefined): string => {
   return [...entries].join(",");
 };
 
-const spawnOpenCode = (binary: string, port: number, password: string, cwd: string): ChildProcess =>
+const writeHonkOpencodeConfig = async (statePath: string): Promise<string> => {
+  const configDirectory = resolve(dirname(statePath), "opencode");
+  const pluginDirectory = resolve(configDirectory, HONK_OPENCODE_PLUGIN_DIRECTORY);
+  const pluginPath = resolve(pluginDirectory, HONK_OPENCODE_PLUGIN_ENTRY_FILE);
+  const configPath = resolve(configDirectory, "opencode.json");
+  await mkdir(pluginDirectory, { recursive: true, mode: 0o700 });
+  await Promise.all(
+    HONK_OPENCODE_PLUGIN_MODULES.map(({ fileName, source }) =>
+      writeFile(resolve(pluginDirectory, fileName), source),
+    ),
+  );
+  await writeFile(configPath, `${JSON.stringify(buildHonkOpencodeConfig(pluginPath), null, 2)}\n`);
+  return configPath;
+};
+
+const spawnOpenCode = (
+  binary: string,
+  port: number,
+  password: string,
+  cwd: string,
+  configPath: string,
+): ChildProcess =>
   spawn(binary, ["serve", "--hostname", LOOPBACK_HOST, "--port", String(port)], {
     cwd,
     env: {
       ...process.env,
+      OPENCODE_CONFIG: configPath,
       OPENCODE_SERVER_PASSWORD: password,
       OPENCODE_CLIENT: "honk-cli",
+      OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS: "true",
       NO_PROXY: mergeNoProxy(process.env.NO_PROXY),
       no_proxy: mergeNoProxy(process.env.no_proxy),
     },
@@ -408,6 +470,7 @@ const superviseOpenCode = (
   port: number,
   password: string,
   cwd: string,
+  configPath: string,
   isStopping: () => boolean,
 ): { readonly stop: () => void; readonly done: Promise<void> } => {
   let child: ChildProcess | null = null;
@@ -416,7 +479,7 @@ const superviseOpenCode = (
   let forceKillTimer: NodeJS.Timeout | null = null;
   const done = (async () => {
     while (!isStopping()) {
-      child = spawnOpenCode(binary, port, password, cwd);
+      child = spawnOpenCode(binary, port, password, cwd, configPath);
       const startedAt = Date.now();
       const result = await new Promise<{
         readonly code: number | null;
@@ -481,8 +544,14 @@ const waitForSignal = (): Promise<NodeJS.Signals> =>
 
 const start = async (options: CliOptions): Promise<void> => {
   validatePublicUrl(options);
+  const tailscaleEndpoint: TailscaleHttpsEndpoint | null = options.tailscaleServe
+    ? await resolveTailscaleHttpsEndpoint(options.tailscaleServePort)
+    : null;
   const existing = await runningHost();
   if (existing !== null) {
+    if (tailscaleEndpoint !== null) {
+      throw new Error("Stop the running Honk host before enabling managed Tailscale Serve.");
+    }
     if (await runAdminCommand(options, existing)) return;
     const pairing = await issueFromRunningHost(existing, options.label);
     printPairing(pairing, existing.publicUrl, options.command === "serve" || !options.openBrowser);
@@ -506,13 +575,19 @@ const start = async (options: CliOptions): Promise<void> => {
   const upstreamPassword = randomBytes(32).toString("base64url");
   const upstreamOrigin = `http://${LOOPBACK_HOST}:${upstreamPort}`;
   const statePath = resolveStatePath();
+  const opencodeConfigPath = await writeHonkOpencodeConfig(statePath);
   let host: HonkHost | null = null;
+  let tailscaleConfigured = false;
   let stopping = false;
   try {
     host = await startHonkHost({
       hostname: options.hostname,
       port: options.port,
-      ...(options.publicUrl !== undefined ? { publicUrl: options.publicUrl } : {}),
+      ...(tailscaleEndpoint !== null
+        ? { publicUrl: tailscaleEndpoint.url }
+        : options.publicUrl !== undefined
+          ? { publicUrl: options.publicUrl }
+          : {}),
       upstreamOrigin,
       upstreamPassword,
       cwd: options.cwd,
@@ -521,11 +596,16 @@ const start = async (options: CliOptions): Promise<void> => {
       devices: previous?.devices ?? [],
       statePath,
     });
+    if (tailscaleEndpoint !== null) {
+      await enableTailscaleHttpsServe(host.origin, options.tailscaleServePort);
+      tailscaleConfigured = true;
+    }
     const supervisor = superviseOpenCode(
       binary,
       upstreamPort,
       upstreamPassword,
       options.cwd,
+      opencodeConfigPath,
       () => stopping,
     );
     const pairing = host.issuePairing(options.label ?? `${machineHostname()} browser`);
@@ -535,10 +615,17 @@ const start = async (options: CliOptions): Promise<void> => {
     stopping = true;
     supervisor.stop();
     await host.close();
+    if (tailscaleConfigured) {
+      await disableTailscaleHttpsServe(options.tailscaleServePort).catch(() => undefined);
+      tailscaleConfigured = false;
+    }
     await supervisor.done;
   } finally {
     stopping = true;
     await host?.close().catch(() => undefined);
+    if (tailscaleConfigured) {
+      await disableTailscaleHttpsServe(options.tailscaleServePort).catch(() => undefined);
+    }
   }
 };
 

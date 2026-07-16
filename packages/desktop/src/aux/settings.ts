@@ -1,27 +1,30 @@
 import { watch, type FSWatcher } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import {
-  DEFAULT_SERVER_SETTINGS,
-  ServerSettingsError,
-  type ServerSettings,
-  type ServerSettingsPatch,
-} from "@honk/shared/server-settings";
+import { Option, Schema } from "effect";
+import { TrimmedNonEmptyString } from "@honk/shared/base-schemas";
 import {
   KeybindingsConfigError,
-  type KeybindingRule,
+  KeybindingRule,
   type KeybindingShortcut,
   type KeybindingWhenNode,
   MAX_KEYBINDINGS_COUNT,
-  MAX_KEYBINDING_VALUE_LENGTH,
-  MAX_SCRIPT_ID_LENGTH,
   MAX_WHEN_EXPRESSION_DEPTH,
   THREAD_JUMP_KEYBINDING_COMMANDS,
   type ResolvedKeybindingRule,
   type ResolvedKeybindingsConfig,
 } from "@honk/shared/keybindings";
+import { ModelSelection } from "@honk/shared/model";
+import { fromLenientJson } from "@honk/shared/schema-json";
 import type { ServerConfigIssue } from "@honk/shared/server-config";
-import { applyServerSettingsPatch } from "@honk/shared/server-settings";
+import {
+  applyServerSettingsPatch,
+  DEFAULT_SERVER_SETTINGS,
+  ServerSettingsError,
+  ThreadEnvMode,
+  type ServerSettings,
+  type ServerSettingsPatch,
+} from "@honk/shared/server-settings";
 
 const SETTINGS_WATCH_DEBOUNCE_MS = 100;
 const KEYBINDINGS_WATCH_DEBOUNCE_MS = 100;
@@ -83,35 +86,6 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
 	})),
 ];
 
-const STATIC_KEYBINDING_COMMANDS = new Set<string>([
-	"threadTree.toggle",
-	"commandPalette.toggle",
-	"composer.cycleInteractionMode",
-	"composer.mode.agent",
-	"composer.mode.ask",
-	"composer.mode.plan",
-	"composer.mode.debug",
-	"composer.mode.multitask",
-	"composer.send",
-	"composer.interrupt",
-	"chat.new",
-	"chat.newLocal",
-	"route.back",
-	"threadSelection.clear",
-	"editor.openFavorite",
-	"editor.saveFile",
-	"editor.addSelectionToChat",
-	"editorPanel.toggleFullscreen",
-	"browser.focusLocationBar",
-	"terminal.toggle",
-	"terminal.split",
-	"terminal.new",
-	"terminal.close",
-	"thread.previous",
-	"thread.next",
-	...THREAD_JUMP_KEYBINDING_COMMANDS,
-]);
-
 const DEFAULT_RESOLVED_KEYBINDINGS = compileResolvedKeybindingsConfig(DEFAULT_KEYBINDINGS);
 
 export function resolveAuxSettingsPaths(userDataDir: string): AuxSettingsPaths {
@@ -121,134 +95,134 @@ export function resolveAuxSettingsPaths(userDataDir: string): AuxSettingsPaths {
 	};
 }
 
+const decodeLenientJsonValue = Schema.decodeUnknownSync(fromLenientJson(Schema.Unknown));
+
 export function parseLenientJson(raw: string): unknown {
-	let stripped = raw.replace(
-		/("(?:[^"\\]|\\.)*")|\/\/[^\n]*/g,
-		(match, stringLiteral: string | undefined) => (stringLiteral ? match : ""),
-	);
-	stripped = stripped.replace(
-		/("(?:[^"\\]|\\.)*")|\/\*[\s\S]*?\*\//g,
-		(match, stringLiteral: string | undefined) => (stringLiteral ? match : ""),
-	);
-	stripped = stripped.replace(/,(\s*[}\]])/g, "$1");
-	return JSON.parse(stripped);
+	return decodeLenientJsonValue(raw);
 }
 
-function isRecord(value: unknown): value is JsonRecord {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+const UnknownRecord = Schema.Record(Schema.String, Schema.Unknown);
+const decodeUnknownRecord = Schema.decodeUnknownOption(UnknownRecord);
+const decodeBoolean = Schema.decodeUnknownOption(Schema.Boolean);
+const decodeString = Schema.decodeUnknownOption(Schema.String);
+const decodeThreadEnvMode = Schema.decodeUnknownOption(ThreadEnvMode);
+const decodeUnknownArray = Schema.decodeUnknownOption(Schema.Array(Schema.Unknown));
+const decodeModelInstanceId = Schema.decodeUnknownOption(ModelSelection.fields.instanceId);
+const decodeModelName = Schema.decodeUnknownOption(ModelSelection.fields.model);
 
-function isStringRecord(value: unknown): value is Record<string, string> {
-	if (!isRecord(value)) {
-		return false;
-	}
-	for (const entry of Object.values(value)) {
-		if (typeof entry !== "string") {
-			return false;
-		}
-	}
-	return true;
-}
+// The shared ModelSelection schema rejects the whole selection when any option is
+// malformed and trims option string values (rejecting empties). The persisted file is
+// user-editable, and the original reader skipped bad option entries while keeping raw
+// (untrimmed, possibly empty) string values, so options are decoded per element with a
+// lenient local schema.
+const LenientModelOptionSelection = Schema.Struct({
+	id: TrimmedNonEmptyString,
+	value: Schema.Union([Schema.String, Schema.Boolean]),
+});
+const decodeLenientModelOptionSelection = Schema.decodeUnknownOption(LenientModelOptionSelection);
 
-function trimString(value: unknown): string | undefined {
-	return typeof value === "string" ? value.trim() : undefined;
-}
-
-function isServerSettingsPatch(value: unknown): value is ServerSettingsPatch {
-	if (!isRecord(value)) {
-		return false;
-	}
-	return true;
-}
-
-function isThreadEnvMode(value: unknown): value is ServerSettings["defaultThreadEnvMode"] {
-	return value === "local" || value === "worktree";
-}
+const EMPTY_UNKNOWN_RECORD: { readonly [key: string]: unknown } = {};
 
 function readModelSelection(value: unknown): ServerSettings["textGenerationModelSelection"] {
 	const fallback = DEFAULT_SERVER_SETTINGS.textGenerationModelSelection;
-	if (!isRecord(value)) {
+	const record = decodeUnknownRecord(value);
+	if (Option.isNone(record)) {
 		return fallback;
 	}
-	const instanceId = trimString(value.instanceId);
-	const model = trimString(value.model);
-	if (!instanceId || !model) {
+	const instanceId = decodeModelInstanceId(record.value.instanceId);
+	const model = decodeModelName(record.value.model);
+	if (Option.isNone(instanceId) || Option.isNone(model)) {
 		return fallback;
 	}
 	const options: Array<{ id: string; value: string | boolean }> = [];
-	if (Array.isArray(value.options)) {
-		for (const option of value.options) {
-			if (!isRecord(option)) {
-				continue;
+	const rawOptions = decodeUnknownArray(record.value.options);
+	if (Option.isSome(rawOptions)) {
+		for (const option of rawOptions.value) {
+			const decoded = decodeLenientModelOptionSelection(option);
+			if (Option.isSome(decoded)) {
+				options.push(decoded.value);
 			}
-			const id = trimString(option.id);
-			const optionValue = option.value;
-			if (!id || (typeof optionValue !== "string" && typeof optionValue !== "boolean")) {
-				continue;
-			}
-			options.push({ id, value: optionValue });
 		}
 	}
 	return {
-		instanceId,
-		model,
+		instanceId: instanceId.value,
+		model: model.value,
 		...(options.length > 0 ? { options } : {}),
 	};
 }
 
+// Per-field leniency is preserved: the shared ServerSettings schema fills defaults for
+// missing keys but rejects the whole object on a single wrong-typed key, whereas each
+// field here falls back to its own default independently. String fields keep raw
+// (untrimmed) values to match the original reader.
 function normalizeServerSettings(value: unknown): ServerSettings {
-	if (!isRecord(value)) {
+	const record = decodeUnknownRecord(value);
+	if (Option.isNone(record)) {
 		return DEFAULT_SERVER_SETTINGS;
 	}
-	const observability = isRecord(value.observability) ? value.observability : {};
+	const settings = record.value;
+	const observability = Option.getOrElse(
+		decodeUnknownRecord(settings.observability),
+		() => EMPTY_UNKNOWN_RECORD,
+	);
 	return {
-		enableAssistantStreaming:
-			typeof value.enableAssistantStreaming === "boolean"
-				? value.enableAssistantStreaming
-				: DEFAULT_SERVER_SETTINGS.enableAssistantStreaming,
-		defaultThreadEnvMode: isThreadEnvMode(value.defaultThreadEnvMode)
-			? value.defaultThreadEnvMode
-			: DEFAULT_SERVER_SETTINGS.defaultThreadEnvMode,
-		addProjectBaseDirectory:
-			typeof value.addProjectBaseDirectory === "string"
-				? value.addProjectBaseDirectory
-				: DEFAULT_SERVER_SETTINGS.addProjectBaseDirectory,
-		textGenerationModelSelection: readModelSelection(value.textGenerationModelSelection),
+		enableAssistantStreaming: Option.getOrElse(
+			decodeBoolean(settings.enableAssistantStreaming),
+			() => DEFAULT_SERVER_SETTINGS.enableAssistantStreaming,
+		),
+		defaultThreadEnvMode: Option.getOrElse(
+			decodeThreadEnvMode(settings.defaultThreadEnvMode),
+			() => DEFAULT_SERVER_SETTINGS.defaultThreadEnvMode,
+		),
+		addProjectBaseDirectory: Option.getOrElse(
+			decodeString(settings.addProjectBaseDirectory),
+			() => DEFAULT_SERVER_SETTINGS.addProjectBaseDirectory,
+		),
+		textGenerationModelSelection: readModelSelection(settings.textGenerationModelSelection),
 		observability: {
-			otlpTracesUrl:
-				typeof observability.otlpTracesUrl === "string"
-					? observability.otlpTracesUrl
-					: DEFAULT_SERVER_SETTINGS.observability.otlpTracesUrl,
-			otlpMetricsUrl:
-				typeof observability.otlpMetricsUrl === "string"
-					? observability.otlpMetricsUrl
-					: DEFAULT_SERVER_SETTINGS.observability.otlpMetricsUrl,
+			otlpTracesUrl: Option.getOrElse(
+				decodeString(observability.otlpTracesUrl),
+				() => DEFAULT_SERVER_SETTINGS.observability.otlpTracesUrl,
+			),
+			otlpMetricsUrl: Option.getOrElse(
+				decodeString(observability.otlpMetricsUrl),
+				() => DEFAULT_SERVER_SETTINGS.observability.otlpMetricsUrl,
+			),
 		},
 	};
 }
 
-function stripDefaultServerSettings(current: unknown, defaults: unknown): unknown {
-	if (Array.isArray(current) || Array.isArray(defaults)) {
-		return JSON.stringify(current) === JSON.stringify(defaults) ? undefined : current;
+// A structural JSON diff against the defaults has no Schema-decoder equivalent, so it is
+// expressed as explicit per-field comparisons over the fixed ServerSettings shape
+// (textGenerationModelSelection compared as a whole via JSON, matching the original).
+function stripDefaultServerSettings(next: ServerSettings): JsonRecord {
+	const sparse: JsonRecord = {};
+	if (next.enableAssistantStreaming !== DEFAULT_SERVER_SETTINGS.enableAssistantStreaming) {
+		sparse.enableAssistantStreaming = next.enableAssistantStreaming;
 	}
-	if (isRecord(current) && isRecord(defaults)) {
-		const next: JsonRecord = {};
-		for (const key of Object.keys(current)) {
-			const currentValue = current[key];
-			const defaultValue = defaults[key];
-			const stripped =
-				key === "textGenerationModelSelection"
-					? JSON.stringify(currentValue) === JSON.stringify(defaultValue)
-						? undefined
-						: currentValue
-					: stripDefaultServerSettings(currentValue, defaultValue);
-			if (stripped !== undefined) {
-				next[key] = stripped;
-			}
-		}
-		return Object.keys(next).length > 0 ? next : undefined;
+	if (next.defaultThreadEnvMode !== DEFAULT_SERVER_SETTINGS.defaultThreadEnvMode) {
+		sparse.defaultThreadEnvMode = next.defaultThreadEnvMode;
 	}
-	return Object.is(current, defaults) ? undefined : current;
+	if (next.addProjectBaseDirectory !== DEFAULT_SERVER_SETTINGS.addProjectBaseDirectory) {
+		sparse.addProjectBaseDirectory = next.addProjectBaseDirectory;
+	}
+	if (
+		JSON.stringify(next.textGenerationModelSelection) !==
+		JSON.stringify(DEFAULT_SERVER_SETTINGS.textGenerationModelSelection)
+	) {
+		sparse.textGenerationModelSelection = next.textGenerationModelSelection;
+	}
+	const observability: JsonRecord = {};
+	if (next.observability.otlpTracesUrl !== DEFAULT_SERVER_SETTINGS.observability.otlpTracesUrl) {
+		observability.otlpTracesUrl = next.observability.otlpTracesUrl;
+	}
+	if (next.observability.otlpMetricsUrl !== DEFAULT_SERVER_SETTINGS.observability.otlpMetricsUrl) {
+		observability.otlpMetricsUrl = next.observability.otlpMetricsUrl;
+	}
+	if (Object.keys(observability).length > 0) {
+		sparse.observability = observability;
+	}
+	return sparse;
 }
 
 function normalizeKeyToken(token: string): string {
@@ -454,34 +428,29 @@ function parseKeybindingWhenExpression(expression: string): KeybindingWhenNode |
 	return ast && index === parsedTokens.length ? ast : null;
 }
 
-function isKeybindingCommand(value: unknown): value is KeybindingRule["command"] {
-	if (typeof value !== "string") {
-		return false;
-	}
-	if (STATIC_KEYBINDING_COMMANDS.has(value)) {
-		return true;
-	}
-	return /^script\.[a-z0-9][a-z0-9-]*\.run$/.test(value) && value.length <= MAX_SCRIPT_ID_LENGTH + 11;
-}
+const KeybindingRuleInput = Schema.Struct({
+	key: KeybindingRule.fields.key,
+	command: KeybindingRule.fields.command,
+	when: Schema.optionalKey(Schema.Unknown),
+});
+const decodeKeybindingRuleInput = Schema.decodeUnknownOption(KeybindingRuleInput);
 
+// key and command are validated by the shared KeybindingRule field schemas. `when` keeps
+// the original per-field leniency: a non-string value is dropped (the rule stays valid),
+// while a present string must trim to 1..KEYBINDINGS_WHEN_MAX_LENGTH or the rule is rejected.
 function normalizeKeybindingRule(value: unknown): KeybindingRule | null {
-	if (!isRecord(value)) {
+	const decoded = decodeKeybindingRuleInput(value);
+	if (Option.isNone(decoded)) {
 		return null;
 	}
-	const key = typeof value.key === "string" ? value.key.trim() : "";
-	if (key.length === 0 || key.length > MAX_KEYBINDING_VALUE_LENGTH) {
-		return null;
-	}
-	if (!isKeybindingCommand(value.command)) {
-		return null;
-	}
-	const when = typeof value.when === "string" ? value.when.trim() : undefined;
+	const { key, command, when: rawWhen } = decoded.value;
+	const when = typeof rawWhen === "string" ? rawWhen.trim() : undefined;
 	if (when !== undefined && (when.length === 0 || when.length > KEYBINDINGS_WHEN_MAX_LENGTH)) {
 		return null;
 	}
 	return {
 		key,
-		command: value.command,
+		command,
 		...(when !== undefined ? { when } : {}),
 	};
 }
@@ -705,7 +674,7 @@ export class DesktopAuxSettingsService {
 	}
 
 	async updateSettings(patch: ServerSettingsPatch): Promise<ServerSettings> {
-		if (!isServerSettingsPatch(patch)) {
+		if (Option.isNone(decodeUnknownRecord(patch))) {
 			throw new ServerSettingsError({
 				settingsPath: this.settingsPath,
 				detail: "invalid settings patch",
@@ -714,7 +683,7 @@ export class DesktopAuxSettingsService {
 		return this.settingsWriteLock.run(async () => {
 			const current = await this.getSettings();
 			const next = normalizeServerSettings(applyServerSettingsPatch(current, patch));
-			const sparseSettings = stripDefaultServerSettings(next, DEFAULT_SERVER_SETTINGS) ?? {};
+			const sparseSettings = stripDefaultServerSettings(next);
 			await writeFileAtomically(this.settingsPath, `${JSON.stringify(sparseSettings, null, 2)}\n`);
 			this.settingsCache = next;
 			this.emitSettings(next);

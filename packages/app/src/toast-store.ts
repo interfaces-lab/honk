@@ -1,18 +1,9 @@
-// App-level toast pipeline (WP7). Plain {subscribe, getSnapshot, actions} module —
-// ADR 0025: timers and visibility tracking live here, never in a component effect.
-//
-// Behaviors ported from packages/app/src/app/toast.tsx:
-//   • Five types (error/info/loading/success/warning)
-//   • Visible-time auto-dismiss — countdown runs only while focused+visible
-//   • Action button + optional copyable error text
-//
-// Thread scoping (parity keep + rethink): a toast with `threadKey` renders only when
-// that thread is the ACTIVE tab (thread-local feedback). Attention alerts must NOT
-// set threadKey — they are global so backgrounded threads still surface.
+// Toast pipeline. Timers and visibility tracking live here, never in a component effect.
+// Toasts with threadKey render only for the active tab. Attention alerts omit threadKey so
+// backgrounded threads still surface.
 
+import { parseOpenCodeSessionKey } from "@honk/opencode";
 import { useSyncExternalStore } from "react";
-
-import { getSnapshot as getTabSnapshot } from "./tab-store";
 
 export type ToastType = "error" | "info" | "loading" | "success" | "warning";
 
@@ -174,7 +165,9 @@ export function shouldRenderToast(toast: ToastItem, activeKey: string): boolean 
   if (toast.threadKey === undefined) {
     return true;
   }
-  return toast.threadKey === activeKey;
+  if (toast.threadKey === activeKey) return true;
+  const activeSession = parseOpenCodeSessionKey(activeKey);
+  return activeSession?.sessionID === toast.threadKey;
 }
 
 export function subscribe(listener: () => void): () => void {
@@ -202,8 +195,7 @@ export const actions = {
 
     const id = crypto.randomUUID();
     const dismissAfterVisibleMs =
-      input.dismissAfterVisibleMs ??
-      (input.type === "loading" ? undefined : DEFAULT_DISMISS_MS);
+      input.dismissAfterVisibleMs ?? (input.type === "loading" ? undefined : DEFAULT_DISMISS_MS);
 
     const toast: ToastItem = Object.freeze({
       id,
@@ -213,9 +205,7 @@ export const actions = {
       ...(input.action !== undefined ? { action: input.action } : {}),
       ...(input.copyableError !== undefined ? { copyableError: input.copyableError } : {}),
       ...(input.threadKey !== undefined ? { threadKey: input.threadKey } : {}),
-      ...(dismissAfterVisibleMs !== undefined
-        ? { dismissAfterVisibleMs }
-        : {}),
+      ...(dismissAfterVisibleMs !== undefined ? { dismissAfterVisibleMs } : {}),
     });
 
     publish([...snapshot.toasts, toast]);
@@ -230,10 +220,12 @@ export const actions = {
     return id;
   },
 
-  /** Convenience for attention alerts — 8s visible budget, never thread-scoped. */
-  addAttention(input: Omit<AddToastInput, "threadKey" | "type" | "dismissAfterVisibleMs"> & {
-    readonly type?: ToastType;
-  }): string {
+  /** Attention alerts: 8s visible budget, never thread-scoped. */
+  addAttention(
+    input: Omit<AddToastInput, "threadKey" | "type" | "dismissAfterVisibleMs"> & {
+      readonly type?: ToastType;
+    },
+  ): string {
     return actions.add({
       ...input,
       type: input.type ?? "warning",
@@ -254,10 +246,5 @@ export const actions = {
     closeToast(id);
   },
 } as const;
-
-/** Active-tab key for viewport filtering — reads the tab store at call time. */
-export function getActiveTabKey(): string {
-  return getTabSnapshot().activeKey;
-}
 
 export { ATTENTION_DISMISS_MS, DEFAULT_DISMISS_MS };

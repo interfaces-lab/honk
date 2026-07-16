@@ -5,11 +5,7 @@ import EventSource, {
   type TimeoutEvent,
 } from "react-native-sse";
 
-import type {
-  OpenCodeEventEnvelope,
-  OpenCodeEventStreamFactory,
-  OpenCodeEventStreamInput,
-} from "./client";
+import type { OpenCodeEventSourceFactory, OpenCodeEventSourceInput } from "./event-stream";
 
 type QueueWaiter<T> = {
   readonly resolve: (result: IteratorResult<T>) => void;
@@ -71,10 +67,6 @@ class OpenCodeEventStreamError extends Error {
   }
 }
 
-function eventStreamUrl(origin: string): string {
-  return `${origin.replace(/\/+$/, "")}/global/event`;
-}
-
 function errorFromEvent(event: ErrorEvent | TimeoutEvent | ExceptionEvent): Error {
   if (event.type === "error") {
     return new OpenCodeEventStreamError(
@@ -86,11 +78,11 @@ function errorFromEvent(event: ErrorEvent | TimeoutEvent | ExceptionEvent): Erro
   return new Error("The OpenCode event stream timed out.");
 }
 
-async function createNativeEventStream(
-  input: OpenCodeEventStreamInput,
-): Promise<AsyncIterable<OpenCodeEventEnvelope>> {
-  const queue = new AsyncQueue<OpenCodeEventEnvelope>();
-  const source = new EventSource(eventStreamUrl(input.origin), {
+async function createNativeOpenCodeEventSource(
+  input: OpenCodeEventSourceInput,
+): Promise<AsyncIterable<unknown>> {
+  const queue = new AsyncQueue<unknown>();
+  const source = new EventSource(input.url, {
     headers: { ...input.headers },
     pollingInterval: 0,
     timeoutBeforeConnection: 0,
@@ -119,11 +111,7 @@ async function createNativeEventStream(
     if (event.data === null) return;
     try {
       const parsed: unknown = JSON.parse(event.data);
-      if (typeof parsed !== "object" || parsed === null || !Reflect.has(parsed, "payload")) {
-        fail(new Error("OpenCode sent an invalid event envelope."));
-        return;
-      }
-      queue.push({ payload: Reflect.get(parsed, "payload") });
+      queue.push(parsed);
     } catch (error) {
       fail(error);
     }
@@ -146,7 +134,7 @@ async function createNativeEventStream(
   if (input.signal.aborted) onAbort();
 
   return {
-    [Symbol.asyncIterator](): AsyncIterator<OpenCodeEventEnvelope> {
+    [Symbol.asyncIterator](): AsyncIterator<unknown> {
       return {
         next: () => queue.next(),
         return: async () => {
@@ -159,4 +147,5 @@ async function createNativeEventStream(
   };
 }
 
-export const nativeEventStreamFactory: OpenCodeEventStreamFactory = createNativeEventStream;
+export const nativeOpenCodeEventSource: OpenCodeEventSourceFactory =
+  createNativeOpenCodeEventSource;

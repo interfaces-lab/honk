@@ -4,7 +4,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 // Dev playground only — @honk/ui ships raw source; real consumers bring their own
-// unplugin + optimizeDeps.exclude. StyleX must run before react (honkkit precedent);
+// unplugin + optimizeDeps.exclude. StyleX must run before React;
 // Tailwind runs after StyleX so utilities resolve against the emitted --honk-* vars
 // via the bridge (src/tailwind.css), matching the @honk/app plugin order.
 export default defineConfig({

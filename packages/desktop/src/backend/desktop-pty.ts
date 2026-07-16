@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { chmodSync, existsSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
@@ -13,35 +12,27 @@ import * as Layer from "effect/Layer";
 
 import * as Electron from "electron";
 
+import type { DesktopPtyOpenOptions } from "@honk/shared/desktop-api";
 import * as EffectLogger from "@honk/shared/effect-logger";
 
 import * as IpcChannels from "../ipc/channels";
 
-// A minimal PTY bridge for the renderer's terminal panel.
-//
-// honk's Core already owns the "real" websocket-multiplexed terminal
-// (`@honk/core` terminal.ts). This service is deliberately smaller: the new
-// app's terminal panel owns its own xterm buffer and talks to the desktop host
-// directly over the bridge, so all this needs to do is spawn a login shell,
-// keep a Map of live sessions, pump PTY output to the renderer, and make sure
-// nothing leaks when the window closes or the app quits.
+// PTY bridge for the terminal panel. Spawn a login shell, pump output, no leaks.
 
 const elog = EffectLogger.create({ service: "desktop-pty" });
 
 const TERMINAL_NAME = "xterm-256color";
 
-// Vars that would confuse a freshly-spawned interactive login shell. We spread
-// the rest of process.env so the user's PATH/tooling is intact.
-const ENV_BLOCKLIST = new Set(["ELECTRON_RUN_AS_NODE", "ELECTRON_RENDERER_PORT", "TERM", "COLORTERM"]);
-
-export interface DesktopPtyOpenOptions {
-  readonly cwd: string;
-  readonly cols: number;
-  readonly rows: number;
-}
+// Strip Electron vars that confuse a fresh login shell. Keep user PATH.
+const ENV_BLOCKLIST = new Set([
+  "ELECTRON_RUN_AS_NODE",
+  "ELECTRON_RENDERER_PORT",
+  "TERM",
+  "COLORTERM",
+]);
 
 export interface DesktopPtyShape {
-  readonly open: (options: DesktopPtyOpenOptions) => Effect.Effect<{ readonly id: string }>;
+  readonly open: (options: DesktopPtyOpenOptions) => Effect.Effect<void>;
   readonly write: (id: string, data: string) => Effect.Effect<void>;
   readonly resize: (id: string, cols: number, rows: number) => Effect.Effect<void>;
   readonly close: (id: string) => Effect.Effect<void>;
@@ -52,7 +43,6 @@ export class DesktopPty extends Context.Service<DesktopPty, DesktopPtyShape>()(
 ) {}
 
 interface PtySession {
-  readonly id: string;
   readonly pty: IPty;
   readonly disposeData: () => void;
   readonly disposeExit: () => void;
@@ -60,10 +50,7 @@ interface PtySession {
 
 let didEnsureSpawnHelperExecutable = false;
 
-// @lydell/node-pty ships prebuilt N-API binaries per platform. On macOS the
-// posix spawn path also needs the `spawn-helper` binary to be executable; some
-// packaging pipelines strip the +x bit, so mirror @honk/core's terminal.ts and
-// re-assert it once. Best-effort — a working dev checkout already has it.
+// Ensure spawn-helper is +x. Some packaging strips the bit.
 function resolvePlatformPackageDir(): string | null {
   try {
     const requireFromSource = createRequire(import.meta.url);
@@ -114,8 +101,7 @@ function resolveShell(): { readonly shell: string; readonly args: readonly strin
         ? "/bin/zsh"
         : "/bin/bash";
 
-  // Login + interactive so the user's profile loads and the prompt renders the
-  // way it does in a normal terminal.
+  // Login + interactive so profile and prompt match a normal terminal.
   const name = NodePath.basename(shell).toLowerCase();
   if (name === "bash") return { shell, args: ["--login", "-i"] };
   if (name === "zsh" || name === "fish") return { shell, args: ["-l", "-i"] };
@@ -126,9 +112,7 @@ function resolveCwd(cwd: string): string {
   try {
     const resolved = NodePath.resolve(cwd);
     if (statSync(resolved).isDirectory()) return resolved;
-  } catch {
-    // Fall through to the home directory below.
-  }
+  } catch {}
   return homedir();
 }
 
@@ -144,10 +128,7 @@ function buildSpawnEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
-// Mirrors ElectronWindow.sendAll: fan a message out to every live renderer. The
-// bridge is not scoped to a single window, and this runs from node-pty's raw
-// data callback (hot path), so it stays a plain synchronous loop rather than
-// routing through the Effect runtime.
+// Sync fan-out on the node-pty hot path. Skip the Effect runtime here.
 function broadcast(channel: string, payload: unknown): void {
   for (const window of Electron.BrowserWindow.getAllWindows()) {
     if (window.isDestroyed()) continue;
@@ -167,9 +148,7 @@ const make = Effect.gen(function* () {
     disposeSession(session);
     try {
       session.pty.kill();
-    } catch {
-      // Already exited or the platform rejected the signal.
-    }
+    } catch {}
   };
 
   const killAll = Effect.sync(() => {
@@ -179,11 +158,10 @@ const make = Effect.gen(function* () {
     }
   });
 
-  const open = (options: DesktopPtyOpenOptions): Effect.Effect<{ readonly id: string }> =>
+  const open = (options: DesktopPtyOpenOptions): Effect.Effect<void> =>
     Effect.sync(() => {
       ensureSpawnHelperExecutable();
       const { shell, args } = resolveShell();
-      const id = `pty_${randomUUID()}`;
       const pty = nodePty.spawn(shell, [...args], {
         name: TERMINAL_NAME,
         cwd: resolveCwd(options.cwd),
@@ -193,25 +171,23 @@ const make = Effect.gen(function* () {
       });
 
       const dataDisposable = pty.onData((data) => {
-        broadcast(IpcChannels.PTY_DATA_CHANNEL, { id, data });
+        broadcast(IpcChannels.PTY_DATA_CHANNEL, { id: options.id, data });
       });
       const exitDisposable = pty.onExit((event) => {
         const code = Number.isInteger(event.exitCode) ? event.exitCode : 0;
-        const existing = sessions.get(id);
+        const existing = sessions.get(options.id);
         if (existing !== undefined) {
-          sessions.delete(id);
+          sessions.delete(options.id);
           disposeSession(existing);
         }
-        broadcast(IpcChannels.PTY_EXIT_CHANNEL, { id, code });
+        broadcast(IpcChannels.PTY_EXIT_CHANNEL, { id: options.id, code });
       });
 
-      sessions.set(id, {
-        id,
+      sessions.set(options.id, {
         pty,
         disposeData: () => dataDisposable.dispose(),
         disposeExit: () => exitDisposable.dispose(),
       });
-      return { id };
     }).pipe(
       Effect.tapError((cause) =>
         elog.error("failed to open pty session", { cause: String(cause) }),
@@ -225,9 +201,7 @@ const make = Effect.gen(function* () {
       if (session === undefined) return;
       try {
         session.pty.write(data);
-      } catch {
-        // Session exited between the renderer's send and now.
-      }
+      } catch {}
     });
 
   const resize = (id: string, cols: number, rows: number): Effect.Effect<void> =>
@@ -236,9 +210,7 @@ const make = Effect.gen(function* () {
       if (session === undefined) return;
       try {
         session.pty.resize(Math.max(1, Math.trunc(cols)), Math.max(1, Math.trunc(rows)));
-      } catch {
-        // Session exited or the dimensions were rejected.
-      }
+      } catch {}
     });
 
   const close = (id: string): Effect.Effect<void> =>
@@ -249,20 +221,14 @@ const make = Effect.gen(function* () {
       killSession(session);
     });
 
-  // Leak guard: when the last renderer window closes, tear down any sessions
-  // the renderer did not explicitly close. On macOS the app process outlives
-  // the window, so this must not wait for the quit finalizer below.
+  // macOS keeps the process after the last window. Reap orphan sessions here.
   const onWindowAllClosed = (): void => {
     Effect.runFork(killAll);
   };
   Electron.app.on("window-all-closed", onWindowAllClosed);
 
-  // Reload guard: a renderer reload (⌘R, dev HMR full reload, crash) destroys the preload
-  // listeners without ever invoking pty.close, stranding live shells in `sessions` until the
-  // window closes. The invoke framework doesn't carry the sender, and honk is a single-window
-  // app — so any WINDOW webContents starting a main-frame navigation, or losing its renderer
-  // process, kills every session. Webview guests (the future browser panel) are excluded:
-  // their navigations must never reap the user's terminals.
+  // Reload/crash drops preload listeners without pty.close. Kill on main-frame
+  // nav or renderer death. Skip non-window contents so browser navigation keeps shells.
   const guardWindowContents = (contents: Electron.WebContents): void => {
     if (contents.getType() !== "window") return;
     contents.on("did-start-navigation", (details) => {
@@ -281,8 +247,7 @@ const make = Effect.gen(function* () {
     guardWindowContents(window.webContents);
   }
 
-  // Kill everything on app quit (layer scope teardown) and drop the app hooks. The per-contents
-  // listeners die with their webContents — no manual removal needed.
+  // Quit teardown. Per-contents listeners die with webContents.
   yield* Effect.addFinalizer(() =>
     Effect.sync(() => {
       Electron.app.removeListener("window-all-closed", onWindowAllClosed);

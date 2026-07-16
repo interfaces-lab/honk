@@ -1,16 +1,14 @@
 import * as React from "react";
 import {
   ActivityIndicator,
-  Pressable,
   StyleSheet,
-  Text,
   View,
   useColorScheme,
-  type PressableProps,
   type TextProps,
   type ViewProps,
 } from "react-native";
 import { Button as ExpoButton, Host as ExpoHost } from "@expo/ui";
+import { Button, Text as HonkText } from "@honk/ui";
 import { resolveNativeTheme, type NativeTheme } from "@honk/ui/theme";
 
 const nativeThemes = {
@@ -29,43 +27,17 @@ export function Page({ style, ...props }: ViewProps): React.ReactElement {
 }
 
 export function BodyText({ style, ...props }: TextProps): React.ReactElement {
-  const theme = useHonkTheme();
-  return (
-    <Text
-      {...props}
-      allowFontScaling
-      style={[
-        {
-          color: theme.colors.textPrimary,
-          fontSize: theme.metrics.font.bodySize,
-          lineHeight: theme.metrics.font.bodyLeading,
-        },
-        style,
-      ]}
-    />
-  );
+  return <HonkText {...props} size="base" tone="primary" style={style} />;
 }
 
 export function DetailText({ style, ...props }: TextProps): React.ReactElement {
-  const theme = useHonkTheme();
-  return (
-    <Text
-      {...props}
-      allowFontScaling
-      style={[
-        {
-          color: theme.colors.textMuted,
-          fontSize: theme.metrics.font.detailSize,
-          lineHeight: theme.metrics.font.detailLeading,
-        },
-        style,
-      ]}
-    />
-  );
+  return <HonkText {...props} size="sm" tone="muted" style={style} />;
 }
 
-interface ActionButtonProps extends Pick<PressableProps, "accessibilityLabel" | "onPress"> {
+interface ActionButtonProps {
+  readonly accessibilityLabel?: string;
   readonly label: string;
+  readonly onPress?: () => void;
   readonly disabled?: boolean;
   readonly pending?: boolean;
   readonly size?: "compact" | "regular";
@@ -81,86 +53,20 @@ export function ActionButton({
   size = "regular",
   tone = "accent",
 }: ActionButtonProps): React.ReactElement {
-  const theme = useHonkTheme();
-  const restingBackgroundColor =
-    tone === "accent"
-      ? theme.colors.accentFill
-      : tone === "destructive"
-        ? theme.colors.errBg
-        : theme.colors.control;
-  const pressedBackgroundColor =
-    tone === "neutral" ? theme.colors.controlPress : restingBackgroundColor;
-  const borderColor =
-    tone === "accent"
-      ? theme.colors.accentFill
-      : tone === "destructive"
-        ? theme.colors.errBorder
-        : theme.colors.borderStrong;
-  const color =
-    tone === "accent"
-      ? theme.colors.onAccent
-      : tone === "destructive"
-        ? theme.colors.errFg
-        : theme.colors.textPrimary;
   return (
-    <Pressable
+    <Button
       accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: disabled || pending, busy: pending }}
-      disabled={disabled || pending}
-      hitSlop={
-        (theme.metrics.interaction.touchTarget -
-          (size === "compact" ? theme.metrics.button.compactHeight : theme.metrics.button.height)) /
-        2
+      disabled={disabled}
+      isPending={pending}
+      {...(onPress === undefined ? {} : { onClick: onPress })}
+      size={size === "compact" ? "sm" : "md"}
+      variant={
+        tone === "accent" ? "primary" : tone === "destructive" ? "destructive" : "neutral"
       }
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.button,
-        {
-          backgroundColor: pressed ? pressedBackgroundColor : restingBackgroundColor,
-          borderColor,
-          borderCurve: "continuous",
-          borderRadius: theme.metrics.radius.control,
-          borderStyle: "solid",
-          borderWidth: theme.metrics.button.borderWidth,
-          height:
-            size === "compact" ? theme.metrics.button.compactHeight : theme.metrics.button.height,
-          opacity:
-            disabled || pending
-              ? theme.metrics.interaction.disabledOpacity
-              : pressed
-                ? theme.metrics.interaction.pressedOpacity
-                : 1,
-          paddingHorizontal:
-            size === "compact"
-              ? theme.metrics.button.compactPaddingInline
-              : theme.metrics.button.paddingInline,
-        },
-      ]}
     >
-      {pending ? (
-        <ActivityIndicator color={color} />
-      ) : (
-        <Text
-          allowFontScaling
-          style={{
-            color,
-            fontSize: theme.metrics.font.detailSize,
-            fontWeight: theme.metrics.font.weightSemibold,
-            lineHeight: theme.metrics.font.detailLeading,
-          }}
-        >
-          {label}
-        </Text>
-      )}
-    </Pressable>
+      {label}
+    </Button>
   );
-}
-
-interface ChoiceButtonProps extends Pick<PressableProps, "onPress"> {
-  readonly label: string;
-  readonly selected: boolean;
-  readonly disabled?: boolean;
 }
 
 interface SystemButtonProps {
@@ -181,56 +87,6 @@ export function SystemButton({
     <ExpoHost matchContents seedColor={theme.colors.accent}>
       <ExpoButton disabled={disabled} label={label} onPress={onPress} variant={variant} />
     </ExpoHost>
-  );
-}
-
-export function ChoiceButton({
-  disabled = false,
-  label,
-  onPress,
-  selected,
-}: ChoiceButtonProps): React.ReactElement {
-  const theme = useHonkTheme();
-  const hitSlop = (theme.metrics.interaction.touchTarget - theme.metrics.button.compactHeight) / 2;
-  return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityState={{ checked: selected, disabled }}
-      disabled={disabled}
-      hitSlop={hitSlop}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        alignItems: "center",
-        backgroundColor: selected
-          ? theme.colors.accentSubtle
-          : pressed
-            ? theme.colors.controlPress
-            : theme.colors.control,
-        borderColor: selected ? theme.colors.accent : theme.colors.borderStrong,
-        borderCurve: "continuous",
-        borderRadius: theme.metrics.radius.control,
-        borderStyle: "solid",
-        borderWidth: theme.metrics.button.borderWidth,
-        height: theme.metrics.button.compactHeight,
-        justifyContent: "center",
-        opacity: disabled ? theme.metrics.interaction.disabledOpacity : 1,
-        paddingHorizontal: theme.metrics.button.compactPaddingInline,
-      })}
-    >
-      <Text
-        allowFontScaling
-        style={{
-          color: selected ? theme.colors.accent : theme.colors.textPrimary,
-          fontSize: theme.metrics.font.detailSize,
-          fontWeight: selected
-            ? theme.metrics.font.weightSemibold
-            : theme.metrics.font.weightMedium,
-          lineHeight: theme.metrics.font.detailLeading,
-        }}
-      >
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -271,10 +127,6 @@ export function EmptyState({
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-  },
-  button: {
-    alignItems: "center",
-    justifyContent: "center",
   },
   centered: {
     alignItems: "center",

@@ -46,7 +46,7 @@ export interface ElectronShellShape {
   }) => Effect.Effect<boolean>;
   /** Reveals an existing absolute path in the OS file manager. Returns false
    * (rather than rejecting) when the path is invalid or no longer exists, so
-   * callers can surface feedback — mirrors `openExternal`. */
+   * callers can surface feedback. Same contract as `openExternal`. */
   readonly showItemInFolder: (path: string) => Effect.Effect<boolean>;
   readonly copyText: (text: string) => Effect.Effect<void>;
 }

@@ -40,12 +40,12 @@ function RootNavigator(): React.ReactElement {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
           name="new"
-          options={{ presentation: "modal", sheetGrabberVisible: true, title: "New task" }}
+          options={{ presentation: "modal", sheetGrabberVisible: true, title: "New session" }}
         />
-        <Stack.Screen name="archived" options={{ title: "Archived tasks" }} />
+        <Stack.Screen name="archived" options={{ title: "Archived sessions" }} />
         <Stack.Screen
-          name="task/[threadId]"
-          options={{ presentation: "modal", sheetGrabberVisible: true, title: "Task settings" }}
+          name="session/[serverKey]/[sessionId]/settings"
+          options={{ presentation: "modal", sheetGrabberVisible: true, title: "Session settings" }}
         />
       </Stack>
     </ThemeProvider>

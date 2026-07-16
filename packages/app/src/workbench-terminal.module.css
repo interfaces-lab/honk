@@ -1,0 +1,20 @@
+/* xterm owns these descendants, so the adapter stays scoped to the terminal host. */
+.host {
+  flex: 1 1 0%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--honk-color-text-primary);
+  background-color: var(--honk-color-bg-deep);
+  font-family: Menlo, Monaco, "Courier New", monospace;
+}
+
+.host :global(.xterm) {
+  height: 100%;
+  background-color: transparent;
+}
+
+.host :global(.xterm-viewport),
+.host :global(.xterm-screen) {
+  background-color: transparent !important;
+}

@@ -1,27 +1,26 @@
-// Command menu surface — one search-and-act engine, three doors.
-// Home embeds CommandMenuInline; the shell mounts CommandMenuOverlay for ⌘K / ⌘O.
-// Both share this file's rows + the command-menu store/model. Zero useEffect:
-// focus-on-open is a callback ref; outside-click/Escape ride Dialog.Root props.
-// Arrow/Enter/Escape on the focused input are component-local (registry owns
-// only the global chords).
-
 import * as stylex from "@stylexjs/stylex";
-import { Dialog, Field, Icon, Kbd, ListRow, Matrix, StatusDot, Text } from "@honk/ui";
 import {
-  colorVars,
-  controlVars,
-  elevationVars,
-  fontVars,
-  radiusVars,
-  spaceVars,
-} from "@honk/ui/tokens.stylex";
+  Button,
+  Dialog,
+  Field,
+  Icon,
+  IconButton,
+  Kbd,
+  ListRow,
+  Matrix,
+  StatusDot,
+  Text,
+} from "@honk/ui";
+import { colorVars, controlVars, fontVars, radiusVars, spaceVars } from "@honk/ui/tokens.stylex";
 import {
   IconChevronLeftMedium,
+  IconClipboard,
   IconConsole,
+  IconCrossMedium,
+  IconEyeOpen,
   IconPlusSmall,
   IconSettingsGear2,
 } from "@honk/ui/icons";
-import { useNavigate } from "@tanstack/react-router";
 import * as React from "react";
 
 import {
@@ -39,40 +38,83 @@ import {
   useCommandMenuSelector,
   type CommandMenuDoor,
 } from "./command-menu-store";
-import { DEFAULT_SETTINGS_SECTION } from "./settings";
 import { canReplayDesktopOnboarding, replayDesktopOnboarding } from "./desktop-bridge";
-import { actions as tabActions } from "./tab-store";
-import { useWorkspaceWatchSelector } from "./use-sdk-watch";
+import {
+  isPerformanceMonitorVisible,
+  performanceMonitorActions,
+  usePerformanceMonitorVisible,
+} from "./performance-monitor";
+import { copySessionDebugInfo } from "./session-debug-info";
+import { actions as settingsActions } from "./settings-store";
+import {
+  actions as tabActions,
+  getSnapshot as getTabSnapshot,
+  sessionRefForTabKey,
+} from "./tab-store";
+import { actions as toastActions } from "./toast-store";
+import { useSessionInventoryWatchSelector } from "./use-sdk-watch";
+import { getSessionWatchSnapshot } from "./watch-registry";
 
-// ── Anatomy (named intrinsics — omnibox geometry, not identity vocabulary) ───────────────────
-// The menu measure is ~620px; tokens don't yet name a command-menu width, so this
-// is a justified intrinsic (dialog.tsx DIALOG_MAX_WIDTH precedent).
+// Tokens do not name a command-menu width yet (same precedent as dialog DIALOG_MAX_WIDTH).
 const MENU_MAX_WIDTH = "620px";
-// Results list height cap — the drop stays short; dvh keeps mobile chrome from clipping.
+const MENU_VIEWPORT_WIDTH = "calc(100% - 24px)";
+// Pin the search line while result height changes.
+const MENU_TOP = "clamp(72px, 18dvh, 160px)";
+const MENU_MAX_HEIGHT = "calc(100dvh - 96px)";
 const MENU_DROP_MAX_HEIGHT = "min(420px, 50dvh)";
 const HAIRLINE = "1px";
-// Section label tracking (0.06em) — typography anatomy, not a token.
 const SECTION_TRACKING = "0.06em";
 
-const COMMANDS_WITH_DEVELOPMENT = Object.freeze([...SHIPPING_COMMANDS, ...DEVELOPMENT_COMMANDS]);
+const MENU_DIALOG_STYLE: React.CSSProperties = {
+  top: MENU_TOP,
+  transform: "translateX(-50%)",
+  maxWidth: MENU_MAX_WIDTH,
+  width: MENU_VIEWPORT_WIDTH,
+  maxHeight: MENU_MAX_HEIGHT,
+  padding: 0,
+  gap: 0,
+  overflow: "hidden",
+};
+
+// Flush search header: quiet hairline only. Field's :focus-within accent ring would
+// frame just this strip and read like a trapped menu outline.
+const MENU_FIELD_STYLE: React.CSSProperties = {
+  backgroundColor: "transparent",
+  borderRadius: 0,
+  borderBottomWidth: HAIRLINE,
+  borderBottomStyle: "solid",
+  borderBottomColor: colorVars["--honk-color-border-muted"],
+  boxShadow: "none",
+  outline: "none",
+};
+
+function availableCommands(monitorVisible: boolean): typeof SHIPPING_COMMANDS {
+  if (!import.meta.env.DEV) return SHIPPING_COMMANDS;
+  return Object.freeze([
+    ...SHIPPING_COMMANDS,
+    ...DEVELOPMENT_COMMANDS.filter(
+      (command) => command.run !== "replay-onboarding" || canReplayDesktopOnboarding(),
+    ).map((command) => {
+      if (command.run !== "toggle-performance-monitor") return command;
+      return {
+        ...command,
+        title: monitorVisible ? "Hide performance monitor" : "Show performance monitor",
+      };
+    }),
+  ]);
+}
 
 const styles = stylex.create({
-  // Overlay popup — wider than the default dialog card. Dialog owns z-dialog;
-  // z-command via xstyle is blocked by StyleX's zIndex typing (string token vs
-  // CSS number) — noted as a DS gap; dialog tier is enough for this WP.
-  overlayPopup: {
-    maxWidth: MENU_MAX_WIDTH,
-    width: "100%",
-    padding: spaceVars["--honk-space-gutter"],
-    gap: spaceVars["--honk-space-gutter"],
-  },
-  // Shared omnibox + results column (inline Home and overlay both use this).
   panel: {
     display: "flex",
     flexDirection: "column",
-    gap: spaceVars["--honk-space-gutter"],
+    gap: 0,
     width: "100%",
     minWidth: 0,
+    overflow: "hidden",
+  },
+  panelInline: {
+    gap: spaceVars["--honk-space-gutter"],
   },
   scope: {
     display: "flex",
@@ -95,36 +137,6 @@ const styles = stylex.create({
     flexShrink: 0,
     color: colorVars["--honk-color-text-faint"],
   },
-  go: {
-    flexShrink: 0,
-    display: "inline-flex",
-    alignItems: "center",
-    gap: controlVars["--honk-control-gap"],
-    paddingBlock: controlVars["--honk-control-gap"],
-    paddingInline: spaceVars["--honk-space-control-pad-x"],
-    borderRadius: radiusVars["--honk-radius-field"],
-    backgroundColor: colorVars["--honk-color-layer-03"],
-    color: colorVars["--honk-color-text-primary"],
-    fontSize: fontVars["--honk-font-size-caption"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
-    borderWidth: 0,
-    borderStyle: "none",
-    cursor: "pointer",
-  },
-  back: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    width: controlVars["--honk-control-h-sm"],
-    height: controlVars["--honk-control-h-sm"],
-    borderRadius: radiusVars["--honk-radius-control"],
-    borderWidth: 0,
-    borderStyle: "none",
-    backgroundColor: "transparent",
-    color: colorVars["--honk-color-text-muted"],
-    cursor: "pointer",
-  },
   drop: {
     display: "flex",
     flexDirection: "column",
@@ -132,14 +144,11 @@ const styles = stylex.create({
     width: "100%",
     boxSizing: "border-box",
     padding: spaceVars["--honk-space-gutter"],
-    borderRadius: radiusVars["--honk-radius-panel"],
-    backgroundColor: colorVars["--honk-color-bg-base"],
-    boxShadow: elevationVars["--honk-elevation-floating"],
+    backgroundColor: "transparent",
     maxHeight: MENU_DROP_MAX_HEIGHT,
     overflowY: "auto",
+    overscrollBehavior: "contain",
   },
-  // Inline Home: results sit under the omnibox without a second floating card
-  // when the page already provides the measure (one composition).
   dropInline: {
     boxShadow: "none",
     backgroundColor: "transparent",
@@ -156,11 +165,6 @@ const styles = stylex.create({
     letterSpacing: SECTION_TRACKING,
     textTransform: "uppercase",
   },
-  // Command-menu tweak on ListRow.Title: the title yields to nothing on its right, so it
-  // grows into the free space and pushes the meta cluster to the edge.
-  rowTitle: {
-    flexGrow: 1,
-  },
   verb: {
     color: colorVars["--honk-color-accent"],
     fontWeight: fontVars["--honk-font-weight-semibold"],
@@ -173,45 +177,61 @@ const styles = stylex.create({
     padding: spaceVars["--honk-space-panel-pad"],
     textAlign: "center",
   },
+  footer: {
+    flexShrink: 0,
+    minHeight: controlVars["--honk-control-h-lg"],
+    display: "flex",
+    alignItems: "center",
+    gap: spaceVars["--honk-space-gutter"],
+    paddingInline: spaceVars["--honk-space-panel-pad"],
+    borderTopWidth: HAIRLINE,
+    borderTopStyle: "solid",
+    borderTopColor: colorVars["--honk-color-border-muted"],
+    backgroundColor: colorVars["--honk-color-layer-01"],
+  },
+  footerHint: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: controlVars["--honk-control-gap"],
+  },
 });
-
-// ── Shared body (inline + overlay) ───────────────────────────────────────────────────────────
 
 type CommandMenuBodyProps = {
   readonly door: CommandMenuDoor;
-  /** Home inline: Commands hidden at rest; always "focused" for ranking. */
+  /** Home inline hides Commands at rest and ranks as always focused. */
   readonly variant: "overlay" | "inline";
-  /** Overlay only — Dialog owns open; inline is always "open" for ranking. */
+  /** Overlay only. Dialog owns open; inline ranks as always open. */
   readonly isOpen?: boolean;
+  /** Overlay waits for exit before opening Settings so focus traps do not overlap. */
+  readonly onSettingsRequest?: () => void;
 };
 
 function CommandMenuBody({
   door,
   variant,
   isOpen = true,
+  onSettingsRequest,
 }: CommandMenuBodyProps): React.ReactElement {
-  const navigate = useNavigate();
   const query = useCommandMenuSelector((s) => s.query);
   const selectedIndex = useCommandMenuSelector((s) => s.selectedIndex);
   const submenuStack = useCommandMenuSelector((s) => s.submenuStack);
-  const threads = useWorkspaceWatchSelector((s) => s.state?.threads ?? EMPTY_THREADS);
+  const threads = useSessionInventoryWatchSelector((s) => s.state?.rootSessions ?? EMPTY_THREADS);
+  const monitorVisible = usePerformanceMonitorVisible();
 
   const items = rankCommandMenuItems({
     query,
     door,
     threads,
-    commands: canReplayDesktopOnboarding() ? COMMANDS_WITH_DEVELOPMENT : SHIPPING_COMMANDS,
+    commands: availableCommands(monitorVisible),
     submenuStack,
     hideCommandsAtRest: variant === "inline",
   });
   const selectable = selectableItems(items);
 
-  // Clamp selection if the ranked list shrank (query change already resets to 0
-  // in the store; this covers thread-list churn while open).
+  // Clamp when the list shrinks (store already resets on query change; this covers thread churn).
   const safeIndex = selectable.length === 0 ? 0 : Math.min(selectedIndex, selectable.length - 1);
 
-  // Focus-on-open via callback ref — attach focuses when the input mounts into
-  // an open overlay; detach is a no-op. No useEffect for focus.
+  // Focus on mount via callback ref. No useEffect for focus.
   const inputRef = React.useCallback(
     (node: HTMLInputElement | null) => {
       if (node !== null && isOpen) {
@@ -223,21 +243,53 @@ function CommandMenuBody({
 
   const runCommand = (run: CommandMenuCommandId): void => {
     switch (run) {
-      case "new-thread":
-        tabActions.openNew({ prompt: query });
+      case "new-thread": {
+        const prompt = query.trim();
+        if (prompt.length === 0) {
+          tabActions.openNew();
+        } else {
+          tabActions.openNew({ prompt });
+        }
         menuActions.close();
         menuActions.setQuery("");
         return;
+      }
       case "open-settings":
+        if (onSettingsRequest === undefined) {
+          menuActions.close();
+          settingsActions.open();
+        } else {
+          onSettingsRequest();
+        }
+        return;
+      case "copy-session-debug-info": {
         menuActions.close();
-        void navigate({
-          to: "/settings",
-          search: { section: DEFAULT_SETTINGS_SECTION },
+        menuActions.setQuery("");
+        const ref = sessionRefForTabKey(getTabSnapshot().activeKey);
+        if (ref === null) {
+          toastActions.add({
+            type: "error",
+            title: "No active session",
+            description: "Open a session before copying its debug info.",
+          });
+          return;
+        }
+        const watch = getSessionWatchSnapshot(ref);
+        void copySessionDebugInfo({
+          ref,
+          state: watch.state?.app ?? null,
+          watchStatus: watch.status,
         });
         return;
+      }
       case "replay-onboarding":
         menuActions.close();
         void replayDesktopOnboarding();
+        return;
+      case "toggle-performance-monitor":
+        performanceMonitorActions.toggle();
+        menuActions.close();
+        menuActions.setQuery("");
         return;
       default: {
         const _exhaustive: never = run;
@@ -253,7 +305,7 @@ function CommandMenuBody({
         return;
       case "thread":
         tabActions.open({
-          key: item.threadId,
+          key: item.sessionKey,
           title: item.title,
           kind: "thread",
           status: item.status,
@@ -291,7 +343,7 @@ function CommandMenuBody({
         if (item !== undefined) {
           activateItem(item);
         } else if (variant === "inline" || door === "command") {
-          // Empty list + Enter still starts a new chat (⏎ means Start).
+          // Empty list + Enter still starts a new chat.
           runCommand("new-thread");
         }
         return;
@@ -331,19 +383,19 @@ function CommandMenuBody({
   const showDrop = variant === "overlay" || query.length > 0 || submenuStack.length > 0;
 
   return (
-    <div {...stylex.props(styles.panel)}>
-      <Field size="lg">
+    <div {...stylex.props(styles.panel, variant === "inline" && styles.panelInline)}>
+      <Field size="lg" style={variant === "overlay" ? MENU_FIELD_STYLE : undefined}>
         {submenuStack.length > 0 ? (
-          <button
-            type="button"
-            {...stylex.props(styles.back)}
+          <IconButton
+            size="sm"
+            variant="quiet"
             aria-label="Back"
             onClick={() => {
               menuActions.popSubmenu();
             }}
           >
             <Icon icon={IconChevronLeftMedium} size="sm" tone="muted" />
-          </button>
+          </IconButton>
         ) : (
           <span {...stylex.props(styles.scope)}>{door === "threads" ? "Threads" : "Anywhere"}</span>
         )}
@@ -369,9 +421,9 @@ function CommandMenuBody({
             where
           </Text>
         </span>
-        <button
-          type="button"
-          {...stylex.props(styles.go)}
+        <Button
+          size="sm"
+          variant="neutral"
           onClick={() => {
             const item = selectable[safeIndex];
             if (item !== undefined) {
@@ -382,7 +434,7 @@ function CommandMenuBody({
           }}
         >
           ⏎ Start
-        </button>
+        </Button>
       </Field>
 
       {showDrop ? (
@@ -416,10 +468,9 @@ function CommandMenuBody({
                   id={`command-menu-item-${item.id}`}
                   role="option"
                   aria-selected={isActive}
-                  // aria-activedescendant combobox model: the input is the only tab
-                  // stop; rows highlight via the store, never via DOM focus.
+                  // Combobox: input is the only tab stop; rows highlight via the store.
                   tabIndex={-1}
-                  isActive={isActive}
+                  isHighlighted={isActive}
                   onMouseEnter={() => {
                     if (selectIndex >= 0) {
                       menuActions.setSelectedIndex(selectIndex);
@@ -430,9 +481,11 @@ function CommandMenuBody({
                   }}
                 >
                   <RowLeading item={item} />
-                  <ListRow.Title xstyle={styles.rowTitle}>
-                    <RowTitle item={item} />
-                  </ListRow.Title>
+                  <ListRow.Content>
+                    <ListRow.Title>
+                      <RowTitle item={item} />
+                    </ListRow.Title>
+                  </ListRow.Content>
                   <ListRow.Meta>
                     <RowMeta item={item} isActive={isActive} />
                   </ListRow.Meta>
@@ -440,6 +493,29 @@ function CommandMenuBody({
               );
             })
           )}
+        </div>
+      ) : null}
+
+      {variant === "overlay" ? (
+        <div {...stylex.props(styles.footer)} aria-hidden>
+          <span {...stylex.props(styles.footerHint)}>
+            <Kbd size="sm">↑↓</Kbd>
+            <Text as="span" size="xs" tone="faint">
+              move
+            </Text>
+          </span>
+          <span {...stylex.props(styles.footerHint)}>
+            <Kbd size="sm">⏎</Kbd>
+            <Text as="span" size="xs" tone="faint">
+              open
+            </Text>
+          </span>
+          <span {...stylex.props(styles.footerHint)}>
+            <Kbd size="sm">Esc</Kbd>
+            <Text as="span" size="xs" tone="faint">
+              close
+            </Text>
+          </span>
         </div>
       ) : null}
     </div>
@@ -473,17 +549,7 @@ function RowLeading({
     case "command":
       return (
         <ListRow.Slot>
-          <Icon
-            icon={
-              item.run === "open-settings"
-                ? IconSettingsGear2
-                : item.run === "replay-onboarding"
-                  ? IconConsole
-                  : IconPlusSmall
-            }
-            size="sm"
-            tone="faint"
-          />
+          <Icon icon={commandLeadingIcon(item.run)} size="sm" tone="faint" />
         </ListRow.Slot>
       );
     case "submenu":
@@ -494,6 +560,25 @@ function RowLeading({
       );
     default: {
       const _exhaustive: never = item;
+      return _exhaustive;
+    }
+  }
+}
+
+function commandLeadingIcon(run: CommandMenuCommandId) {
+  switch (run) {
+    case "open-settings":
+      return IconSettingsGear2;
+    case "copy-session-debug-info":
+      return IconClipboard;
+    case "replay-onboarding":
+      return IconConsole;
+    case "toggle-performance-monitor":
+      return isPerformanceMonitorVisible() ? IconCrossMedium : IconEyeOpen;
+    case "new-thread":
+      return IconPlusSmall;
+    default: {
+      const _exhaustive: never = run;
       return _exhaustive;
     }
   }
@@ -533,11 +618,11 @@ function RowMeta({
   return null;
 }
 
-// ── Overlay (⌘K / ⌘O) ────────────────────────────────────────────────────────────────────────
-
 function CommandMenuOverlay(): React.ReactElement {
   const open = useCommandMenuSelector((s) => s.open);
   const door = useCommandMenuSelector((s) => s.door);
+  // Wait for this dialog to dismiss before opening Settings so focus traps do not overlap.
+  const openSettingsAfterCloseRef = React.useRef(false);
 
   return (
     <Dialog.Root
@@ -547,37 +632,49 @@ function CommandMenuOverlay(): React.ReactElement {
           menuActions.close();
         }
       }}
+      onOpenChangeComplete={(next) => {
+        if (next) {
+          openSettingsAfterCloseRef.current = false;
+          return;
+        }
+        if (openSettingsAfterCloseRef.current) {
+          openSettingsAfterCloseRef.current = false;
+          settingsActions.open();
+        }
+      }}
     >
-      <Dialog.Popup xstyle={styles.overlayPopup}>
-        {/* Visually quiet — the omnibox is the label; Title stays for a11y. */}
-        <Dialog.Title xstyle={a11yStyles.visuallyHidden}>
+      <Dialog.Popup style={MENU_DIALOG_STYLE}>
+        {/* Omnibox is the visible label. Title stays for a11y. */}
+        <Dialog.Title
+          style={{
+            position: "absolute",
+            width: HAIRLINE,
+            height: HAIRLINE,
+            padding: 0,
+            margin: `calc(${HAIRLINE} * -1)`,
+            overflow: "hidden",
+            clipPath: "inset(50%)",
+            whiteSpace: "nowrap",
+            borderWidth: 0,
+          }}
+        >
           {door === "threads" ? "Open thread" : "Command menu"}
         </Dialog.Title>
-        <CommandMenuBody door={door} variant="overlay" isOpen={open} />
+        <CommandMenuBody
+          door={door}
+          variant="overlay"
+          isOpen={open}
+          onSettingsRequest={() => {
+            openSettingsAfterCloseRef.current = true;
+            menuActions.close();
+          }}
+        />
       </Dialog.Popup>
     </Dialog.Root>
   );
 }
 
-// Screen-reader-only title (dialog requires a Title; the omnibox is the visual label).
-const a11yStyles = stylex.create({
-  visuallyHidden: {
-    position: "absolute",
-    width: HAIRLINE,
-    height: HAIRLINE,
-    padding: 0,
-    margin: `calc(${HAIRLINE} * -1)`,
-    overflow: "hidden",
-    clipPath: "inset(50%)",
-    whiteSpace: "nowrap",
-    borderWidth: 0,
-  },
-});
-
-// ── Inline (Home door) ───────────────────────────────────────────────────────────────────────
-
 function CommandMenuInline(): React.ReactElement {
-  // Home always ranks as the command door; Commands hidden at rest.
   return <CommandMenuBody door="command" variant="inline" isOpen />;
 }
 

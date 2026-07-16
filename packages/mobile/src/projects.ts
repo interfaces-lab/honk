@@ -1,36 +1,56 @@
-import type { ThreadSummary } from "@honk/opencode";
+import type { RemoteSession } from "./remote-context";
+
+export const MOBILE_HOME_SESSION_LIMIT = 64;
 
 export interface MobileProject {
   readonly key: string;
-  readonly path: string | null;
+  readonly path: string;
   readonly title: string;
-  readonly threads: readonly ThreadSummary[];
-  readonly updatedAt: string;
+  readonly serverLabel: string;
+  readonly sessions: readonly RemoteSession[];
+  readonly updatedAt: number;
 }
 
-const projectTitle = (path: string | null): string => {
-  const normalized = path?.replace(/\/+$/, "") ?? "";
-  return normalized.split("/").filter(Boolean).at(-1) ?? "Other tasks";
-};
+function projectTitle(path: string): string {
+  const normalized = path.replace(/\/+$/, "");
+  return normalized.split("/").filter(Boolean).at(-1) ?? path;
+}
 
-export const groupThreadsByProject = (
-  threads: readonly ThreadSummary[],
-): readonly MobileProject[] => {
-  const groups = new Map<string, { path: string | null; threads: ThreadSummary[] }>();
-  for (const thread of threads) {
-    const path = thread.worktree?.path ?? null;
-    const key = path ?? thread.projectId ?? "other";
+export function activeRootSessions(sessions: readonly RemoteSession[]): readonly RemoteSession[] {
+  return sessions
+    .filter(
+      (session) =>
+        session.info.time.archived === undefined &&
+        (session.info.parentID === undefined || session.info.parentID.length === 0),
+    )
+    .slice()
+    .sort((left, right) => {
+      const byUpdated = right.info.time.updated - left.info.time.updated;
+      if (byUpdated !== 0) return byUpdated;
+      const byServer = left.ref.server.localeCompare(right.ref.server);
+      return byServer !== 0 ? byServer : left.ref.sessionID.localeCompare(right.ref.sessionID);
+    });
+}
+
+export function groupSessionsByProject(
+  sessions: readonly RemoteSession[],
+): readonly MobileProject[] {
+  const groups = new Map<string, { path: string; sessions: RemoteSession[] }>();
+  for (const session of sessions) {
+    const path = session.projectDirectory;
+    const key = JSON.stringify([session.server.key, session.info.projectID]);
     const group = groups.get(key);
-    if (group === undefined) groups.set(key, { path, threads: [thread] });
-    else group.threads.push(thread);
+    if (group === undefined) groups.set(key, { path, sessions: [session] });
+    else group.sessions.push(session);
   }
   return [...groups.entries()]
     .map(([key, group]) => ({
       key,
       path: group.path,
       title: projectTitle(group.path),
-      threads: group.threads,
-      updatedAt: group.threads[0]?.updatedAt ?? "",
+      serverLabel: group.sessions[0]?.server.label ?? "OpenCode",
+      sessions: group.sessions,
+      updatedAt: group.sessions[0]?.info.time.updated ?? 0,
     }))
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-};
+    .sort((left, right) => right.updatedAt - left.updatedAt);
+}

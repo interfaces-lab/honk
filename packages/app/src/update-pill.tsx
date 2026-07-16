@@ -1,21 +1,14 @@
-// Desktop update pill (WP7). Store binds the preload bridge's update IPC; the
-// compact control lives in the titlebar trailing slot (sidebar footer is gone).
-// Quiet chrome: at rest the pill is hidden — only actionable update states show.
+// Desktop update pill. Store binds the preload update IPC; the compact control lives in the
+// titlebar trailing slot. Hide at rest. Only actionable update states show.
 // Web build (no bridge) is a permanent no-op.
 
 import * as stylex from "@stylexjs/stylex";
-import { Button } from "@honk/ui";
-import { colorVars, controlVars, radiusVars } from "@honk/ui/tokens.stylex";
+import { Button, StatusDot } from "@honk/ui";
 import * as React from "react";
 import { useSyncExternalStore } from "react";
 
 import { actions as toastActions } from "./toast-store";
-import {
-  getWorkspaceWatchSnapshot,
-  subscribeWorkspaceWatch,
-} from "./watch-registry";
-
-// ── Local bridge surface (same pattern as desktop-bridge.ts — no shared dep) ─
+import { getSessionInventoryWatchSnapshot, subscribeSessionInventoryWatch } from "./watch-registry";
 
 type DesktopUpdateStatus =
   | "disabled"
@@ -70,7 +63,6 @@ const DEFAULT_SNAPSHOT: UpdatePillSnapshot = Object.freeze({
 const listeners = new Set<() => void>();
 
 let snapshot: UpdatePillSnapshot = DEFAULT_SNAPSHOT;
-let unsubscribeBridge: (() => void) | null = null;
 let installed = false;
 
 function notify(): void {
@@ -175,21 +167,18 @@ function chipTooltip(state: DesktopUpdateState): string {
 }
 
 function countRunningThreads(): { count: number; titles: readonly string[] } {
-  const { state } = getWorkspaceWatchSnapshot();
+  const { state } = getSessionInventoryWatchSnapshot();
   if (state === null) {
     return { count: 0, titles: [] };
   }
-  const running = state.threads.filter((thread) => thread.status === "running");
+  const running = state.rootSessions.filter((session) => session.status === "running");
   return {
     count: running.length,
     titles: running.map((thread) => thread.title),
   };
 }
 
-function installConfirmMessage(
-  state: DesktopUpdateState,
-  titles: readonly string[],
-): string {
+function installConfirmMessage(state: DesktopUpdateState, titles: readonly string[]): string {
   const version = state.downloadedVersion ?? state.availableVersion;
   const threadList =
     titles.length > 0 ? `\n\n${titles.map((title) => `• ${title}`).join("\n")}` : "";
@@ -256,7 +245,7 @@ export function installUpdatePill(): void {
     updatePillActions.setState(state);
   });
 
-  unsubscribeBridge = bridge.onUpdateState((state) => {
+  bridge.onUpdateState((state) => {
     updatePillActions.setState(state);
   });
 }
@@ -299,33 +288,13 @@ async function runInstall(bridge: UpdateBridgeSurface, state: DesktopUpdateState
   }
 }
 
-// ── Anatomy ──────────────────────────────────────────────────────────────────────────────────
-const PILL_DOT = "6px";
 // Compact chip max width so a long version string truncates in the titlebar.
 const PILL_MAX_WIDTH = "180px";
 
-const styles = stylex.create({
-  trailing: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: controlVars["--honk-control-gap"],
-  },
+const intrinsicStyles = stylex.create({
   pill: {
-    // Compact actionable chip — Button owns interaction; this only tightens the label row.
+    // Button owns interaction. This only caps the label row width.
     maxWidth: PILL_MAX_WIDTH,
-  },
-  label: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: controlVars["--honk-control-gap"],
-    minWidth: 0,
-  },
-  dot: {
-    width: PILL_DOT,
-    height: PILL_DOT,
-    borderRadius: radiusVars["--honk-radius-control"],
-    backgroundColor: colorVars["--honk-color-accent"],
-    flexShrink: 0,
   },
 });
 
@@ -333,9 +302,9 @@ function UpdatePillControl(): React.ReactElement | null {
   const { state, dismissed, bridgePresent } = useUpdatePill();
   // Keep a live subscription so install-confirm sees running threads without an effect.
   useSyncExternalStore(
-    subscribeWorkspaceWatch,
-    getWorkspaceWatchSnapshot,
-    getWorkspaceWatchSnapshot,
+    subscribeSessionInventoryWatch,
+    getSessionInventoryWatchSnapshot,
+    getSessionInventoryWatchSnapshot,
   );
 
   if (!bridgePresent || state === null) {
@@ -343,7 +312,7 @@ function UpdatePillControl(): React.ReactElement | null {
   }
 
   if (!shouldShowAction(state, dismissed)) {
-    // Quiet chrome: hide the at-rest version label (board §0 — no ambient chrome noise).
+    // Hide the at-rest version label. No ambient chrome noise.
     return null;
   }
 
@@ -352,10 +321,10 @@ function UpdatePillControl(): React.ReactElement | null {
   const label = chipLabel(state, action);
 
   return (
-    <span data-shell-no-drag="" {...stylex.props(styles.pill)}>
+    <span data-shell-no-drag="" {...stylex.props(intrinsicStyles.pill)}>
       <Button
         size="sm"
-        variant="secondary"
+        variant="neutral"
         disabled={disabled}
         title={chipTooltip(state)}
         aria-label={label}
@@ -377,8 +346,8 @@ function UpdatePillControl(): React.ReactElement | null {
           updatePillActions.dismiss();
         }}
       >
-        <span {...stylex.props(styles.label)}>
-          <span {...stylex.props(styles.dot)} aria-hidden />
+        <span className="inline-flex min-w-0 items-center gap-control-gap">
+          <StatusDot tone="accent" />
           <span>{label}</span>
         </span>
       </Button>
@@ -389,7 +358,7 @@ function UpdatePillControl(): React.ReactElement | null {
 /** Titlebar trailing cluster: update pill (when actionable) + optional sibling (DEV chip). */
 function TitleBarTrailing(props: { children?: React.ReactNode }): React.ReactElement {
   return (
-    <span {...stylex.props(styles.trailing)}>
+    <span className="inline-flex items-center gap-control-gap">
       <UpdatePillControl />
       {props.children}
     </span>

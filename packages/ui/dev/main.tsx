@@ -1,20 +1,3 @@
-// The @honk/ui story browser — a per-component library, NOT a remake of the app's UI (user
-// ruling 2026-07-05): every component viewable in isolation, in all its states, tweakable
-// through the dialkit rail. The real chat view gets composed later, in the actual app rebuild;
-// nothing here is product chrome beyond what a single component's story needs.
-//
-// Layout: a left story rail (token-styled list nav) → the story canvas → the dialkit rail.
-// One hash route per component story; StrictMode stays ON.
-//
-// Doctrines in force (ADR 0025 + the StyleX charter):
-//   • ZERO useEffect anywhere. Stores are plain modules read via useSyncExternalStore; route
-//     loaders are the only route→store seam (here only the index redirect needs it); event
-//     handlers call store actions; timers live in dev/fake-thread.ts. Ephemeral story-local
-//     interaction state (a disclosure toggle, the spec strip's local tab list) uses useState —
-//     the same sanction tabs.tsx has for drag state.
-//   • Tokens only in create() — the gallery-chrome intrinsics below are named constants with
-//     justifications, per the tabs.tsx precedent.
-
 /// <reference types="vite/client" />
 
 import "dialkit/styles.css";
@@ -46,8 +29,10 @@ import {
   Icon,
   IconButton,
   Kbd,
+  ListRow,
   Matrix,
   Menu,
+  Picker,
   Popover,
   Prose,
   Separator,
@@ -67,8 +52,6 @@ import {
   toast,
 } from "../src";
 import type { IconSize, IconTone, TabDescriptor, TextSize, TextTone, TextWeight } from "../src";
-// The Icon story renders the curated set from data, and pulls a few representative glyphs for the
-// size/tone demos — all straight from @honk/ui's own icon catalog, never the raw pack.
 import {
   ICON_CATALOG,
   IconCircleCheck,
@@ -79,6 +62,7 @@ import {
 } from "../src/icons";
 import {
   colorVars,
+  controlVars,
   elevationVars,
   fontVars,
   motionVars,
@@ -104,72 +88,45 @@ import { useShellHotkeys } from "./hotkeys";
 import type { ShellHotkeyActions } from "./hotkeys";
 import { getTabsSnapshot, tabActions, useTabs } from "./tab-store";
 
-// ── Gallery-chrome intrinsics (named, justified — not product vocabulary) ──────────────────
-// The story rail's fixed width: sized to the longest story name, a fact of this dev tool.
 const STORY_RAIL_WIDTH = "168px";
-// The dial rail's fixed width: dialkit's inline panel is designed around ~280-300px.
 const DIAL_RAIL_WIDTH = "300px";
-// Vertical padding on a rail nav item — list-item anatomy of the gallery nav, not a product inset.
 const RAIL_ITEM_PAD_Y = "4px";
-// Breathing room between story sections on the canvas — gallery rhythm, not product spacing.
 const SECTION_GAP = "28px";
-// The story canvas's page inset — a generous, symmetric gutter so specimens never hug the region
-// edges (gallery chrome, not product spacing).
 const CANVAS_PAD = "32px";
-// The centered reading column: the canvas fills the region full-width, but its content caps here and
-// centers, so on a wide display the specimens sit in a comfortable column instead of stretching
-// edge-to-edge. Sized to clear the widest specimen (the Shell demo window / design board, ~1120px).
 const CONTENT_MAX_WIDTH = "1120px";
-// The sliver between story-rail nav items, so adjacent hover/active fills never touch.
 const RAIL_ITEM_GAP = "2px";
-// Gallery column dividers are structural hairlines, matching the Shell region recipe.
 const GALLERY_HAIRLINE = "1px";
-// The Shell story's full-fidelity demo window: proportions of the locked board's desktop frame
-// (locked.html §1 .frame.desktop, 1120×640) — an honest window shape, demo-only geometry.
 const DEMO_WINDOW_MAX_WIDTH = "1120px";
 const DEMO_WINDOW_HEIGHT = "640px";
-// The Shell story's small single-region specimen: throwaway demo geometry proportioned to the canvas.
 const MINI_FRAME_WIDTH = "440px";
 const MINI_FRAME_HEIGHT = "240px";
-// Traffic-light stand-ins: 12px buttons, 8px apart, in the OS's stoplight colors — macOS
-// chrome facts mirrored for the demo, not our vocabulary (the OS draws the real ones over the
-// --honk-shell-inset-left reservation; centering 52px of dots in the 80px reservation lands the
-// first button at x=14, exactly the shipped trafficLightPosition).
+// Traffic lights are OS chrome facts for the demo, not product tokens.
 const TRAFFIC_LIGHT_SIZE = "12px";
 const TRAFFIC_LIGHT_GAP = "8px";
 const TRAFFIC_LIGHT_CLOSE = "#ff5f57";
 const TRAFFIC_LIGHT_MINIMIZE = "#febc2e";
 const TRAFFIC_LIGHT_ZOOM = "#28c840";
-// A narrow box that forces <Text truncate> to actually truncate in its spec row.
 const TRUNCATE_DEMO_WIDTH = "160px";
-// Cap the conversation specimens at a readable column; the real timeline column (840px) is the
-// future app's concern, not this gallery's.
 const SPECIMEN_MAX_WIDTH = "560px";
-// Matches the rebuilt app's conversation lane so wide prose leaves (code/table/media) are judged
-// against their real container while the text leaves retain their token-owned character measure.
 const PROSE_SPECIMEN_MAX_WIDTH = "840px";
-// The icon-catalog grid cell: wide enough for the longest pack name (IconDotGrid1x3Horizontal) to
-// sit under its glyph. A fact of THIS gallery's icon story, not product vocabulary.
 const ICON_CELL_WIDTH = "148px";
-// The Design-system page's radius swatch — a plain box big enough to read its corner rounding.
 const DEMO_SWATCH_W = "72px";
 const DEMO_SWATCH_H = "44px";
+// Gallery fixture geometry is intrinsic to these demonstrations, not product UI.
+const CONTROL_CELL_MIN_WIDTH = "260px";
+const NARROW_FIXTURE_WIDTH = "220px";
+const COMPOSER_FIXTURE_MAX_WIDTH = "720px";
+const COMPOSER_FIXTURE_MIN_HEIGHT = "112px";
+const COMPOSER_FIXTURE_FOOTER_HEIGHT = "44px";
 
-// ── Styles (tokens only; charter merge order at call sites) ────────────────────────────────
-
-// The appearance dial → the frame's color-scheme. Shell pins 'light dark' on itself, so the
-// dial can't reach it through <html>; this is the manual theme-toggle escape shell.tsx
-// documents — override colorScheme via xstyle, never a duplicate token set. One static style
-// per select option, picked in JS (stylex skill, Parent-state alternative 3: JS-resolved picks).
-const schemeStyles = stylex.create({
+// Shell pins light/dark on itself, so the appearance dial overrides colorScheme via xstyle.
+const schemeStyles: Record<Appearance, React.CSSProperties> = {
   system: { colorScheme: "light dark" },
   light: { colorScheme: "light" },
   dark: { colorScheme: "dark" },
-});
+};
 
 const styles = stylex.create({
-  // The gallery's own three-column body inside the Sheet (the Shell no longer ships
-  // Split/Region — content splits are the consumer's composition).
   galleryBody: {
     flexGrow: 1,
     flexShrink: 1,
@@ -194,7 +151,6 @@ const styles = stylex.create({
     borderLeftStyle: "solid",
     borderLeftColor: colorVars["--honk-color-border-muted"],
   },
-  // Fixed-width side columns: the base sets flexBasis 0% + shrink 1, so pin both.
   storyRegion: {
     flexBasis: STORY_RAIL_WIDTH,
     flexShrink: 0,
@@ -209,10 +165,6 @@ const styles = stylex.create({
     gap: RAIL_ITEM_GAP,
     padding: spaceVars["--honk-space-gutter"],
     overflowY: "auto",
-  },
-  railHeading: {
-    paddingInline: spaceVars["--honk-space-control-pad-x"],
-    paddingBlock: RAIL_ITEM_PAD_Y,
   },
   railItem: {
     display: "block",
@@ -232,8 +184,6 @@ const styles = stylex.create({
     color: colorVars["--honk-color-text-primary"],
     fontWeight: fontVars["--honk-font-weight-medium"],
   },
-  // The scroll region: fills the middle Shell region, centers its content, and carries the page
-  // inset. The section rhythm lives on the inner column so the padding + centering never fight it.
   canvas: {
     flexGrow: 1,
     flexShrink: 1,
@@ -246,8 +196,6 @@ const styles = stylex.create({
     paddingBlock: CANVAS_PAD,
     paddingInline: CANVAS_PAD,
   },
-  // The centered reading column: full-width up to CONTENT_MAX_WIDTH, then it caps and the canvas's
-  // align-items centers it. Owns the section-to-section rhythm.
   canvasInner: {
     width: "100%",
     maxWidth: CONTENT_MAX_WIDTH,
@@ -272,23 +220,62 @@ const styles = stylex.create({
     gap: spaceVars["--honk-space-gutter"],
     maxWidth: SPECIMEN_MAX_WIDTH,
   },
+  controlsGrid: {
+    display: "grid",
+    gridTemplateColumns: `repeat(auto-fit, minmax(${CONTROL_CELL_MIN_WIDTH}, 1fr))`,
+    gap: spaceVars["--honk-space-panel-pad"],
+  },
+  controlCell: {
+    display: "flex",
+    minWidth: 0,
+    flexDirection: "column",
+    gap: spaceVars["--honk-space-gutter"],
+    padding: spaceVars["--honk-space-panel-pad"],
+    borderRadius: radiusVars["--honk-radius-panel"],
+    backgroundColor: colorVars["--honk-color-layer-01"],
+    boxShadow: `inset 0 0 0 ${GALLERY_HAIRLINE} ${colorVars["--honk-color-border-muted"]}`,
+  },
+  narrowFixture: {
+    width: NARROW_FIXTURE_WIDTH,
+    maxWidth: "100%",
+  },
+  composerFixture: {
+    display: "flex",
+    width: "100%",
+    maxWidth: COMPOSER_FIXTURE_MAX_WIDTH,
+    minHeight: COMPOSER_FIXTURE_MIN_HEIGHT,
+    flexDirection: "column",
+    justifyContent: "flex-end",
+    borderRadius: radiusVars["--honk-radius-panel"],
+    backgroundColor: colorVars["--honk-color-bg-base"],
+    boxShadow: elevationVars["--honk-elevation-raised"],
+  },
+  composerPrompt: {
+    flexGrow: 1,
+    padding: spaceVars["--honk-space-panel-pad"],
+    color: colorVars["--honk-color-text-faint"],
+    fontSize: fontVars["--honk-font-size-body"],
+  },
+  composerFooter: {
+    display: "flex",
+    alignItems: "center",
+    gap: controlVars["--honk-control-gap"],
+    height: COMPOSER_FIXTURE_FOOTER_HEIGHT,
+    paddingInline: spaceVars["--honk-space-panel-pad"],
+  },
+  composerSpacer: { flexGrow: 1 },
   proseSpecimen: {
     width: "100%",
     maxWidth: PROSE_SPECIMEN_MAX_WIDTH,
   },
-  // A fixed-width variant label so spec rows column-align.
-  specLabel: {
-    flexBasis: STORY_RAIL_WIDTH,
-    flexShrink: 0,
-  },
-  // A status dot beside its own text label, read as one inline status.
   statusInline: {
     display: "inline-flex",
     alignItems: "center",
     gap: spaceVars["--honk-space-gutter"],
   },
-  // The icon catalog: glyphs wrap into a grid, each in a fixed-width cell so the names below them
-  // column-align regardless of glyph width.
+  matrixAttention: {
+    color: colorVars["--honk-color-warn-fg"],
+  },
   iconGrid: {
     display: "flex",
     flexWrap: "wrap",
@@ -304,31 +291,6 @@ const styles = stylex.create({
   truncateBox: {
     width: TRUNCATE_DEMO_WIDTH,
   },
-  // The Shell story's demo windows (height overrides the frame's 100dvh — xstyle merges last).
-  // Window radius + the floating shadow are exactly what a window adds over the bare frame.
-  demoWindow: {
-    width: "100%",
-    maxWidth: DEMO_WINDOW_MAX_WIDTH,
-    height: DEMO_WINDOW_HEIGHT,
-    flexShrink: 0,
-    borderRadius: radiusVars["--honk-radius-window"],
-    overflow: "hidden",
-    boxShadow: elevationVars["--honk-elevation-floating"],
-  },
-  miniFrame: {
-    height: MINI_FRAME_HEIGHT,
-    width: MINI_FRAME_WIDTH,
-    flexShrink: 0,
-    borderRadius: radiusVars["--honk-radius-window"],
-    overflow: "hidden",
-    boxShadow: elevationVars["--honk-elevation-floating"],
-  },
-  // Anchors the absolutely-positioned traffic-light stand-ins to the titlebar's own box.
-  titleBarAnchor: {
-    position: "relative",
-  },
-  // The stand-in dots, centered in the titlebar's left inset (the exact space the OS owns).
-  // Decorative only: pointer events off, so nothing pretends to be close/min/zoom.
   trafficLights: {
     position: "absolute",
     insetInlineStart: 0,
@@ -346,13 +308,9 @@ const styles = stylex.create({
     flexShrink: 0,
     borderRadius: radiusVars["--honk-radius-pill"],
   },
-  // The OS's stoplight fills (named intrinsics above) — a focused mac window shows color here,
-  // and the grey stand-ins were half the wireframe feel. Still decorative, still inert.
   trafficLightClose: { backgroundColor: TRAFFIC_LIGHT_CLOSE },
   trafficLightMinimize: { backgroundColor: TRAFFIC_LIGHT_MINIMIZE },
   trafficLightZoom: { backgroundColor: TRAFFIC_LIGHT_ZOOM },
-  // A region's placeholder content: top-anchored and inset by the card's panel-pad, so the
-  // panelPad dial visibly moves it (a centered label would hide the inset).
   regionContent: {
     flexGrow: 1,
     flexShrink: 1,
@@ -364,7 +322,6 @@ const styles = stylex.create({
     padding: spaceVars["--honk-space-panel-pad"],
     overflow: "hidden",
   },
-  // The TabStrip specimens sit on the deep background, where the titlebar puts them.
   stripHost: {
     display: "flex",
     alignItems: "center",
@@ -395,13 +352,6 @@ const styles = stylex.create({
   },
 });
 
-// ── Shared story scaffolding ────────────────────────────────────────────────────────────────
-
-// Counts render invocations of the component that calls it (not commits — StrictMode
-// double-invokes and discarded renders count too, so the absolute number runs high). Only the
-// RELATIVE story matters: streaming sections must climb while static gauges hold still.
-// Deliberate dev-only Rules-of-React bend: a ref write during render is fine for a relative
-// gauge but would be wrong (and Compiler-hostile) anywhere real.
 function useRenderCount(): number {
   const renders = React.useRef(0);
   renders.current += 1;
@@ -434,17 +384,17 @@ function Section({
 
 function SpecLabel({ children }: { children: string }): React.ReactElement {
   return (
-    <Text size="sm" tone="faint" family="mono" xstyle={styles.specLabel}>
+    <Text
+      size="sm"
+      tone="faint"
+      family="mono"
+      style={{ flexBasis: STORY_RAIL_WIDTH, flexShrink: 0 }}
+    >
       {children}
     </Text>
   );
 }
 
-// ── Story: Shell ────────────────────────────────────────────────────────────────────────────
-
-// A region's neutral placeholder: it names the region's role in the window anatomy and nothing
-// more — the gallery is a component library, never an app remake (user ruling), so no fake
-// product UI lives inside the demo regions.
 function RegionPlaceholder({
   title,
   children,
@@ -464,8 +414,6 @@ function RegionPlaceholder({
   );
 }
 
-// The demo window's tabs: Home pinned first, then the whole status vocabulary so the strip
-// reads alive (board §0 tab + status language).
 const WINDOW_SPEC_TABS: readonly TabDescriptor[] = [
   { key: "home", title: "Home", kind: "home", status: "idle" },
   {
@@ -505,14 +453,9 @@ const WINDOW_SPEC_TABS: readonly TabDescriptor[] = [
   },
 ];
 
-// The real TabStrip seated in the demo window's titlebar, on honest local state (the
-// StatusSpecStrip pattern): activate, close, drag-reorder, and + really mutate the list —
-// principle 6, every control does what it says. Ephemeral story state → useState (the ADR 0025
-// sanction); the persisted store in dev/tab-store.ts belongs to the Tabs story, not here.
 function SpecimenTabStrip(): React.ReactElement {
   const [tabs, setTabs] = React.useState<readonly TabDescriptor[]>(WINDOW_SPEC_TABS);
   const [activeKey, setActiveKey] = React.useState("w-working");
-  // Serial for keys of +-created drafts — a ref because it is bookkeeping, never rendered.
   const draftSerial = React.useRef(0);
 
   return (
@@ -527,8 +470,6 @@ function SpecimenTabStrip(): React.ReactElement {
         }
         const next = tabs.filter((tab) => tab.key !== key);
         setTabs(next);
-        // Closing the active tab hands focus to its left neighbor (Home at worst) — a close
-        // must never leave the window without an active view.
         if (key === activeKey) {
           const neighbor = next[index - 1] ?? next[0];
           if (neighbor !== undefined) {
@@ -548,8 +489,6 @@ function SpecimenTabStrip(): React.ReactElement {
         });
       }}
       onNew={() => {
-        // + really opens a tab: a hollow-ring draft (nothing is running yet), focused like a
-        // browser's new tab.
         draftSerial.current += 1;
         const key = `w-new-${String(draftSerial.current)}`;
         setTabs((current) => [
@@ -569,19 +508,30 @@ function SpecimenTabStrip(): React.ReactElement {
 }
 
 function ShellStory(): React.ReactElement {
-  // The demo windows pin their own color-scheme from the appearance dial — a nested Shell would
-  // otherwise re-anchor to 'light dark' and ignore the dial (shell.tsx documents the escape).
   const appearance: Appearance = useAppearance();
   return (
     <>
       <ShellDials />
       <Section
         title="Shell — the window anatomy"
-        note="The v2 inset floating sheet end to end: deep root → 36px titlebar → Stage carrying the 8px gutter → ONE floating Sheet (bg-base, 10px radius, the raised elevation ring) — never sibling cards. The real TabStrip sits on the titlebar's bottom edge exactly as the app seats it, on honest specimen state: activate, close, drag-reorder, and + all really happen; Home is pinned first."
+        note="The canonical inset floating sheet end to end: deep root → 36px titlebar → Stage carrying the 8px gutter → ONE floating Sheet (bg-base, 10px radius, the raised elevation ring) — never sibling cards. The real TabStrip sits on the titlebar's bottom edge exactly as the app seats it, on honest specimen state: activate, close, drag-reorder, and + all really happen; Home is pinned first."
       >
-        <Shell xstyle={[styles.demoWindow, schemeStyles[appearance]]}>
+        <Shell
+          style={[
+            {
+              width: "100%",
+              maxWidth: DEMO_WINDOW_MAX_WIDTH,
+              height: DEMO_WINDOW_HEIGHT,
+              flexShrink: 0,
+              borderRadius: radiusVars["--honk-radius-window"],
+              overflow: "hidden",
+              boxShadow: elevationVars["--honk-elevation-floating"],
+            },
+            schemeStyles[appearance],
+          ]}
+        >
           <Shell.TitleBar
-            xstyle={styles.titleBarAnchor}
+            style={{ position: "relative" }}
             trailing={
               <Text size="xs" tone="faint">
                 trailing slot
@@ -619,7 +569,19 @@ function ShellStory(): React.ReactElement {
         title="The sheet at rest"
         note="Stage owns the gutter; Sheet is the ONLY card. Content splits inside it with hairlines and layer fills — never nested cards."
       >
-        <Shell xstyle={[styles.miniFrame, schemeStyles[appearance]]}>
+        <Shell
+          style={[
+            {
+              height: MINI_FRAME_HEIGHT,
+              width: MINI_FRAME_WIDTH,
+              flexShrink: 0,
+              borderRadius: radiusVars["--honk-radius-window"],
+              overflow: "hidden",
+              boxShadow: elevationVars["--honk-elevation-floating"],
+            },
+            schemeStyles[appearance],
+          ]}
+        >
           <Shell.TitleBar />
           <Shell.Stage>
             <Shell.Sheet>
@@ -634,13 +596,6 @@ function ShellStory(): React.ReactElement {
   );
 }
 
-// ── Story: Tabs ─────────────────────────────────────────────────────────────────────────────
-
-// fake-thread's onStatus channel plugs straight into tabActions.setStatus: the store no-ops
-// writes that change nothing (replaceTab returns the same array for a same-status write OR an
-// unknown key, and publish bails on reference equality) — so per-tick forwarding can't re-render
-// the strip, and the Conversation story's tab-less live run never leaks a tab into the store.
-
 const THREAD_TITLES: readonly string[] = [
   "Refactor the tab plane",
   "Trace the flaky verify",
@@ -653,7 +608,6 @@ const THREAD_TITLES: readonly string[] = [
 let threadSerial = 0;
 
 function newThread(): void {
-  // skip serials already taken by tabs persisted from a previous session
   do {
     threadSerial += 1;
   } while (getTabsSnapshot().tabs.some((tab) => tab.key === `T${threadSerial}`));
@@ -661,7 +615,9 @@ function newThread(): void {
   const key = `T${threadSerial}`;
   const title = THREAD_TITLES[(threadSerial - 1) % THREAD_TITLES.length] ?? key;
 
-  startFake(key, title, tabActions.setStatus);
+  startFake(key, title, (threadKey, status) => {
+    tabActions.setStatus(threadKey, status);
+  });
   tabActions.open({
     key,
     title,
@@ -671,10 +627,6 @@ function newThread(): void {
   });
 }
 
-// Module-level because these close over stores, not component state — there is nothing to
-// rebuild per render. (Identity is NOT load-bearing: the hotkeys registry keys registrations on
-// the key strings and syncs callbacks each render.) All actions go straight to the store — the
-// story browser's routes are per-story, so tab activation no longer navigates.
 const tabsHotkeyActions: ShellHotkeyActions = {
   closeActive(): void {
     tabActions.closeActive();
@@ -692,7 +644,6 @@ const tabsHotkeyActions: ShellHotkeyActions = {
   },
 };
 
-// The status vocabulary, one tab per word (board §0 tab + status language).
 const STATUS_SPEC_TABS: readonly TabDescriptor[] = [
   { key: "home", title: "Home", kind: "home", status: "idle" },
   {
@@ -711,10 +662,11 @@ const STATUS_SPEC_TABS: readonly TabDescriptor[] = [
   },
   {
     key: "s-needs-you",
-    title: "needs you — amber pulse",
+    title: "needs you — yellow matrix",
     kind: "thread",
     status: "needs-you",
     repository: { state: "ready", label: "honk" },
+    server: { label: "cloud.honk.dev", kind: "cloud" },
   },
   {
     key: "s-done",
@@ -739,8 +691,6 @@ const STATUS_SPEC_TABS: readonly TabDescriptor[] = [
   },
 ];
 
-// A self-contained specimen strip over local state, so its controls stay honest (activate,
-// close, reorder all really happen — principle 6). Ephemeral story state → useState.
 function StatusSpecStrip(): React.ReactElement {
   const [tabs, setTabs] = React.useState<readonly TabDescriptor[]>(STATUS_SPEC_TABS);
   const [activeKey, setActiveKey] = React.useState("s-working");
@@ -775,11 +725,7 @@ function StatusSpecStrip(): React.ReactElement {
 
 function TabsStory(): React.ReactElement {
   const { tabs, activeKey } = useTabs();
-  // Hotkeys bind only while this story is mounted — the registry unbinds on unmount, so no
-  // other story answers ⌥W/⌥N (the locked one-registry law, scoped to this route).
   useShellHotkeys(tabsHotkeyActions);
-  // Gauge scope: this counts TabsStory renders — tab-store transitions move it, fake-thread
-  // row ticks must not (the store no-ops same-status writes, so ticks never publish).
   const stripRenders = useRenderCount();
 
   return (
@@ -793,9 +739,15 @@ function TabsStory(): React.ReactElement {
           <TabStrip
             tabs={tabs}
             activeKey={activeKey}
-            onActivate={tabActions.activate}
-            onClose={tabActions.close}
-            onReorder={tabActions.reorder}
+            onActivate={(key) => {
+              tabActions.activate(key);
+            }}
+            onClose={(key) => {
+              tabActions.close(key);
+            }}
+            onReorder={(from, to) => {
+              tabActions.reorder(from, to);
+            }}
             onNew={newThread}
           />
         </div>
@@ -828,15 +780,13 @@ function TabsStory(): React.ReactElement {
       </Section>
       <Section
         title="Status vocabulary"
-        note="matrix = working · green = done · amber pulse = needs you · red = failed · hollow = draft · gray = idle (Home). The specimen is its own little state — the + resets it."
+        note="matrix = working · green = done · yellow pulse matrix = needs you · red = failed · hollow = draft · gray = idle (Home). The specimen is its own little state — the + resets it."
       >
         <StatusSpecStrip />
       </Section>
     </>
   );
 }
-
-// ── Story: Matrix ───────────────────────────────────────────────────────────────────────────
 
 const MATRIX_GRIDS: readonly number[] = [3, 5, 7];
 
@@ -845,7 +795,7 @@ function MatrixStory(): React.ReactElement {
     <>
       <Section
         title="Matrix — the signature status glyph"
-        note="Sacred geometry (2px dots on 4px cells, 1.2s diagonal sweep) never drifts; grid size scales the glyph by adding dots."
+        note="Working uses the sacred 1.2s diagonal sweep; needs-you uses the supplied 1.4s circular two-beat pulse in yellow. Reduced motion holds both at an honest resting state."
       >
         {MATRIX_GRIDS.map((grid) => (
           <div key={grid} {...stylex.props(styles.specRow)}>
@@ -860,12 +810,21 @@ function MatrixStory(): React.ReactElement {
             </Text>
           </div>
         ))}
+        <div {...stylex.props(styles.specRow, styles.matrixAttention)}>
+          <SpecLabel>needs-you</SpecLabel>
+          <Matrix grid={5} variant="attention" isActive />
+          <Text size="sm" tone="faint">
+            active
+          </Text>
+          <Matrix grid={5} variant="attention" isActive={false} />
+          <Text size="sm" tone="faint">
+            idle
+          </Text>
+        </div>
       </Section>
     </>
   );
 }
-
-// ── Story: Text ─────────────────────────────────────────────────────────────────────────────
 
 const TEXT_SIZES: readonly TextSize[] = ["xs", "sm", "base", "lg", "xl"];
 const TEXT_TONES: readonly TextTone[] = [
@@ -935,15 +894,13 @@ function TextStory(): React.ReactElement {
   );
 }
 
-// ── Story: Prose ────────────────────────────────────────────────────────────────────────────
-
 function ProseStory(): React.ReactElement {
   return (
     <>
       <ProseDials />
       <Section
         title="Assistant prose — measured text, wider evidence"
-        note="Long-form text uses a 68ch reading measure at 14/22. Code, tables, and media keep the full 840px conversation lane, following Making Software's narrow-copy / wide-figure rhythm without importing its editorial chrome."
+        note="Long-form text uses Making Software's 576px reading measure at 14/25, with 20px block rhythm and 48px section breaks. Code, tables, and media keep the full 840px conversation lane without importing its editorial chrome."
       >
         <div {...stylex.props(styles.proseSpecimen)}>
           <Prose>
@@ -974,7 +931,7 @@ function ProseStory(): React.ReactElement {
               <code>{`stream: {
   overflowY: "auto",
   overscrollBehaviorY: "contain",
-  scrollbarGutter: "stable",
+  scrollbarGutter: "stable both-edges",
 }`}</code>
             </Prose.CodeBlock>
             <Prose.Blockquote>
@@ -987,8 +944,6 @@ function ProseStory(): React.ReactElement {
     </>
   );
 }
-
-// ── Story: Icon ─────────────────────────────────────────────────────────────────────────────
 
 const ICON_SIZES: readonly IconSize[] = ["xs", "sm", "md", "lg", "xl"];
 const ICON_TONES: readonly IconTone[] = [
@@ -1006,9 +961,6 @@ function IconStory(): React.ReactElement {
   return (
     <>
       <IconDials />
-      {/* The whole curated set, grouped exactly as @honk/ui/icons groups it — one Section per
-          catalog category, every production glyph on screen under its pack name. Driven off
-          ICON_CATALOG so this story can never drift from the module it documents. */}
       {ICON_CATALOG.map((group) => (
         <Section key={group.category} title={group.category}>
           <div {...stylex.props(styles.iconGrid)}>
@@ -1057,9 +1009,6 @@ function IconStory(): React.ReactElement {
   );
 }
 
-// ── Story: Conversation ─────────────────────────────────────────────────────────────────────
-
-// A disclosure specimen owning its ephemeral expanded state (sanctioned useState).
 function ExpandableToolCall(): React.ReactElement {
   const [isExpanded, setExpanded] = React.useState(false);
 
@@ -1082,7 +1031,6 @@ function ExpandableToolCall(): React.ReactElement {
   );
 }
 
-// A work-group specimen owning its expanded state.
 function ExpandableWorkGroup(): React.ReactElement {
   const [isExpanded, setExpanded] = React.useState(false);
 
@@ -1116,18 +1064,13 @@ const LIVE_STATUS_LINES = {
 } as const;
 
 function startLiveRun(): void {
-  // setStatus no-ops for keys without a tab, so the live run never leaks into the Tabs story's
-  // persisted store — the onStatus channel stays wired all the same.
-  startFake(LIVE_KEY, "Streaming spec", tabActions.setStatus);
+  startFake(LIVE_KEY, "Streaming spec", (threadKey, status) => {
+    tabActions.setStatus(threadKey, status);
+  });
 }
 
-// The live streaming variant: driven by dev/fake-thread.ts so the render-isolation story stays
-// observable. Its own component so only THIS section re-renders per tick — the static spec
-// sheets above it hold still.
 function LiveRun(): React.ReactElement {
   const thread = useFakeThread(LIVE_KEY);
-  // Climbs once per 300ms tick while streaming; static sections' gauges (none — they don't
-  // subscribe) stay put, which is the whole point of the wholesale-replaced snapshots.
   const rowRenders = useRenderCount();
 
   if (thread === undefined) {
@@ -1210,7 +1153,9 @@ function ConversationStory(): React.ReactElement {
         note="Full-column bubble on the elevated surface with a 1px inset ring; 13px text on the window's 16px leading. Assistant output NEVER gets one of these (locked §5)."
       >
         <div {...stylex.props(styles.specColumn)}>
-          <UserMessage>Replace richTextJson with token spans over the plain buffer.</UserMessage>
+          <UserMessage onEdit={() => undefined}>
+            Replace richTextJson with token spans over the plain buffer.
+          </UserMessage>
           <UserMessage>
             <UserMessage.Preview>
               Audit the composer command-menu placement against the live caret, including the fixed
@@ -1251,7 +1196,7 @@ function ConversationStory(): React.ReactElement {
               status: "added",
             },
             {
-              path: "packages/app-next/src/thread.tsx",
+              path: "packages/app/src/thread.tsx",
               additions: 18,
               deletions: 31,
               status: "modified",
@@ -1310,8 +1255,6 @@ function ConversationStory(): React.ReactElement {
             <WorkGroup.Header verb="Edited" detail="composer/tokens.ts" added={118} removed={12} />
           </WorkGroup>
           <ExpandableWorkGroup />
-          {/* No Stop on this static specimen — a control must do what it says (principle 6);
-              the live run below carries the real, working Stop. */}
           <WorkGroup isRunning>
             <WorkGroup.Header verb="Editing…" detail="dev-footer.tsx" isRunning />
             <WorkGroup.Preview isScrollable>
@@ -1336,8 +1279,6 @@ function ConversationStory(): React.ReactElement {
     </>
   );
 }
-
-// ── Story: Badge ────────────────────────────────────────────────────────────────────────────
 
 const BADGE_TONES = ["neutral", "accent", "ok", "warn", "err", "outline"] as const;
 
@@ -1382,8 +1323,6 @@ function BadgeStory(): React.ReactElement {
     </>
   );
 }
-
-// ── Story: StatusDot ────────────────────────────────────────────────────────────────────────
 
 const STATUS_TONES = ["ok", "warn", "err", "info", "accent", "neutral", "draft"] as const;
 
@@ -1449,17 +1388,194 @@ function StatusDotStory(): React.ReactElement {
   );
 }
 
-// ── Story: Button ───────────────────────────────────────────────────────────────────────────
-
-const BUTTON_VARIANTS = ["primary", "secondary", "ghost", "outline", "danger"] as const;
+const BUTTON_VARIANTS = ["primary", "neutral", "quiet", "destructive"] as const;
 const BUTTON_SIZES = ["sm", "md", "lg"] as const;
+
+function ControlsStory(): React.ReactElement {
+  const [preset, setPreset] = React.useState("balanced");
+  const [location, setLocation] = React.useState("honk");
+
+  return (
+    <>
+      <Section
+        title="Canonical control matrix"
+        note="Button is a command, Picker owns a value, ListRow is persistent navigation, and Menu holds transient actions. Tab through for focus, press controls for active/open, and compare selected against hover without changing primitives at the call site."
+      >
+        <div {...stylex.props(styles.controlsGrid)}>
+          <div {...stylex.props(styles.controlCell)}>
+            <Text size="xs" tone="faint" weight="semibold">
+              Commands
+            </Text>
+            <div {...stylex.props(styles.specRow)}>
+              <Button variant="primary">Primary</Button>
+              <Button variant="neutral">Neutral</Button>
+              <Button variant="quiet">Quiet</Button>
+              <Button variant="destructive">Delete</Button>
+              <Button variant="neutral" disabled>
+                Disabled
+              </Button>
+              <IconButton aria-label="Search">
+                <Icon icon={IconMagnifyingGlass} size="sm" />
+              </IconButton>
+            </div>
+          </div>
+
+          <div {...stylex.props(styles.controlCell)}>
+            <Text size="xs" tone="faint" weight="semibold">
+              Persistent rows
+            </Text>
+            <ListRow isSelected>
+              <ListRow.Slot>
+                <StatusDot tone="accent" />
+              </ListRow.Slot>
+              <ListRow.Content>
+                <ListRow.Title>Selected workspace</ListRow.Title>
+                <ListRow.Description>Selection stays visible through hover.</ListRow.Description>
+              </ListRow.Content>
+              <ListRow.Meta>12</ListRow.Meta>
+            </ListRow>
+            <ListRow>
+              <ListRow.Slot>
+                <StatusDot tone="neutral" />
+              </ListRow.Slot>
+              <ListRow.Content>
+                <ListRow.Title>A very long project label that must truncate cleanly</ListRow.Title>
+                <ListRow.Description>
+                  packages/ui/src/canonical-control-contract
+                </ListRow.Description>
+              </ListRow.Content>
+            </ListRow>
+            <ListRow disabled>
+              <ListRow.Title>Disabled row</ListRow.Title>
+            </ListRow>
+          </div>
+
+          <div {...stylex.props(styles.controlCell)}>
+            <Text size="xs" tone="faint" weight="semibold">
+              Value picker
+            </Text>
+            <Picker.Root value={preset} onValueChange={setPreset}>
+              <Picker.Trigger accessibilityLabel="Model preset">
+                <Icon icon={IconConsole} size="sm" tone="muted" />
+                {preset === "balanced" ? "Balanced" : "Deep review"}
+              </Picker.Trigger>
+              <Picker.Popup label="Model preset" width="wide">
+                <Picker.GroupLabel>Model preset</Picker.GroupLabel>
+                <Picker.Option
+                  value="balanced"
+                  label="Balanced"
+                  description="Main Sonnet · Sidekick Haiku"
+                  leading={<Icon icon={IconConsole} size="sm" tone="muted" />}
+                  metadata="medium"
+                />
+                <Picker.Option
+                  value="deep"
+                  label="Deep review with a deliberately long model name"
+                  description="Main Opus · Sidekick Sonnet"
+                  leading={<Icon icon={IconEyeOpen} size="sm" tone="muted" />}
+                  metadata="high"
+                />
+                <Picker.Option value="disabled" label="Unavailable preset" disabled />
+              </Picker.Popup>
+            </Picker.Root>
+            <Menu.Root>
+              <Menu.Trigger render={<Button variant="neutral">Transient actions</Button>} />
+              <Menu.Popup>
+                <Menu.Item>Rename</Menu.Item>
+                <Menu.Item>Duplicate</Menu.Item>
+                <Menu.Item disabled>Move to project</Menu.Item>
+              </Menu.Popup>
+            </Menu.Root>
+          </div>
+
+          <div {...stylex.props(styles.controlCell, styles.narrowFixture)}>
+            <Text size="xs" tone="faint" weight="semibold">
+              Narrow width
+            </Text>
+            <Picker.Root value={preset} onValueChange={setPreset}>
+              <Picker.Trigger accessibilityLabel="Narrow model picker">
+                A model name that cannot fit in this lane
+              </Picker.Trigger>
+              <Picker.Popup label="Narrow model picker" width="wide">
+                <Picker.Option
+                  value="balanced"
+                  label="Balanced"
+                  description="Main Sonnet · Sidekick Haiku"
+                />
+                <Picker.Option
+                  value="deep"
+                  label="Deep review with a deliberately long model name"
+                  description="Main Opus · Sidekick Sonnet"
+                />
+              </Picker.Popup>
+            </Picker.Root>
+          </div>
+        </div>
+      </Section>
+
+      <Section
+        title="Composer footer cluster"
+        note="The cluster is the acceptance fixture: attachment, constrained mode, model, location, and send share one baseline while preserving their different intent."
+      >
+        <div {...stylex.props(styles.composerFixture)}>
+          <div {...stylex.props(styles.composerPrompt)}>Describe a task…</div>
+          <div {...stylex.props(styles.composerFooter)}>
+            <IconButton size="sm" variant="quiet" aria-label="Add attachments">
+              <Icon icon={IconCrossSmall} size="sm" />
+            </IconButton>
+            <Button size="sm" variant="quiet">
+              Plan
+            </Button>
+            <Picker.Root value={preset} onValueChange={setPreset}>
+              <Picker.Trigger size="sm" tone="quiet" accessibilityLabel="Model preset">
+                <Icon icon={IconConsole} size="sm" tone="muted" />
+                {preset === "balanced" ? "Balanced" : "Deep review"}
+              </Picker.Trigger>
+              <Picker.Popup label="Model preset" width="wide">
+                <Picker.Option
+                  value="balanced"
+                  label="Balanced"
+                  description="Main Sonnet · Sidekick Haiku"
+                  metadata="medium"
+                />
+                <Picker.Option
+                  value="deep"
+                  label="Deep review"
+                  description="Main Opus · Sidekick Sonnet"
+                  metadata="high"
+                />
+              </Picker.Popup>
+            </Picker.Root>
+            <Picker.Root value={location} onValueChange={setLocation}>
+              <Picker.Trigger size="sm" tone="quiet" accessibilityLabel="Project location">
+                {location === "honk" ? "honk" : "a-very-long-worktree-name"}
+              </Picker.Trigger>
+              <Picker.Popup label="Project location" width="wide">
+                <Picker.Option value="honk" label="honk" description="~/Developer/honk" />
+                <Picker.Option
+                  value="worktree"
+                  label="a-very-long-worktree-name"
+                  description="~/Developer/honk-worktrees/canonical-styling"
+                />
+              </Picker.Popup>
+            </Picker.Root>
+            <span {...stylex.props(styles.composerSpacer)} />
+            <IconButton size="sm" variant="primary" aria-label="Send">
+              <Icon icon={IconCircleCheck} size="sm" />
+            </IconButton>
+          </div>
+        </div>
+      </Section>
+    </>
+  );
+}
 
 function ButtonStory(): React.ReactElement {
   return (
     <>
       <Section
         title="Button — variants (Base UI)"
-        note="secondary is the DEFAULT — the shell's chrome button (fill + hairline ring + primary text). primary is the opt-in accent action; danger carries the status err triplet. Hover/press/focus are live — hover and tab through them."
+        note="Neutral is the default flat workbench command, primary carries the single accent fill, quiet recedes into surrounding chrome, and destructive uses the error surface. Hover, press, focus, and disabled states remain distinct without bevels or stacked rings."
       >
         <div {...stylex.props(styles.specRow)}>
           {BUTTON_VARIANTS.map((variant) => (
@@ -1480,12 +1596,12 @@ function ButtonStory(): React.ReactElement {
             <Button size={size} variant="primary">
               Send
             </Button>
-            <Button size={size} variant="secondary">
+            <Button size={size} variant="neutral">
               Cancel
             </Button>
             <Button
               size={size}
-              variant="secondary"
+              variant="neutral"
               iconStart={<Icon icon={IconCircleCheck} size="sm" />}
             >
               Approve
@@ -1499,16 +1615,16 @@ function ButtonStory(): React.ReactElement {
         note="iconStart / iconEnd slot around the label; the root's flex + the control-gap token lay them out — no wrapper."
       >
         <div {...stylex.props(styles.specRow)}>
-          <Button variant="secondary" iconStart={<Icon icon={IconMagnifyingGlass} size="sm" />}>
+          <Button variant="neutral" iconStart={<Icon icon={IconMagnifyingGlass} size="sm" />}>
             Search
           </Button>
           <Button variant="primary" iconStart={<Icon icon={IconCircleCheck} size="sm" />}>
             Confirm
           </Button>
-          <Button variant="danger" iconStart={<Icon icon={IconCrossSmall} size="sm" />}>
+          <Button variant="destructive" iconStart={<Icon icon={IconCrossSmall} size="sm" />}>
             Delete
           </Button>
-          <Button variant="ghost" iconEnd={<Icon icon={IconEyeOpen} size="sm" />}>
+          <Button variant="quiet" iconEnd={<Icon icon={IconEyeOpen} size="sm" />}>
             Preview
           </Button>
         </div>
@@ -1530,12 +1646,12 @@ function ButtonStory(): React.ReactElement {
             </IconButton>
           </Tooltip>
           <Tooltip label="Approve">
-            <IconButton aria-label="Approve" variant="secondary">
+            <IconButton aria-label="Approve" variant="neutral">
               <Icon icon={IconCircleCheck} size="sm" />
             </IconButton>
           </Tooltip>
           <Tooltip label="Close">
-            <IconButton aria-label="Close" variant="danger">
+            <IconButton aria-label="Close" variant="destructive">
               <Icon icon={IconCrossSmall} size="sm" />
             </IconButton>
           </Tooltip>
@@ -1550,12 +1666,10 @@ function ButtonStory(): React.ReactElement {
           <Button variant="primary" disabled>
             Disabled
           </Button>
-          <Button variant="secondary" disabled>
+          <Button variant="neutral" disabled>
             Disabled
           </Button>
-          {/* render = polymorphism: the button's paint on a real <a>. Rendering a non-<button>
-              needs nativeButton={false} so Base UI drops the native-button semantics it can't keep. */}
-          <Button variant="ghost" render={<a href="#/button" />} nativeButton={false}>
+          <Button variant="quiet" render={<a href="#/button" />} nativeButton={false}>
             Rendered as a link
           </Button>
         </div>
@@ -1569,13 +1683,8 @@ function ButtonStory(): React.ReactElement {
   );
 }
 
-// ── Story: Tooltip ──────────────────────────────────────────────────────────────────────────
-
 const TOOLTIP_SIDES = ["top", "right", "bottom", "left"] as const;
 
-// Exercises the controlled/triggerless AnchoredTooltip the tab strip uses: a button toggles
-// `open`, anchored to itself via a function anchor. Proves the delegated-host path independent of
-// any hover detection.
 function ControlledTooltipProbe(): React.ReactElement {
   const [open, setOpen] = React.useState(false);
   const btnRef = React.useRef<HTMLButtonElement | null>(null);
@@ -1647,8 +1756,6 @@ function TooltipStory(): React.ReactElement {
     </>
   );
 }
-
-// ── Story: Toast ────────────────────────────────────────────────────────────────────────────
 
 function ToastStory(): React.ReactElement {
   return (
@@ -1729,8 +1836,6 @@ function ToastStory(): React.ReactElement {
   );
 }
 
-// ── Story: Popover ──────────────────────────────────────────────────────────────────────────
-
 function PopoverStory(): React.ReactElement {
   return (
     <Section
@@ -1753,7 +1858,7 @@ function PopoverStory(): React.ReactElement {
         </Popover.Root>
 
         <Popover.Root>
-          <Popover.Trigger render={<Button variant="ghost">Open above, end-aligned</Button>} />
+          <Popover.Trigger render={<Button variant="quiet">Open above, end-aligned</Button>} />
           <Popover.Popup side="top" align="end">
             <div {...stylex.props(styles.specColumn)}>
               <Popover.Title>Placement</Popover.Title>
@@ -1769,8 +1874,6 @@ function PopoverStory(): React.ReactElement {
   );
 }
 
-// ── Story: Menu ─────────────────────────────────────────────────────────────────────────────
-
 function MenuStory(): React.ReactElement {
   return (
     <Section
@@ -1779,7 +1882,7 @@ function MenuStory(): React.ReactElement {
     >
       <div {...stylex.props(styles.specRow)}>
         <Menu.Root>
-          <Menu.Trigger render={<Button variant="secondary">Actions</Button>} />
+          <Menu.Trigger render={<Button variant="neutral">Actions</Button>} />
           <Menu.Popup>
             <Menu.Group>
               <Menu.GroupLabel>This thread</Menu.GroupLabel>
@@ -1806,8 +1909,6 @@ function MenuStory(): React.ReactElement {
   );
 }
 
-// ── Story: Dialog ───────────────────────────────────────────────────────────────────────────
-
 function DialogStory(): React.ReactElement {
   return (
     <Section
@@ -1828,7 +1929,7 @@ function DialogStory(): React.ReactElement {
               The thread is currently “Untitled”.
             </Text>
             <Dialog.Footer>
-              <Dialog.Close render={<Button variant="ghost">Cancel</Button>} />
+              <Dialog.Close render={<Button variant="quiet">Cancel</Button>} />
               <Button variant="primary">Save</Button>
             </Dialog.Footer>
           </Dialog.Popup>
@@ -1838,8 +1939,6 @@ function DialogStory(): React.ReactElement {
   );
 }
 
-// ── Story: AlertDialog ──────────────────────────────────────────────────────────────────────
-
 function AlertDialogStory(): React.ReactElement {
   return (
     <Section
@@ -1848,7 +1947,7 @@ function AlertDialogStory(): React.ReactElement {
     >
       <div {...stylex.props(styles.specRow)}>
         <AlertDialog.Root>
-          <AlertDialog.Trigger render={<Button variant="danger">Delete thread…</Button>} />
+          <AlertDialog.Trigger render={<Button variant="destructive">Delete thread…</Button>} />
           <AlertDialog.Popup>
             <AlertDialog.Header>
               <AlertDialog.Title>Delete thread?</AlertDialog.Title>
@@ -1858,8 +1957,8 @@ function AlertDialogStory(): React.ReactElement {
               </AlertDialog.Description>
             </AlertDialog.Header>
             <AlertDialog.Footer>
-              <AlertDialog.Close render={<Button variant="ghost">Cancel</Button>} />
-              <Button variant="danger">Delete</Button>
+              <AlertDialog.Close render={<Button variant="quiet">Cancel</Button>} />
+              <Button variant="destructive">Delete</Button>
             </AlertDialog.Footer>
           </AlertDialog.Popup>
         </AlertDialog.Root>
@@ -1867,8 +1966,6 @@ function AlertDialogStory(): React.ReactElement {
     </Section>
   );
 }
-
-// ── Story: Switch ───────────────────────────────────────────────────────────────────────────
 
 function SwitchStory(): React.ReactElement {
   return (
@@ -1916,8 +2013,6 @@ function SwitchStory(): React.ReactElement {
   );
 }
 
-// ── Story: Checkbox ─────────────────────────────────────────────────────────────────────────
-
 function CheckboxStory(): React.ReactElement {
   return (
     <>
@@ -1959,8 +2054,6 @@ function CheckboxStory(): React.ReactElement {
   );
 }
 
-// ── Story: Separator ────────────────────────────────────────────────────────────────────────
-
 function SeparatorStory(): React.ReactElement {
   return (
     <>
@@ -1999,8 +2092,6 @@ function SeparatorStory(): React.ReactElement {
     </>
   );
 }
-
-// ── Story: Spinner ──────────────────────────────────────────────────────────────────────────
 
 function SpinnerStory(): React.ReactElement {
   return (
@@ -2052,8 +2143,6 @@ function SpinnerStory(): React.ReactElement {
   );
 }
 
-// ── Story: Kbd ──────────────────────────────────────────────────────────────────────────────
-
 function KbdStory(): React.ReactElement {
   return (
     <>
@@ -2089,13 +2178,6 @@ function KbdStory(): React.ReactElement {
   );
 }
 
-// ── Story: Design system (the master tuning page) ─────────────────────────────────────────────
-// One page that surfaces EVERY token knob (the dial rail mounts a panel per group via
-// DesignSystemDials) over a specimen board that repaints live as you dial — the "adjust every value
-// across the design system" surface. Specimens are the real primitives (they already read the
-// tokens), so tuning Control resizes the buttons, Radius re-rounds them, Chrome & weight restyles
-// the type, Motion changes the pulse + tooltip fade. Copy a panel to export its JSON.
-
 const SWATCH_RING = `inset 0 0 0 1px ${colorVars["--honk-color-border-base"]}`;
 const RADIUS_SWATCHES = [
   ["panel", "rPanel"],
@@ -2104,7 +2186,6 @@ const RADIUS_SWATCHES = [
   ["field", "rField"],
   ["bubble", "rBubble"],
 ] as const;
-// The prose ramp maps the five Text sizes onto the five type steps (xs=caption … xl=heading).
 const TYPE_RAMP = [
   ["xl", "Heading — the largest step"],
   ["lg", "Title — the conversation tier"],
@@ -2206,7 +2287,7 @@ function DesignStory(): React.ReactElement {
         <div {...stylex.props(styles.specRow)}>
           <StatusDot tone="warn" pulse label="pulse" />
           <Tooltip label="I fade in on the Motion durations">
-            <Button variant="secondary">Hover me</Button>
+            <Button variant="neutral">Hover me</Button>
           </Tooltip>
         </div>
       </Section>
@@ -2226,10 +2307,9 @@ function DesignStory(): React.ReactElement {
   );
 }
 
-// ── Shell chrome (the browser itself) ───────────────────────────────────────────────────────
-
 const STORIES = [
   { path: "/design", label: "Design system" },
+  { path: "/controls", label: "Controls" },
   { path: "/shell", label: "Shell" },
   { path: "/tabs", label: "Tabs" },
   { path: "/button", label: "Button" },
@@ -2258,7 +2338,16 @@ function StoryRail(): React.ReactElement {
 
   return (
     <nav aria-label="Component stories" {...stylex.props(styles.rail)}>
-      <Text as="p" size="xs" tone="faint" weight="semibold" xstyle={styles.railHeading}>
+      <Text
+        as="p"
+        size="xs"
+        tone="faint"
+        weight="semibold"
+        style={{
+          paddingInline: spaceVars["--honk-space-control-pad-x"],
+          paddingBlock: RAIL_ITEM_PAD_Y,
+        }}
+      >
         @honk/ui
       </Text>
       {STORIES.map((story) => (
@@ -2278,7 +2367,7 @@ function RootLayout(): React.ReactElement {
   const appearance: Appearance = useAppearance();
 
   return (
-    <Shell xstyle={schemeStyles[appearance]}>
+    <Shell style={schemeStyles[appearance]}>
       <Shell.Stage>
         <Shell.Sheet>
           <div {...stylex.props(styles.galleryBody)}>
@@ -2296,8 +2385,6 @@ function RootLayout(): React.ReactElement {
             </div>
             <div {...stylex.props(styles.galleryCol, styles.galleryColDivided, styles.dialRegion)}>
               <DialRoot mode="inline" defaultOpen />
-              {/* Theme is the one always-on panel; every other panel mounts inside its story,
-                  so the rail follows the story on screen (see dev/dials.ts, the panel catalog). */}
               <ThemeDials />
             </div>
           </div>
@@ -2306,10 +2393,6 @@ function RootLayout(): React.ReactElement {
     </Shell>
   );
 }
-
-// ── Routes (loaders are the route→store seam ADR 0025 allows) ──────────────────────────────
-// None of the stories needs route state synced into a store, so the seam carries only the
-// index redirect onto the first story.
 
 const rootRoute = createRootRoute({
   component: RootLayout,
@@ -2340,6 +2423,12 @@ const buttonRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/button",
   component: ButtonStory,
+});
+
+const controlsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/controls",
+  component: ControlsStory,
 });
 
 const badgeRoute = createRoute({
@@ -2461,6 +2550,7 @@ const routeTree = rootRoute.addChildren([
   designRoute,
   shellRoute,
   tabsRoute,
+  controlsRoute,
   buttonRoute,
   switchRoute,
   checkboxRoute,
@@ -2482,7 +2572,7 @@ const routeTree = rootRoute.addChildren([
   conversationRoute,
 ]);
 
-// Hash history: the playground serves one HTML file, and story deep links must survive reloads.
+// Hash history keeps story deep links alive across reloads of the single HTML file.
 const router = createRouter({ routeTree, history: createHashHistory() });
 
 declare module "@tanstack/react-router" {
@@ -2490,8 +2580,6 @@ declare module "@tanstack/react-router" {
     router: typeof router;
   }
 }
-
-// ── Mount ───────────────────────────────────────────────────────────────────────────────────
 
 const rootEl = document.getElementById("root");
 
@@ -2501,8 +2589,6 @@ if (rootEl === null) {
 
 createRoot(rootEl).render(
   <React.StrictMode>
-    {/* One TooltipProvider at the root shares the open delay + skip-grouping window across every
-        trigger-based Tooltip (the tab strip's controlled AnchoredTooltip owns its own delay). */}
     <TooltipProvider>
       <RouterProvider router={router} />
     </TooltipProvider>

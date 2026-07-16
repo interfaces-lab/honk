@@ -1,8 +1,4 @@
 import {
-  BrowserAutomationRegisterInput,
-  BrowserAutomationUnregisterInput,
-} from "@honk/shared/browser-automation";
-import {
   ContextMenuItemSchema,
   DesktopActiveWorkStateSchema,
   DesktopAppBrandingSchema,
@@ -16,9 +12,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import * as Electron from "electron";
-import * as Net from "node:net";
 
-import * as DesktopBrowserAutomation from "../../browser/browser-automation";
 import * as DesktopActiveWork from "../../app/desktop-active-work";
 import * as DesktopEnvironment from "../../app/desktop-environment";
 import * as DesktopAppSettings from "../../settings/desktop-app-settings";
@@ -28,6 +22,7 @@ import * as ElectronMenu from "../../electron/electron-menu";
 import * as ElectronShell from "../../electron/electron-shell";
 import * as ElectronTheme from "../../electron/electron-theme";
 import * as ElectronWindow from "../../electron/electron-window";
+import { desktopGlassBackground, desktopWindowBackground } from "../../window/desktop-theme";
 import * as IpcChannels from "../channels";
 import { makeIpcMethod, makeSyncIpcMethod } from "../desktop-ipc";
 
@@ -41,32 +36,9 @@ const ContextMenuInput = Schema.Struct({
   position: Schema.optionalKey(ContextMenuPosition),
 });
 
-const LocalhostPort = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 }));
-const LocalhostPortsInput = Schema.Array(LocalhostPort).check(Schema.isMaxLength(64));
-
-const BrowserPartitionStorage = Schema.Literals([
-  "cachestorage",
-  "cookies",
-  "filesystem",
-  "indexdb",
-  "localstorage",
-  "serviceworkers",
-  "shadercache",
-  "websql",
-]);
-
-const ClearBrowserPartitionStorageInput = Schema.Struct({
-  storages: Schema.Array(BrowserPartitionStorage),
-});
-
-const HONK_BROWSER_PARTITION = "persist:honk-browser";
 const windowBackgroundColorByWindow = new WeakMap<Electron.BrowserWindow, string>();
 const windowDisplayZoomByWindow = new WeakMap<Electron.BrowserWindow, number>();
 const windowVibrancyByWindow = new WeakMap<Electron.BrowserWindow, boolean>();
-
-function uniqueLocalhostPorts(ports: readonly number[]): number[] {
-  return [...new Set(ports.filter((port) => Number.isInteger(port) && port > 0 && port <= 65535))];
-}
 
 function setWindowBackgroundColorIfChanged(window: Electron.BrowserWindow, color: string): void {
   if (windowBackgroundColorByWindow.get(window) === color) {
@@ -95,101 +67,12 @@ function setWindowVibrancyIfChanged(window: Electron.BrowserWindow, enabled: boo
   windowVibrancyByWindow.set(window, enabled);
 }
 
-function probeLocalhostPort(host: string, port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket = Net.createConnection({ host, port });
-    let settled = false;
-    const finish = (open: boolean) => {
-      if (settled) return;
-      settled = true;
-      socket.removeAllListeners();
-      socket.destroy();
-      resolve(open);
-    };
-
-    socket.setTimeout(220);
-    socket.once("connect", () => finish(true));
-    socket.once("timeout", () => finish(false));
-    socket.once("error", () => finish(false));
-  });
-}
-
-async function isLocalhostPortOpen(port: number): Promise<boolean> {
-  return (
-    (await probeLocalhostPort("127.0.0.1", port)) || (await probeLocalhostPort("localhost", port))
-  );
-}
-
 export const getAppBranding = makeSyncIpcMethod({
   channel: IpcChannels.GET_APP_BRANDING_CHANNEL,
   result: Schema.NullOr(DesktopAppBrandingSchema),
   handler: Effect.fn("desktop.ipc.window.getAppBranding")(function* () {
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
     return environment.branding;
-  }),
-});
-
-export const getBrowserWebviewPreloadPath = makeSyncIpcMethod({
-  channel: IpcChannels.GET_BROWSER_WEBVIEW_PRELOAD_PATH_CHANNEL,
-  result: Schema.NullOr(Schema.String),
-  handler: Effect.fn("desktop.ipc.window.getBrowserWebviewPreloadPath")(function* () {
-    const environment = yield* DesktopEnvironment.DesktopEnvironment;
-    return environment.browserWebviewPreloadPath;
-  }),
-});
-
-export const registerBrowserAutomationHost = makeIpcMethod({
-  channel: IpcChannels.REGISTER_BROWSER_AUTOMATION_HOST_CHANNEL,
-  payload: BrowserAutomationRegisterInput,
-  result: Schema.Void,
-  trace: false,
-  handler: Effect.fn("desktop.ipc.window.registerBrowserAutomationHost")(function* (input) {
-    const browserAutomation = yield* DesktopBrowserAutomation.DesktopBrowserAutomation;
-    yield* browserAutomation.register(input);
-  }),
-});
-
-export const unregisterBrowserAutomationHost = makeIpcMethod({
-  channel: IpcChannels.UNREGISTER_BROWSER_AUTOMATION_HOST_CHANNEL,
-  payload: BrowserAutomationUnregisterInput,
-  result: Schema.Void,
-  trace: false,
-  handler: Effect.fn("desktop.ipc.window.unregisterBrowserAutomationHost")(function* (input) {
-    const browserAutomation = yield* DesktopBrowserAutomation.DesktopBrowserAutomation;
-    yield* browserAutomation.unregister(input);
-  }),
-});
-
-export const detectLocalhostPorts = makeIpcMethod({
-  channel: IpcChannels.DETECT_LOCALHOST_PORTS_CHANNEL,
-  payload: LocalhostPortsInput,
-  result: LocalhostPortsInput,
-  handler: Effect.fn("desktop.ipc.window.detectLocalhostPorts")(function* (ports) {
-    const candidates = uniqueLocalhostPorts(ports);
-    return yield* Effect.promise(async () => {
-      const checks = await Promise.all(
-        candidates.map(async (port) => ({
-          port,
-          open: await isLocalhostPortOpen(port),
-        })),
-      );
-      return checks.filter((check) => check.open).map((check) => check.port);
-    });
-  }),
-});
-
-export const clearBrowserPartitionStorage = makeIpcMethod({
-  channel: IpcChannels.CLEAR_BROWSER_PARTITION_STORAGE_CHANNEL,
-  payload: ClearBrowserPartitionStorageInput,
-  result: Schema.Void,
-  handler: Effect.fn("desktop.ipc.window.clearBrowserPartitionStorage")(function* (input) {
-    return yield* Effect.promise(async () => {
-      const session = Electron.session.fromPartition(HONK_BROWSER_PARTITION);
-      const options: Electron.ClearStorageDataOptions = {
-        storages: [...input.storages],
-      };
-      await session.clearStorageData(options);
-    });
   }),
 });
 
@@ -266,11 +149,11 @@ export const setBackgroundColor = makeIpcMethod({
 });
 
 function getMacWindowBackgroundColor(shouldUseDarkColors: boolean): string {
-  return shouldUseDarkColors ? "#1F1F1F" : "#ffffff";
+  return desktopWindowBackground(shouldUseDarkColors);
 }
 
 function getMacGlassWindowBackgroundColor(shouldUseDarkColors: boolean): string {
-  return shouldUseDarkColors ? "#40000000" : "#00FFFFFF";
+  return desktopGlassBackground(shouldUseDarkColors);
 }
 
 const DISPLAY_ZOOM_FACTOR_MIN = 0.84;

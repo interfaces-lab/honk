@@ -1,23 +1,104 @@
 # Agent Rules
 
-## Style
+## Style Guide
 
-- Keep answers short, technical, and direct.
-- No emojis in commits, issues, PR comments, or code.
-- No fluff or cheerful filler.
-- Write comments like the reader is new to the codebase but familiar with the goal of the project
-## Code
+### General Principles
 
-- Read the relevant files before editing. Do not rely on search snippets for broad changes.
-- No `any` types unless there is no better option.
-- Check installed dependency types instead of guessing external APIs.
-- Use top-level imports. Do not use inline imports such as `await import("./x")`, `import("pkg").Type`, or dynamic type imports.
-- Do not remove or downgrade functionality to satisfy type errors. Fix the cause or ask.
-- Do not preserve backward compatibility unless the user asks for it.
-- Ask before removing intentional-looking behavior or large code paths.
-- Keybindings must be configurable. Do not hardcode checks like `matchesKey(keyData, "ctrl+x")`; add defaults to the relevant keybinding map.
-- Keep Tailwind utilities on elements or in `cva` variants. Do not create decorative `*ClassName` / `*_CLASSNAME` buckets unless needed as a real CSS/test selector.
-- For shared UI styling, prefer a small component when callers need markup composition, or a `cva` recipe when callers need conditional/reusable class composition. Inline one-off static classes at the element.
+- Keep things in one function unless composable or reusable
+- Do not extract single-use helpers preemptively. Inline the logic at the call site unless the helper is reused, hides a genuinely complex boundary, or has a clear independent name that improves the caller.
+- Avoid `try`/`catch` where possible
+- Avoid using the `any` type
+- Use Bun APIs when possible, like `Bun.file()`
+- Rely on type inference when possible; avoid explicit type annotations or interfaces unless necessary for exports or clarity
+- Prefer functional array methods (flatMap, filter, map) over for loops; use type guards on filter to maintain type inference downstream
+- In `src/config`, follow the existing self-export pattern at the top of the file (for example `export * as ConfigAgent from "./agent"`) when adding a new config module.
+- In Effect generators, bind services to named variables before calling methods. Do not use nested service yields such as `yield* (yield* Foo.Service).bar()`.
+
+Reduce total variable count by inlining when a value is only used once.
+
+```ts
+// Good
+const journal = await Bun.file(path.join(dir, "journal.json")).json();
+
+// Bad
+const journalPath = path.join(dir, "journal.json");
+const journal = await Bun.file(journalPath).json();
+```
+
+### Destructuring
+
+Avoid unnecessary destructuring. Use dot notation to preserve context.
+
+```ts
+// Good
+obj.a;
+obj.b;
+
+// Bad
+const { a, b } = obj;
+```
+
+### Imports
+
+- Never alias imports. Do not use `import { foo as bar } from "..."` or renamed imports like `resolve as pathResolve`.
+- Never use star imports. Do not use `import * as Foo from "..."` or `import type * as Foo from "..."`.
+- If a namespace-style value is needed, import the module's own exported namespace by name, for example `import { Project } from "@opencode-ai/core/project"`, then reference `Project.ID`.
+- Prefer dynamic imports for heavy modules that are only needed in selected code paths, especially in startup-sensitive entrypoints. Destructure dynamic import bindings near the top of the narrowest scope that needs them so they read like normal imports. Avoid inline chains such as `await import("./module").then((mod) => mod.value())` or `(await import("./module")).value()`. Keep branch-specific imports inside the branch that needs them to preserve lazy loading.
+
+### Variables
+
+Prefer `const` over `let`. Use ternaries or early returns instead of reassignment.
+
+```ts
+// Good
+const foo = condition ? 1 : 2;
+
+// Bad
+let foo;
+if (condition) foo = 1;
+else foo = 2;
+```
+
+### Control Flow
+
+Avoid `else` statements. Prefer early returns.
+
+```ts
+// Good
+function foo() {
+  if (condition) return 1;
+  return 2;
+}
+
+// Bad
+function foo() {
+  if (condition) return 1;
+  else return 2;
+}
+```
+
+### Complex Logic
+
+When a function has several validation branches or supporting details, make the main function read as the happy path and move supporting details into small helpers below it.
+
+```ts
+// Good
+export function loadThing(input: unknown) {
+  const config = requireConfig(input)
+  const metadata = readMetadata(input)
+  return createThing({ config, metadata })
+}
+
+function requireConfig(input: unknown) {
+  ...
+}
+```
+
+- Keep helpers close to the code they support, below the main export when that improves readability.
+- Do not over-abstract simple expressions into many single-use helpers; extract only when it names a real concept like `requireConfig` or `readMetadata`.
+- Do not return `Effect` from helpers unless they actually perform effectful work. Synchronous parsing, validation, and option building should stay synchronous.
+- Prefer Effect schema helpers such as `Schema.UnknownFromJsonString` and `Schema.decodeUnknownOption` over manual `JSON.parse` wrapped in `Effect.try` when parsing untrusted JSON strings.
+- Add comments for non-obvious constraints and surprising behavior, not for obvious assignments or control flow.
 
 ## Icons
 
@@ -28,38 +109,9 @@
 
 - Any design or UI work starts with `.agents/skills/design/SKILL.md`, then `.design/README.md`
   (principles, exemplars, and the deterministic check: `node .design/lint.mjs`).
-- Cross-platform `@honk/ui` work must also read `packages/ui/AGENTS.md` and use `.agents/skills/honk-ui`; one logical component API serves web and native through platform-resolved implementations.
-- Decision hierarchy: `.agents/skills/design` + `.agents/skills/honk-ui` (product judgment and platform routing) → `.agents/skills/stylex` + `.agents/skills/styling-tokens` (web authoring mechanics) → `packages/ui/src/theme.ts` for shared values and the generated `platform-tokens.stylex.ts` web binding, with `tokens.stylex.ts` retaining web-only values → `.design/principles.md` + `.design/exemplars.md` (Honk-specific judgment).
+- Decision hierarchy: `.agents/skills/design` (product judgment and platform routing) → `.agents/skills/stylex` + `.agents/skills/styling-tokens` (web authoring mechanics) → `packages/ui/src/theme.ts` for shared values and the generated `platform-tokens.stylex.ts` web binding, with `tokens.stylex.ts` retaining web-only values → `.design/principles.md` + `.design/exemplars.md` (Honk-specific judgment).
 - Skills are first-party in `.agents/skills/` (`.claude/skills/*` are symlinks into it).
-- The HonkKit rules below apply to the old app (`packages/app` + `packages/honkkit`). The rewrite
-  (`packages/ui`) follows `.design/` and the local skills instead.
-
-## HonkKit (design system)
-
-- **HonkKit** is Honk's design system. Primitives live in `@honk/honkkit/`\*; tokens in `@honk/honkkit/styles.css` and app Tailwind theme exports in `packages/app/src/index.css`.
-- Browse and tweak components in dev at `/dev/honkkit` (Cmd+K → "Open HonkKit"). DialKit panel adjusts the active preview.
-- Prefer existing HonkKit primitives over one-off markup. Product UI mostly uses typography utilities (`text-body`, `text-detail`, `text-caption`) on native elements; `<Text>` from `@honk/honkkit/text` is for settings and structured copy.
-- Stack: Base UI headless + CVA variants + Tailwind v4. Icons: `central-icons` only.
-- `cn()` / `tailwind-merge` must treat `text-honk-*` size utilities separately from `text-honk-fg-*` color utilities (see `packages/honkkit/src/utils.ts`).
-
-## Commands
-
-- For code changes, prefer `pnpm run typecheck` as the verifier. Get full output.
-- Do not use tests as the verifier unless the task is creating, modifying, or debugging tests.
-- If you create or modify a test, run that specific test from its package root and iterate until it passes.
-- Never run `pnpm run dev`, `pnpm run build`, or broad test commands unless the user asks.
-- Never commit unless the user asks.
-
-## OpenCode host
-
-- Changes to `packages/cli`, remote pairing, or shared OpenCode connection behavior must use
-  `.agents/skills/honk-host/SKILL.md`.
-- `@honk/opencode` is the only client boundary. Do not restore the retired `api/core` transport or
-  create a parallel mobile/web protocol.
-
-## Git
-
-- Commit message format: `{feat,fix,refactor,docs,test,chore,ci}[(app,desktop,runtime,server,contracts,honkkit)]: concise summary`. Use the primary affected package as scope; keep the subject informative and one line. No `Co-authored-by` trailers unless the user asks.
+- All client UI follows `.design/`, the local skills, and the shared `packages/ui` component system.
 
 ## Releases
 

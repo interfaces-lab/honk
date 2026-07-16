@@ -1,20 +1,10 @@
-// The preset dial — the composer's four-stop effort selector (2026-07-11 grill: presets
-// replace ALL free model selection; each stop pins an Agent+Oracle bundle at thread birth).
-// Anatomy from the reference dial (Amp): a full-width dotted track whose leading span fills
-// in the selected tier's hue, a spread label row beneath (low … ultra), everything in the
-// mono face — the dial reads as an engine gauge, not chrome. The readout under the dial
-// (Agent:/Oracle: lines) is the APP's content; this primitive owns track + labels only.
-//
-// Semantics: a radiogroup. Labels are the radios (roving tabindex, arrow-key stepping); the
-// track is decorative but clickable — a click lands on the nearest stop.
 
 import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
+import { applyStyle, type HonkStyle, type StyleProp } from "./style";
 import { colorVars, fontVars, motionVars } from "./tokens.stylex";
 
-// Track anatomy — structural constants of the dotted gauge (local named values, the
-// home-page idiom for one-component geometry).
 const DOT_DIAMETER = 2.5;
 const DOT_PITCH = 9;
 const TRACK_HEIGHT = "4px";
@@ -29,8 +19,7 @@ const toneColor: Record<PresetTone, string> = {
   ultra: colorVars["--honk-color-preset-ultra"],
 };
 
-// The dot leader, drawn as a repeating radial gradient so ONE background paints the whole
-// row of dots (an element per dot would be ~40 nodes per track).
+// One radial gradient paints the whole dotted track instead of ~40 nodes.
 const dotLeader = (color: string): string =>
   `radial-gradient(circle, ${color} ${String(DOT_DIAMETER / 2)}px, transparent ${String(
     DOT_DIAMETER / 2 + 0.25,
@@ -120,9 +109,8 @@ interface PresetDialProps {
   readonly stops: readonly PresetDialStop[];
   readonly value: string;
   readonly onValueChange: (id: string) => void;
-  // Accessible name for the radiogroup ("Effort preset").
   readonly "aria-label": string;
-  readonly xstyle?: stylex.StyleXStyles;
+  readonly style?: StyleProp<HonkStyle>;
 }
 
 function PresetDial({
@@ -130,7 +118,7 @@ function PresetDial({
   value,
   onValueChange,
   "aria-label": ariaLabel,
-  xstyle,
+  style,
 }: PresetDialProps): React.ReactElement {
   const selectedIndex = Math.max(
     0,
@@ -138,7 +126,6 @@ function PresetDial({
   );
   const selected = stops[selectedIndex];
   const tone = selected?.tone ?? "low";
-  // Fill runs to the selected stop's position along the track: index/(n-1).
   const fillPct = stops.length > 1 ? (selectedIndex / (stops.length - 1)) * 100 : 100;
 
   const stepTo = (index: number): void => {
@@ -174,8 +161,7 @@ function PresetDial({
   };
 
   return (
-    <div role="radiogroup" aria-label={ariaLabel} {...stylex.props(styles.root, xstyle)}>
-      {/* Decorative gauge — the labels beneath are the real controls. */}
+    <div role="radiogroup" aria-label={ariaLabel} {...applyStyle(stylex.props(styles.root), style)}>
       <div aria-hidden={true} {...stylex.props(styles.track)} onClick={handleTrackClick}>
         <div {...stylex.props(styles.trackFill, dynamic.fill(toneColor[tone], fillPct))} />
       </div>

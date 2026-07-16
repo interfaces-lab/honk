@@ -1,8 +1,4 @@
-// The settled file-change receipt at the end of a turn. The caller supplies the turn-scoped
-// snapshot diffs; this component never reads the live working tree, so an old transcript keeps
-// describing the files that turn actually changed. Cursor's EndOfTurnSummary supplies the
-// interaction model: a compact header, an initially bounded file list, and one explicit Review
-// action. File rows become buttons only when the caller can open that exact file.
+// Turn-scoped snapshot diffs only. Never reads the live working tree.
 
 import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
@@ -10,6 +6,7 @@ import * as React from "react";
 import { Button } from "./button";
 import { Icon } from "./icon";
 import { IconChevronDownMedium, IconFileBend } from "./icons";
+import { applyStyle, type HonkStyle, type StyleProp } from "./style";
 import { Text } from "./text";
 import { colorVars, controlVars, fontVars, radiusVars, spaceVars } from "./tokens.stylex";
 
@@ -27,11 +24,9 @@ interface ChangeReceiptProps {
   readonly onReview?: (() => void) | undefined;
   readonly onFileClick?: ((file: ChangeReceiptFile) => void) | undefined;
   readonly initialVisibleCount?: number | undefined;
-  readonly xstyle?: stylex.StyleXStyles;
+  readonly style?: StyleProp<HonkStyle>;
 }
 
-// Cursor reserves five receipt rows by default: when the list is longer, four files plus the
-// disclosure occupy those slots. It expands in place so the transcript remains the source of truth.
 const DEFAULT_VISIBLE_COUNT = 5;
 const MIN_VISIBLE_COUNT = 2;
 const RECEIPT_RING_WIDTH = "1px";
@@ -57,10 +52,6 @@ const styles = stylex.create({
     gap: controlVars["--honk-control-gap"],
     paddingBlockStart: controlVars["--honk-control-gap"],
     paddingInline: spaceVars["--honk-space-panel-pad"],
-  },
-  title: {
-    flexGrow: 1,
-    minWidth: 0,
   },
   list: {
     display: "flex",
@@ -98,11 +89,6 @@ const styles = stylex.create({
     outlineWidth: FOCUS_RING_WIDTH,
     outlineOffset: FOCUS_RING_OFFSET_INSET,
   },
-  fileName: {
-    flexGrow: 1,
-    flexShrink: 1,
-    minWidth: 0,
-  },
   stats: {
     marginInlineStart: "auto",
     display: "inline-flex",
@@ -111,19 +97,16 @@ const styles = stylex.create({
     flexShrink: 0,
     fontVariantNumeric: "tabular-nums",
   },
-  addition: {
-    color: colorVars["--honk-color-diff-addition"],
-  },
-  deletion: {
-    color: colorVars["--honk-color-diff-deletion"],
-  },
-  disclosure: {
-    justifyContent: "flex-start",
-  },
-  disclosureExpanded: {
-    transform: "rotate(180deg)",
-  },
 });
+
+const forward = {
+  title: { flexGrow: 1, minWidth: 0 },
+  fileName: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  addition: { color: colorVars["--honk-color-diff-addition"] },
+  deletion: { color: colorVars["--honk-color-diff-deletion"] },
+  disclosure: { justifyContent: "flex-start" },
+  disclosureExpanded: { transform: "rotate(180deg)" },
+} satisfies Record<string, HonkStyle>;
 
 function fileBasename(path: string): string {
   const trimmed = path.replace(/[\\/]+$/, "");
@@ -141,12 +124,12 @@ function ChangeStats({
   return (
     <span {...stylex.props(styles.stats)}>
       {additions > 0 ? (
-        <Text size="sm" family="mono" tone="inherit" tabularNums xstyle={styles.addition}>
+        <Text size="sm" family="mono" tone="inherit" tabularNums style={forward.addition}>
           +{additions}
         </Text>
       ) : null}
       {deletions > 0 ? (
-        <Text size="sm" family="mono" tone="inherit" tabularNums xstyle={styles.deletion}>
+        <Text size="sm" family="mono" tone="inherit" tabularNums style={forward.deletion}>
           −{deletions}
         </Text>
       ) : null}
@@ -164,7 +147,7 @@ function ChangeRow({
   const content = (
     <>
       <Icon icon={IconFileBend} size="sm" tone="muted" />
-      <Text size="sm" tone="primary" truncate xstyle={styles.fileName}>
+      <Text size="sm" tone="primary" truncate style={forward.fileName}>
         {fileBasename(file.path)}
       </Text>
       <ChangeStats additions={file.additions} deletions={file.deletions} />
@@ -204,7 +187,7 @@ function ChangeReceipt({
   onReview,
   onFileClick,
   initialVisibleCount = DEFAULT_VISIBLE_COUNT,
-  xstyle,
+  style,
 }: ChangeReceiptProps): React.ReactElement | null {
   const [isExpanded, setExpanded] = React.useState(false);
   if (files.length === 0) {
@@ -219,14 +202,14 @@ function ChangeReceipt({
   const title = `${String(files.length)} ${files.length === 1 ? "File" : "Files"} Changed`;
 
   return (
-    <section aria-label={title} data-change-receipt="" {...stylex.props(styles.root, xstyle)}>
+    <section aria-label={title} data-change-receipt="" {...applyStyle(stylex.props(styles.root), style)}>
       <header {...stylex.props(styles.header)}>
-        <Text size="sm" tone="muted" weight="medium" truncate xstyle={styles.title}>
+        <Text size="sm" tone="muted" weight="medium" truncate style={forward.title}>
           {title}
         </Text>
         {onReview !== undefined ? (
           <Button
-            variant="ghost"
+            variant="quiet"
             size="sm"
             aria-label={`Review ${String(files.length)} changed ${files.length === 1 ? "file" : "files"}`}
             onClick={onReview}
@@ -241,7 +224,7 @@ function ChangeReceipt({
         ))}
         {isCollapsible ? (
           <Button
-            variant="ghost"
+            variant="quiet"
             size="sm"
             block
             aria-expanded={isExpanded}
@@ -249,10 +232,10 @@ function ChangeReceipt({
               <Icon
                 icon={IconChevronDownMedium}
                 size="xs"
-                xstyle={isExpanded ? styles.disclosureExpanded : undefined}
+                style={isExpanded ? forward.disclosureExpanded : undefined}
               />
             }
-            xstyle={styles.disclosure}
+            style={forward.disclosure}
             onClick={() => {
               setExpanded((current) => !current);
             }}

@@ -1,10 +1,11 @@
+import { openCodeSessionKey } from "@honk/opencode";
+import { Redirect, Stack, useLocalSearchParams } from "expo-router";
 import * as React from "react";
 import { FlatList, type ListRenderItemInfo } from "react-native";
-import { Redirect, Stack, useLocalSearchParams } from "expo-router";
-import type { ThreadSummary } from "@honk/opencode";
 
-import { groupThreadsByProject } from "../../../../src/projects";
+import { activeRootSessions, groupSessionsByProject } from "../../../../src/projects";
 import { useRemote } from "../../../../src/remote-context";
+import type { RemoteSession } from "../../../../src/remote-context";
 import { ThreadRow } from "../../../../src/thread-row";
 import { EmptyState, LoadingState, Page, useHonkTheme } from "../../../../src/ui";
 
@@ -14,27 +15,30 @@ export default function ProjectRoute(): React.ReactElement {
   const { projectKey } = useLocalSearchParams<{ projectKey: string }>();
   const [refreshing, setRefreshing] = React.useState(false);
 
-  if (remote.client === null) return <Redirect href="/connect" />;
-  if (remote.workspace === null) return <LoadingState label="Loading project…" />;
+  if (remote.status === "restoring") return <LoadingState label="Loading project…" />;
+  if (remote.servers.length === 0) return <Redirect href="/connect" />;
 
-  const project = groupThreadsByProject(remote.workspace.threads).find(
+  const project = groupSessionsByProject(activeRootSessions(remote.sessions)).find(
     (candidate) => candidate.key === projectKey,
   );
-  const threads = project?.threads ?? [];
+  const sessions = project?.sessions ?? [];
 
   const refresh = async (): Promise<void> => {
     setRefreshing(true);
     try {
-      await remote.refreshWorkspace();
+      await remote.refreshSessions();
     } finally {
       setRefreshing(false);
     }
   };
 
-  const renderThread = ({ item }: ListRenderItemInfo<ThreadSummary>): React.ReactElement => (
+  const renderSession = ({ item }: ListRenderItemInfo<RemoteSession>): React.ReactElement => (
     <ThreadRow
-      href={{ pathname: "/(tabs)/home/[threadId]", params: { threadId: item.id } }}
-      thread={item}
+      href={{
+        pathname: "/(tabs)/home/server/[serverKey]/session/[sessionId]",
+        params: { serverKey: item.ref.server, sessionId: item.ref.sessionID },
+      }}
+      session={item}
     />
   );
 
@@ -44,17 +48,17 @@ export default function ProjectRoute(): React.ReactElement {
       <FlatList
         contentContainerStyle={[
           { paddingHorizontal: theme.metrics.space.screenGutter },
-          threads.length === 0 ? { flexGrow: 1 } : undefined,
+          sessions.length === 0 ? { flexGrow: 1 } : undefined,
         ]}
         contentInsetAdjustmentBehavior="automatic"
-        data={threads}
-        keyExtractor={(thread) => thread.id}
+        data={sessions}
+        keyExtractor={(session) => openCodeSessionKey(session.ref)}
         ListEmptyComponent={
-          <EmptyState body="This project has no active tasks." title="No tasks" />
+          <EmptyState body="This project has no active sessions." title="No sessions" />
         }
         onRefresh={() => void refresh()}
         refreshing={refreshing}
-        renderItem={renderThread}
+        renderItem={renderSession}
       />
     </Page>
   );

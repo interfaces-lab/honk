@@ -16,6 +16,24 @@ import type { Duplex } from "node:stream";
 import { DeviceRegistry } from "./auth";
 import { writeHostState, type DeviceRecord, type HostState } from "./state";
 
+export {
+  buildTailscaleHttpsUrl,
+  disableTailscaleHttpsServe,
+  enableTailscaleHttpsServe,
+  parseTailscaleStatus,
+  readTailscaleStatus,
+  resolveTailscaleHttpsEndpoint,
+  TailscaleServeError,
+  TailscaleStatusError,
+  TailscaleUnavailableError,
+  type TailscaleCommandOptions,
+  type TailscaleCommandRequest,
+  type TailscaleCommandResult,
+  type TailscaleCommandRunner,
+  type TailscaleHttpsEndpoint,
+  type TailscaleStatus,
+} from "./tailscale";
+
 const COOKIE_NAME = "honk_device";
 const MAX_ADMIN_BODY_BYTES = 64 * 1024;
 
@@ -26,7 +44,7 @@ export interface HonkHostOptions {
   readonly upstreamOrigin: string;
   readonly upstreamPassword: string;
   readonly cwd: string;
-  readonly appDist: string;
+  readonly appDist?: string;
   readonly adminSecret: string;
   readonly devices: readonly DeviceRecord[];
   readonly statePath: string;
@@ -42,6 +60,8 @@ export interface HonkHost {
   readonly origin: string;
   readonly publicUrl: string;
   readonly issuePairing: (label?: string) => PairingLink;
+  readonly devices: () => readonly DeviceRecord[];
+  readonly revokeDevice: (deviceID: string) => Promise<boolean>;
   readonly close: () => Promise<void>;
 }
 
@@ -96,9 +116,37 @@ const json = (response: ServerResponse, status: number, value: unknown): void =>
   response.end(body);
 };
 
-const setCors = (request: IncomingMessage, response: ServerResponse): void => {
+const isDesktopClientOrigin = (origin: string): boolean => {
+  if (origin === "honk://desktop") return true;
+  try {
+    const url = new URL(origin);
+    return (
+      url.protocol === "http:" &&
+      (url.hostname === "localhost" ||
+        url.hostname.endsWith(".localhost") ||
+        url.hostname === "127.0.0.1" ||
+        url.hostname.startsWith("127."))
+    );
+  } catch {
+    return false;
+  }
+};
+
+const setCors = (
+  request: IncomingMessage,
+  response: ServerResponse,
+  publicUrl: string,
+): boolean => {
   const origin = request.headers.origin;
-  response.setHeader("access-control-allow-origin", origin ?? "*");
+  if (origin === undefined) return true;
+  let trusted = false;
+  try {
+    trusted = new URL(origin).origin === new URL(publicUrl).origin || isDesktopClientOrigin(origin);
+  } catch {
+    trusted = false;
+  }
+  if (!trusted) return false;
+  response.setHeader("access-control-allow-origin", origin);
   response.setHeader(
     "access-control-allow-methods",
     "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS",
@@ -107,10 +155,9 @@ const setCors = (request: IncomingMessage, response: ServerResponse): void => {
     "access-control-allow-headers",
     "authorization, content-type, x-opencode-directory, x-opencode-workspace",
   );
-  if (origin !== undefined) {
-    response.setHeader("access-control-allow-credentials", "true");
-    response.setHeader("vary", "Origin");
-  }
+  response.setHeader("access-control-allow-credentials", "true");
+  response.setHeader("vary", "Origin");
+  return true;
 };
 
 const readJson = async (request: IncomingMessage): Promise<unknown> => {
@@ -229,6 +276,7 @@ const proxyHttp = (
   response: ServerResponse,
   upstreamOrigin: string,
   upstreamPassword: string,
+  publicUrl: string,
 ): void => {
   const target = new URL(request.url ?? "/", `${upstreamOrigin}/`);
   const upstream = requestHttp(
@@ -240,7 +288,7 @@ const proxyHttp = (
     (upstreamResponse) => {
       response.statusCode = upstreamResponse.statusCode ?? 502;
       copyProxyResponseHeaders(upstreamResponse.headers, response);
-      setCors(request, response);
+      setCors(request, response, publicUrl);
       upstreamResponse.pipe(response);
     },
   );
@@ -360,11 +408,13 @@ const probeUpstream = async (origin: string, password: string): Promise<boolean>
 };
 
 export async function startHonkHost(options: HonkHostOptions): Promise<HonkHost> {
-  const appRoot = resolve(options.appDist);
-  const indexFile = resolve(appRoot, "index.html");
-  const indexInfo = await stat(indexFile).catch(() => null);
-  if (indexInfo === null || !indexInfo.isFile()) {
-    throw new Error(`Honk web assets were not found at ${appRoot}. Build @honk/app first.`);
+  const appRoot = options.appDist === undefined ? null : resolve(options.appDist);
+  const indexFile = appRoot === null ? null : resolve(appRoot, "index.html");
+  if (indexFile !== null) {
+    const indexInfo = await stat(indexFile).catch(() => null);
+    if (indexInfo === null || !indexInfo.isFile()) {
+      throw new Error(`Honk web assets were not found at ${appRoot}. Build @honk/app first.`);
+    }
   }
 
   let state: HostState;
@@ -372,19 +422,47 @@ export async function startHonkHost(options: HonkHostOptions): Promise<HonkHost>
     state = { ...state, devices };
     await writeHostState(state, options.statePath);
   });
+  const socketsByDevice = new Map<string, Set<Duplex>>();
+
+  const trackDeviceSocket = (deviceID: string, socket: Duplex): void => {
+    const sockets = socketsByDevice.get(deviceID) ?? new Set<Duplex>();
+    if (sockets.has(socket)) return;
+    sockets.add(socket);
+    socketsByDevice.set(deviceID, sockets);
+    socket.once("close", () => {
+      sockets.delete(socket);
+      if (sockets.size === 0) socketsByDevice.delete(deviceID);
+    });
+  };
+
+  const closeDeviceSockets = (deviceID: string): void => {
+    const sockets = socketsByDevice.get(deviceID);
+    if (sockets === undefined) return;
+    socketsByDevice.delete(deviceID);
+    for (const socket of sockets) socket.destroy();
+  };
+
+  const revokeDevice = async (deviceID: string): Promise<boolean> => {
+    const revoked = await registry.revoke(deviceID);
+    if (revoked) closeDeviceSockets(deviceID);
+    return revoked;
+  };
 
   const server = createServer((request, response) => {
     void (async () => {
       const url = new URL(request.url ?? "/", "http://honk.local");
       if (request.method === "OPTIONS") {
-        setCors(request, response);
+        if (!setCors(request, response, state.publicUrl)) {
+          json(response, 403, { error: "This web origin is not allowed." });
+          return;
+        }
         response.statusCode = 204;
         response.end();
         return;
       }
 
       if (url.pathname === "/honk/health") {
-        setCors(request, response);
+        setCors(request, response, state.publicUrl);
         json(response, 200, {
           healthy: true,
           openCodeReady: await probeUpstream(options.upstreamOrigin, options.upstreamPassword),
@@ -393,7 +471,10 @@ export async function startHonkHost(options: HonkHostOptions): Promise<HonkHost>
       }
 
       if (url.pathname === "/honk/pair" && request.method === "POST") {
-        setCors(request, response);
+        if (!setCors(request, response, state.publicUrl)) {
+          json(response, 403, { error: "This web origin is not allowed." });
+          return;
+        }
         try {
           const body = await readJson(request);
           const token = isObject(body) ? Reflect.get(body, "token") : undefined;
@@ -430,10 +511,13 @@ export async function startHonkHost(options: HonkHostOptions): Promise<HonkHost>
       }
 
       if (url.pathname === "/honk/sign-out" && request.method === "POST") {
-        setCors(request, response);
+        if (!setCors(request, response, state.publicUrl)) {
+          json(response, 403, { error: "This web origin is not allowed." });
+          return;
+        }
         const password = basicPasswordFrom(request);
         const device = password === null ? null : registry.authenticate(password);
-        if (device !== null) await registry.revoke(device.id);
+        if (device !== null) await revokeDevice(device.id);
         response.setHeader("set-cookie", deviceCookie(state.publicUrl, "", 0));
         response.statusCode = 204;
         response.end();
@@ -441,7 +525,7 @@ export async function startHonkHost(options: HonkHostOptions): Promise<HonkHost>
       }
 
       if (url.pathname.startsWith("/honk/admin/")) {
-        setCors(request, response);
+        setCors(request, response, state.publicUrl);
         const adminSecret = bearerFrom(request);
         if (adminSecret === null || !secretEquals(adminSecret, state.adminSecret)) {
           json(response, 401, { error: "Admin authentication is required." });
@@ -484,7 +568,7 @@ export async function startHonkHost(options: HonkHostOptions): Promise<HonkHost>
         const deviceMatch = /^\/honk\/admin\/devices\/([^/]+)$/.exec(url.pathname);
         if (deviceMatch !== null && request.method === "DELETE") {
           const id = decodeURIComponent(deviceMatch[1] ?? "");
-          const revoked = await registry.revoke(id);
+          const revoked = await revokeDevice(id);
           json(response, revoked ? 200 : 404, { revoked });
           return;
         }
@@ -492,7 +576,11 @@ export async function startHonkHost(options: HonkHostOptions): Promise<HonkHost>
         return;
       }
 
-      if (request.method === "GET" || request.method === "HEAD") {
+      if (
+        appRoot !== null &&
+        indexFile !== null &&
+        (request.method === "GET" || request.method === "HEAD")
+      ) {
         const asset = fileWithin(appRoot, url.pathname);
         if (asset !== null && basename(asset) !== "index.html") {
           if (await serveFile(request, response, asset, "asset")) return;
@@ -504,13 +592,21 @@ export async function startHonkHost(options: HonkHostOptions): Promise<HonkHost>
       }
 
       const password = basicPasswordFrom(request);
-      if (password === null || registry.authenticate(password) === null) {
-        setCors(request, response);
+      const device = password === null ? null : registry.authenticate(password);
+      if (device === null) {
+        setCors(request, response, state.publicUrl);
         response.setHeader("www-authenticate", 'Basic realm="Honk"');
         json(response, 401, { error: "Pair this device with the Honk host first." });
         return;
       }
-      proxyHttp(request, response, options.upstreamOrigin, options.upstreamPassword);
+      trackDeviceSocket(device.id, request.socket);
+      proxyHttp(
+        request,
+        response,
+        options.upstreamOrigin,
+        options.upstreamPassword,
+        state.publicUrl,
+      );
     })().catch((error: unknown) => {
       if (response.headersSent) {
         response.destroy(error instanceof Error ? error : undefined);
@@ -525,10 +621,12 @@ export async function startHonkHost(options: HonkHostOptions): Promise<HonkHost>
     upgradedSockets.add(socket);
     socket.once("close", () => upgradedSockets.delete(socket));
     const password = basicPasswordFrom(request);
-    if (password === null || registry.authenticate(password) === null) {
+    const device = password === null ? null : registry.authenticate(password);
+    if (device === null) {
       sendUpgradeUnauthorized(socket);
       return;
     }
+    trackDeviceSocket(device.id, socket);
     proxyUpgrade(request, socket, head, options.upstreamOrigin, options.upstreamPassword);
   });
 
@@ -569,10 +667,15 @@ export async function startHonkHost(options: HonkHostOptions): Promise<HonkHost>
       const issued = registry.issuePairing(label);
       return pairingLink(publicUrl, issued.token, issued.expiresAt);
     },
+    devices() {
+      return registry.list();
+    },
+    revokeDevice,
     close() {
       closePromise ??= new Promise<void>((resolveClose, rejectClose) => {
         server.close((error) => (error ? rejectClose(error) : resolveClose()));
         server.closeAllConnections();
+        socketsByDevice.clear();
         for (const socket of upgradedSockets) socket.destroy();
       });
       return closePromise;

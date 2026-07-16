@@ -1,15 +1,10 @@
-// Route tree — code-based TanStack Router (same idiom as packages/ui/dev). One file for the
-// tree; page components live beside their concept. File-based routing stays with the frozen
-// legacy app; the rewrite keeps the tree small and explicit (ADR 0011).
-//
-// Root is RootGate (boot.tsx): connection-store decides between gate surfaces and AppShell.
-
-import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
+import { createRootRoute, createRoute, createRouter, redirect } from "@tanstack/react-router";
 
 import { RootErrorView, RootGate, RootNotFoundView } from "./boot";
 import { HomePage } from "./home";
-import { DEFAULT_SETTINGS_SECTION, SettingsPage, type SettingsSectionId } from "./settings";
-import { ThreadPage } from "./thread";
+import { NewSessionPage } from "./new-session";
+import { SessionWorkbenchLayout } from "./session-workbench-layout";
+import { ThreadPage } from "./thread/page";
 
 const rootRoute = createRootRoute({
   component: RootGate,
@@ -21,33 +16,66 @@ const indexRoute = createRoute({
   component: HomePage,
 });
 
-// The NATIVE thread view over the opencode sidecar — the legacy iframe host died in the
-// atomic round's clean break (2026-07-11 grill).
-const threadRoute = createRoute({
+const sessionRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/thread/$threadId",
+  path: "/server/$serverKey/session",
+  component: SessionWorkbenchLayout,
+});
+
+const threadRoute = createRoute({
+  getParentRoute: () => sessionRoute,
+  path: "$sessionId",
   component: ThreadPage,
 });
 
-const settingsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/settings",
-  component: SettingsPage,
-  validateSearch: (search: Record<string, unknown>): { section: SettingsSectionId } => {
-    const section = search["section"];
-    if (
-      section === "general" ||
-      section === "providers" ||
-      section === "appearance" ||
-      section === "archived"
-    ) {
-      return { section };
-    }
-    return { section: DEFAULT_SETTINGS_SECTION };
+const workbenchRoute = createRoute({
+  getParentRoute: () => threadRoute,
+  path: "workbench/$workbenchTab",
+});
+
+const sideChatRoute = createRoute({
+  getParentRoute: () => threadRoute,
+  path: "side-chat/$sideChatId",
+});
+
+const browserRoute = createRoute({
+  getParentRoute: () => threadRoute,
+  path: "browser",
+  beforeLoad: ({ location }) => {
+    throw redirect({
+      href: location.pathname.replace(/\/browser\/?$/, "/workbench/browser"),
+      replace: true,
+    });
   },
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, threadRoute, settingsRoute]);
+const changesRoute = createRoute({
+  getParentRoute: () => threadRoute,
+  path: "changes",
+  beforeLoad: ({ location }) => {
+    throw redirect({
+      href: location.pathname.replace(/\/changes\/?$/, "/workbench/changes"),
+      replace: true,
+    });
+  },
+});
+
+const newSessionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/new-session",
+  validateSearch: (search: Record<string, unknown>) => ({
+    draftId: typeof search.draftId === "string" ? search.draftId : "",
+  }),
+  component: NewSessionPage,
+});
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  newSessionRoute,
+  sessionRoute.addChildren([
+    threadRoute.addChildren([workbenchRoute, sideChatRoute, browserRoute, changesRoute]),
+  ]),
+]);
 
 const router = createRouter({
   routeTree,

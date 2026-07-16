@@ -1,28 +1,21 @@
-// Connection / boot store. Owns the reach-the-OpenCode-host state machine as a plain
-// {subscribe, getSnapshot, actions} module so components stay effect-free. Timers
-// and promises live here; React only reads.
-//
-// Desktop receives its managed `opencode serve` endpoint through preload. Web
-// either uses the same-origin Honk host or exchanges a one-time /pair link for a
-// revocable device password. Both paths end at the same @honk/opencode client.
-//
-// Boot: resolve origin → exchange/read a credential → probe /global/health →
-// bind the client into the watch registry. The shell paints before this work.
+// Connection boot store. Timers and promises live here so components stay effect-free.
 
 import {
+  createOpenCodeClient,
+  createOpenCodeRegistry,
+  createOpenCodeServer,
   exchangeHonkPairing,
   normalizeOpenCodeOrigin,
   openCodeAuthorizationHeader,
   parseOpenCodeConnection,
+  type OpenCodeClient,
   type OpenCodeConnection,
   type OpenCodeConnectionCandidate,
 } from "@honk/opencode";
 import { useSyncExternalStore } from "react";
 
-import { createSidecarClient, type SidecarClient } from "./sidecar";
-import { bindHonkClient } from "./watch-registry";
-
-// ── Public snapshot ──────────────────────────────────────────────────────────────────────────
+import { bindProviderAuthClient } from "./provider-auth";
+import { bindOpenCodeClient } from "./watch-registry";
 
 export type ConnectionStatus = "connecting" | "authenticated" | "requires-auth" | "unreachable";
 
@@ -39,7 +32,6 @@ const INITIAL_SNAPSHOT: ConnectionSnapshot = Object.freeze({
   origin: null,
 });
 
-// ── Bootstrap seam (Electron host) ───────────────────────────────────────────────────────────
 // Desktop injects the sidecar origin + optional Basic-auth password here. The
 // Vite web build has no bridge, so it uses a same-origin HttpOnly cookie, a
 // one-time URL, or manual paste. Passwords stay in memory only.
@@ -68,8 +60,6 @@ export function setBootstrapOriginProvider(provider: BootstrapOriginProvider | n
   bootstrapOriginProvider = provider;
 }
 
-// ── In-memory credential ────────────────────────────────────────────────────────────────────
-
 const TRANSIENT_STATUS_CODES = new Set([502, 503, 504]);
 const PROBE_RETRY_TIMEOUT_MS = 15_000;
 const PROBE_RETRY_STEP_MS = 500;
@@ -81,12 +71,11 @@ type PasswordRecord = {
 
 let memoryPassword: PasswordRecord | null = null;
 
-// ── Store wiring ─────────────────────────────────────────────────────────────────────────────
-
 const listeners = new Set<() => void>();
 let snapshot: ConnectionSnapshot = INITIAL_SNAPSHOT;
 let bootGeneration = 0;
-let liveClient: SidecarClient | null = null;
+const clientRegistry = createOpenCodeRegistry();
+let liveClient: OpenCodeClient | null = null;
 let livePassword: string | null = null;
 
 export function subscribe(listener: () => void): () => void {
@@ -128,17 +117,12 @@ async function disposeLiveClient(): Promise<void> {
   const previous = liveClient;
   liveClient = null;
   livePassword = null;
-  bindHonkClient(null);
+  bindOpenCodeClient(null);
+  bindProviderAuthClient(null);
   if (previous !== null) {
-    try {
-      await previous.close();
-    } catch {
-      // Closing a half-open client must not block the next boot attempt.
-    }
+    clientRegistry.disconnect(previous.server.key);
   }
 }
-
-// ── Origin + URL credential ────────────────────────────────────────────────────────────────────
 
 const URL_CREDENTIAL_PARAMS = ["pairing", "password", "token"] as const;
 
@@ -192,8 +176,6 @@ function takeConnectionFromUrl(fallbackOrigin: string): OpenCodeConnectionCandid
   return candidate;
 }
 
-// ── Password storage ─────────────────────────────────────────────────────────────────────────
-
 function readStoredPassword(origin: string): string | null {
   return memoryPassword !== null && memoryPassword.origin === origin
     ? memoryPassword.password
@@ -207,8 +189,6 @@ function writeStoredPassword(origin: string, password: string): void {
 function clearStoredPassword(): void {
   memoryPassword = null;
 }
-
-// ── Probe helpers ────────────────────────────────────────────────────────────────────────────
 
 class ProbeHttpError extends Error {
   readonly status: number;
@@ -376,18 +356,18 @@ async function bindClient(
   password: string | null,
   generation: number,
 ): Promise<void> {
-  const client = createSidecarClient(origin, password === null ? undefined : { password });
+  const client = createOpenCodeClient(createOpenCodeServer({ origin }), {
+    ...(password === null ? {} : { password }),
+  });
   if (generation !== bootGeneration) {
-    try {
-      await client.close();
-    } catch {
-      // Superseded boot — drop the orphan client.
-    }
+    client.close();
     return;
   }
+  clientRegistry.register(client);
   liveClient = client;
   livePassword = password;
-  bindHonkClient(client);
+  bindOpenCodeClient(client);
+  bindProviderAuthClient(client);
   emit({ status: "authenticated", errorMessage: null, origin });
 }
 

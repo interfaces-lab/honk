@@ -1,5 +1,11 @@
+import type {
+  OpenCodeClient,
+  OpenCodeServerDescriptor,
+  OpenCodeServerKey,
+  OpenCodeSessionInfo,
+  OpenCodeSessionRef,
+} from "@honk/opencode";
 import * as React from "react";
-import type { SidecarClient, WorkspaceState } from "@honk/opencode";
 
 export type RemoteStatus =
   | "restoring"
@@ -14,22 +20,42 @@ export type RemoteStatus =
 export interface ConnectRemoteInput {
   readonly origin: string;
   readonly password: string;
-  readonly defaultCwd: string;
+  readonly defaultDirectory: string;
+  readonly label?: string;
+}
+
+export interface RemoteServer {
+  readonly descriptor: OpenCodeServerDescriptor;
+  readonly defaultDirectory: string;
+  readonly status: Exclude<RemoteStatus, "restoring" | "disconnected">;
+  readonly error: string | null;
+}
+
+export interface RemoteSession {
+  readonly ref: OpenCodeSessionRef;
+  readonly server: OpenCodeServerDescriptor;
+  readonly info: OpenCodeSessionInfo;
+  readonly projectDirectory: string;
+  readonly status: "running" | "idle" | "failed";
+  readonly needsAttention: boolean;
 }
 
 export interface RemoteContextValue {
-  readonly client: SidecarClient | null;
-  readonly workspace: WorkspaceState | null;
+  readonly servers: readonly RemoteServer[];
+  readonly sessions: readonly RemoteSession[];
+  readonly activeServerKey: OpenCodeServerKey | null;
+  readonly activeServer: RemoteServer | null;
+  readonly client: OpenCodeClient | null;
   readonly status: RemoteStatus;
-  readonly origin: string | null;
-  readonly defaultCwd: string;
   readonly error: string | null;
   readonly hasCredential: boolean;
+  readonly clientFor: (server: OpenCodeServerKey) => OpenCodeClient | null;
+  readonly selectServer: (server: OpenCodeServerKey) => void;
   readonly connect: (input: ConnectRemoteInput) => Promise<void>;
-  readonly retry: () => Promise<void>;
-  readonly refreshWorkspace: () => Promise<void>;
-  readonly disconnect: () => Promise<void>;
-  readonly setDefaultCwd: (cwd: string) => Promise<void>;
+  readonly retry: (server?: OpenCodeServerKey) => Promise<void>;
+  readonly refreshSessions: (server?: OpenCodeServerKey) => Promise<void>;
+  readonly disconnect: (server?: OpenCodeServerKey) => Promise<void>;
+  readonly setDefaultDirectory: (server: OpenCodeServerKey, directory: string) => Promise<void>;
 }
 
 export const RemoteContext = React.createContext<RemoteContextValue | null>(null);

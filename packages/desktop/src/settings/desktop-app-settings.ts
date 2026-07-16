@@ -21,6 +21,7 @@ import * as DesktopEnvironment from "../app/desktop-environment";
 
 export interface DesktopSettings {
   readonly serverExposureMode: DesktopServerExposureMode;
+  readonly serverPublicUrl: string | null;
   readonly themeSource: DesktopTheme;
   readonly hasCompletedOnboarding: boolean;
   readonly lastBackendPort?: number;
@@ -33,12 +34,14 @@ export interface DesktopSettingsChange {
 
 export const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
   serverExposureMode: "local-only",
+  serverPublicUrl: null,
   themeSource: "system",
   hasCompletedOnboarding: false,
 };
 
 const DesktopSettingsDocument = Schema.Struct({
   serverExposureMode: Schema.optionalKey(DesktopServerExposureModeSchema),
+  serverPublicUrl: Schema.optionalKey(Schema.NullOr(Schema.String)),
   themeSource: Schema.optionalKey(DesktopThemeSchema),
   hasCompletedOnboarding: Schema.optionalKey(Schema.Boolean),
   lastBackendPort: Schema.optionalKey(Schema.Number),
@@ -70,6 +73,9 @@ export interface DesktopAppSettingsShape {
   readonly setServerExposureMode: (
     mode: DesktopServerExposureMode,
   ) => Effect.Effect<DesktopSettingsChange, DesktopSettingsWriteError>;
+  readonly setServerPublicUrl: (
+    publicUrl: string | null,
+  ) => Effect.Effect<DesktopSettingsChange, DesktopSettingsWriteError>;
   readonly setThemeSource: (
     theme: DesktopTheme,
   ) => Effect.Effect<DesktopSettingsChange, DesktopSettingsWriteError>;
@@ -95,7 +101,14 @@ function normalizeDesktopSettingsDocument(
   const lastBackendPort = parsed.lastBackendPort;
   return {
     serverExposureMode:
-      parsed.serverExposureMode === "network-accessible" ? "network-accessible" : "local-only",
+      parsed.serverExposureMode === "network-accessible" ||
+      parsed.serverExposureMode === "tailscale"
+        ? parsed.serverExposureMode
+        : "local-only",
+    serverPublicUrl:
+      typeof parsed.serverPublicUrl === "string" && parsed.serverPublicUrl.trim().length > 0
+        ? parsed.serverPublicUrl.trim()
+        : null,
     themeSource: parsed.themeSource ?? "system",
     hasCompletedOnboarding: parsed.hasCompletedOnboarding === true,
     ...(typeof lastBackendPort === "number" &&
@@ -115,6 +128,9 @@ function toDesktopSettingsDocument(
 
   if (settings.serverExposureMode !== defaults.serverExposureMode) {
     document.serverExposureMode = settings.serverExposureMode;
+  }
+  if (settings.serverPublicUrl !== defaults.serverPublicUrl) {
+    document.serverPublicUrl = settings.serverPublicUrl;
   }
   if (settings.themeSource !== defaults.themeSource) {
     document.themeSource = settings.themeSource;
@@ -141,6 +157,12 @@ function setServerExposureMode(
         ...settings,
         serverExposureMode: requestedMode,
       };
+}
+
+function setServerPublicUrl(settings: DesktopSettings, publicUrl: string | null): DesktopSettings {
+  return settings.serverPublicUrl === publicUrl
+    ? settings
+    : { ...settings, serverPublicUrl: publicUrl };
 }
 
 function setThemeSource(settings: DesktopSettings, requestedTheme: DesktopTheme): DesktopSettings {
@@ -253,6 +275,10 @@ export const layer = Layer.effect(
         persist((settings) => setServerExposureMode(settings, mode)).pipe(
           Effect.withSpan("desktop.settings.setServerExposureMode", { attributes: { mode } }),
         ),
+      setServerPublicUrl: (publicUrl) =>
+        persist((settings) => setServerPublicUrl(settings, publicUrl)).pipe(
+          Effect.withSpan("desktop.settings.setServerPublicUrl"),
+        ),
       setThemeSource: (theme) =>
         persist((settings) => setThemeSource(settings, theme)).pipe(
           Effect.withSpan("desktop.settings.setThemeSource", { attributes: { theme } }),
@@ -290,6 +316,8 @@ export const layerTest = (initialSettings: DesktopSettings = DEFAULT_DESKTOP_SET
         load: SynchronizedRef.get(settingsRef),
         setServerExposureMode: (mode) =>
           update((settings) => setServerExposureMode(settings, mode)),
+        setServerPublicUrl: (publicUrl) =>
+          update((settings) => setServerPublicUrl(settings, publicUrl)),
         setThemeSource: (theme) => update((settings) => setThemeSource(settings, theme)),
         setLastBackendPort: (port) => update((settings) => setLastBackendPort(settings, port)),
         completeOnboarding: update(completeOnboarding),

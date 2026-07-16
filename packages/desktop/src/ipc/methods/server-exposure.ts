@@ -33,3 +33,18 @@ export const setServerExposureMode = makeIpcMethod({
     return change.state;
   }),
 });
+
+export const setServerExposurePublicUrl = makeIpcMethod({
+  channel: IpcChannels.SET_SERVER_EXPOSURE_PUBLIC_URL_CHANNEL,
+  payload: Schema.NullOr(Schema.String),
+  result: DesktopServerExposureStateSchema,
+  handler: Effect.fn("desktop.ipc.serverExposure.setPublicUrl")(function* (publicUrl) {
+    const lifecycle = yield* DesktopLifecycle.DesktopLifecycle;
+    const serverExposure = yield* DesktopServerExposure.DesktopServerExposure;
+    const change = yield* serverExposure.setPublicUrl(publicUrl);
+    if (change.requiresRelaunch) {
+      yield* lifecycle.relaunch("serverExposurePublicUrlChanged");
+    }
+    return change.state;
+  }),
+});

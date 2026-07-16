@@ -4,5 +4,5 @@
     "types": ["node"],
     "lib": ["ES2023", "DOM", "DOM.Iterable"]
   },
-  "include": ["src", "scripts"]
+  "include": ["src", "scripts", "tsdown.config.ts"]
 }

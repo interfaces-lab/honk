@@ -1,9 +1,15 @@
+import { openCodeSessionKey } from "@honk/opencode";
+import { Redirect, Stack, router } from "expo-router";
 import * as React from "react";
 import { SectionList, StyleSheet, View } from "react-native";
-import { Redirect, Stack, router } from "expo-router";
-import type { ThreadSummary } from "@honk/opencode";
 
+import {
+  MOBILE_HOME_SESSION_LIMIT,
+  activeRootSessions,
+  groupSessionsByProject,
+} from "../../../src/projects";
 import { useRemote } from "../../../src/remote-context";
+import type { RemoteSession } from "../../../src/remote-context";
 import { ThreadRow } from "../../../src/thread-row";
 import {
   BodyText,
@@ -24,39 +30,22 @@ const filters: ReadonlyArray<{ readonly label: string; readonly value: StatusFil
   { label: "Failed", value: "failed" },
 ];
 
-const renderHomeThread = ({ item }: { readonly item: ThreadSummary }): React.ReactElement => (
+const renderSession = ({ item }: { readonly item: RemoteSession }): React.ReactElement => (
   <ThreadRow
-    href={{ pathname: "/(tabs)/home/[threadId]", params: { threadId: item.id } }}
-    thread={item}
+    href={{
+      pathname: "/(tabs)/home/server/[serverKey]/session/[sessionId]",
+      params: { serverKey: item.ref.server, sessionId: item.ref.sessionID },
+    }}
+    session={item}
   />
 );
 
 interface ProjectSection {
   readonly key: string;
   readonly title: string;
-  readonly data: readonly ThreadSummary[];
+  readonly serverLabel: string;
+  readonly data: readonly RemoteSession[];
 }
-
-const projectTitle = (thread: ThreadSummary): string => {
-  const path = thread.worktree?.path?.replace(/\/+$/, "") ?? "";
-  const name = path.split("/").filter(Boolean).at(-1);
-  return name ?? "Other tasks";
-};
-
-const projectSections = (threads: readonly ThreadSummary[]): readonly ProjectSection[] => {
-  const groups = new Map<string, ThreadSummary[]>();
-  for (const thread of threads) {
-    const key = thread.worktree?.path ?? thread.projectId ?? "other";
-    const group = groups.get(key);
-    if (group === undefined) groups.set(key, [thread]);
-    else group.push(thread);
-  }
-  return [...groups.entries()]
-    .map(([key, data]) => ({ key, title: projectTitle(data[0]!), data }))
-    .sort((left, right) =>
-      (right.data[0]?.updatedAt ?? "").localeCompare(left.data[0]?.updatedAt ?? ""),
-    );
-};
 
 export default function HomeRoute(): React.ReactElement {
   const theme = useHonkTheme();
@@ -65,35 +54,44 @@ export default function HomeRoute(): React.ReactElement {
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all");
   const [refreshing, setRefreshing] = React.useState(false);
 
-  if (remote.client === null) return <Redirect href="/connect" />;
-  if (remote.workspace === null) return <LoadingState label="Loading tasks…" />;
+  if (remote.status === "restoring") return <LoadingState label="Restoring servers…" />;
+  if (remote.servers.length === 0) return <Redirect href="/connect" />;
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  const threads = remote.workspace.threads.filter((thread) => {
+  const matchingSessions = activeRootSessions(remote.sessions).filter((session) => {
     const matchesStatus =
       statusFilter === "all" ||
       (statusFilter === "attention"
-        ? thread.needsAttention
+        ? session.needsAttention
         : statusFilter === "running"
-          ? thread.status === "running"
+          ? session.status === "running"
           : statusFilter === "failed"
-            ? thread.status === "failed"
-            : thread.status === "idle" && !thread.needsAttention);
+            ? session.status === "failed"
+            : session.status === "idle" && !session.needsAttention);
     if (!matchesStatus) return false;
     if (normalizedQuery === "") return true;
-    const model = thread.model?.id ?? "";
     return (
-      thread.title.toLocaleLowerCase().includes(normalizedQuery) ||
-      model.toLocaleLowerCase().includes(normalizedQuery) ||
-      (thread.worktree?.path ?? "").toLocaleLowerCase().includes(normalizedQuery)
+      session.info.title.toLocaleLowerCase().includes(normalizedQuery) ||
+      (session.info.model?.id ?? "").toLocaleLowerCase().includes(normalizedQuery) ||
+      session.info.location.directory.toLocaleLowerCase().includes(normalizedQuery) ||
+      session.server.label.toLocaleLowerCase().includes(normalizedQuery)
     );
   });
-  const sections = projectSections(threads);
+  const sessions =
+    normalizedQuery === "" && statusFilter === "all"
+      ? matchingSessions.slice(0, MOBILE_HOME_SESSION_LIMIT)
+      : matchingSessions;
+  const sections: readonly ProjectSection[] = groupSessionsByProject(sessions).map((project) => ({
+    key: project.key,
+    title: project.title,
+    serverLabel: project.serverLabel,
+    data: project.sessions,
+  }));
 
   const refresh = async (): Promise<void> => {
     setRefreshing(true);
     try {
-      await remote.refreshWorkspace();
+      await remote.refreshSessions();
     } finally {
       setRefreshing(false);
     }
@@ -101,13 +99,13 @@ export default function HomeRoute(): React.ReactElement {
 
   return (
     <Page>
-      <Stack.Title large>Tasks</Stack.Title>
+      <Stack.Title large>Sessions</Stack.Title>
       <Stack.SearchBar
         autoCapitalize="none"
         hideWhenScrolling
         onCancelButtonPress={() => setQuery("")}
         onChangeText={(event) => setQuery(event.nativeEvent.text)}
-        placeholder="Search tasks"
+        placeholder="Search sessions"
       />
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Menu icon="line.3.horizontal.decrease">
@@ -121,11 +119,14 @@ export default function HomeRoute(): React.ReactElement {
             </Stack.Toolbar.MenuAction>
           ))}
           <Stack.Toolbar.MenuAction icon="archivebox" onPress={() => router.push("/archived")}>
-            Archived tasks
+            Archived sessions
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon="server.rack" onPress={() => router.push("/connect")}>
+            Manage servers
           </Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
         <Stack.Toolbar.Button
-          accessibilityLabel="Create task"
+          accessibilityLabel="Create session"
           icon="plus"
           onPress={() => router.push("/new")}
         />
@@ -140,31 +141,31 @@ export default function HomeRoute(): React.ReactElement {
             textAlign: "center",
           }}
         >
-          Honk host: {remote.status}
+          Active server: {remote.status}
         </DetailText>
       )}
       <SectionList
         contentContainerStyle={[
           { paddingHorizontal: theme.metrics.space.screenGutter },
-          threads.length === 0 ? { flexGrow: 1 } : undefined,
+          sessions.length === 0 ? { flexGrow: 1 } : undefined,
         ]}
         contentInsetAdjustmentBehavior="automatic"
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
-        keyExtractor={(thread) => thread.id}
+        keyExtractor={(session) => openCodeSessionKey(session.ref)}
         ListEmptyComponent={
           <EmptyState
             body={
               query.trim() === "" && statusFilter === "all"
-                ? "Create a task here or on desktop; every client watches the same Honk host."
+                ? "Start a session here or on desktop; every client watches the same OpenCode servers."
                 : "Try a different search or status filter."
             }
-            title={query.trim() === "" && statusFilter === "all" ? "No tasks yet" : "No matches"}
+            title={query.trim() === "" && statusFilter === "all" ? "No sessions yet" : "No matches"}
           />
         }
         onRefresh={() => void refresh()}
         refreshing={refreshing}
-        renderItem={renderHomeThread}
+        renderItem={renderSession}
         renderSectionHeader={({ section }) => (
           <View
             style={[
@@ -181,7 +182,7 @@ export default function HomeRoute(): React.ReactElement {
               {section.title}
             </BodyText>
             <DetailText>
-              {section.data.length} task{section.data.length === 1 ? "" : "s"}
+              {section.serverLabel} · {section.data.length}
             </DetailText>
           </View>
         )}

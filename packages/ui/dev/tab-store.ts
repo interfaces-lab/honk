@@ -168,7 +168,10 @@ export const tabActions = {
 
   setStatus(key: string, status: TabStatus): void {
     publish(
-      replaceTab(key, (tab) => (tab.status === status ? tab : { ...tab, status })),
+      replaceTab(key, (tab) => {
+        if (tab.kind !== "thread") return tab;
+        return tab.status === status ? tab : { ...tab, status };
+      }),
       snapshot.activeKey,
       snapshot.reopenStack,
     );

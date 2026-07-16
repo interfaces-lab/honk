@@ -1,2148 +1,1073 @@
-// Shared OpenCode data layer. This is the seam between Honk clients and the
-// `opencode serve` process: it owns the @opencode-ai/sdk client, the single
-// global SSE event pump, and the reducers that project opencode sessions +
-// messages onto the domain shapes the UI already consumes.
-//
-// Why a wrapper instead of exposing the raw sdk: the workspace/tab/command-menu
-// plane was written against a small, stable "thread summary" vocabulary
-// (WorkspaceState / ThreadSummary / ThreadState / WatchStatus / watch handlers).
-// Keeping those names and shapes here means home + command-menu + tab-store keep
-// compiling unchanged — only the import source moves from @honk/sdk to ./sidecar.
-//
-// Altitude: opencode is a LOCAL sidecar. There is one HTTP origin and one event
-// stream; every session op rides the same client. We never speak the old honk
-// Core wire (/core/v1/*) — that surface is gone.
-
 import {
   createOpencodeClient,
-  type Event,
-  type Message,
-  type OpencodeClient,
-  type Part,
-  type PermissionRule,
-  type PermissionRequest,
-  type QuestionRequest,
-  type Session,
-  type SessionStatus,
+  type AgentPartInput as OpenCodeAgentPartInput,
+  type AgentV2Info as OpenCodeAgentInfo,
+  type FilePartInput as OpenCodeFilePartInput,
+  type LocationInfo as OpenCodeLocationInfo,
+  type ModelRef as OpenCodeModelRef,
+  type ModelV2Info as OpenCodeModelInfo,
+  type PermissionV2Reply as OpenCodePermissionReply,
+  type PermissionV2Request as OpenCodePermissionRequest,
+  type ProjectCopyCopy as OpenCodeProjectCopy,
+  type PromptInput as OpenCodePrompt,
+  type PromptInputFileAttachment as OpenCodePromptFileAttachment,
+  type QuestionV2Reply as OpenCodeQuestionReply,
+  type QuestionV2Request as OpenCodeQuestionRequest,
+  type SessionHistory as OpenCodeSessionHistory,
+  type SessionDurableEvent as OpenCodeDurableSessionEvent,
+  type SessionMessage as OpenCodeSessionMessage,
+  type SessionMessagesResponse as OpenCodeSessionMessages,
+  type SessionV2Info as OpenCodeSessionInfo,
+  type SessionsResponse as OpenCodeSessions,
+  type TextPartInput as OpenCodeTextPartInput,
+  type V2Event as OpenCodeEvent,
+  type V2SessionActiveResponse as OpenCodeSessionActiveResponse,
+  type VcsFileDiff as OpenCodeVcsFileDiff,
+  type VcsFileStatus as OpenCodeVcsFileStatus,
+  type VcsInfo as OpenCodeVcsInfo,
 } from "@opencode-ai/sdk/v2/client";
 
 import { openCodeAuthorizationHeader } from "./connection";
+import type { OpenCodeEventSourceFactory } from "./event-stream";
+import {
+  openCodeMessageID,
+  type OpenCodeLocationRef,
+  type OpenCodeMessageID,
+  type OpenCodeServerDescriptor,
+  type OpenCodeSessionRef,
+} from "./identity";
+import {
+  createManagedAnthropicImport,
+  type ManagedAnthropicDependencies,
+  type OpenCodeProviderApi,
+} from "./provider-auth";
+import {
+  projectOpenCodeTranscript,
+  type OpenCodePersistedMessage,
+  type OpenCodeSessionTranscript,
+} from "./transcript";
 
-// ── Stable domain vocabulary (kept identical to the old @honk/sdk surface) ────────────────────
-
-/** Watch lifecycle word the UI switches on. Mirrors the old SDK exactly. */
-export type WatchStatus = "live" | "reconnecting" | "closed" | "unauthorized";
-
-/**
- * The thread-row shape the workspace plane reads. Field-for-field compatible
- * with the old honk ThreadSummary subset that command-menu / tab-store / thread
- * notifications touch: id, title, status, needsAttention, archivedAt, updatedAt,
- * worktree.path. Timestamps are ISO strings so `localeCompare` sorts them
- * chronologically (opencode stores epoch millis, converted on projection).
- */
-export type ThreadSummary = {
-  readonly id: string;
-  readonly title: string;
-  readonly status: "running" | "failed" | "idle";
-  readonly needsAttention: boolean;
-  readonly createdAt: string;
-  readonly archivedAt: string | null;
-  readonly updatedAt: string;
-  readonly agent: string | null;
-  readonly model: {
-    readonly id: string;
-    readonly providerID: string;
-    readonly variant?: string;
-  } | null;
-  /** opencode project id (its `projectID`); null when the session is projectless. */
-  readonly projectId: string | null;
-  /** opencode has no git-worktree branch on a session, so `branch` is always null. */
-  readonly worktree: { readonly path: string | null; readonly branch: string | null } | null;
-};
-
-export type SideChatInfo = {
-  readonly parentThreadId: string;
-  readonly seedMessageCount: number;
-};
-
-export type SideChatSummary = ThreadSummary & SideChatInfo;
-
-export type WorkspaceState = {
-  readonly threads: readonly ThreadSummary[];
-  readonly sideChats: readonly SideChatSummary[];
-  readonly recentDirectories: readonly string[];
-  readonly seq: number;
-};
-
-/**
- * Thread-detail projection. opencode's Message/Part model is native here — this
- * is NOT the old honk Part shape, so the current thread.tsx transcript renderer
- * will need reworking against these types (see the impl report punch list).
- */
-export type ThreadState = {
-  readonly summary: ThreadSummary;
-  readonly sideChat: SideChatInfo | null;
-  readonly cwd: string;
-  readonly attachedDirectories: readonly string[];
-  readonly messages: readonly Message[];
-  readonly parts: readonly Part[];
-  readonly queue: readonly never[];
-  readonly seq: number;
-};
-
-export type ThreadWatchHandlers = {
-  readonly onChange: (state: ThreadState) => void;
-  readonly onStatus?: (status: WatchStatus) => void;
-};
-
-export type WorkspaceWatchHandlers = {
-  readonly onChange: (state: WorkspaceState) => void;
-  readonly onStatus?: (status: WatchStatus) => void;
-};
-
-export type ThreadWatch = { readonly close: () => void };
-export type WorkspaceWatch = { readonly close: () => void };
-
-/** Preset dial + optional explicit model, pinned at thread birth. */
-export type ThreadPreset = {
-  readonly agent?: string;
-  readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string };
-  readonly variant?: string;
-};
-
-export type CreateThreadInput = {
-  /** Working directory for the new session (opencode `directory`). */
-  readonly cwd?: string;
-  readonly title?: string;
-} & ThreadPreset;
-
-// ── Project / provider / composer vocabulary (settings + composer seams) ───────────────────────
-
-/** Narrowed opencode Project (client.project.list()). `worktree` is the project root path. */
-export type SidecarProject = {
-  readonly id: string;
-  readonly worktree: string;
-  readonly name: string | null;
-  readonly vcs: string | null;
-};
-
-export type SidecarAgent = {
-  readonly name: string;
-  readonly description: string | null;
-  readonly mode: "subagent" | "primary" | "all";
-  readonly native: boolean;
-};
-
-export type SidecarProviderAuthPrompt =
-  | {
-      readonly type: "text";
-      readonly key: string;
-      readonly message: string;
-      readonly placeholder?: string;
-      readonly when?: {
-        readonly key: string;
-        readonly op: "eq" | "neq";
-        readonly value: string;
-      };
-    }
-  | {
-      readonly type: "select";
-      readonly key: string;
-      readonly message: string;
-      readonly options: readonly {
-        readonly label: string;
-        readonly value: string;
-        readonly hint?: string;
-      }[];
-      readonly when?: {
-        readonly key: string;
-        readonly op: "eq" | "neq";
-        readonly value: string;
-      };
-    };
-
-/** One indexed authentication method a provider advertises (client.provider.auth()). */
-export type SidecarProviderAuthMethod = {
-  readonly index: number;
-  readonly type: "oauth" | "api";
-  readonly label: string;
-  readonly prompts: readonly SidecarProviderAuthPrompt[];
-};
-
-/** A provider row for the settings UI: identity, whether it is connected, and its auth methods. */
-export type SidecarProvider = {
-  readonly id: string;
-  readonly name: string;
-  readonly source: "env" | "config" | "custom" | "api";
-  readonly connected: boolean;
-  readonly models: readonly SidecarModel[];
-  readonly authMethods: readonly SidecarProviderAuthMethod[];
-};
-
-export type SidecarModel = {
-  readonly id: string;
-  readonly providerID: string;
-  readonly name: string;
-  readonly family: string | null;
-  readonly status: "alpha" | "beta" | "deprecated" | "active";
-  readonly reasoning: boolean;
-  readonly attachments: boolean;
-  readonly variants: readonly string[];
-  readonly contextLimit: number;
-  readonly outputLimit: number;
-};
-
-/** The provider inventory: every provider plus the connected id set and per-provider default model. */
-export type ProviderInventory = {
-  readonly providers: readonly SidecarProvider[];
-  readonly connected: readonly string[];
-  readonly defaults: Readonly<Record<string, string>>;
-};
-
-/**
- * OAuth authorization handoff (client.provider.oauth.authorize()). `method` selects the follow-up:
- * "auto" runs its callback immediately (which may poll); "code" needs the user to paste a code
- * before the callback runs.
- */
-export type ProviderOauthAuthorization = {
-  readonly url: string;
-  readonly method: "auto" | "code";
-  readonly instructions: string;
-};
-
-// ── Workbench vocabulary (files + changes panels) ──────────────────────────────────────────────
-
-/** One working-tree change (client.file.status()): path + line counts + change kind. */
-export type SidecarChange = {
-  readonly path: string;
-  readonly added: number;
-  readonly removed: number;
-  readonly status: "added" | "deleted" | "modified";
-};
-
-/** One entry of a directory listing (client.file.list()). */
-export type SidecarFileNode = {
-  readonly name: string;
-  readonly path: string;
-  readonly type: "file" | "directory";
-  readonly ignored: boolean;
-};
-
-/** A diff hunk from FileContent.patch — the changes panel renders these verbatim. */
-export type SidecarDiffHunk = {
-  readonly oldStart: number;
-  readonly oldLines: number;
-  readonly newStart: number;
-  readonly newLines: number;
-  /** Unified-diff lines, each prefixed with " ", "+" or "-". */
-  readonly lines: readonly string[];
-};
-
-/** File content (client.file.read()): raw text plus the working-tree patch when one exists. */
-export type SidecarFileContent = {
-  readonly type: "text" | "binary";
-  readonly content: string;
-  readonly hunks: readonly SidecarDiffHunk[] | null;
-  readonly mimeType: string | null;
-};
-
-/** Narrowed opencode Command (client.command.list()) for the composer's slash-command menu. */
-export type SidecarCommand = {
-  readonly name: string;
-  readonly description: string | null;
-  readonly agent: string | null;
-  readonly model: string | null;
-  readonly template: string;
-  readonly subtask: boolean;
-};
-
-/** A file attachment from the composer, appended to a prompt as an opencode FilePartInput. */
-export type SendMessageFile = {
-  /**
-   * A path (absolutized against the session directory and wrapped as `file://<abs>` — the
-   * server hands the url to fileURLToPath, which rejects relative forms) or a full
-   * `data:`/`file://` url — pasted/dropped images arrive as data: urls with bytes inline.
-   */
-  readonly path: string;
-  readonly mime?: string;
-  /** Display name for the part; required for data: urls (no basename to derive). */
-  readonly filename?: string;
-};
-
-/** Slash-command invocation (client.session.command). */
-export type RunCommandInput = {
-  readonly command: string;
-  readonly arguments: string;
-  readonly agent?: string;
-  readonly model?: string;
+type OpenCodeLocationQuery = {
   readonly directory?: string;
+  readonly workspaceID?: string;
 };
 
-export type SendMessageInput = {
-  readonly messageId: string;
-  readonly text: string;
-  // Per-prompt MODE agent override (`honk-<mode>` — modes.ts). Mode is soft state; the
-  // model/variant stay hard-pinned. Omitted → the agent pinned at birth.
+type OpenCodeListSessionsInput = {
+  readonly workspaceID?: string;
+  readonly limit?: number;
+  readonly order?: "asc" | "desc";
+  readonly search?: string;
+  readonly directory?: string;
+  readonly projectID?: string;
+  readonly subpath?: string;
+  readonly cursor?: string;
+};
+
+type OpenCodeCreateSessionInput = {
+  readonly id?: string;
+  readonly parentID?: string;
+  readonly title?: string;
   readonly agent?: string;
-  // File mentions to attach after the text part (opencode FilePartInput, url = `file://<path>`).
-  readonly files?: readonly SendMessageFile[];
-  // Durable side chats @-mentioned by the parent composer. Their visible transcripts become
-  // reference-only system context for this prompt and stay out of the rendered user bubble.
-  readonly sideChatIds?: readonly string[];
+  readonly model?: OpenCodeModelRef;
+  readonly location?: OpenCodeLocationRef;
 };
 
-export type ThreadDetail = {
-  readonly summary: ThreadSummary;
-  readonly cwd: string;
-  readonly attachedDirectories: readonly string[];
+type OpenCodeCreateProjectCopyInput = {
+  readonly projectID: string;
+  readonly location?: OpenCodeLocationQuery;
+  readonly strategy: string;
+  readonly directory: string;
+  readonly name?: string;
 };
 
-/**
- * The action + watch surface the stores call. Aliased below as `HonkClient` so
- * existing `Parameters<HonkClient["threads"]["send"]>` type plumbing in
- * tab-store keeps resolving without edits beyond the import path.
- */
-export interface SidecarClient {
-  readonly threads: {
-    readonly create: (payload: CreateThreadInput) => Promise<ThreadSummary>;
-    readonly createSideChat: (parentThreadId: string) => Promise<SideChatSummary>;
-    readonly get: (threadId: string) => Promise<ThreadDetail>;
-    /** Grant OpenCode's external-directory permission without changing the session cwd. */
-    readonly attachDirectory: (threadId: string, path: string) => Promise<void>;
-    /** Revoke a directory previously attached through attachDirectory. */
-    readonly detachDirectory: (threadId: string, path: string) => Promise<void>;
-    readonly listArchived: () => Promise<readonly ThreadSummary[]>;
-    readonly send: (threadId: string, payload: SendMessageInput) => Promise<void>;
-    readonly interrupt: (threadId: string) => Promise<void>;
-    readonly watch: (threadId: string, handlers: ThreadWatchHandlers) => ThreadWatch;
-    /** Run a slash command in a thread (client.session.command). */
-    readonly runCommand: (threadId: string, input: RunCommandInput) => Promise<void>;
-    /**
-     * Rename a session (client.session.update). The v2 core never generates titles
-     * (runner/llm.ts TODO) — honk titles threads itself from the first prompt line.
-     */
-    readonly setTitle: (threadId: string, title: string) => Promise<void>;
-    readonly archive: (threadId: string) => Promise<void>;
-    /** OpenCode cannot clear `time.archived`; restoring forks the transcript and removes the archive. */
-    readonly restoreAsCopy: (threadId: string) => Promise<ThreadSummary>;
-    readonly remove: (threadId: string) => Promise<void>;
-    readonly questions: (threadId: string) => Promise<readonly QuestionRequest[]>;
-    readonly answerQuestion: (
-      threadId: string,
-      requestId: string,
-      answers: readonly (readonly string[])[],
-    ) => Promise<void>;
-    readonly rejectQuestion: (threadId: string, requestId: string) => Promise<void>;
-    readonly permissions: (threadId: string) => Promise<readonly PermissionRequest[]>;
-    readonly answerPermission: (
-      threadId: string,
-      requestId: string,
-      reply: "once" | "always" | "reject",
-      message?: string,
-    ) => Promise<void>;
-  };
-  readonly workspace: {
-    readonly snapshot: () => Promise<WorkspaceState>;
-    readonly watch: (handlers: WorkspaceWatchHandlers) => WorkspaceWatch;
-  };
-  // ── Project / directory seams ────────────────────────────────────────────────────────────────
-  /** Projects opencode has opened (client.project.list()). */
-  readonly listProjects: () => Promise<readonly SidecarProject[]>;
-  /** The sidecar's default working directory (client.path.get().directory). */
-  readonly defaultDirectory: () => Promise<string>;
-  /** Registered OpenCode agents available for a project instance. */
-  readonly listAgents: (directory?: string) => Promise<readonly SidecarAgent[]>;
-  /** Models already available on the host. Does not inspect or mutate provider authentication. */
-  readonly listModels: () => Promise<readonly SidecarModel[]>;
-  // ── Provider / auth seams (settings) ─────────────────────────────────────────────────────────
-  /** Every provider with its connected flag + auth methods (client.provider.list() + .auth()). */
-  readonly listProviders: () => Promise<ProviderInventory>;
-  /** Store an API-key credential for a provider (client.auth.set, {type:"api"}). */
-  readonly setProviderApiKey: (providerID: string, key: string) => Promise<void>;
-  /** Begin one advertised OAuth method for a provider (client.provider.oauth.authorize()). */
-  readonly authorizeProviderOauth: (
-    providerID: string,
-    method: number,
-    inputs?: Readonly<Record<string, string>>,
-  ) => Promise<ProviderOauthAuthorization>;
-  /** Finish an OAuth method, with a code only when its authorization requests one. */
-  readonly completeProviderOauth: (
-    providerID: string,
-    method: number,
-    code?: string,
-  ) => Promise<void>;
-  /** Remove a provider's stored credentials (client.auth.remove()). */
-  readonly removeProviderAuth: (providerID: string) => Promise<void>;
-  // ── Composer data seams ──────────────────────────────────────────────────────────────────────
-  /** Fuzzy file search for @-mentions (client.find.files()). */
-  readonly findFiles: (query: string, directory?: string) => Promise<readonly string[]>;
-  /** Available slash commands (client.command.list()). */
-  readonly listCommands: (directory?: string) => Promise<readonly SidecarCommand[]>;
-  // ── Workbench seams (files + changes panels) ────────────────────────────────────────────────
-  /** Working-tree changes for a project instance (client.file.status()). */
-  readonly fileStatus: (directory: string) => Promise<readonly SidecarChange[]>;
-  /** Directory listing (client.file.list()); path "" or "." lists the project root. */
-  readonly listFiles: (path: string, directory: string) => Promise<readonly SidecarFileNode[]>;
-  /** File content + working-tree patch (client.file.read()). */
-  readonly readFile: (path: string, directory: string) => Promise<SidecarFileContent>;
-  /** The project's VCS branch, or null outside a repo (client.vcs.get()). */
-  readonly vcsBranch: (directory: string) => Promise<string | null>;
-  readonly close: () => Promise<void>;
-}
+type OpenCodeRemoveProjectCopyInput = {
+  readonly projectID: string;
+  readonly location?: OpenCodeLocationQuery;
+  readonly directory: string;
+  readonly force: boolean;
+};
 
-/** Back-compat alias so consumers that referenced `HonkClient` keep compiling. */
-export type HonkClient = SidecarClient;
+type OpenCodePromptInput = {
+  readonly id?: OpenCodeMessageID;
+  readonly prompt: OpenCodePrompt;
+  readonly delivery?: "steer" | "queue";
+  readonly resume?: boolean;
+};
 
-export type SidecarClientOptions = {
-  /**
-   * Opencode server basic-auth password, if the sidecar was started with one.
-   * The desktop sidecar supervisor hands this over via the bridge; a bare
-   * loopback server needs none.
-   */
+type OpenCodeMessagesInput =
+  | {
+      readonly limit?: number;
+      readonly order?: "asc" | "desc";
+      readonly cursor?: never;
+    }
+  | {
+      readonly limit?: number;
+      readonly order?: never;
+      readonly cursor: string;
+    };
+
+type OpenCodeHistoryInput = {
+  readonly limit?: number;
+  readonly after?: number;
+};
+
+type OpenCodeSessionEventsInput = {
+  readonly after?: string;
+};
+
+type OpenCodeRevertInput = {
+  readonly messageID: string;
+};
+
+type OpenCodeClientOptions = {
   readonly password?: string;
-  /** Native clients inject an XMLHttpRequest-backed SSE transport. */
-  readonly eventStreamFactory?: OpenCodeEventStreamFactory;
+  readonly headers?: Readonly<Record<string, string>>;
+  readonly fetch?: typeof fetch;
+  readonly eventSource?: OpenCodeEventSourceFactory;
 };
 
-export interface OpenCodeEventEnvelope {
-  readonly payload: unknown;
-}
+type OpenCodeSessionApi = {
+  readonly list: (input?: OpenCodeListSessionsInput) => Promise<OpenCodeSessions>;
+  readonly create: (input?: OpenCodeCreateSessionInput) => Promise<OpenCodeSessionInfo>;
+  readonly active: () => Promise<OpenCodeSessionActiveResponse["data"]>;
+  readonly get: (ref: OpenCodeSessionRef) => Promise<OpenCodeSessionInfo>;
+  readonly switchAgent: (ref: OpenCodeSessionRef, agent: string) => Promise<void>;
+  readonly switchModel: (ref: OpenCodeSessionRef, model: OpenCodeModelRef) => Promise<void>;
+  readonly prompt: (ref: OpenCodeSessionRef, input: OpenCodePromptInput) => Promise<void>;
+  readonly compact: (ref: OpenCodeSessionRef) => Promise<void>;
+  readonly wait: (ref: OpenCodeSessionRef) => Promise<void>;
+  readonly context: (ref: OpenCodeSessionRef) => Promise<readonly OpenCodeSessionMessage[]>;
+  readonly history: (
+    ref: OpenCodeSessionRef,
+    input?: OpenCodeHistoryInput,
+  ) => Promise<OpenCodeSessionHistory>;
+  readonly events: (
+    ref: OpenCodeSessionRef,
+    input?: OpenCodeSessionEventsInput,
+    signal?: AbortSignal,
+  ) => AsyncIterable<OpenCodeDurableSessionEvent>;
+  readonly interrupt: (ref: OpenCodeSessionRef) => Promise<void>;
+  readonly message: (ref: OpenCodeSessionRef, messageID: string) => Promise<OpenCodeSessionMessage>;
+  readonly messages: (
+    ref: OpenCodeSessionRef,
+    input?: OpenCodeMessagesInput,
+  ) => Promise<OpenCodeSessionMessages>;
+  readonly transcript: (ref: OpenCodeSessionRef) => Promise<OpenCodeSessionTranscript>;
+  readonly revert: (ref: OpenCodeSessionRef, input: OpenCodeRevertInput) => Promise<void>;
+  readonly unrevert: (ref: OpenCodeSessionRef) => Promise<void>;
+  readonly permissions: (ref: OpenCodeSessionRef) => Promise<readonly OpenCodePermissionRequest[]>;
+  readonly replyPermission: (
+    ref: OpenCodeSessionRef,
+    requestID: string,
+    reply: OpenCodePermissionReply,
+    message?: string,
+  ) => Promise<void>;
+  readonly questions: (ref: OpenCodeSessionRef) => Promise<readonly OpenCodeQuestionRequest[]>;
+  readonly replyQuestion: (
+    ref: OpenCodeSessionRef,
+    requestID: string,
+    reply: OpenCodeQuestionReply,
+  ) => Promise<void>;
+  readonly rejectQuestion: (ref: OpenCodeSessionRef, requestID: string) => Promise<void>;
+};
 
-export interface OpenCodeEventStreamInput {
-  readonly origin: string;
-  readonly headers: Readonly<Record<string, string>>;
-  readonly signal: AbortSignal;
-}
+type OpenCodeLocatedResult<T> = {
+  readonly location: OpenCodeLocationInfo;
+  readonly data: readonly T[];
+};
 
-export type OpenCodeEventStreamFactory = (
-  input: OpenCodeEventStreamInput,
-) => Promise<AsyncIterable<OpenCodeEventEnvelope>>;
+type OpenCodeRequestApi = {
+  readonly permissions: (
+    location: OpenCodeLocationQuery,
+  ) => Promise<OpenCodeLocatedResult<OpenCodePermissionRequest>>;
+  readonly questions: (
+    location: OpenCodeLocationQuery,
+  ) => Promise<OpenCodeLocatedResult<OpenCodeQuestionRequest>>;
+};
 
-// Presets are server state, not device state. Storing the immutable birth pin in
-// session metadata means desktop, web, and mobile all resend the same model bundle.
-const PRESET_METADATA_KEY = "honkPreset";
-const ATTACHED_DIRECTORIES_METADATA_KEY = "honkAttachedDirectories";
-const RECENT_DIRECTORY_LIMIT = 50;
+type OpenCodeAgentApi = {
+  readonly list: (
+    location?: OpenCodeLocationQuery,
+  ) => Promise<OpenCodeLocatedResult<OpenCodeAgentInfo>>;
+};
 
-function normalizeHostPath(path: string): string {
-  const trimmed = path.trim();
-  const normalized =
-    /^[A-Za-z]:[\\/]/.test(trimmed) || trimmed.startsWith("\\\\")
-      ? trimmed.replaceAll("\\", "/")
-      : trimmed;
-  if (normalized === "/" || /^[A-Za-z]:\/$/.test(normalized)) {
-    return normalized;
+type OpenCodeModelApi = {
+  readonly list: (
+    location?: OpenCodeLocationQuery,
+  ) => Promise<OpenCodeLocatedResult<OpenCodeModelInfo>>;
+};
+
+type OpenCodeProjectCopyApi = {
+  readonly create: (input: OpenCodeCreateProjectCopyInput) => Promise<OpenCodeProjectCopy>;
+  readonly remove: (input: OpenCodeRemoveProjectCopyInput) => Promise<void>;
+};
+
+type OpenCodeVcsApi = {
+  readonly info: (location?: OpenCodeLocationQuery) => Promise<OpenCodeVcsInfo>;
+  readonly status: (location?: OpenCodeLocationQuery) => Promise<readonly OpenCodeVcsFileStatus[]>;
+  readonly diff: (
+    input: OpenCodeLocationQuery & { readonly mode: "git" | "branch"; readonly context?: number },
+  ) => Promise<readonly OpenCodeVcsFileDiff[]>;
+};
+
+type OpenCodeClient = {
+  readonly server: OpenCodeServerDescriptor;
+  readonly health: () => Promise<void>;
+  readonly resolveLocation: (location?: OpenCodeLocationQuery) => Promise<OpenCodeLocationInfo>;
+  readonly sessions: OpenCodeSessionApi;
+  readonly requests: OpenCodeRequestApi;
+  readonly agents: OpenCodeAgentApi;
+  readonly models: OpenCodeModelApi;
+  readonly projectCopies: OpenCodeProjectCopyApi;
+  readonly providers: OpenCodeProviderApi;
+  readonly vcs: OpenCodeVcsApi;
+  readonly events: (signal?: AbortSignal) => AsyncIterable<OpenCodeEvent>;
+  readonly close: () => void;
+};
+
+const OPEN_CODE_SESSION_CAPABILITIES = Object.freeze({
+  list: true,
+  create: true,
+  active: true,
+  get: true,
+  switchAgent: true,
+  switchModel: true,
+  prompt: true,
+  compact: true,
+  wait: true,
+  context: true,
+  history: true,
+  events: true,
+  interrupt: true,
+  messages: true,
+  transcript: true,
+  revert: true,
+  permissions: true,
+  questions: true,
+  rename: false,
+  archive: false,
+  remove: false,
+  fork: false,
+  commandExecution: false,
+} as const);
+
+const OPEN_CODE_CAPABILITIES = Object.freeze({
+  sessions: OPEN_CODE_SESSION_CAPABILITIES,
+  agents: true,
+  models: true,
+  vcs: true,
+  providers: true,
+  projects: false,
+  projectCopies: Object.freeze({ create: true, remove: true, list: false }),
+  remoteEvents: true,
+} as const);
+
+class OpenCodeRequestError extends Error {
+  readonly operation: string;
+  readonly status: number | null;
+  override readonly cause: unknown;
+
+  constructor(operation: string, error: unknown, response?: Response) {
+    super(errorMessage(error, `OpenCode ${operation} failed.`));
+    this.name = "OpenCodeRequestError";
+    this.operation = operation;
+    this.status = response?.status ?? null;
+    this.cause = error;
   }
-  return normalized.replace(/[\\/]+$/, "");
 }
 
-function attachedDirectoriesFromSession(session: Session): readonly string[] {
-  const raw = session.metadata?.[ATTACHED_DIRECTORIES_METADATA_KEY];
-  if (!Array.isArray(raw)) {
-    return [];
+type RequestResult<T> = {
+  readonly data: T | undefined;
+  readonly error: unknown;
+  readonly response: Response;
+};
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error;
   }
-  const result: string[] = [];
-  for (const entry of raw) {
-    if (typeof entry !== "string") {
-      continue;
-    }
-    const path = normalizeHostPath(entry);
-    if (path.length > 0 && !result.includes(path)) {
-      result.push(path);
-    }
-  }
-  return result;
-}
-
-function externalDirectoryPattern(path: string): string {
-  const normalized = normalizeHostPath(path);
-  return normalized.endsWith("/") ? `${normalized}*` : `${normalized}/*`;
-}
-
-function externalDirectoryRule(path: string, action: "allow" | "deny"): PermissionRule {
-  return {
-    permission: "external_directory",
-    pattern: externalDirectoryPattern(path),
-    action,
-  };
-}
-
-function allowAttachedDirectoryRules(paths: readonly string[]): readonly PermissionRule[] {
-  return paths.map((path) => externalDirectoryRule(path, "allow"));
-}
-
-function isAbsoluteHostPath(path: string): boolean {
-  return path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("\\\\");
-}
-
-function isPathWithin(path: string, root: string): boolean {
-  const normalizedPath = normalizeHostPath(path);
-  const normalizedRoot = normalizeHostPath(root);
-  if (normalizedRoot.length === 0) {
-    return false;
-  }
-  const isWindows =
-    /^[A-Za-z]:\//.test(normalizedPath) ||
-    /^[A-Za-z]:\//.test(normalizedRoot) ||
-    normalizedPath.startsWith("//") ||
-    normalizedRoot.startsWith("//");
-  const candidate = isWindows ? normalizedPath.toLowerCase() : normalizedPath;
-  const base = isWindows ? normalizedRoot.toLowerCase() : normalizedRoot;
-  if (base === "/") {
-    return candidate.startsWith("/");
-  }
-  return candidate === base || candidate.startsWith(`${base}/`);
-}
-
-function hasPreset(preset: ThreadPreset): boolean {
-  return preset.agent !== undefined || preset.model !== undefined || preset.variant !== undefined;
-}
-
-function presetFromSession(session: Session): ThreadPreset | undefined {
-  const raw = session.metadata?.[PRESET_METADATA_KEY];
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
-  const agent = Reflect.get(raw, "agent");
-  const variant = Reflect.get(raw, "variant");
-  const rawModel = Reflect.get(raw, "model");
-  const model =
-    typeof rawModel === "object" && rawModel !== null && !Array.isArray(rawModel)
-      ? (() => {
-          const id = Reflect.get(rawModel, "id");
-          const providerID = Reflect.get(rawModel, "providerID");
-          const modelVariant = Reflect.get(rawModel, "variant");
-          if (typeof id !== "string" || typeof providerID !== "string") return undefined;
-          return {
-            id,
-            providerID,
-            ...(typeof modelVariant === "string" ? { variant: modelVariant } : {}),
-          };
-        })()
-      : undefined;
-  const preset: ThreadPreset = {
-    ...(typeof agent === "string" ? { agent } : {}),
-    ...(model !== undefined ? { model } : {}),
-    ...(typeof variant === "string" ? { variant } : {}),
-  };
-  return hasPreset(preset) ? preset : undefined;
-}
-
-// ── Projection helpers ────────────────────────────────────────────────────────────────────────
-
-function isoFromMillis(millis: number | undefined): string {
-  return new Date(typeof millis === "number" ? millis : 0).toISOString();
-}
-
-function summaryFromSession(
-  session: Session,
-  derived: {
-    readonly running: boolean;
-    readonly failed: boolean;
-    readonly needsAttention: boolean;
-  },
-): ThreadSummary {
-  const status: ThreadSummary["status"] = derived.failed
-    ? "failed"
-    : derived.running
-      ? "running"
-      : "idle";
-  return {
-    id: session.id,
-    title: session.title.length > 0 ? session.title : "Untitled",
-    status,
-    needsAttention: derived.needsAttention,
-    createdAt: isoFromMillis(session.time.created),
-    archivedAt: session.time.archived !== undefined ? isoFromMillis(session.time.archived) : null,
-    updatedAt: isoFromMillis(session.time.updated),
-    agent: session.agent ?? null,
-    model: session.model === undefined ? null : { ...session.model },
-    projectId: session.projectID.length > 0 ? session.projectID : null,
-    worktree: {
-      path: session.directory.length > 0 ? session.directory : null,
-      branch: null,
-    },
-  };
-}
-
-const SIDE_CHAT_METADATA_KEY = "honkSideChat";
-
-const SIDE_CHAT_GUARDRAIL = `<side_chat_guardrail>
-This is a side chat forked from a parent conversation. The preceding conversation is the parent thread, provided as reference-only context.
-Do not simply continue the parent's task or act on its behalf; answer the side question that follows.
-You have full tool access. Default to investigating and answering: read files, search, and run read-only commands freely. Do not make code edits or other workspace mutations (writing or deleting files, git commits, or destructive commands) unless the user explicitly asks you to in this side chat.
-</side_chat_guardrail>`;
-
-function sideChatInfoFromSession(session: Session): SideChatInfo | null {
-  const raw = session.metadata?.[SIDE_CHAT_METADATA_KEY];
-  if (typeof raw !== "object" || raw === null) {
-    return null;
-  }
-  const parentThreadId = Reflect.get(raw, "parentThreadId");
-  const seedMessageCount = Reflect.get(raw, "seedMessageCount");
-  if (
-    typeof parentThreadId !== "string" ||
-    parentThreadId.length === 0 ||
-    typeof seedMessageCount !== "number" ||
-    !Number.isInteger(seedMessageCount) ||
-    seedMessageCount < 0
-  ) {
-    return null;
-  }
-  return { parentThreadId, seedMessageCount };
-}
-
-function sideChatSummaryFromSession(
-  session: Session,
-  derived: {
-    readonly running: boolean;
-    readonly failed: boolean;
-    readonly needsAttention: boolean;
-  },
-): SideChatSummary | null {
-  const sideChat = sideChatInfoFromSession(session);
-  if (sideChat === null) {
-    return null;
-  }
-  return { ...summaryFromSession(session, derived), ...sideChat };
-}
-
-// ── The client + event pump ────────────────────────────────────────────────────────────────────
-
-const RECONNECT_DELAY_MS = 250;
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-function isUnauthorized(error: unknown): boolean {
   if (typeof error !== "object" || error === null) {
-    return false;
+    return fallback;
   }
-  const status = Reflect.get(error, "status") ?? Reflect.get(error, "statusCode");
-  return status === 401 || status === 403;
+  const direct = Reflect.get(error, "message");
+  if (typeof direct === "string" && direct.trim().length > 0) {
+    return direct;
+  }
+  const data = Reflect.get(error, "data");
+  if (typeof data === "object" && data !== null) {
+    const nested = Reflect.get(data, "message");
+    if (typeof nested === "string" && nested.trim().length > 0) {
+      return nested;
+    }
+  }
+  return fallback;
 }
 
-type ThreadCache = {
-  readonly messages: Message[];
-  readonly partsByMessage: Map<string, Part[]>;
-};
-
-/**
- * Build the opencode client, the single global event pump, and the reducer
- * caches. The pump starts lazily on the first watcher and stops when the last
- * one leaves. All watchers share one SSE connection (opencode exposes exactly
- * one global stream), fanned out to the workspace and per-thread reducers.
- */
-export function createSidecarClient(origin: string, options?: SidecarClientOptions): SidecarClient {
-  const headers: Record<string, string> = {};
-  if (options?.password !== undefined && options.password.length > 0) {
-    // opencode uses HTTP Basic with a fixed "opencode" username (see the sdk's
-    // utils/server authTokenFromCredentials). Honk-generated passwords are ASCII.
-    headers.Authorization = openCodeAuthorizationHeader(options.password);
+function requireData<T>(result: RequestResult<T>, operation: string): T {
+  if (result.error !== undefined || result.data === undefined) {
+    throw new OpenCodeRequestError(operation, result.error, result.response);
   }
+  return result.data;
+}
 
-  const client: OpencodeClient = createOpencodeClient({
-    baseUrl: origin,
-    headers,
-  });
-
-  // Provider state is cached inside opencode project instances. Auth writes are
-  // global, but an already-created instance keeps its old connected/provider
-  // projection until disposed; opencode's own clients perform this same global
-  // disposal after connect/disconnect so the next request rebuilds every scope.
-  async function reloadProviderState(): Promise<void> {
-    const res = await client.global.dispose();
-    if (res.error !== undefined) {
-      throw new Error(
-        sidecarErrorMessage(
-          res.error,
-          "Credentials changed, but the engine failed to reload providers.",
-        ),
-      );
-    }
+function requireSuccess(result: RequestResult<unknown>, operation: string): void {
+  if (result.error !== undefined) {
+    throw new OpenCodeRequestError(operation, result.error, result.response);
   }
+}
 
-  // Reducer caches keyed by opencode session id.
-  const sessions = new Map<string, Session>();
-  // sessionId → its opencode `directory` (project instance scope). Fed from session.create
-  // responses AND session.list / detail seeds; per-thread ops carry it so every request lands on
-  // the right project instance even before the workspace list has cached the full Session.
-  const directories = new Map<string, string>();
-  const statusById = new Map<string, SessionStatus["type"]>();
-  const failed = new Set<string>();
-  const pending = new Map<string, Set<string>>();
-  const threadCaches = new Map<string, ThreadCache>();
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
-  const workspaceListeners = new Set<WorkspaceWatchHandlers>();
-  const threadListeners = new Map<string, Set<ThreadWatchHandlers>>();
-
-  let workspaceSeq = 0;
-  const threadSeq = new Map<string, number>();
-
-  let pumpAbort: AbortController | null = null;
-  let pumpRunning = false;
-  let closed = false;
-  let lastStatus: WatchStatus | null = null;
-
-  // ── status fan-out ───────────────────────────────────────────────────────────────────────
-  function broadcastStatus(status: WatchStatus): void {
-    lastStatus = status;
-    for (const handlers of workspaceListeners) {
-      handlers.onStatus?.(status);
-    }
-    for (const set of threadListeners.values()) {
-      for (const handlers of set) {
-        handlers.onStatus?.(status);
-      }
-    }
+function requireStreamEvent<T>(value: unknown, operation: string): T {
+  if (!isRecord(value) || typeof value.type !== "string") {
+    throw new OpenCodeRequestError(operation, "OpenCode sent an invalid event payload.");
   }
+  return value as T;
+}
 
-  // ── workspace projection ─────────────────────────────────────────────────────────────────
-  function buildRecentDirectories(): readonly string[] {
-    const result: string[] = [];
-    const ordered = [...sessions.values()].sort(
-      (left, right) => right.time.updated - left.time.updated,
-    );
-    for (const session of ordered) {
-      if (session.parentID !== undefined) {
-        continue;
-      }
-      for (const path of [...attachedDirectoriesFromSession(session), session.directory]) {
-        const normalized = normalizeHostPath(path);
-        if (normalized.length > 0 && !result.includes(normalized)) {
-          result.push(normalized);
-          if (result.length === RECENT_DIRECTORY_LIMIT) {
-            return result;
-          }
-        }
-      }
-    }
-    return result;
+function eventUrl(origin: string, path: string, query?: URLSearchParams): string {
+  const suffix = query === undefined || query.size === 0 ? "" : `?${query.toString()}`;
+  return `${origin.replace(/\/+$/, "")}${path}${suffix}`;
+}
+
+function locationQuery(
+  location: OpenCodeLocationQuery | undefined,
+): { readonly directory?: string; readonly workspace?: string } | undefined {
+  if (location === undefined) {
+    return undefined;
   }
-
-  function buildWorkspace(): WorkspaceState {
-    const threads: ThreadSummary[] = [];
-    const sideChats: SideChatSummary[] = [];
-    for (const session of sessions.values()) {
-      // Subagent/child sessions are not top-level threads in the workspace list.
-      if (session.parentID !== undefined) {
-        continue;
-      }
-      const type = statusById.get(session.id);
-      const derived = {
-        running: type === "busy" || type === "retry",
-        failed: failed.has(session.id),
-        needsAttention: (pending.get(session.id)?.size ?? 0) > 0,
-      };
-      const sideChat = sideChatSummaryFromSession(session, derived);
-      if (sideChat === null) {
-        threads.push(summaryFromSession(session, derived));
-      } else {
-        sideChats.push(sideChat);
-      }
-    }
-    return {
-      threads,
-      sideChats,
-      recentDirectories: buildRecentDirectories(),
-      seq: (workspaceSeq += 1),
-    };
-  }
-
-  function notifyWorkspace(): void {
-    if (workspaceListeners.size === 0) {
-      return;
-    }
-    const state = buildWorkspace();
-    for (const handlers of workspaceListeners) {
-      handlers.onChange(state);
-    }
-  }
-
-  // ── thread projection ────────────────────────────────────────────────────────────────────
-  function buildThread(sessionId: string): ThreadState | null {
-    const session = sessions.get(sessionId);
-    const cache = threadCaches.get(sessionId);
-    if (session === undefined || cache === undefined) {
-      return null;
-    }
-    const sideChat = sideChatInfoFromSession(session);
-    const messages =
-      sideChat === null ? cache.messages : cache.messages.slice(sideChat.seedMessageCount);
-    const parts: Part[] = [];
-    for (const message of messages) {
-      const messageParts = cache.partsByMessage.get(message.id);
-      if (messageParts !== undefined) {
-        parts.push(...messageParts);
-      }
-    }
-    const type = statusById.get(sessionId);
-    const summary = summaryFromSession(session, {
-      running: type === "busy" || type === "retry",
-      failed: failed.has(sessionId),
-      needsAttention: (pending.get(sessionId)?.size ?? 0) > 0,
-    });
-    return {
-      summary,
-      sideChat,
-      cwd: session.directory,
-      attachedDirectories: attachedDirectoriesFromSession(session),
-      messages: [...messages],
-      parts,
-      queue: [],
-      seq: (threadSeq.get(sessionId) ?? 0) + 1,
-    };
-  }
-
-  function notifyThread(sessionId: string): void {
-    const set = threadListeners.get(sessionId);
-    if (set === undefined || set.size === 0) {
-      return;
-    }
-    const state = buildThread(sessionId);
-    if (state === null) {
-      return;
-    }
-    threadSeq.set(sessionId, state.seq);
-    for (const handlers of set) {
-      handlers.onChange(state);
-    }
-  }
-
-  // ── directory scope ──────────────────────────────────────────────────────────────────────
-  function rememberDirectory(session: Session): void {
-    if (session.directory.length > 0) {
-      directories.set(session.id, session.directory);
-    }
-  }
-
-  /** The `directory` a per-thread request should carry, or undefined for the sidecar default. */
-  function directoryFor(sessionId: string): string | undefined {
-    const explicit = directories.get(sessionId);
-    if (explicit !== undefined && explicit.length > 0) {
-      return explicit;
-    }
-    const dir = sessions.get(sessionId)?.directory;
-    return dir !== undefined && dir.length > 0 ? dir : undefined;
-  }
-
-  async function loadSession(sessionId: string): Promise<Session> {
-    const cached = sessions.get(sessionId);
-    if (cached !== undefined) {
-      return cached;
-    }
-    const directory = directoryFor(sessionId);
-    const result = await client.session.get({
-      sessionID: sessionId,
-      ...(directory !== undefined ? { directory } : {}),
-    });
-    if (result.error !== undefined || result.data === undefined) {
-      throw new Error(sidecarErrorMessage(result.error, "Failed to load session."));
-    }
-    sessions.set(result.data.id, result.data);
-    rememberDirectory(result.data);
-    return result.data;
-  }
-
-  async function refreshSession(session: Session): Promise<Session> {
-    const result = await client.session.get({
-      sessionID: session.id,
-      ...(session.directory.length > 0 ? { directory: session.directory } : {}),
-    });
-    if (result.error !== undefined || result.data === undefined) {
-      throw new Error(sidecarErrorMessage(result.error, "Failed to refresh session."));
-    }
-    sessions.set(result.data.id, result.data);
-    rememberDirectory(result.data);
-    return result.data;
-  }
-
-  async function taskSessionFamily(sessionId: string): Promise<readonly Session[]> {
-    // Access changes apply to the whole task family. Refresh the global session projection first so
-    // a side chat created by another connected client cannot be omitted from the update or busy check.
-    await refreshSessions(true);
-    const source = await loadSession(sessionId);
-    const sideChat = sideChatInfoFromSession(source);
-    const rootId = sideChat?.parentThreadId ?? source.id;
-    const root = rootId === source.id ? source : await loadSession(rootId);
-    const family = new Map<string, Session>([[root.id, root]]);
-    for (const session of sessions.values()) {
-      if (sideChatInfoFromSession(session)?.parentThreadId === root.id) {
-        family.set(session.id, session);
-      }
-    }
-    return [...family.values()];
-  }
-
-  async function assertTaskFamilyIdle(family: readonly Session[]): Promise<void> {
-    const statuses = await client.session.status();
-    if (statuses.error !== undefined || statuses.data === undefined) {
-      throw new Error(
-        sidecarErrorMessage(
-          statuses.error,
-          "Couldn't verify whether the task is still running. Try again.",
-        ),
-      );
-    }
-    for (const [sessionId, status] of Object.entries(statuses.data)) {
-      statusById.set(sessionId, status.type);
-    }
-    const isBusy = family.some((session) => {
-      const status = statusById.get(session.id);
-      return status === "busy" || status === "retry";
-    });
-    if (isBusy) {
-      throw new Error(
-        "Can't change folder access while the agent is working. Stop the run and try again.",
-      );
-    }
-  }
-
-  async function resolveExternalDirectory(sessionId: string, input: string): Promise<string> {
-    const directory = directoryFor(sessionId);
-    const baseResult = await client.path.get(directory !== undefined ? { directory } : {});
-    if (baseResult.error !== undefined || baseResult.data === undefined) {
-      throw new Error(
-        sidecarErrorMessage(baseResult.error, "Failed to resolve the task directory."),
-      );
-    }
-
-    const value = input.trim();
-    const expanded =
-      value === "~"
-        ? baseResult.data.home
-        : value.startsWith("~/") || value.startsWith("~\\")
-          ? `${baseResult.data.home}${value.slice(1)}`
-          : value;
-    if (!isAbsoluteHostPath(expanded)) {
-      throw new Error("Use an absolute directory path or a path beginning with ~/.");
-    }
-    if (expanded.includes("*") || expanded.includes("?")) {
-      throw new Error("Folders containing wildcard characters can't be attached safely.");
-    }
-
-    const candidateResult = await client.path.get({ directory: expanded });
-    if (candidateResult.error !== undefined || candidateResult.data === undefined) {
-      throw new Error("Choose an existing directory on the OpenCode host.");
-    }
-    const candidate = normalizeHostPath(candidateResult.data.directory);
-    const listing = await client.file.list({ path: ".", directory: candidate });
-    if (listing.error !== undefined || listing.data === undefined) {
-      throw new Error("Choose an existing directory on the OpenCode host.");
-    }
-    if (
-      isPathWithin(candidate, baseResult.data.directory) ||
-      isPathWithin(candidate, baseResult.data.worktree)
-    ) {
-      throw new Error("That folder is already accessible from this task's project.");
-    }
-    return candidate;
-  }
-
-  async function updateTaskDirectories(
-    family: readonly Session[],
-    path: string,
-    action: "attach" | "detach",
-  ): Promise<void> {
-    const root = family[0];
-    if (root === undefined) {
-      throw new Error("Failed to resolve the task session.");
-    }
-    const freshRoot = await refreshSession(root);
-    const current = attachedDirectoriesFromSession(freshRoot);
-    const next =
-      action === "attach"
-        ? current.includes(path)
-          ? current
-          : [...current, path]
-        : current.filter((entry) => entry !== path);
-    const permission =
-      action === "attach"
-        ? allowAttachedDirectoryRules(next)
-        : [externalDirectoryRule(path, "deny"), ...allowAttachedDirectoryRules(next)];
-
-    for (const session of family) {
-      const latest = session.id === freshRoot.id ? freshRoot : await refreshSession(session);
-      const result = await client.session.update({
-        sessionID: latest.id,
-        metadata: {
-          ...latest.metadata,
-          [ATTACHED_DIRECTORIES_METADATA_KEY]: [...next],
-        },
-        permission: [...permission],
-        ...(latest.directory.length > 0 ? { directory: latest.directory } : {}),
-      });
-      if (result.error !== undefined || result.data === undefined) {
-        throw new Error(
-          sidecarErrorMessage(
-            result.error,
-            action === "attach"
-              ? "Failed to attach the directory."
-              : "Failed to remove the attached directory.",
-          ),
-        );
-      }
-      sessions.set(result.data.id, result.data);
-      rememberDirectory(result.data);
-      notifyThread(result.data.id);
-    }
-    notifyWorkspace();
-  }
-
-  async function sideChatReferenceSystem(
-    parentThreadId: string,
-    sideChatIds: readonly string[] | undefined,
-  ): Promise<string | null> {
-    if (sideChatIds === undefined || sideChatIds.length === 0) {
-      return null;
-    }
-    const uniqueIds = [...new Set(sideChatIds)];
-    const references = await Promise.all(
-      uniqueIds.map(async (sideChatId): Promise<string> => {
-        const directory = directoryFor(sideChatId) ?? directoryFor(parentThreadId);
-        const scope = directory !== undefined ? { directory } : {};
-        const [detailResult, messagesResult] = await Promise.all([
-          client.session.get({ sessionID: sideChatId, ...scope }),
-          client.session.messages({ sessionID: sideChatId, ...scope }),
-        ]);
-        if (detailResult.error !== undefined || detailResult.data === undefined) {
-          throw new Error(
-            sidecarErrorMessage(detailResult.error, "Failed to load referenced side chat."),
-          );
-        }
-        if (messagesResult.error !== undefined || messagesResult.data === undefined) {
-          throw new Error(
-            sidecarErrorMessage(messagesResult.error, "Failed to read referenced side chat."),
-          );
-        }
-        const sideChat = sideChatInfoFromSession(detailResult.data);
-        if (sideChat === null || sideChat.parentThreadId !== parentThreadId) {
-          throw new Error("The referenced side chat does not belong to this parent thread.");
-        }
-
-        const transcript = messagesResult.data
-          .slice(sideChat.seedMessageCount)
-          .map((group) => {
-            const text = group.parts
-              .filter(
-                (part): part is Extract<Part, { readonly type: "text" }> =>
-                  part.type === "text" && part.text.trim().length > 0,
-              )
-              .map((part) => part.text.trim())
-              .join("\n");
-            return text.length > 0 ? `${group.info.role}: ${text}` : null;
-          })
-          .filter((message): message is string => message !== null)
-          .join("\n\n");
-        const limit = 24_000;
-        const visibleTranscript =
-          transcript.length <= limit ? transcript : `…\n${transcript.slice(-(limit - 2))}`;
-        return `<side_chat_reference>
-side_chat_id: ${sideChatId}
-title: ${detailResult.data.title}
-${visibleTranscript}
-</side_chat_reference>`;
-      }),
-    );
-    return references.join("\n\n");
-  }
-
-  // ── seeding (list / detail) ──────────────────────────────────────────────────────────────
-  async function refreshSessions(strict = false): Promise<void> {
-    // No `directory`: the workspace list is deliberately global (every project's sessions).
-    const [res, statuses, questions, permissions] = await Promise.all([
-      client.session.list(),
-      client.session.status(),
-      client.question.list(),
-      client.permission.list(),
-    ]);
-    if (res.error !== undefined || res.data === undefined) {
-      if (strict) {
-        throw new Error(sidecarErrorMessage(res.error, "Failed to list OpenCode sessions."));
-      }
-      return;
-    }
-    sessions.clear();
-    for (const session of res.data) {
-      sessions.set(session.id, session);
-      rememberDirectory(session);
-    }
-    statusById.clear();
-    if (statuses.data !== undefined) {
-      for (const [sessionId, status] of Object.entries(statuses.data)) {
-        statusById.set(sessionId, status.type);
-      }
-    }
-    pending.clear();
-    for (const request of questions.data ?? []) {
-      markPending(request.sessionID, request.id);
-    }
-    for (const request of permissions.data ?? []) {
-      markPending(request.sessionID, request.id);
-    }
-    notifyWorkspace();
-  }
-
-  async function refreshThread(sessionId: string): Promise<void> {
-    const directory = directoryFor(sessionId);
-    const scope = directory !== undefined ? { directory } : {};
-    const [detail, messages] = await Promise.all([
-      client.session.get({ sessionID: sessionId, ...scope }),
-      client.session.messages({ sessionID: sessionId, ...scope }),
-    ]);
-    if (detail.data !== undefined) {
-      sessions.set(sessionId, detail.data);
-      rememberDirectory(detail.data);
-    }
-    const cache: ThreadCache = { messages: [], partsByMessage: new Map() };
-    if (messages.data !== undefined) {
-      for (const group of messages.data) {
-        cache.messages.push(group.info);
-        cache.partsByMessage.set(group.info.id, [...group.parts]);
-      }
-    }
-    threadCaches.set(sessionId, cache);
-    notifyThread(sessionId);
-    notifyWorkspace();
-  }
-
-  // ── event handling ───────────────────────────────────────────────────────────────────────
-  function upsertPart(sessionId: string, part: Part): void {
-    const cache = threadCaches.get(sessionId);
-    if (cache === undefined) {
-      return;
-    }
-    const messageId = part.messageID;
-    const list = cache.partsByMessage.get(messageId) ?? [];
-    const index = list.findIndex((existing) => existing.id === part.id);
-    if (index === -1) {
-      list.push(part);
-    } else {
-      list[index] = part;
-    }
-    cache.partsByMessage.set(messageId, list);
-  }
-
-  function markPending(sessionId: string, requestId: string): void {
-    const set = pending.get(sessionId) ?? new Set<string>();
-    set.add(requestId);
-    pending.set(sessionId, set);
-  }
-
-  function clearPending(sessionId: string, requestId: string): void {
-    const set = pending.get(sessionId);
-    if (set === undefined) {
-      return;
-    }
-    set.delete(requestId);
-    if (set.size === 0) {
-      pending.delete(sessionId);
-    }
-  }
-
-  function handleEvent(event: Event): void {
-    switch (event.type) {
-      case "session.created":
-      case "session.updated": {
-        const info = event.properties.info;
-        sessions.set(info.id, info);
-        rememberDirectory(info);
-        failed.delete(info.id);
-        notifyWorkspace();
-        notifyThread(info.id);
-        return;
-      }
-      case "session.deleted": {
-        const id = event.properties.sessionID;
-        sessions.delete(id);
-        directories.delete(id);
-        statusById.delete(id);
-        failed.delete(id);
-        pending.delete(id);
-        threadCaches.delete(id);
-        notifyWorkspace();
-        return;
-      }
-      case "session.status": {
-        const id = event.properties.sessionID;
-        statusById.set(id, event.properties.status.type);
-        if (event.properties.status.type !== "retry") {
-          failed.delete(id);
-        }
-        notifyWorkspace();
-        notifyThread(id);
-        return;
-      }
-      case "session.idle": {
-        const id = event.properties.sessionID;
-        statusById.set(id, "idle");
-        failed.delete(id);
-        notifyWorkspace();
-        notifyThread(id);
-        return;
-      }
-      case "session.error": {
-        const id = event.properties.sessionID;
-        if (id !== undefined) {
-          failed.add(id);
-          statusById.set(id, "idle");
-          notifyWorkspace();
-          notifyThread(id);
-        }
-        return;
-      }
-      case "message.updated": {
-        const info = event.properties.info;
-        const cache = threadCaches.get(info.sessionID);
-        if (cache !== undefined) {
-          const index = cache.messages.findIndex((existing) => existing.id === info.id);
-          if (index === -1) {
-            cache.messages.push(info);
-          } else {
-            cache.messages[index] = info;
-          }
-          notifyThread(info.sessionID);
-        }
-        return;
-      }
-      case "message.removed": {
-        const cache = threadCaches.get(event.properties.sessionID);
-        if (cache !== undefined) {
-          const messageId = event.properties.messageID;
-          const index = cache.messages.findIndex((existing) => existing.id === messageId);
-          if (index !== -1) {
-            cache.messages.splice(index, 1);
-          }
-          cache.partsByMessage.delete(messageId);
-          notifyThread(event.properties.sessionID);
-        }
-        return;
-      }
-      case "message.part.updated": {
-        const part = event.properties.part;
-        upsertPart(event.properties.sessionID, part);
-        notifyThread(event.properties.sessionID);
-        return;
-      }
-      case "message.part.removed": {
-        const cache = threadCaches.get(event.properties.sessionID);
-        if (cache !== undefined) {
-          const list = cache.partsByMessage.get(event.properties.messageID);
-          if (list !== undefined) {
-            const index = list.findIndex((existing) => existing.id === event.properties.partID);
-            if (index !== -1) {
-              list.splice(index, 1);
-            }
-          }
-          notifyThread(event.properties.sessionID);
-        }
-        return;
-      }
-      case "permission.asked":
-      case "question.asked": {
-        markPending(event.properties.sessionID, event.properties.id);
-        notifyWorkspace();
-        notifyThread(event.properties.sessionID);
-        return;
-      }
-      case "permission.replied":
-      case "question.replied":
-      case "question.rejected": {
-        clearPending(event.properties.sessionID, event.properties.requestID);
-        notifyWorkspace();
-        notifyThread(event.properties.sessionID);
-        return;
-      }
-      default:
-        return;
-    }
-  }
-
-  // ── pump lifecycle ───────────────────────────────────────────────────────────────────────
-  async function runPump(): Promise<void> {
-    while (!closed) {
-      const attempt = new AbortController();
-      pumpAbort = attempt;
-      try {
-        const stream =
-          options?.eventStreamFactory === undefined
-            ? (await client.global.event({ signal: attempt.signal })).stream
-            : await options.eventStreamFactory({
-                origin,
-                headers: { ...headers },
-                signal: attempt.signal,
-              });
-        broadcastStatus("live");
-        // Reseed after every (re)connect so we cannot miss changes made while
-        // the stream was down.
-        await refreshSessions();
-        for (const sessionId of threadListeners.keys()) {
-          await refreshThread(sessionId);
-        }
-        for await (const envelope of stream) {
-          if (attempt.signal.aborted || closed) {
-            break;
-          }
-          if (
-            typeof envelope.payload === "object" &&
-            envelope.payload !== null &&
-            Reflect.get(envelope.payload, "type") === "sync"
-          ) {
-            continue;
-          }
-          handleEvent(envelope.payload as Event);
-        }
-      } catch (error) {
-        if (isUnauthorized(error)) {
-          broadcastStatus("unauthorized");
-          pumpRunning = false;
-          pumpAbort = null;
-          return;
-        }
-        // Fall through to reconnect.
-      } finally {
-        pumpAbort = null;
-      }
-
-      if (closed || !hasWatchers()) {
-        break;
-      }
-      broadcastStatus("reconnecting");
-      await wait(RECONNECT_DELAY_MS);
-    }
-    pumpRunning = false;
-  }
-
-  function hasWatchers(): boolean {
-    if (workspaceListeners.size > 0) {
-      return true;
-    }
-    for (const set of threadListeners.values()) {
-      if (set.size > 0) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  function ensurePump(): void {
-    if (pumpRunning || closed) {
-      return;
-    }
-    pumpRunning = true;
-    void runPump();
-  }
-
-  function maybeStopPump(): void {
-    if (hasWatchers()) {
-      return;
-    }
-    pumpAbort?.abort();
-    pumpAbort = null;
-    if (lastStatus !== null) {
-      lastStatus = null;
-    }
-  }
-
-  // ── public surface ───────────────────────────────────────────────────────────────────────
   return {
-    threads: {
-      async create(payload) {
-        // exactOptionalPropertyTypes: only carry keys that are actually set so
-        // we never hand the sdk an explicit `undefined`.
-        const preset: ThreadPreset = {
-          ...(payload.agent !== undefined ? { agent: payload.agent } : {}),
-          ...(payload.model !== undefined ? { model: payload.model } : {}),
-          ...(payload.variant !== undefined ? { variant: payload.variant } : {}),
-        };
-        const res = await client.session.create({
-          ...(payload.cwd !== undefined ? { directory: payload.cwd } : {}),
-          ...(payload.title !== undefined ? { title: payload.title } : {}),
-          ...(payload.agent !== undefined ? { agent: payload.agent } : {}),
-          // v2 session.create's model key is {id, providerID} — only promptAsync wants
-          // the {providerID, modelID} spelling (mapped in send below).
-          ...(payload.model !== undefined ? { model: payload.model } : {}),
-          ...(hasPreset(preset) ? { metadata: { [PRESET_METADATA_KEY]: preset } } : {}),
-        });
-        if (res.error !== undefined || res.data === undefined) {
-          throw new Error(sidecarErrorMessage(res.error, "Failed to create session."));
-        }
-        const session = res.data;
-        sessions.set(session.id, session);
-        rememberDirectory(session);
-        notifyWorkspace();
-        return summaryFromSession(session, {
-          running: false,
-          failed: false,
-          needsAttention: false,
-        });
-      },
-
-      async createSideChat(parentThreadId) {
-        let parent = sessions.get(parentThreadId);
-        if (parent === undefined) {
-          const parentDirectory = directoryFor(parentThreadId);
-          const parentResult = await client.session.get({
-            sessionID: parentThreadId,
-            ...(parentDirectory !== undefined ? { directory: parentDirectory } : {}),
-          });
-          if (parentResult.error !== undefined || parentResult.data === undefined) {
-            throw new Error(sidecarErrorMessage(parentResult.error, "Failed to load session."));
-          }
-          parent = parentResult.data;
-          sessions.set(parent.id, parent);
-          rememberDirectory(parent);
-        }
-        if (sideChatInfoFromSession(parent) !== null) {
-          throw new Error(
-            "Cannot create a side chat inside a side chat. Return to the main thread first.",
-          );
-        }
-
-        const directory = parent.directory.length > 0 ? parent.directory : undefined;
-        const forkResult = await client.session.fork({
-          sessionID: parentThreadId,
-          ...(directory !== undefined ? { directory } : {}),
-        });
-        if (forkResult.error !== undefined || forkResult.data === undefined) {
-          throw new Error(sidecarErrorMessage(forkResult.error, "Failed to create side chat."));
-        }
-
-        const forked = forkResult.data;
-        const messagesResult = await client.session.messages({
-          sessionID: forked.id,
-          ...(directory !== undefined ? { directory } : {}),
-        });
-        if (messagesResult.error !== undefined || messagesResult.data === undefined) {
-          throw new Error(
-            sidecarErrorMessage(messagesResult.error, "Failed to seed side chat context."),
-          );
-        }
-
-        const sideChat: SideChatInfo = {
-          parentThreadId,
-          seedMessageCount: messagesResult.data.length,
-        };
-        const parentPreset = presetFromSession(parent);
-        const parentAttachedDirectories = attachedDirectoriesFromSession(parent);
-        const updateResult = await client.session.update({
-          sessionID: forked.id,
-          title: "Side Chat",
-          metadata: {
-            ...forked.metadata,
-            [SIDE_CHAT_METADATA_KEY]: sideChat,
-            ...(parentPreset !== undefined ? { [PRESET_METADATA_KEY]: parentPreset } : {}),
-          },
-          ...(parentAttachedDirectories.length > 0
-            ? { permission: [...allowAttachedDirectoryRules(parentAttachedDirectories)] }
-            : {}),
-          ...(directory !== undefined ? { directory } : {}),
-        });
-        if (updateResult.error !== undefined || updateResult.data === undefined) {
-          throw new Error(
-            sidecarErrorMessage(updateResult.error, "Failed to finish creating side chat."),
-          );
-        }
-
-        const session = updateResult.data;
-        sessions.set(session.id, session);
-        rememberDirectory(session);
-        notifyWorkspace();
-        return {
-          ...summaryFromSession(session, {
-            running: false,
-            failed: false,
-            needsAttention: false,
-          }),
-          ...sideChat,
-        };
-      },
-
-      async get(threadId) {
-        const directory = directoryFor(threadId);
-        const res = await client.session.get({
-          sessionID: threadId,
-          ...(directory !== undefined ? { directory } : {}),
-        });
-        if (res.error !== undefined || res.data === undefined) {
-          throw new Error(sidecarErrorMessage(res.error, "Failed to load session."));
-        }
-        const session = res.data;
-        sessions.set(session.id, session);
-        rememberDirectory(session);
-        return {
-          summary: summaryFromSession(session, {
-            running: statusById.get(session.id) === "busy",
-            failed: failed.has(session.id),
-            needsAttention: (pending.get(session.id)?.size ?? 0) > 0,
-          }),
-          cwd: session.directory,
-          attachedDirectories: attachedDirectoriesFromSession(session),
-        };
-      },
-
-      async attachDirectory(threadId, path) {
-        const family = await taskSessionFamily(threadId);
-        await assertTaskFamilyIdle(family);
-        const resolved = await resolveExternalDirectory(threadId, path);
-        await updateTaskDirectories(family, resolved, "attach");
-      },
-
-      async detachDirectory(threadId, path) {
-        const family = await taskSessionFamily(threadId);
-        await assertTaskFamilyIdle(family);
-        const normalized = normalizeHostPath(path);
-        if (normalized.length === 0) {
-          throw new Error("Choose an attached directory to remove.");
-        }
-        await updateTaskDirectories(family, normalized, "detach");
-      },
-
-      async listArchived() {
-        const res = await client.experimental.session.list({ archived: true });
-        if (res.error !== undefined || res.data === undefined) {
-          throw new Error(sidecarErrorMessage(res.error, "Failed to list archived sessions."));
-        }
-        const summaries: ThreadSummary[] = [];
-        for (const session of res.data) {
-          if (session.parentID !== undefined || sideChatInfoFromSession(session) !== null) continue;
-          rememberDirectory(session);
-          summaries.push(
-            summaryFromSession(session, {
-              running: false,
-              failed: false,
-              needsAttention: false,
-            }),
-          );
-        }
-        return summaries;
-      },
-
-      async send(threadId, payload) {
-        // Resend the pinned preset on every prompt (opencode expects agent/model
-        // per prompt; the pin is our hard preset memory). messageID is deliberately
-        // omitted — opencode requires its own `msg…` identifier format (live serve
-        // rejects foreign ids with a schema error), so the server mints it.
-        const session = sessions.get(threadId);
-        const pin = session === undefined ? undefined : presetFromSession(session);
-        const variant = pin?.variant ?? pin?.model?.variant;
-        const agent = payload.agent ?? pin?.agent;
-        const directory = directoryFor(threadId);
-        const referenceSystem = await sideChatReferenceSystem(threadId, payload.sideChatIds);
-        const sideChatSystem =
-          session !== undefined && sideChatInfoFromSession(session) !== null
-            ? SIDE_CHAT_GUARDRAIL
-            : null;
-        const system = [sideChatSystem, referenceSystem]
-          .filter((entry): entry is string => entry !== null)
-          .join("\n\n");
-        void payload.messageId;
-        const res = await client.session.promptAsync({
-          sessionID: threadId,
-          ...(directory !== undefined ? { directory } : {}),
-          ...(agent !== undefined ? { agent } : {}),
-          ...(pin?.model !== undefined
-            ? { model: { providerID: pin.model.providerID, modelID: pin.model.id } }
-            : {}),
-          ...(variant !== undefined ? { variant } : {}),
-          ...(system.length > 0 ? { system } : {}),
-          // Attachment-only prompts are legal — never send an empty text part around a photo.
-          parts: [
-            ...(payload.text.length > 0 ? [{ type: "text" as const, text: payload.text }] : []),
-            ...filePartsFrom(payload.files, directory),
-          ],
-        });
-        if (res.error !== undefined) {
-          throw new Error(sidecarErrorMessage(res.error, "Failed to send message."));
-        }
-      },
-
-      async interrupt(threadId) {
-        const directory = directoryFor(threadId);
-        const res = await client.session.abort({
-          sessionID: threadId,
-          ...(directory !== undefined ? { directory } : {}),
-        });
-        if (res.error !== undefined) {
-          throw new Error(sidecarErrorMessage(res.error, "Failed to interrupt session."));
-        }
-      },
-
-      async setTitle(threadId, title) {
-        const directory = directoryFor(threadId);
-        const res = await client.session.update({
-          sessionID: threadId,
-          title,
-          ...(directory !== undefined ? { directory } : {}),
-        });
-        if (res.error !== undefined) {
-          throw new Error(sidecarErrorMessage(res.error, "Failed to rename session."));
-        }
-        // Reflect immediately; the event pump confirms with session.updated.
-        const session = sessions.get(threadId);
-        if (session !== undefined) {
-          sessions.set(threadId, { ...session, title });
-          notifyThread(threadId);
-          notifyWorkspace();
-        }
-      },
-
-      async archive(threadId) {
-        const directory = directoryFor(threadId);
-        const res = await client.session.update({
-          sessionID: threadId,
-          time: { archived: Date.now() },
-          ...(directory !== undefined ? { directory } : {}),
-        });
-        if (res.error !== undefined || res.data === undefined) {
-          throw new Error(sidecarErrorMessage(res.error, "Failed to archive session."));
-        }
-        sessions.delete(threadId);
-        statusById.delete(threadId);
-        pending.delete(threadId);
-        threadCaches.delete(threadId);
-        notifyWorkspace();
-      },
-
-      async restoreAsCopy(threadId) {
-        const directory = directoryFor(threadId);
-        const scope = directory !== undefined ? { directory } : {};
-        const detail = await client.session.get({ sessionID: threadId, ...scope });
-        if (detail.error !== undefined || detail.data === undefined) {
-          throw new Error(sidecarErrorMessage(detail.error, "Failed to load archived session."));
-        }
-        const fork = await client.session.fork({ sessionID: threadId, ...scope });
-        if (fork.error !== undefined || fork.data === undefined) {
-          throw new Error(sidecarErrorMessage(fork.error, "Failed to restore archived session."));
-        }
-        let restored = fork.data;
-        const restoredAttachedDirectories = attachedDirectoriesFromSession(restored);
-        if (restored.title !== detail.data.title || restoredAttachedDirectories.length > 0) {
-          const updated = await client.session.update({
-            sessionID: restored.id,
-            ...(restored.title !== detail.data.title ? { title: detail.data.title } : {}),
-            ...(restoredAttachedDirectories.length > 0
-              ? { permission: [...allowAttachedDirectoryRules(restoredAttachedDirectories)] }
-              : {}),
-            ...scope,
-          });
-          if (updated.error !== undefined || updated.data === undefined) {
-            throw new Error(
-              sidecarErrorMessage(
-                updated.error,
-                "The session was copied but its folder access could not be restored.",
-              ),
-            );
-          }
-          restored = updated.data;
-        }
-        const removed = await client.session.delete({ sessionID: threadId, ...scope });
-        if (removed.error !== undefined) {
-          throw new Error(
-            sidecarErrorMessage(
-              removed.error,
-              "The session was restored, but the archived copy could not be removed.",
-            ),
-          );
-        }
-        sessions.set(restored.id, restored);
-        rememberDirectory(restored);
-        directories.delete(threadId);
-        notifyWorkspace();
-        return summaryFromSession(restored, {
-          running: false,
-          failed: false,
-          needsAttention: false,
-        });
-      },
-
-      async remove(threadId) {
-        const directory = directoryFor(threadId);
-        const res = await client.session.delete({
-          sessionID: threadId,
-          ...(directory !== undefined ? { directory } : {}),
-        });
-        if (res.error !== undefined) {
-          throw new Error(sidecarErrorMessage(res.error, "Failed to delete session."));
-        }
-        sessions.delete(threadId);
-        directories.delete(threadId);
-        statusById.delete(threadId);
-        failed.delete(threadId);
-        pending.delete(threadId);
-        threadCaches.delete(threadId);
-        notifyWorkspace();
-      },
-
-      async questions(threadId) {
-        const directory = directoryFor(threadId);
-        const res = await client.question.list(directory !== undefined ? { directory } : {});
-        if (res.error !== undefined || res.data === undefined) {
-          throw new Error(sidecarErrorMessage(res.error, "Failed to load pending questions."));
-        }
-        return res.data.filter((request) => request.sessionID === threadId);
-      },
-
-      async answerQuestion(threadId, requestId, answers) {
-        const directory = directoryFor(threadId);
-        const res = await client.question.reply({
-          requestID: requestId,
-          answers: answers.map((answer) => [...answer]),
-          ...(directory !== undefined ? { directory } : {}),
-        });
-        if (res.error !== undefined) {
-          throw new Error(sidecarErrorMessage(res.error, "Failed to answer question."));
-        }
-        clearPending(threadId, requestId);
-        notifyWorkspace();
-        notifyThread(threadId);
-      },
-
-      async rejectQuestion(threadId, requestId) {
-        const directory = directoryFor(threadId);
-        const res = await client.question.reject({
-          requestID: requestId,
-          ...(directory !== undefined ? { directory } : {}),
-        });
-        if (res.error !== undefined) {
-          throw new Error(sidecarErrorMessage(res.error, "Failed to dismiss question."));
-        }
-        clearPending(threadId, requestId);
-        notifyWorkspace();
-        notifyThread(threadId);
-      },
-
-      async permissions(threadId) {
-        const directory = directoryFor(threadId);
-        const res = await client.permission.list(directory !== undefined ? { directory } : {});
-        if (res.error !== undefined || res.data === undefined) {
-          throw new Error(sidecarErrorMessage(res.error, "Failed to load pending permissions."));
-        }
-        return res.data.filter((request) => request.sessionID === threadId);
-      },
-
-      async answerPermission(threadId, requestId, reply, message) {
-        const directory = directoryFor(threadId);
-        const res = await client.permission.reply({
-          requestID: requestId,
-          reply,
-          ...(message !== undefined ? { message } : {}),
-          ...(directory !== undefined ? { directory } : {}),
-        });
-        if (res.error !== undefined) {
-          throw new Error(sidecarErrorMessage(res.error, "Failed to answer permission request."));
-        }
-        clearPending(threadId, requestId);
-        notifyWorkspace();
-        notifyThread(threadId);
-      },
-
-      async runCommand(threadId, input) {
-        const directory = input.directory ?? directoryFor(threadId);
-        const res = await client.session.command({
-          sessionID: threadId,
-          command: input.command,
-          arguments: input.arguments,
-          ...(directory !== undefined ? { directory } : {}),
-          ...(input.agent !== undefined ? { agent: input.agent } : {}),
-          ...(input.model !== undefined ? { model: input.model } : {}),
-        });
-        if (res.error !== undefined) {
-          throw new Error(sidecarErrorMessage(res.error, "Failed to run command."));
-        }
-      },
-
-      watch(threadId, handlers) {
-        const set = threadListeners.get(threadId) ?? new Set<ThreadWatchHandlers>();
-        set.add(handlers);
-        threadListeners.set(threadId, set);
-        ensurePump();
-        if (lastStatus !== null) {
-          handlers.onStatus?.(lastStatus);
-        }
-        // Seed immediately from cache, then (re)fetch detail for freshness.
-        const cached = buildThread(threadId);
-        if (cached !== null) {
-          handlers.onChange(cached);
-        }
-        void refreshThread(threadId).catch(() => {
-          // A failed seed leaves the watcher on its last status; the pump retries.
-        });
-        return {
-          close: () => {
-            const current = threadListeners.get(threadId);
-            current?.delete(handlers);
-            if (current !== undefined && current.size === 0) {
-              threadListeners.delete(threadId);
-              threadCaches.delete(threadId);
-              threadSeq.delete(threadId);
-            }
-            maybeStopPump();
-          },
-        };
-      },
-    },
-
-    workspace: {
-      async snapshot() {
-        await refreshSessions(true);
-        return buildWorkspace();
-      },
-
-      watch(handlers) {
-        workspaceListeners.add(handlers);
-        ensurePump();
-        if (lastStatus !== null) {
-          handlers.onStatus?.(lastStatus);
-        }
-        if (sessions.size > 0) {
-          handlers.onChange(buildWorkspace());
-        }
-        return {
-          close: () => {
-            workspaceListeners.delete(handlers);
-            maybeStopPump();
-          },
-        };
-      },
-    },
-
-    async listProjects() {
-      const res = await client.project.list();
-      if (res.error !== undefined || res.data === undefined) {
-        throw new Error(sidecarErrorMessage(res.error, "Failed to list projects."));
-      }
-      return res.data.map((project) => ({
-        id: project.id,
-        worktree: project.worktree,
-        name: project.name !== undefined && project.name.length > 0 ? project.name : null,
-        vcs: project.vcs ?? null,
-      }));
-    },
-
-    async defaultDirectory() {
-      const res = await client.path.get();
-      if (res.error !== undefined || res.data === undefined) {
-        throw new Error(sidecarErrorMessage(res.error, "Failed to resolve the default directory."));
-      }
-      return res.data.directory;
-    },
-
-    async listAgents(directory) {
-      const res = await client.app.agents(directory !== undefined ? { directory } : {});
-      if (res.error !== undefined || res.data === undefined) {
-        throw new Error(sidecarErrorMessage(res.error, "Failed to list agents."));
-      }
-      return res.data
-        .filter((agent) => agent.hidden !== true)
-        .map((agent) => ({
-          name: agent.name,
-          description:
-            agent.description !== undefined && agent.description.length > 0
-              ? agent.description
-              : null,
-          mode: agent.mode,
-          native: agent.native === true,
-        }));
-    },
-
-    async listModels() {
-      const res = await client.provider.list();
-      if (res.error !== undefined || res.data === undefined) {
-        throw new Error(sidecarErrorMessage(res.error, "Failed to list models."));
-      }
-      const connected = new Set(res.data.connected);
-      return res.data.all
-        .filter((provider) => connected.has(provider.id))
-        .flatMap((provider) =>
-          Object.values(provider.models).map((model) => ({
-            id: model.id,
-            providerID: model.providerID,
-            name: model.name,
-            family: model.family ?? null,
-            status: model.status,
-            reasoning: model.capabilities.reasoning,
-            attachments: model.capabilities.attachment,
-            variants: Object.keys(model.variants ?? {}),
-            contextLimit: model.limit.context,
-            outputLimit: model.limit.output,
-          })),
-        );
-    },
-
-    async listProviders() {
-      const [list, auth] = await Promise.all([client.provider.list(), client.provider.auth()]);
-      if (list.error !== undefined || list.data === undefined) {
-        throw new Error(sidecarErrorMessage(list.error, "Failed to list providers."));
-      }
-      if (auth.error !== undefined || auth.data === undefined) {
-        throw new Error(
-          sidecarErrorMessage(auth.error, "Failed to list provider authentication methods."),
-        );
-      }
-      const authByProvider = auth.data;
-      const connected = list.data.connected;
-      const providers: SidecarProvider[] = list.data.all.map((provider) => ({
-        id: provider.id,
-        name: provider.name,
-        source: provider.source,
-        connected: connected.includes(provider.id),
-        models: Object.values(provider.models).map((model) => ({
-          id: model.id,
-          providerID: model.providerID,
-          name: model.name,
-          family: model.family ?? null,
-          status: model.status,
-          reasoning: model.capabilities.reasoning,
-          attachments: model.capabilities.attachment,
-          variants: Object.keys(model.variants ?? {}),
-          contextLimit: model.limit.context,
-          outputLimit: model.limit.output,
-        })),
-        authMethods: (authByProvider[provider.id] ?? []).map((method, index) => ({
-          index,
-          type: method.type,
-          label: method.label,
-          prompts: (method.prompts ?? []).map(
-            (prompt): SidecarProviderAuthPrompt =>
-              prompt.type === "select"
-                ? {
-                    type: "select",
-                    key: prompt.key,
-                    message: prompt.message,
-                    options: prompt.options.map((option) => ({ ...option })),
-                    ...(prompt.when !== undefined ? { when: { ...prompt.when } } : {}),
-                  }
-                : {
-                    type: "text",
-                    key: prompt.key,
-                    message: prompt.message,
-                    ...(prompt.placeholder !== undefined
-                      ? { placeholder: prompt.placeholder }
-                      : {}),
-                    ...(prompt.when !== undefined ? { when: { ...prompt.when } } : {}),
-                  },
-          ),
-        })),
-      }));
-      return { providers, connected: [...connected], defaults: { ...list.data.default } };
-    },
-
-    async setProviderApiKey(providerID, key) {
-      const res = await client.auth.set({ providerID, auth: { type: "api", key } });
-      if (res.error !== undefined) {
-        throw new Error(sidecarErrorMessage(res.error, "Failed to save the API key."));
-      }
-      await reloadProviderState();
-    },
-
-    async authorizeProviderOauth(providerID, method, inputs) {
-      const res = await client.provider.oauth.authorize({
-        providerID,
-        method,
-        ...(inputs !== undefined ? { inputs: { ...inputs } } : {}),
-      });
-      if (res.error !== undefined || res.data === undefined) {
-        throw new Error(sidecarErrorMessage(res.error, "Failed to start the OAuth flow."));
-      }
-      return { url: res.data.url, method: res.data.method, instructions: res.data.instructions };
-    },
-
-    async completeProviderOauth(providerID, method, code) {
-      const res = await client.provider.oauth.callback({
-        providerID,
-        method,
-        ...(code !== undefined ? { code } : {}),
-      });
-      if (res.error !== undefined) {
-        throw new Error(sidecarErrorMessage(res.error, "Failed to complete the OAuth flow."));
-      }
-      await reloadProviderState();
-    },
-
-    async removeProviderAuth(providerID) {
-      const res = await client.auth.remove({ providerID });
-      if (res.error !== undefined) {
-        throw new Error(sidecarErrorMessage(res.error, "Failed to remove the credentials."));
-      }
-      await reloadProviderState();
-    },
-
-    async findFiles(query, directory) {
-      const res = await client.find.files({
-        query,
-        ...(directory !== undefined ? { directory } : {}),
-      });
-      if (res.error !== undefined || res.data === undefined) {
-        throw new Error(sidecarErrorMessage(res.error, "Failed to search files."));
-      }
-      return res.data;
-    },
-
-    async fileStatus(directory) {
-      const res = await client.file.status({ directory });
-      if (res.error !== undefined || res.data === undefined) {
-        throw new Error(sidecarErrorMessage(res.error, "Failed to read the change list."));
-      }
-      return res.data.map((file) => ({
-        path: file.path,
-        added: file.added,
-        removed: file.removed,
-        status: file.status,
-      }));
-    },
-
-    async listFiles(path, directory) {
-      const res = await client.file.list({ path, directory });
-      if (res.error !== undefined || res.data === undefined) {
-        throw new Error(sidecarErrorMessage(res.error, "Failed to list files."));
-      }
-      return res.data.map((node) => ({
-        name: node.name,
-        path: node.path,
-        type: node.type,
-        ignored: node.ignored,
-      }));
-    },
-
-    async readFile(path, directory) {
-      const res = await client.file.read({ path, directory });
-      if (res.error !== undefined || res.data === undefined) {
-        throw new Error(sidecarErrorMessage(res.error, "Failed to read the file."));
-      }
-      return {
-        type: res.data.type,
-        content: res.data.content,
-        hunks: res.data.patch?.hunks ?? null,
-        mimeType: res.data.mimeType ?? null,
-      };
-    },
-
-    async vcsBranch(directory) {
-      const res = await client.vcs.get({ directory });
-      if (res.error !== undefined || res.data === undefined) {
-        return null; // outside a repo (or an old server) — the panel just omits the label
-      }
-      return res.data.branch ?? null;
-    },
-
-    async listCommands(directory) {
-      const res = await client.command.list(directory !== undefined ? { directory } : {});
-      if (res.error !== undefined || res.data === undefined) {
-        throw new Error(sidecarErrorMessage(res.error, "Failed to list commands."));
-      }
-      return res.data.map((command) => ({
-        name: command.name,
-        description:
-          command.description !== undefined && command.description.length > 0
-            ? command.description
-            : null,
-        agent: command.agent !== undefined && command.agent.length > 0 ? command.agent : null,
-        model: command.model !== undefined && command.model.length > 0 ? command.model : null,
-        template: command.template,
-        subtask: command.subtask ?? false,
-      }));
-    },
-
-    async close() {
-      closed = true;
-      pumpAbort?.abort();
-      pumpAbort = null;
-      workspaceListeners.clear();
-      threadListeners.clear();
-    },
+    ...(location.directory !== undefined ? { directory: location.directory } : {}),
+    ...(location.workspaceID !== undefined ? { workspace: location.workspaceID } : {}),
   };
 }
 
-/**
- * Build opencode FilePartInput parts from composer attachments. Two url forms:
- *   • mentions — `file://<ABSOLUTE path>`: the server resolves file parts through
- *     fileURLToPath (SessionPrompt.resolveUserPart), which rejects relative urls (the first
- *     segment parses as a host), so a relative mention is resolved against the session
- *     directory first — exactly the reference app's absolute(sessionDirectory, path).
- *   • pasted/dropped bytes — a `data:` url carrying the file inline; its mime is authoritative
- *     (parsed from the url when the caller didn't set one), NEVER the text/plain default —
- *     the server uses mime verbatim, and a photo labelled text/plain routes down the text
- *     Read path and never arrives as an image.
- */
-function filePartsFrom(
-  files: readonly SendMessageFile[] | undefined,
-  directory: string | undefined,
-): Array<{
-  readonly type: "file";
-  readonly mime: string;
-  readonly filename: string;
-  readonly url: string;
-}> {
-  if (files === undefined || files.length === 0) {
-    return [];
-  }
-  return files.map((file) => {
-    const url =
-      file.path.startsWith("file://") || file.path.startsWith("data:")
-        ? file.path
-        : fileUrlFrom(absolutePath(file.path, directory));
-    return {
-      type: "file" as const,
-      mime: file.mime ?? dataUrlMime(file.path) ?? "text/plain",
-      filename: file.filename ?? fileBasename(file.path),
-      url,
-    };
-  });
+function sessionLocationQuery(location: OpenCodeLocationRef): {
+  readonly directory: string;
+  readonly workspace?: string;
+} {
+  return {
+    directory: location.directory,
+    ...(location.workspaceID !== undefined ? { workspace: location.workspaceID } : {}),
+  };
 }
 
-/** Resolve a composer mention against the session directory (the server needs absolute paths). */
-function absolutePath(path: string, directory: string | undefined): string {
-  if (path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)) {
-    return path;
+function dataUrlMime(uri: string): string | undefined {
+  if (!uri.startsWith("data:")) return undefined;
+  const match = /^data:([^;,]+)/.exec(uri);
+  return match?.[1] !== undefined && match[1].length > 0 ? match[1] : undefined;
+}
+
+function attachmentMime(file: OpenCodePromptFileAttachment): string {
+  const declared = file.description?.trim();
+  return (
+    dataUrlMime(file.uri) ??
+    (declared !== undefined && /^[\w!#$&^.+-]+\/[\w!#$&^.+-]+$/i.test(declared)
+      ? declared
+      : "text/plain")
+  );
+}
+
+function absoluteAttachmentPath(uri: string, directory: string): string {
+  if (uri.startsWith("/") || /^[A-Za-z]:[\\/]/.test(uri) || uri.startsWith("\\\\")) {
+    return uri;
   }
-  const base =
-    directory !== undefined && directory.length > 0 ? directory.replace(/[\\/]+$/, "") : "";
+  const base = directory.replace(/[\\/]+$/, "");
   if (base.length === 0) {
-    // A relative mention with no directory scope can only produce a broken file:// url
-    // (fileURLToPath reads the first segment as a host) — fail loudly at the send site.
-    throw new Error(`Cannot attach "${path}": no session directory to resolve it against.`);
+    throw new Error(`Cannot attach "${uri}": the session has no directory.`);
   }
-  return `${base}/${path}`;
+  return `${base}/${uri}`;
 }
 
-/** Serialize an absolute path as a file:// url, percent-encoding each segment ("#?%" in names). */
-function fileUrlFrom(absolute: string): string {
-  const encoded = absolute
+function fileUrlFromPath(path: string): string {
+  const normalized = path.replace(/\\/g, "/");
+  if (normalized.startsWith("//")) {
+    const [host = "", ...segments] = normalized.slice(2).split("/");
+    return `file://${encodeURIComponent(host)}/${segments.map(encodeURIComponent).join("/")}`;
+  }
+  const rooted = /^[A-Za-z]:\//.test(normalized) ? `/${normalized}` : normalized;
+  const encoded = rooted
     .split("/")
-    .map((segment) => encodeURIComponent(segment))
+    .map((segment, index) =>
+      index === 1 && /^[A-Za-z]:$/.test(segment)
+        ? `${segment.slice(0, 1)}:`
+        : encodeURIComponent(segment),
+    )
     .join("/");
   return `file://${encoded}`;
 }
 
-/** The mime a data: url declares (`data:image/png;base64,…`), or undefined for other urls. */
-function dataUrlMime(path: string): string | undefined {
-  if (!path.startsWith("data:")) {
-    return undefined;
-  }
-  const match = /^data:([^;,]+)/.exec(path);
-  return match?.[1] !== undefined && match[1].length > 0 ? match[1] : undefined;
+function attachmentUrl(uri: string, directory: string): string {
+  if (/^[A-Za-z][A-Za-z\d+.-]*:/.test(uri)) return uri;
+  return fileUrlFromPath(absoluteAttachmentPath(uri, directory));
 }
 
-function fileBasename(path: string): string {
-  if (path.startsWith("data:")) {
-    return "attachment";
+function attachmentFilename(file: OpenCodePromptFileAttachment): string {
+  if (file.name !== undefined && file.name.length > 0) return file.name;
+  if (file.uri.startsWith("data:")) return "attachment";
+  const trimmed = file.uri.replace(/^file:\/\//, "").replace(/[\\/]+$/, "");
+  const filename = trimmed.split(/[\\/]/).at(-1) ?? "attachment";
+  try {
+    return decodeURIComponent(filename);
+  } catch {
+    return filename;
   }
-  const trimmed = path.replace(/^file:\/\//, "").replace(/[\\/]+$/, "");
-  const [last = trimmed] = trimmed.split(/[\\/]/).slice(-1);
-  return last.length > 0 ? last : path;
 }
 
-function sidecarErrorMessage(error: unknown, fallback: string): string {
-  if (typeof error === "object" && error !== null) {
-    const message = Reflect.get(error, "message") ?? Reflect.get(error, "data");
-    if (typeof message === "string" && message.trim().length > 0) {
-      return message;
+function promptFilePart(
+  file: OpenCodePromptFileAttachment,
+  directory: string,
+): OpenCodeFilePartInput {
+  return {
+    type: "file",
+    mime: attachmentMime(file),
+    filename: attachmentFilename(file),
+    url: attachmentUrl(file.uri, directory),
+    ...(file.source !== undefined
+      ? {
+          source: {
+            type: "file" as const,
+            path: file.uri,
+            text: {
+              value: file.source.text,
+              start: file.source.start,
+              end: file.source.end,
+            },
+          },
+        }
+      : {}),
+  };
+}
+
+function promptParts(
+  prompt: OpenCodePrompt,
+  directory: string,
+): Array<OpenCodeTextPartInput | OpenCodeFilePartInput | OpenCodeAgentPartInput> {
+  return [
+    ...(prompt.text.length > 0 ? [{ type: "text" as const, text: prompt.text }] : []),
+    ...(prompt.files ?? []).map((file) => promptFilePart(file, directory)),
+    ...(prompt.agents ?? []).map(
+      (agent): OpenCodeAgentPartInput => ({
+        type: "agent",
+        name: agent.name,
+        ...(agent.source !== undefined
+          ? {
+              source: {
+                value: agent.source.text,
+                start: agent.source.start,
+                end: agent.source.end,
+              },
+            }
+          : {}),
+      }),
+    ),
+  ];
+}
+
+function createOpenCodeClient(
+  server: OpenCodeServerDescriptor,
+  options?: OpenCodeClientOptions,
+): OpenCodeClient {
+  const headers: Record<string, string> = { ...options?.headers };
+  if (options?.password !== undefined && options.password.length > 0) {
+    headers.Authorization = openCodeAuthorizationHeader(options.password);
+  }
+
+  // Boundary check requires the name `sdk`. Call only the current generated namespace.
+  const sdk = createOpencodeClient({
+    baseUrl: server.origin,
+    headers,
+    ...(options?.fetch !== undefined ? { fetch: options.fetch } : {}),
+  });
+  const eventControllers = new Set<AbortController>();
+  const sessionLocations = new Map<string, OpenCodeLocationRef>();
+  const sessionLocationLoads = new Map<string, Promise<OpenCodeLocationRef>>();
+
+  function trackEventController(signal?: AbortSignal): {
+    readonly controller: AbortController;
+    readonly release: () => void;
+  } {
+    const controller = new AbortController();
+    const abort = (): void => {
+      controller.abort(signal?.reason);
+    };
+    if (signal?.aborted === true) {
+      abort();
+    } else {
+      signal?.addEventListener("abort", abort, { once: true });
     }
+    eventControllers.add(controller);
+    return {
+      controller,
+      release() {
+        signal?.removeEventListener("abort", abort);
+        eventControllers.delete(controller);
+        controller.abort();
+      },
+    };
   }
-  if (typeof error === "string" && error.trim().length > 0) {
-    return error;
+
+  function sessionID(ref: OpenCodeSessionRef): string {
+    if (ref.server !== server.key) {
+      throw new Error(
+        `Session ${ref.sessionID} belongs to ${ref.server}, not the connected server ${server.key}.`,
+      );
+    }
+    return ref.sessionID;
   }
-  return fallback;
+
+  function rememberSessionLocation(info: OpenCodeSessionInfo): OpenCodeSessionInfo {
+    sessionLocations.set(info.id, info.location);
+    return info;
+  }
+
+  function resolveSessionLocation(ref: OpenCodeSessionRef): Promise<OpenCodeLocationRef> {
+    const id = sessionID(ref);
+    const known = sessionLocations.get(id);
+    if (known !== undefined) return Promise.resolve(known);
+    const active = sessionLocationLoads.get(id);
+    if (active !== undefined) return active;
+
+    const pending = (async (): Promise<OpenCodeLocationRef> => {
+      try {
+        const result = await sdk.v2.session.get({ sessionID: id });
+        return rememberSessionLocation(requireData(result, "session.get").data).location;
+      } finally {
+        sessionLocationLoads.delete(id);
+      }
+    })();
+    sessionLocationLoads.set(id, pending);
+    return pending;
+  }
+
+  async function listAllProjectedMessages(
+    ref: OpenCodeSessionRef,
+  ): Promise<readonly OpenCodeSessionMessage[]> {
+    const messages: OpenCodeSessionMessage[] = [];
+    const seenCursors = new Set<string>();
+    let cursor: string | undefined;
+    let hasNextPage = true;
+    do {
+      const result = await sdk.v2.session.messages({
+        sessionID: sessionID(ref),
+        limit: 200,
+        ...(cursor === undefined ? { order: "asc" as const } : { cursor }),
+      });
+      const page = requireData(result, "session.transcript.projected");
+      messages.push(...page.data);
+      const next = page.cursor.next;
+      if (next === undefined || seenCursors.has(next)) {
+        hasNextPage = false;
+        continue;
+      }
+      seenCursors.add(next);
+      cursor = next;
+    } while (hasNextPage);
+    return messages;
+  }
+
+  async function listAllPersistedMessages(
+    info: OpenCodeSessionInfo,
+  ): Promise<readonly OpenCodePersistedMessage[]> {
+    const pages: OpenCodePersistedMessage[][] = [];
+    const seenCursors = new Set<string>();
+    let before: string | undefined;
+    let hasNextPage = true;
+    do {
+      const result = await sdk.session.messages({
+        sessionID: info.id,
+        limit: 200,
+        ...(before === undefined ? {} : { before }),
+      });
+      pages.unshift(requireData(result, "session.transcript.persisted"));
+      const next = result.response.headers.get("X-Next-Cursor") ?? undefined;
+      if (next === undefined || seenCursors.has(next)) {
+        hasNextPage = false;
+        continue;
+      }
+      seenCursors.add(next);
+      before = next;
+    } while (hasNextPage);
+    return pages.flat();
+  }
+
+  const requests: OpenCodeRequestApi = {
+    async permissions(location) {
+      const query = locationQuery(location);
+      const result = await sdk.v2.permission.request.list(
+        query === undefined ? {} : { location: query },
+      );
+      return requireData(result, "permission.request.list");
+    },
+
+    async questions(location) {
+      const query = locationQuery(location);
+      const result = await sdk.v2.question.request.list(
+        query === undefined ? {} : { location: query },
+      );
+      return requireData(result, "question.request.list");
+    },
+  };
+
+  // OpenCode 1.18's V2 runner does not load OPENCODE_CONFIG, while the stable
+  // runner does. Keep execution, status, and abort on the generated stable
+  // session methods so Honk's agents and provider models resolve; V2 owns projection.
+  const sessions: OpenCodeSessionApi = {
+    async list(input) {
+      const result = await sdk.v2.session.list({
+        ...(input?.workspaceID !== undefined ? { workspace: input.workspaceID } : {}),
+        ...(input?.limit !== undefined ? { limit: input.limit } : {}),
+        ...(input?.order !== undefined ? { order: input.order } : {}),
+        ...(input?.search !== undefined ? { search: input.search } : {}),
+        ...(input?.directory !== undefined ? { directory: input.directory } : {}),
+        ...(input?.projectID !== undefined ? { project: input.projectID } : {}),
+        ...(input?.subpath !== undefined ? { subpath: input.subpath } : {}),
+        ...(input?.cursor !== undefined ? { cursor: input.cursor } : {}),
+      });
+      const page = requireData(result, "session.list");
+      for (const info of page.data) rememberSessionLocation(info);
+      return page;
+    },
+
+    async create(input) {
+      if (input?.parentID !== undefined) {
+        const created = requireData(
+          await sdk.session.create({
+            parentID: input.parentID,
+            ...(input.title !== undefined ? { title: input.title } : {}),
+            ...(input.location !== undefined ? sessionLocationQuery(input.location) : {}),
+          }),
+          "session.create",
+        );
+        if (input.agent !== undefined) {
+          requireSuccess(
+            await sdk.v2.session.switchAgent({ sessionID: created.id, agent: input.agent }),
+            "session.switchAgent",
+          );
+        }
+        if (input.model !== undefined) {
+          requireSuccess(
+            await sdk.v2.session.switchModel({ sessionID: created.id, model: input.model }),
+            "session.switchModel",
+          );
+        }
+        const projected = await sdk.v2.session.get({ sessionID: created.id });
+        return rememberSessionLocation(requireData(projected, "session.get").data);
+      }
+      const result = await sdk.v2.session.create({
+        ...(input?.id !== undefined ? { id: input.id } : {}),
+        ...(input?.title !== undefined ? { title: input.title } : {}),
+        ...(input?.agent !== undefined ? { agent: input.agent } : {}),
+        ...(input?.model !== undefined ? { model: input.model } : {}),
+        ...(input?.location !== undefined ? { location: { ...input.location } } : {}),
+      });
+      return rememberSessionLocation(requireData(result, "session.create").data);
+    },
+
+    async active() {
+      const result = await sdk.session.status();
+      const statuses = requireData(result, "session.active");
+      const active: OpenCodeSessionActiveResponse["data"] = {};
+      for (const [id, status] of Object.entries(statuses)) {
+        if (status.type !== "idle") active[id] = { type: "running" };
+      }
+      return active;
+    },
+
+    async get(ref) {
+      const result = await sdk.v2.session.get({ sessionID: sessionID(ref) });
+      return rememberSessionLocation(requireData(result, "session.get").data);
+    },
+
+    async switchAgent(ref, agent) {
+      const result = await sdk.v2.session.switchAgent({ sessionID: sessionID(ref), agent });
+      requireSuccess(result, "session.switchAgent");
+    },
+
+    async switchModel(ref, model) {
+      const result = await sdk.v2.session.switchModel({ sessionID: sessionID(ref), model });
+      requireSuccess(result, "session.switchModel");
+    },
+
+    async prompt(ref, input) {
+      const info = await sessions.get(ref);
+      const result = await sdk.session.promptAsync({
+        sessionID: sessionID(ref),
+        ...sessionLocationQuery(info.location),
+        ...(input.id !== undefined ? { messageID: openCodeMessageID(input.id) } : {}),
+        ...(info.agent !== undefined ? { agent: info.agent } : {}),
+        ...(info.model !== undefined
+          ? { model: { providerID: info.model.providerID, modelID: info.model.id } }
+          : {}),
+        ...(info.model?.variant !== undefined ? { variant: info.model.variant } : {}),
+        parts: promptParts(input.prompt, info.location.directory),
+      });
+      requireSuccess(result, "session.prompt");
+    },
+
+    async compact(ref) {
+      const result = await sdk.v2.session.compact({ sessionID: sessionID(ref) });
+      requireSuccess(result, "session.compact");
+    },
+
+    async wait(ref) {
+      const result = await sdk.v2.session.wait({ sessionID: sessionID(ref) });
+      requireSuccess(result, "session.wait");
+    },
+
+    async context(ref) {
+      const result = await sdk.v2.session.context({ sessionID: sessionID(ref) });
+      return requireData(result, "session.context").data;
+    },
+
+    async history(ref, input) {
+      const result = await sdk.v2.session.history({
+        sessionID: sessionID(ref),
+        ...(input?.limit !== undefined ? { limit: input.limit } : {}),
+        ...(input?.after !== undefined ? { after: input.after } : {}),
+      });
+      return requireData(result, "session.history");
+    },
+
+    events(ref, input, signal) {
+      const id = sessionID(ref);
+      return (async function* sessionEventIterator(): AsyncGenerator<OpenCodeDurableSessionEvent> {
+        const tracked = trackEventController(signal);
+        try {
+          if (options?.eventSource !== undefined) {
+            const query = new URLSearchParams();
+            if (input?.after !== undefined) query.set("after", input.after);
+            const stream = await options.eventSource({
+              url: eventUrl(server.origin, `/api/session/${encodeURIComponent(id)}/event`, query),
+              headers,
+              signal: tracked.controller.signal,
+            });
+            for await (const event of stream) {
+              yield requireStreamEvent<OpenCodeDurableSessionEvent>(event, "session.events");
+            }
+            return;
+          }
+          const result = await sdk.v2.session.events(
+            {
+              sessionID: id,
+              ...(input?.after !== undefined ? { after: input.after } : {}),
+            },
+            { signal: tracked.controller.signal },
+          );
+          for await (const event of result.stream) {
+            yield requireStreamEvent<OpenCodeDurableSessionEvent>(event, "session.events");
+          }
+        } finally {
+          tracked.release();
+        }
+      })();
+    },
+
+    async interrupt(ref) {
+      const location = await resolveSessionLocation(ref);
+      const result = await sdk.session.abort({
+        sessionID: sessionID(ref),
+        ...sessionLocationQuery(location),
+      });
+      requireSuccess(result, "session.interrupt");
+    },
+
+    async message(ref, messageID) {
+      const result = await sdk.v2.session.message({
+        sessionID: sessionID(ref),
+        messageID,
+      });
+      return requireData(result, "session.message").data;
+    },
+
+    async messages(ref, input) {
+      const result = await sdk.v2.session.messages({
+        sessionID: sessionID(ref),
+        ...(input?.limit !== undefined ? { limit: input.limit } : {}),
+        ...(input?.cursor !== undefined
+          ? { cursor: input.cursor }
+          : input?.order !== undefined
+            ? { order: input.order }
+            : {}),
+      });
+      return requireData(result, "session.messages");
+    },
+
+    async transcript(ref) {
+      const info = await sessions.get(ref);
+      const [persisted, projected] = await Promise.allSettled([
+        listAllPersistedMessages(info),
+        listAllProjectedMessages(ref),
+      ]);
+      if (persisted.status === "rejected" && projected.status === "rejected") {
+        throw persisted.reason;
+      }
+      return projectOpenCodeTranscript(
+        info,
+        persisted.status === "fulfilled" ? persisted.value : [],
+        projected.status === "fulfilled" ? projected.value : [],
+      );
+    },
+
+    async revert(ref, input) {
+      const location = await resolveSessionLocation(ref);
+      const result = await sdk.session.revert({
+        sessionID: sessionID(ref),
+        ...sessionLocationQuery(location),
+        messageID: input.messageID,
+      });
+      requireSuccess(result, "session.revert");
+    },
+
+    async unrevert(ref) {
+      const location = await resolveSessionLocation(ref);
+      const result = await sdk.session.unrevert({
+        sessionID: sessionID(ref),
+        ...sessionLocationQuery(location),
+      });
+      requireSuccess(result, "session.unrevert");
+    },
+
+    async permissions(ref) {
+      const id = sessionID(ref);
+      const result = await requests.permissions(await resolveSessionLocation(ref));
+      return result.data.filter((request) => request.sessionID === id);
+    },
+
+    async replyPermission(ref, requestID, reply, message) {
+      const result = await sdk.v2.session.permission.reply({
+        sessionID: sessionID(ref),
+        requestID,
+        reply,
+        ...(message !== undefined ? { message } : {}),
+      });
+      requireSuccess(result, "session.permission.reply");
+    },
+
+    async questions(ref) {
+      const id = sessionID(ref);
+      const result = await requests.questions(await resolveSessionLocation(ref));
+      return result.data.filter((request) => request.sessionID === id);
+    },
+
+    async replyQuestion(ref, requestID, reply) {
+      const result = await sdk.v2.session.question.reply({
+        sessionID: sessionID(ref),
+        requestID,
+        questionV2Reply: reply,
+      });
+      requireSuccess(result, "session.question.reply");
+    },
+
+    async rejectQuestion(ref, requestID) {
+      const result = await sdk.v2.session.question.reject({
+        sessionID: sessionID(ref),
+        requestID,
+      });
+      requireSuccess(result, "session.question.reject");
+    },
+  };
+
+  const agents: OpenCodeAgentApi = {
+    async list(location) {
+      const query = locationQuery(location);
+      const result = await sdk.v2.agent.list(query === undefined ? {} : { location: query });
+      return requireData(result, "agent.list");
+    },
+  };
+
+  const models: OpenCodeModelApi = {
+    async list(location) {
+      const query = locationQuery(location);
+      const result = await sdk.v2.model.list(query === undefined ? {} : { location: query });
+      return requireData(result, "model.list");
+    },
+  };
+
+  const projectCopies: OpenCodeProjectCopyApi = {
+    async create(input) {
+      const query = locationQuery(input.location);
+      const result = await sdk.v2.projectCopy.create({
+        projectID: input.projectID,
+        ...(query === undefined ? {} : { location: query }),
+        strategy: input.strategy,
+        directory: input.directory,
+        ...(input.name === undefined ? {} : { name: input.name }),
+      });
+      return requireData(result, "projectCopy.create");
+    },
+    async remove(input) {
+      const query = locationQuery(input.location);
+      const result = await sdk.v2.projectCopy.remove({
+        projectID: input.projectID,
+        ...(query === undefined ? {} : { location: query }),
+        directory: input.directory,
+        force: input.force,
+      });
+      requireSuccess(result, "projectCopy.remove");
+    },
+  };
+
+  const providerCore: ManagedAnthropicDependencies = {
+    async list() {
+      const result = await sdk.provider.list();
+      const inventory = requireData(result, "provider.list");
+      const connected = new Set(inventory.connected);
+      return Object.freeze({
+        providers: Object.freeze(
+          inventory.all.map((provider) =>
+            Object.freeze({
+              id: provider.id,
+              name: provider.name,
+              connected: connected.has(provider.id),
+            }),
+          ),
+        ),
+      });
+    },
+    async authMethods(providerID) {
+      const result = await sdk.provider.auth();
+      const methods = requireData(result, "provider.auth")[providerID] ?? [];
+      return Object.freeze(
+        methods.map((method, index) =>
+          Object.freeze({
+            ...method,
+            index,
+            prompts: Object.freeze([...(method.prompts ?? [])]),
+          }),
+        ),
+      );
+    },
+    async authorizeOauth(providerID, methodIndex, inputs) {
+      const result = await sdk.provider.oauth.authorize({
+        providerID,
+        method: methodIndex,
+        inputs: { ...inputs },
+      });
+      return requireData(result, "provider.oauth.authorize");
+    },
+    async completeOauth(providerID, methodIndex, code) {
+      const result = await sdk.provider.oauth.callback({
+        providerID,
+        method: methodIndex,
+        ...(code === undefined ? {} : { code }),
+      });
+      requireSuccess(result, "provider.oauth.callback");
+    },
+  };
+  const ensureManagedAnthropicImport = createManagedAnthropicImport(providerCore);
+  const providers: OpenCodeProviderApi = {
+    ...providerCore,
+    async setApiKey(providerID, value) {
+      const result = await sdk.auth.set({ providerID, auth: { type: "api", key: value } });
+      requireSuccess(result, "auth.set");
+    },
+    async removeAuth(providerID) {
+      const result = await sdk.auth.remove({ providerID });
+      requireSuccess(result, "auth.remove");
+    },
+    ensureManagedAnthropicImport,
+  };
+
+  const vcs: OpenCodeVcsApi = {
+    async info(location) {
+      const result = await sdk.vcs.get(locationQuery(location));
+      return requireData(result, "vcs.get");
+    },
+    async status(location) {
+      const result = await sdk.vcs.status(locationQuery(location));
+      return requireData(result, "vcs.status");
+    },
+    async diff(input) {
+      const location = locationQuery(input);
+      const result = await sdk.vcs.diff({
+        ...location,
+        mode: input.mode,
+        ...(input.context === undefined ? {} : { context: input.context }),
+      });
+      return requireData(result, "vcs.diff");
+    },
+  };
+
+  return {
+    server,
+    async health() {
+      const result = await sdk.v2.health.get();
+      requireData(result, "health.get");
+    },
+    async resolveLocation(location) {
+      const query = locationQuery(location);
+      const result = await sdk.v2.location.get(query === undefined ? {} : { location: query });
+      return requireData(result, "location.get");
+    },
+    sessions,
+    requests,
+    agents,
+    models,
+    projectCopies,
+    providers,
+    vcs,
+    events(signal) {
+      return (async function* eventIterator(): AsyncGenerator<OpenCodeEvent> {
+        const tracked = trackEventController(signal);
+        try {
+          if (options?.eventSource !== undefined) {
+            const stream = await options.eventSource({
+              url: eventUrl(server.origin, "/api/event"),
+              headers,
+              signal: tracked.controller.signal,
+            });
+            for await (const event of stream) {
+              yield requireStreamEvent<OpenCodeEvent>(event, "event.subscribe");
+            }
+            return;
+          }
+          const result = await sdk.v2.event.subscribe({ signal: tracked.controller.signal });
+          for await (const event of result.stream) {
+            yield requireStreamEvent<OpenCodeEvent>(event, "event.subscribe");
+          }
+        } finally {
+          tracked.release();
+        }
+      })();
+    },
+    close() {
+      for (const controller of eventControllers) {
+        controller.abort();
+      }
+      eventControllers.clear();
+      sessionLocations.clear();
+      sessionLocationLoads.clear();
+    },
+  };
 }
+
+export {
+  createOpenCodeClient,
+  OPEN_CODE_CAPABILITIES,
+  OPEN_CODE_SESSION_CAPABILITIES,
+  OpenCodeRequestError,
+};
+export type {
+  OpenCodeAgentApi,
+  OpenCodeClient,
+  OpenCodeClientOptions,
+  OpenCodeCreateProjectCopyInput,
+  OpenCodeCreateSessionInput,
+  OpenCodeHistoryInput,
+  OpenCodeListSessionsInput,
+  OpenCodeLocatedResult,
+  OpenCodeLocationQuery,
+  OpenCodeMessagesInput,
+  OpenCodeModelApi,
+  OpenCodeProjectCopyApi,
+  OpenCodePromptInput,
+  OpenCodeRequestApi,
+  OpenCodeRevertInput,
+  OpenCodeSessionEventsInput,
+  OpenCodeSessionApi,
+  OpenCodeRemoveProjectCopyInput,
+  OpenCodeVcsApi,
+};

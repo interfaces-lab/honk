@@ -4,6 +4,35 @@ What the current UI teaches, per surface — collected by the round-2 opus sweep
 the wireframe boards and, later, the `.design/*` references (ADR 0023 §4). These are lessons, not
 rules: the boards argue with them, and the winning board becomes project-local design guidance.
 
+## Cursor bundle evidence (installed app, 2026-07-15)
+
+The inspected sources are
+`/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js` and
+`/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.css`.
+Offsets below are byte positions in this installed minified build, so they are evidence locators rather
+than stable API names.
+
+- **Human message:** renderer near JS byte `30,170,420`; `.composer-human-message` near CSS byte
+  `752,683`. The message uses the input surface, a one-pixel inset stroke, rounded corners, and
+  `8px 10px` internal spacing. Glass mode adds blur and elevation instead of another hard border.
+- **Previous-message edit:** destructive dialog near JS byte `30,180,365`, with
+  `Submit from a previous message?`, the rollback explanation, and Cancel/Revert choices. Cursor
+  also offers `Don’t revert`; Honk omits that choice because the current OpenCode edit boundary
+  cannot preserve later messages and file changes honestly.
+- **Thinking lifecycle:** text projection near JS bytes `4,056,232` and `4,085,804`, driven by the
+  controller near `29,883,888`. Reveal `Planning next moves` after `200ms`, then replace it with
+  `Taking longer than expected…` after `15s`; the text shimmer cycle is `2s`.
+- **Tool lifecycle:** mapper near JS byte `4,101,139`, renderer near `4,365,369`, and
+  `.ui-tool-call-line` near CSS byte `811,404`. Pending/running rows shimmer; completed terminal
+  results stop shimmering; failures keep the attempted verb and expose the error detail without a
+  separate status icon.
+- **Read/edit artifacts:** virtual diff projection near JS byte `4,108,855`. Streaming edits show a
+  compact partial preview; completed diffs collapse to one context line and expand to three. Cursor's
+  current Read row is text-only, but Honk intentionally keeps a Pierre source-slice preview because
+  that observed-code requirement is part of this product pass.
+- **Delegation:** task projection near JS byte `4,310,400`. The selected child transcript is local to
+  its parent conversation and opens in a viewport-shifted fixed tray; Side Chat is a canonical child
+  surface using the same transcript/composer runtime, so nested delegation stays reachable there too.
 
 ## composer
 
@@ -87,7 +116,7 @@ rules: the boards argue with them, and the winning board becomes project-local d
   Evidence: app.tsx RightAsideFrame/RightWorkbenchContent split with the 'INVARIANT — DO NOT ADD A VOLATILE HOOK HERE' comment; ShellLayoutService imperatively flips data-attrs; LeftAside comment 'No fullscreen subscription.'
 - **Post-cutover dead wiring is hiding in the shell and looks alive** — Several shell paths still reference the removed runtime host: the git-agent STOP calls readHonkRuntimeApi().abort() (always rejects 'Runtime host unavailable after core cutover'), agent-runtime-store.markLocalRuntimeThread mutates a store that no longer receives events, and the Dev panel inspects that same dead runtime/session-tree/timeline. These compile and read as working. The rewrite must not port them; stop/interrupt should use the same core interrupt the rest of the app uses.
   Evidence: lib/honk-runtime-api.ts rejectUnavailable() for abort et al; shell-host.tsx stopGitAgentActionMutation → readHonkRuntimeApi().abort(); GAPS.md lists runtimeMode/codexThreadId/replayEvents as legacy-dead.
-- **The command palette mixes shipping commands with dev scaffolding** — The palette is the universal entrypoint and mostly excellent (ranked fuzzy search over commands/projects/threads, submenu stack, keyboard affordances). But it interleaves dev-only entries — Component System, HonkKit, Copy server trace, Enable/Disable Multitask flag, Open Dev Panel — gated only by import.meta.env.DEV or a local flag. Separate a real command registry from a dev registry so the product palette stays trustworthy and remotable.
+- **The command palette mixes shipping commands with dev scaffolding** — The palette is the universal entrypoint and mostly excellent (ranked fuzzy search over commands/projects/threads, submenu stack, keyboard affordances). But it interleaves dev-only entries — Component System, Copy server trace, Enable/Disable Multitask flag, Open Dev Panel — gated only by import.meta.env.DEV or a local flag. Separate a real command registry from a dev registry so the product palette stays trustworthy and remotable.
   Evidence: command-palette.tsx pushes DEV-gated 'action:dev:*' items, local-feature-flags 'toggle-multitask-mode-feature', and legacy 'action:open-dev-panel' into the same actionItems array as ship commands.
 - **Desktop-only capabilities degrade by hiding/toasting, not by serving** — Add Project toasts 'only available in the desktop app'; git/files rely on the desktop aux server (GAPS.md: absent on web/serve); the browser panel is an Electron webview; open-in-editor and open-keybindings-file need a local editor. ADR 0022 says remote clients get every feature, so the rewrite must give these Core-served equivalents (folder selection, git, filesystem) rather than gate them behind isElectron/desktopBridge presence.
   Evidence: command-palette.tsx openAddProjectFlow guards on window.desktopBridge and toasts otherwise; desktop-api.ts EnvironmentApi git/projects; GAPS.md 'web/serve mode has no aux'.
@@ -120,7 +149,7 @@ rules: the boards argue with them, and the winning board becomes project-local d
 - **OS notifications have no permission entry point — a remote-parity hole** — The permission helpers (readBrowserNotificationPermissionState, requestBrowserNotificationPermission, buildNotificationSettingsSupportText with granted/denied/insecure/unsupported/default copy) are exported but no settings or onboarding UI calls them. Desktop only works because Electron auto-grants 'notifications' to the trusted renderer. Per ADR 0022 a phone/browser client can't enable notifications at all. The rewrite needs an explicit 'enable notifications' affordance (and likely Web Push/service-worker for real remote delivery).
   Evidence: grep for requestBrowserNotificationPermission/buildNotificationSettingsSupportText outside taskCompletion.tsx returns nothing; packages/desktop/src/window/desktop-window.ts:31 TRUSTED_RENDERER_PERMISSIONS includes 'notifications'.
 - **The status vocabulary and motion primitives are the parts to preserve** — The good bones here are a single typed StatusDotState set (critical/doneSeen/doneUnseen/draft/inactive/needsAttention/running/success) that drives the whole sidebar, a reduced-motion-aware dot-matrix loader, a finish pulse, and a visible-time-aware toast timer. Carry these into the new design system as shared primitives rather than re-inventing per-surface indicators; one StatusDotState could also feed a dock/badge count that today doesn't exist.
-  Evidence: honkkit/status-dot.tsx StatusDotState + stateStyles; honkkit/conversation-loader.tsx prefers-reduced-motion handling; status.tsx FINISH_ANIMATION_MS=720; app/toast.tsx ThreadToastVisibleAutoDismissLifecycle pause/resume.
+  Evidence: `packages/ui/src/status-dot.tsx` tone styles; `packages/ui/src/matrix.tsx` reduced-motion handling; status.tsx FINISH_ANIMATION_MS=720; app/toast.tsx ThreadToastVisibleAutoDismissLifecycle pause/resume.
 - **No aggregate 'agents working' surfacing beyond a native quit dialog** — Running-agent state (count + titles) is computed and published to Electron, but only to power a quit-confirmation dialog — there is no dock badge, window-title indicator, or in-app aggregate count of working/needs-attention agents. A rewrite could add a remote-capable aggregate indicator (unread + needs-attention counts) since the underlying data is already in the store.
   Evidence: desktop-active-work-bridge.ts publishes runningThreadCount/titles via bridge.setActiveWorkState; consumed only by desktop-quit-guard.ts; renderer.tsx:55 sets document.title to a static app name; no setBadgeCount anywhere.
 
@@ -195,7 +224,7 @@ rules: the boards argue with them, and the winning board becomes project-local d
 - **'Split' is a lie — it just opens another tab** — terminal.split is aliased to terminal.new; there is no pane tiling. A shortcut named 'split' that silently creates a sibling tab trains users to distrust the vocabulary. Either implement real split panes in the rewrite or drop the alias so the surface's affordances mean what they say.
   Evidence: packages/app/src/components/shell/shell/app.tsx:904 — `if (command === 'terminal.new' || command === 'terminal.split') { createTerminal(...) }`.
 - **macOS line-editing translation makes the embedded terminal feel native** — Intercepting Alt/Cmd+arrows and Cmd+Backspace and injecting the corresponding control sequences lets the terminal behave like a native Mac text field — a small, high-leverage detail that separates a polished embedded terminal from a raw xterm. Worth keeping and generalizing (cross-platform, more editing shortcuts) in the rewrite.
-  Evidence: keybindings.ts terminalNavigationShortcutData / terminalDeleteShortcutData map keys to TERMINAL_WORD_*/TERMINAL_LINE_*/TERMINAL_DELETE_TO_LINE_START; panel.tsx attachCustomKeyEventHandler forwards them via sendTerminalInput.
+  Evidence: keybindings.ts terminalNavigationShortcutData / terminalDeleteShortcutData map keys to TERMINAL_WORD__/TERMINAL_LINE__/TERMINAL_DELETE_TO_LINE_START; panel.tsx attachCustomKeyEventHandler forwards them via sendTerminalInput.
 - **Exited terminals have no recovery affordance** — When a shell exits, the panel ignores the 'exited' event and leaves dead output on screen; there is no restart button, and only closing the LAST terminal implicitly re-spawns (via a resetKey remount). Recovery via 'close then create new' is clumsy for what should be one click. The rewrite should render an explicit exited state with a Restart control (the Core restart verb already exists).
   Evidence: panel.tsx onEvent handles output/cleared/started/restarted but not 'exited'; shell-host.tsx closeTerminalSession only bumps resetKey on the isFinalTerminal path; environments/core/terminal.ts exposes restart but no UI calls it directly.
 - **Tab labels guess the shell from process.env — accurate only on desktop** — The terminal tab/caption label comes from inferLoginShellCaption(), which reads process.env.SHELL (Node/Electron only) and otherwise falls back to a 'zsh'/'powershell' guess from the user agent. Under ADR 0022 remote parity, a phone/browser client will mislabel every terminal. The Core should report the real shell so all clients label sessions correctly.

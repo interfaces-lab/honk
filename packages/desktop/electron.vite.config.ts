@@ -1,6 +1,7 @@
+import babel from "@rolldown/plugin-babel";
 import stylex from "@stylexjs/unplugin";
 import tailwindcss from "@tailwindcss/vite";
-import react from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,6 +28,12 @@ const buildSourcemap =
       ? "hidden"
       : false;
 
+const reactCompilerBabelPlugin = await babel({
+  exclude: ["**/node_modules/**"],
+  parserOpts: { plugins: ["typescript", "jsx"] },
+  presets: [reactCompilerPreset()],
+});
+
 export default defineConfig({
   main: {
     build: {
@@ -34,8 +41,8 @@ export default defineConfig({
       sourcemap: buildSourcemap,
       emptyOutDir: true,
       externalizeDeps: {
-        // Workspace packages ship raw TypeScript, so bundle them into Electron main.
-        exclude: ["@honk/shared"],
+        // Workspace packages ship raw TS. Bundle them into Electron main.
+        exclude: ["@honk/cli", "@honk/opencode", "@honk/shared"],
         include: ["sqlite3"],
       },
       lib: {
@@ -56,10 +63,7 @@ export default defineConfig({
       sourcemap: buildSourcemap,
       emptyOutDir: true,
       lib: {
-        entry: {
-          index: "src/preload/index.ts",
-          "browser-webview": "src/preload/browser-webview.ts",
-        },
+        entry: { index: "src/preload/index.ts" },
         formats: ["cjs"],
       },
       rolldownOptions: {
@@ -85,6 +89,7 @@ export default defineConfig({
         },
       }),
       react(),
+      reactCompilerBabelPlugin,
       tailwindcss(),
     ],
     optimizeDeps: {
@@ -95,8 +100,7 @@ export default defineConfig({
       "import.meta.env.APP_VERSION": JSON.stringify(pkg.version),
     },
     resolve: {
-      // @honk/ui is consumed as raw workspace source and has its own React dev dependency.
-      // Force every renderer module through the app's React instance so hooks share one dispatcher.
+      // Force one React instance so hooks share a dispatcher across @honk/ui.
       dedupe: ["react", "react-dom"],
       extensions: [".tsx", ".ts", ".mts", ".jsx", ".js", ".mjs", ".json"],
     },
@@ -116,9 +120,7 @@ export default defineConfig({
       outDir: resolve(desktopOutDir, "renderer"),
       emptyOutDir: true,
       sourcemap: buildSourcemap,
-      // electron-vite resolves its default HTML entry from the desktop package root, while this
-      // renderer lives in packages/app. Pin the actual entry so dev and production use the same
-      // cross-package renderer root instead of probing packages/desktop/src/renderer.
+      // Pin packages/app as the HTML entry. Default would probe desktop/src/renderer.
       rolldownOptions: {
         input: resolve(appDir, "index.html"),
       },

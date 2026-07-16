@@ -1,58 +1,41 @@
-// The Terminal panel — xterm.js over the desktop PTY bridge (window.desktopBridge.pty; the
-// old terminal spoke the deleted Core's PTY-over-HTTP, this one rides new desktop IPC). One
-// shell per panel lifetime, spawned in the thread's cwd; Restart kills and respawns. Off
-// desktop (web build / old preload) the panel states the truth instead of a dead prompt.
-//
-// Lifecycle is the callback-ref idiom (ADR 0025, tabs.tsx precedent): React hands us the host
-// element on mount and null on unmount; xterm + PTY + ResizeObserver live and die there. The
-// xterm theme reads honk's tokens at attach time by resolving the token var() references
-// against the live computed style — xterm needs concrete colors in JS, and this keeps the
-// values identical to the CSS without duplicating a palette.
+// xterm.js over desktopBridge.pty. Callback-ref lifecycle: host mount/unmount owns the session.
+// Theme resolves StyleX token var() refs from computed style because xterm needs concrete JS colors.
 
-import * as stylex from "@stylexjs/stylex";
+import { create, props } from "@stylexjs/stylex";
 import { FitAddon } from "@xterm/addon-fit";
-import { Terminal } from "@xterm/xterm";
+import { Terminal, type ITheme } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { Button, Text } from "@honk/ui";
 import { colorVars, controlVars, fontVars, spaceVars } from "@honk/ui/tokens.stylex";
-import * as React from "react";
+import { type ReactElement, useCallback, useRef, useState } from "react";
 
+import { getSnapshot, subscribe } from "./appearance-store";
 import { getPtyBridge, type DesktopPtyBridge } from "./desktop-bridge";
+import { errorMessage } from "./error-message";
+import terminalStyles from "./workbench-terminal.module.css";
 
-const TERMINAL_FONT_SIZE = 12;
 const TERMINAL_SCROLLBACK = 4000;
 
-const styles = stylex.create({
+const styles = create({
   root: {
+    position: "relative",
     flexGrow: 1,
     minHeight: 0,
     display: "flex",
     flexDirection: "column",
+    boxSizing: "border-box",
+    padding: spaceVars["--honk-space-gutter"],
+    color: colorVars["--honk-color-text-primary"],
+    backgroundColor: colorVars["--honk-color-bg-deep"],
+    fontFamily: fontVars["--honk-font-family-mono"],
   },
-  toolbar: {
+  recovery: {
     flexShrink: 0,
     display: "flex",
     alignItems: "center",
+    justifyContent: "flex-end",
     gap: controlVars["--honk-control-gap"],
-    paddingInline: spaceVars["--honk-space-gutter"],
-    paddingBlock: controlVars["--honk-control-gap"],
-  },
-  cwd: {
-    minWidth: 0,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    color: colorVars["--honk-color-text-faint"],
-    fontFamily: fontVars["--honk-font-family-mono"],
-    fontSize: fontVars["--honk-font-size-caption"],
-  },
-  spacer: { flexGrow: 1 },
-  host: {
-    flexGrow: 1,
-    minHeight: 0,
-    paddingInline: controlVars["--honk-control-gap"],
-    paddingBlockEnd: controlVars["--honk-control-gap"],
-    boxSizing: "border-box",
+    paddingBlockEnd: spaceVars["--honk-space-gutter"],
   },
   center: {
     flexGrow: 1,
@@ -66,49 +49,109 @@ const styles = stylex.create({
   },
 });
 
-// Resolve a StyleX token reference ("var(--x)") to its concrete computed value — xterm's theme
-// is plain JS colors, so the tokens must be read off the live document once at attach.
-function resolveToken(reference: string, fallback: string): string {
-  const name = /var\((--[^),\s]+)/.exec(reference)?.[1];
-  if (name === undefined) {
-    return fallback;
-  }
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return value.length > 0 ? value : fallback;
+function resolveComputedColor(probe: HTMLElement, reference: string): string {
+  probe.style.color = reference;
+  return getComputedStyle(probe).color;
+}
+
+function resolveTerminalTheme(host: HTMLElement): ITheme {
+  const probe = document.createElement("span");
+  host.append(probe);
+  const theme = {
+    background: resolveComputedColor(probe, String(colorVars["--honk-color-bg-deep"])),
+    foreground: resolveComputedColor(probe, String(colorVars["--honk-color-text-primary"])),
+    cursor: resolveComputedColor(probe, String(colorVars["--honk-color-accent"])),
+    cursorAccent: resolveComputedColor(probe, String(colorVars["--honk-color-bg-deep"])),
+    selectionBackground: resolveComputedColor(
+      probe,
+      String(colorVars["--honk-color-terminal-selection"]),
+    ),
+    selectionInactiveBackground: resolveComputedColor(
+      probe,
+      String(colorVars["--honk-color-control-selected"]),
+    ),
+    scrollbarSliderBackground: resolveComputedColor(
+      probe,
+      String(colorVars["--honk-color-border-base"]),
+    ),
+    scrollbarSliderHoverBackground: resolveComputedColor(
+      probe,
+      String(colorVars["--honk-color-border-strong"]),
+    ),
+    scrollbarSliderActiveBackground: resolveComputedColor(
+      probe,
+      String(colorVars["--honk-color-text-faint"]),
+    ),
+    black: resolveComputedColor(probe, String(colorVars["--honk-color-terminal-black"])),
+    red: resolveComputedColor(probe, String(colorVars["--honk-color-terminal-red"])),
+    green: resolveComputedColor(probe, String(colorVars["--honk-color-terminal-green"])),
+    yellow: resolveComputedColor(probe, String(colorVars["--honk-color-terminal-yellow"])),
+    blue: resolveComputedColor(probe, String(colorVars["--honk-color-terminal-blue"])),
+    magenta: resolveComputedColor(probe, String(colorVars["--honk-color-terminal-magenta"])),
+    cyan: resolveComputedColor(probe, String(colorVars["--honk-color-terminal-cyan"])),
+    white: resolveComputedColor(probe, String(colorVars["--honk-color-terminal-white"])),
+    brightBlack: resolveComputedColor(
+      probe,
+      String(colorVars["--honk-color-terminal-bright-black"]),
+    ),
+    brightRed: resolveComputedColor(probe, String(colorVars["--honk-color-terminal-bright-red"])),
+    brightGreen: resolveComputedColor(
+      probe,
+      String(colorVars["--honk-color-terminal-bright-green"]),
+    ),
+    brightYellow: resolveComputedColor(
+      probe,
+      String(colorVars["--honk-color-terminal-bright-yellow"]),
+    ),
+    brightBlue: resolveComputedColor(probe, String(colorVars["--honk-color-terminal-bright-blue"])),
+    brightMagenta: resolveComputedColor(
+      probe,
+      String(colorVars["--honk-color-terminal-bright-magenta"]),
+    ),
+    brightCyan: resolveComputedColor(probe, String(colorVars["--honk-color-terminal-bright-cyan"])),
+    brightWhite: resolveComputedColor(
+      probe,
+      String(colorVars["--honk-color-terminal-bright-white"]),
+    ),
+  };
+  probe.remove();
+  return theme;
 }
 
 type TerminalSession = {
   readonly terminal: Terminal;
   readonly fit: FitAddon;
   readonly observer: ResizeObserver;
-  ptyId: string | null;
+  readonly ptyId: string;
   disposed: boolean;
   readonly cleanups: (() => void)[];
 };
+
+type TerminalRecovery =
+  | { readonly status: "failed" }
+  | { readonly status: "exited"; readonly code: number };
 
 function openSession(
   host: HTMLElement,
   bridge: DesktopPtyBridge,
   cwd: string,
+  fontSize: number,
   onExit: (code: number) => void,
+  onFailure: () => void,
 ): TerminalSession {
   const terminal = new Terminal({
-    fontSize: TERMINAL_FONT_SIZE,
-    fontFamily: resolveToken(String(fontVars["--honk-font-family-mono"]), "monospace"),
+    fontSize,
+    fontFamily: getComputedStyle(host).fontFamily,
     scrollback: TERMINAL_SCROLLBACK,
     cursorBlink: true,
-    theme: {
-      background: resolveToken(String(colorVars["--honk-color-bg-base"]), "#ffffff"),
-      foreground: resolveToken(String(colorVars["--honk-color-text-primary"]), "#000000"),
-      cursor: resolveToken(String(colorVars["--honk-color-text-primary"]), "#000000"),
-      selectionBackground: resolveToken(String(colorVars["--honk-color-layer-02"]), "#DCE2EA"),
-    },
+    theme: resolveTerminalTheme(host),
   });
   const fit = new FitAddon();
   terminal.loadAddon(fit);
   terminal.open(host);
   fit.fit();
 
+  const ptyId = `pty_${crypto.randomUUID()}`;
   const session: TerminalSession = {
     terminal,
     fit,
@@ -117,40 +160,60 @@ function openSession(
         return;
       }
       fit.fit();
-      if (session.ptyId !== null) {
-        bridge.resize(session.ptyId, terminal.cols, terminal.rows);
-      }
     }),
-    ptyId: null,
+    ptyId,
     disposed: false,
     cleanups: [],
   };
+  const resize = terminal.onResize(({ cols, rows }) => {
+    if (!session.disposed) bridge.resize(ptyId, cols, rows);
+  });
+  const input = terminal.onData((data) => {
+    if (!session.disposed) bridge.write(ptyId, data);
+  });
+  session.cleanups.push(
+    bridge.onData(ptyId, (data) => {
+      if (!session.disposed) terminal.write(data);
+    }),
+    bridge.onExit(ptyId, (code) => {
+      if (!session.disposed) onExit(code);
+    }),
+    () => resize.dispose(),
+    () => input.dispose(),
+    subscribe(() => {
+      if (!session.disposed) {
+        syncTerminalAppearance(session, host, getSnapshot().codeFontSize);
+      }
+    }),
+  );
   session.observer.observe(host);
 
   void bridge
-    .open({ cwd, cols: terminal.cols, rows: terminal.rows })
-    .then(({ id }) => {
+    .open({ id: ptyId, cwd, cols: terminal.cols, rows: terminal.rows })
+    .then(() => {
       if (session.disposed) {
-        bridge.close(id);
-        return;
+        bridge.close(ptyId);
       }
-      session.ptyId = id;
-      session.cleanups.push(bridge.onData(id, (data) => terminal.write(data)));
-      session.cleanups.push(bridge.onExit(id, onExit));
-      const input = terminal.onData((data) => {
-        bridge.write(id, data);
-      });
-      session.cleanups.push(() => input.dispose());
-      // The observer may have fitted before the PTY existed — sync the real size once.
-      bridge.resize(id, terminal.cols, terminal.rows);
     })
     .catch((error: unknown) => {
-      terminal.writeln(
-        `\x1b[31mFailed to start shell: ${error instanceof Error ? error.message : String(error)}\x1b[0m`,
-      );
+      if (!session.disposed) {
+        terminal.writeln(`\x1b[31mFailed to start shell: ${errorMessage(error)}\x1b[0m`);
+        onFailure();
+      }
     });
 
   return session;
+}
+
+function syncTerminalAppearance(
+  session: TerminalSession,
+  host: HTMLElement,
+  fontSize: number,
+): void {
+  session.terminal.options.fontSize = fontSize;
+  session.terminal.options.fontFamily = getComputedStyle(host).fontFamily;
+  session.terminal.options.theme = resolveTerminalTheme(host);
+  session.fit.fit();
 }
 
 function disposeSession(session: TerminalSession, bridge: DesktopPtyBridge | null): void {
@@ -159,7 +222,7 @@ function disposeSession(session: TerminalSession, bridge: DesktopPtyBridge | nul
   for (const cleanup of session.cleanups) {
     cleanup();
   }
-  if (session.ptyId !== null && bridge !== null) {
+  if (bridge !== null) {
     bridge.close(session.ptyId);
   }
   session.terminal.dispose();
@@ -171,19 +234,14 @@ function WorkbenchTerminal({
 }: {
   readonly cwd: string;
   readonly isVisible: boolean;
-}): React.ReactElement {
+}): ReactElement {
   const bridge = getPtyBridge();
-  const sessionRef = React.useRef<TerminalSession | null>(null);
-  const hostRef = React.useRef<HTMLElement | null>(null);
-  const [exitCode, setExitCode] = React.useState<number | null>(null);
-  // A hidden panel has zero size; re-fit when it becomes visible again.
-  const lastVisibleRef = React.useRef(isVisible);
-  if (isVisible && !lastVisibleRef.current) {
-    requestAnimationFrame(() => sessionRef.current?.fit.fit());
-  }
-  lastVisibleRef.current = isVisible;
+  const sessionRef = useRef<TerminalSession | null>(null);
+  const hostRef = useRef<HTMLElement | null>(null);
+  const [recovery, setRecovery] = useState<TerminalRecovery | null>(null);
 
-  const attachHost = React.useCallback(
+  // Ref identity owns the PTY lifetime, so this callback must survive visibility rerenders.
+  const attachHost = useCallback(
     (element: HTMLDivElement | null): void => {
       if (element === null) {
         if (sessionRef.current !== null) {
@@ -202,7 +260,14 @@ function WorkbenchTerminal({
         if (hostRef.current !== element || ptyBridge === null || sessionRef.current !== null) {
           return;
         }
-        sessionRef.current = openSession(element, ptyBridge, cwd, setExitCode);
+        sessionRef.current = openSession(
+          element,
+          ptyBridge,
+          cwd,
+          getSnapshot().codeFontSize,
+          (code) => setRecovery({ status: "exited", code }),
+          () => setRecovery({ status: "failed" }),
+        );
       });
     },
     [cwd],
@@ -217,13 +282,20 @@ function WorkbenchTerminal({
     if (sessionRef.current !== null) {
       disposeSession(sessionRef.current, ptyBridge);
     }
-    setExitCode(null);
-    sessionRef.current = openSession(host, ptyBridge, cwd, setExitCode);
+    setRecovery(null);
+    sessionRef.current = openSession(
+      host,
+      ptyBridge,
+      cwd,
+      getSnapshot().codeFontSize,
+      (code) => setRecovery({ status: "exited", code }),
+      () => setRecovery({ status: "failed" }),
+    );
   };
 
   if (bridge === null) {
     return (
-      <div {...stylex.props(styles.center)}>
+      <div {...props(styles.center)}>
         <Text as="p" size="sm" tone="muted" weight="medium">
           Terminal needs the desktop shell
         </Text>
@@ -235,20 +307,20 @@ function WorkbenchTerminal({
   }
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.toolbar)}>
-        <span {...stylex.props(styles.cwd)}>{cwd}</span>
-        <div {...stylex.props(styles.spacer)} />
-        {exitCode !== null && (
+    <div aria-hidden={!isVisible} {...props(styles.root)}>
+      {recovery !== null ? (
+        <div aria-live="polite" {...props(styles.recovery)}>
           <Text as="span" size="xs" tone="faint" tabularNums>
-            exited {exitCode}
+            {recovery.status === "failed"
+              ? "Terminal failed to start"
+              : `Process exited with code ${recovery.code}`}
           </Text>
-        )}
-        <Button size="sm" variant="ghost" onClick={restart}>
-          Restart
-        </Button>
-      </div>
-      <div ref={attachHost} {...stylex.props(styles.host)} />
+          <Button size="sm" variant="quiet" onClick={restart}>
+            Restart
+          </Button>
+        </div>
+      ) : null}
+      <div ref={attachHost} className={terminalStyles.host} />
     </div>
   );
 }

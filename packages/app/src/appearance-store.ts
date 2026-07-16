@@ -1,16 +1,16 @@
-// Per-device appearance store (ADR 0025 §2). Plain {subscribe, getSnapshot, actions}
-// module — same idiom as tab-store. Persists to localStorage; applies by rewriting
-// published --honk-* custom properties on <html> the way packages/ui/dev/dials.ts does
-// (inline setProperty beats the stylesheet defaults StyleX emits for defineVars).
-//
-// Apply runs at action time and once at module init — never in a component effect.
+// Per-device appearance. Persists to localStorage and applies --honk-* on <html> via setProperty
+// so inline values beat StyleX defineVars defaults (same as packages/ui/dev/dials.ts).
+// Apply at action time and once at module init, never in a component effect.
 
 import { useSyncExternalStore } from "react";
 
 import { honkTheme } from "@honk/ui/theme";
-import { colorVars, fontVars } from "@honk/ui/tokens.stylex";
+import { colorVars, fontVars, workbenchSurfaceVars } from "@honk/ui/tokens.stylex";
 
 export type ThemePreference = "system" | "light" | "dark";
+
+// "antialiased" = grayscale AA (lighter, thins medium weight); "auto" = system rendering (heavier, crisper).
+export type FontSmoothing = "antialiased" | "auto";
 
 export type AppearanceSnapshot = {
   readonly theme: ThemePreference;
@@ -18,6 +18,7 @@ export type AppearanceSnapshot = {
   readonly tintIntensity: number;
   readonly uiFontSize: number;
   readonly codeFontSize: number;
+  readonly fontSmoothing: FontSmoothing;
 };
 
 export const DEFAULT_APPEARANCE: AppearanceSnapshot = Object.freeze({
@@ -26,14 +27,19 @@ export const DEFAULT_APPEARANCE: AppearanceSnapshot = Object.freeze({
   tintIntensity: 0,
   uiFontSize: 13,
   codeFontSize: 12,
+  fontSmoothing: "antialiased",
 });
 
-const STORAGE_KEY = "honk:app-next:appearance";
+const STORAGE_KEY = "honk:app:appearance";
 
 const UI_FONT_MIN = 11;
 const UI_FONT_MAX = 16;
 const CODE_FONT_MIN = 10;
 const CODE_FONT_MAX = 18;
+
+// Glass (backdrop + card) tints on an eased curve of tint intensity: negligible through the
+// low/mid range, only reading near the top. Opaque surfaces keep the linear response above.
+const GLASS_TINT_EXPONENT = 2.5;
 
 // StyleX defineVars compile to { '--honk-…': 'var(--honk-…)' }. Unwrap the reference
 // back to the property name setProperty needs (dials.ts cssVarName).
@@ -57,6 +63,7 @@ const tintColorVars = {
   controlHover: cssVarName(colorVars["--honk-color-control-hover"]),
   controlPress: cssVarName(colorVars["--honk-color-control-press"]),
   messageBubbleBg: cssVarName(colorVars["--honk-color-message-bubble-bg"]),
+  glassTint: cssVarName(workbenchSurfaceVars["--honk-workbench-glass-tint"]),
   accent: cssVarName(colorVars["--honk-color-accent"]),
   accentFill: cssVarName(colorVars["--honk-color-accent-fill"]),
   accentSubtle: cssVarName(colorVars["--honk-color-accent-subtle"]),
@@ -82,6 +89,8 @@ const uiFontVars = {
 
 const CODE_SIZE_VAR = cssVarName(fontVars["--honk-font-size-code"]);
 const CODE_LEADING_VAR = cssVarName(fontVars["--honk-leading-code"]);
+const FONT_SMOOTHING_VAR = cssVarName(fontVars["--honk-font-smoothing"]);
+const FONT_SMOOTHING_MOZ_VAR = cssVarName(fontVars["--honk-font-smoothing-moz"]);
 
 const listeners = new Set<() => void>();
 
@@ -138,6 +147,10 @@ export const actions = {
     });
   },
 
+  setFontSmoothing(fontSmoothing: FontSmoothing): void {
+    publish({ ...snapshot, fontSmoothing: fontSmoothing === "auto" ? "auto" : "antialiased" });
+  },
+
   resetTheme(): void {
     publish({ ...snapshot, theme: DEFAULT_APPEARANCE.theme });
   },
@@ -158,6 +171,10 @@ export const actions = {
     publish({ ...snapshot, codeFontSize: DEFAULT_APPEARANCE.codeFontSize });
   },
 
+  resetFontSmoothing(): void {
+    publish({ ...snapshot, fontSmoothing: DEFAULT_APPEARANCE.fontSmoothing });
+  },
+
   // Section-level reset (parity: typography/appearance Reset).
   resetAll(): void {
     publish(DEFAULT_APPEARANCE);
@@ -170,7 +187,8 @@ function publish(next: AppearanceSnapshot): void {
     next.tintHue === snapshot.tintHue &&
     next.tintIntensity === snapshot.tintIntensity &&
     next.uiFontSize === snapshot.uiFontSize &&
-    next.codeFontSize === snapshot.codeFontSize
+    next.codeFontSize === snapshot.codeFontSize &&
+    next.fontSmoothing === snapshot.fontSmoothing
   ) {
     return;
   }
@@ -194,11 +212,12 @@ function applyAppearance(next: AppearanceSnapshot): void {
   const root = document.documentElement;
   const rootStyle = root.style;
 
-  // Theme drives light-dark() resolution — a scheme keyword, not a --honk-* var
-  // (dials.ts Theme panel). Shell still needs its own xstyle pin; this covers everything
-  // outside the frame and keeps first paint honest before React mounts.
+  // Theme is a color-scheme keyword for light-dark(), not a --honk-* var (dials.ts Theme panel).
+  // The shell still needs its own xstyle pin; this covers everything outside the frame and
+  // keeps first paint honest before React mounts.
   rootStyle.colorScheme =
     next.theme === "light" || next.theme === "dark" ? next.theme : "light dark";
+  void window.desktopBridge?.setTheme?.(next.theme);
 
   applyTint(rootStyle, next.tintHue, next.tintIntensity);
 
@@ -241,6 +260,16 @@ function applyAppearance(next: AppearanceSnapshot): void {
     rootStyle.setProperty(CODE_SIZE_VAR, `${next.codeFontSize}px`);
     rootStyle.setProperty(CODE_LEADING_VAR, `${next.codeFontSize + 6}px`);
   }
+
+  // At default → unpin so the stylesheet token (antialiased/grayscale) paints; otherwise pin
+  // the inline var on <html>, which outranks :root and cascades to shell + rail text.
+  if (next.fontSmoothing === DEFAULT_APPEARANCE.fontSmoothing) {
+    rootStyle.removeProperty(FONT_SMOOTHING_VAR);
+    rootStyle.removeProperty(FONT_SMOOTHING_MOZ_VAR);
+  } else {
+    rootStyle.setProperty(FONT_SMOOTHING_VAR, "auto");
+    rootStyle.setProperty(FONT_SMOOTHING_MOZ_VAR, "auto");
+  }
 }
 
 function applyTint(rootStyle: CSSStyleDeclaration, hue: number, intensity: number): void {
@@ -274,13 +303,20 @@ function applyTint(rootStyle: CSSStyleDeclaration, hue: number, intensity: numbe
     );
   }
 
+  // Glass rides its own eased intensity so the translucent field stays clean until the slider is high.
+  const glassIntensity = 100 * (intensity / 100) ** GLASS_TINT_EXPONENT;
+  rootStyle.setProperty(
+    tintColorVars.glassTint,
+    `light-dark(${tintHex(light.bgDeep, hue, glassIntensity, 1)}, ${tintHex(dark.bgDeep, hue, glassIntensity, 1)})`,
+  );
+
   rootStyle.setProperty(
     tintColorVars.accent,
     `light-dark(${tintHex(light.accent, hue, intensity, 1)}, ${tintHex(dark.accent, hue, intensity, 1)})`,
   );
   rootStyle.setProperty(
     tintColorVars.accentFill,
-    tintHex(light.accentFill, hue, intensity, 1),
+    `light-dark(${tintHex(light.accentFill, hue, intensity, 1)}, ${tintHex(dark.accentFill, hue, intensity, 1)})`,
   );
   rootStyle.setProperty(
     tintColorVars.accentSubtle,
@@ -347,8 +383,7 @@ function hueToChannel(p: number, q: number, t: number): number {
 }
 
 function rgbToHex(rgb: Rgb): string {
-  const channel = (value: number): string =>
-    Math.round(value).toString(16).padStart(2, "0");
+  const channel = (value: number): string => Math.round(value).toString(16).padStart(2, "0");
   return `#${channel(rgb.red)}${channel(rgb.green)}${channel(rgb.blue)}`;
 }
 
@@ -389,9 +424,7 @@ function hydrate(): AppearanceSnapshot {
         100,
       ),
       uiFontSize: clamp(
-        typeof parsed.uiFontSize === "number"
-          ? parsed.uiFontSize
-          : DEFAULT_APPEARANCE.uiFontSize,
+        typeof parsed.uiFontSize === "number" ? parsed.uiFontSize : DEFAULT_APPEARANCE.uiFontSize,
         UI_FONT_MIN,
         UI_FONT_MAX,
       ),
@@ -402,6 +435,7 @@ function hydrate(): AppearanceSnapshot {
         CODE_FONT_MIN,
         CODE_FONT_MAX,
       ),
+      fontSmoothing: parsed.fontSmoothing === "auto" ? "auto" : DEFAULT_APPEARANCE.fontSmoothing,
     });
   } catch {
     return DEFAULT_APPEARANCE;

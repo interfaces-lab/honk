@@ -1,21 +1,14 @@
-// Pure ranking for the command menu (locked.html §0.5 / §3). Ranking is FIXED,
-// never smart: Start-new → threads → commands. A command-verb match may float
-// Commands within its band; nothing else reorders bands. Dev/feature-flag
-// entries live in a separate registry — never in SHIPPING_COMMANDS.
-//
-// Scoring ports the old palette's prefix / exact / includes ideas (lean, no
-// @honk/shared dep). Submenu frames replace the root list when the stack is
-// non-empty (parity keep: submenu stack).
+// Fixed command-menu ranking: Start-new → threads → commands. A command-verb match may float
+// Commands within its band. Nothing else reorders bands. Dev entries stay out of SHIPPING_COMMANDS.
 
-import type { WorkspaceState } from "./sidecar";
+import { openCodeSessionKey, openCodeSessionRef } from "@honk/opencode";
 
 import type { TabStatus } from "./tab-store";
 import type { CommandMenuDoor, CommandMenuSubmenuFrame } from "./command-menu-store";
+import type { AppSessionSummary } from "./open-code-view";
 
-/** Thread row shape from the workspace watch — no direct @honk/api import. */
-export type CommandMenuThread = WorkspaceState["threads"][number];
-
-// ── Item vocabulary ──────────────────────────────────────────────────────────────────────────
+/** Session inventory row used by the command menu. */
+export type CommandMenuThread = AppSessionSummary;
 
 export type CommandMenuItemKind = "start-new" | "thread" | "command" | "submenu" | "header";
 
@@ -35,7 +28,7 @@ export type CommandMenuItem =
   | {
       readonly kind: "thread";
       readonly id: string;
-      readonly threadId: string;
+      readonly sessionKey: string;
       readonly title: string;
       readonly status: TabStatus;
       readonly searchTerms: readonly string[];
@@ -56,8 +49,13 @@ export type CommandMenuItem =
       readonly frame: CommandMenuSubmenuFrame;
     };
 
-/** Shipping command ids — run handlers live in the surface, not the model. */
-export type CommandMenuCommandId = "new-thread" | "open-settings" | "replay-onboarding";
+/** Shipping command ids. Run handlers live in the surface, not this model. */
+export type CommandMenuCommandId =
+  | "new-thread"
+  | "open-settings"
+  | "copy-session-debug-info"
+  | "replay-onboarding"
+  | "toggle-performance-monitor";
 
 export type ShippingCommand = {
   readonly id: string;
@@ -65,12 +63,11 @@ export type ShippingCommand = {
   readonly searchTerms: readonly string[];
   readonly shortcut?: string;
   readonly run: CommandMenuCommandId;
-  /** When true, this command is the Start-new primary row (not listed under Commands). */
+  /** Start-new primary row. Not listed under Commands. */
   readonly isStartNew?: boolean;
 };
 
-// Shipping registry only. Dev flag toggles / engineering-details dial stay out
-// (docs/ui-parity.md: separate dev registry, never the shipping list).
+// Shipping registry only. Dev commands stay in DEVELOPMENT_COMMANDS.
 export const SHIPPING_COMMANDS: readonly ShippingCommand[] = Object.freeze([
   {
     id: "start-new",
@@ -91,6 +88,7 @@ export const SHIPPING_COMMANDS: readonly ShippingCommand[] = Object.freeze([
     id: "open-settings",
     title: "Open settings",
     searchTerms: Object.freeze(["open settings", "settings", "preferences", "appearance"]),
+    shortcut: "⌘,",
     run: "open-settings",
   },
 ]);
@@ -98,18 +96,40 @@ export const SHIPPING_COMMANDS: readonly ShippingCommand[] = Object.freeze([
 /** Development-only commands. Callers decide whether the current runtime may expose them. */
 export const DEVELOPMENT_COMMANDS: readonly ShippingCommand[] = Object.freeze([
   {
+    id: "copy-session-debug-info",
+    title: "Copy active session debug info",
+    searchTerms: Object.freeze([
+      "copy session debug info",
+      "copy session id",
+      "copy chat id",
+      "debug chat loading",
+    ]),
+    run: "copy-session-debug-info",
+  },
+  {
     id: "replay-onboarding",
     title: "Replay onboarding",
     searchTerms: Object.freeze(["replay onboarding", "show onboarding", "first run", "setup"]),
     run: "replay-onboarding",
   },
+  {
+    id: "toggle-performance-monitor",
+    title: "Hide performance monitor",
+    searchTerms: Object.freeze([
+      "hide performance monitor",
+      "show performance monitor",
+      "dismiss performance monitor",
+      "dev toolbar",
+      "fps",
+      "perf",
+    ]),
+    run: "toggle-performance-monitor",
+  },
 ]);
 
 export const RECENT_THREAD_LIMIT = 12;
 
-// ── Status mapping (SDK ThreadSummary → tab / StatusDot vocabulary) ──────────────────────────
-
-/** Map OpenCode ThreadSummary onto the board's tab status alphabet. */
+/** Map OpenCode ThreadSummary onto tab status. */
 export function tabStatusFromSummary(summary: CommandMenuThread): TabStatus {
   if (summary.needsAttention) {
     return "needs-you";
@@ -128,7 +148,7 @@ export function tabStatusFromSummary(summary: CommandMenuThread): TabStatus {
   }
 }
 
-/** StatusDot tone for a tab-status word (principles.md §2). */
+/** StatusDot tone for a tab status. */
 export function statusDotTone(status: TabStatus): "ok" | "warn" | "err" | "neutral" | "draft" {
   switch (status) {
     case "done":
@@ -153,12 +173,10 @@ export function statusDotPulse(status: TabStatus): boolean {
   return status === "needs-you";
 }
 
-// ── Ranking ──────────────────────────────────────────────────────────────────────────────────
-
 export type RankCommandMenuInput = {
   readonly query: string;
   readonly door: CommandMenuDoor;
-  /** Home inline hides the Commands band at rest (locked §3 note). */
+  /** Home inline hides the Commands band at rest. */
   readonly hideCommandsAtRest?: boolean;
   readonly threads: readonly CommandMenuThread[];
   readonly commands?: readonly ShippingCommand[];
@@ -166,17 +184,15 @@ export type RankCommandMenuInput = {
 };
 
 /**
- * Build the flat, ranked list the surface renders. Headers are non-selectable
- * markers; selectable rows are everything else. Selection indices in the store
- * address the selectable list only — use `selectableItems` / `flattenForSelection`.
+ * Flat ranked list for the surface. Headers are non-selectable.
+ * Store selection indices address selectable rows only via `selectableItems`.
  */
 export function rankCommandMenuItems(input: RankCommandMenuInput): readonly CommandMenuItem[] {
   const commands = input.commands ?? SHIPPING_COMMANDS;
   const stack = input.submenuStack ?? [];
   const needle = input.query.trim().toLowerCase().replace(/\s+/g, " ");
 
-  // Submenu replaces the root ranking (parity keep). Empty stub until project
-  // pickers land — still honest: show the frame title as a header + empty.
+  // Submenu replaces root ranking. Empty stub shows the frame title until pickers land.
   if (stack.length > 0) {
     const top = stack[stack.length - 1];
     if (top === undefined) {
@@ -195,15 +211,14 @@ export function rankCommandMenuItems(input: RankCommandMenuInput): readonly Comm
   const commandBand = commands.filter((c) => !c.isStartNew);
 
   const activeThreads = input.threads
-    .filter((t) => t.archivedAt === null)
+    .filter((thread) => thread.archivedAt === null && thread.parentSessionId === null)
     .slice()
     .sort((a, b) => {
       const byUpdated = b.updatedAt.localeCompare(a.updatedAt);
       return byUpdated === 0 ? String(a.id).localeCompare(String(b.id)) : byUpdated;
     });
 
-  // ⌘O door: threads only (plus Start-new when the query is empty so ⏎ still
-  // means the same thing — locked ranking law).
+  // Threads door: threads only. Keep Start-new when the query is empty so Enter still starts.
   if (input.door === "threads") {
     return Object.freeze(
       buildList({
@@ -236,7 +251,7 @@ export function rankCommandMenuItems(input: RankCommandMenuInput): readonly Comm
   );
 }
 
-/** Selectable rows only — what ArrowUp/Down and Enter address. */
+/** Selectable rows only. ArrowUp/Down and Enter address this list. */
 export function selectableItems(
   items: readonly CommandMenuItem[],
 ): readonly Exclude<CommandMenuItem, { kind: "header" }>[] {
@@ -255,8 +270,7 @@ function buildList(input: {
   const items: CommandMenuItem[] = [];
 
   if (input.startNew !== undefined) {
-    // Start-new always leads when present — ⏎ means the same thing (locked §3).
-    // The typed query becomes the preview; it is never filtered out of the band.
+    // Start-new always leads when present. Typed query is preview only; never filtered out.
     items.push({
       kind: "start-new",
       id: "start-new",
@@ -300,10 +314,11 @@ function buildList(input: {
 }
 
 function threadItem(thread: CommandMenuThread): CommandMenuItem {
+  const sessionKey = openCodeSessionKey(openCodeSessionRef(thread.server, thread.id));
   return {
     kind: "thread",
-    id: `thread:${String(thread.id)}`,
-    threadId: String(thread.id),
+    id: sessionKey,
+    sessionKey,
     title: thread.title,
     status: tabStatusFromSummary(thread),
     searchTerms: [thread.title, String(thread.id)],
@@ -348,7 +363,7 @@ function filterAndRankCommands(
     .map((entry) => entry.command);
 }
 
-/** Exact > prefix > includes. Field order is the tie-break weight. */
+/** Exact > prefix > includes. Earlier fields win ties. */
 function bestFieldRank(fields: readonly string[], needle: string): number {
   let best = Number.NEGATIVE_INFINITY;
   for (const [index, field] of fields.entries()) {
@@ -375,7 +390,7 @@ function rankField(field: string, needle: string): number {
   if (haystack.startsWith(needle)) {
     return 2;
   }
-  // Word-boundary boost (old palette idea, lean): match after a space.
+  // Boost matches that start after a space.
   if (haystack.includes(` ${needle}`)) {
     return 1.5;
   }

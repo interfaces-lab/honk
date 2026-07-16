@@ -16,19 +16,23 @@ import {
 export default function SettingsRoute(): React.ReactElement {
   const theme = useHonkTheme();
   const remote = useRemote();
-  const [cwd, setCwd] = React.useState(remote.defaultCwd);
+  const activeServer = remote.activeServer;
+  const [cwd, setCwd] = React.useState(remote.activeServer?.defaultDirectory ?? "");
   const [pending, setPending] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
 
-  React.useEffect(() => setCwd(remote.defaultCwd), [remote.defaultCwd]);
+  React.useEffect(
+    () => setCwd(remote.activeServer?.defaultDirectory ?? ""),
+    [remote.activeServer?.defaultDirectory],
+  );
 
-  if (remote.client === null) return <Redirect href="/connect" />;
+  if (activeServer === null || remote.client === null) return <Redirect href="/connect" />;
 
   const save = async (): Promise<void> => {
     setPending(true);
     setMessage(null);
     try {
-      await remote.setDefaultCwd(cwd);
+      await remote.setDefaultDirectory(activeServer.descriptor.key, cwd);
       setMessage("Default project folder saved.");
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : "The setting could not be saved.");
@@ -47,7 +51,7 @@ export default function SettingsRoute(): React.ReactElement {
           text: "Disconnect",
           style: "destructive",
           onPress: () => {
-            void remote.disconnect().then(() => router.replace("/connect"));
+            void remote.disconnect(activeServer.descriptor.key).then(() => router.replace("/connect"));
           },
         },
       ],
@@ -70,7 +74,8 @@ export default function SettingsRoute(): React.ReactElement {
       >
         <View style={{ gap: theme.metrics.space.contentGap }}>
           <BodyText style={{ fontWeight: theme.metrics.font.weightSemibold }}>Honk host</BodyText>
-          <DetailText selectable>{remote.origin}</DetailText>
+          <DetailText>{activeServer.descriptor.label}</DetailText>
+          <DetailText selectable>{activeServer.descriptor.origin}</DetailText>
           <DetailText>Status: {remote.status}</DetailText>
         </View>
 
@@ -89,7 +94,8 @@ export default function SettingsRoute(): React.ReactElement {
           )}
         </View>
 
-        <SystemButton label="Open archived tasks" onPress={() => router.push("/archived")} />
+        <SystemButton label="Manage servers" onPress={() => router.push("/connect")} />
+        <SystemButton label="Open archived sessions" onPress={() => router.push("/archived")} />
         <ActionButton
           label="Disconnect this device"
           onPress={confirmDisconnect}

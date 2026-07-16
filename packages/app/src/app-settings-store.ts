@@ -1,22 +1,23 @@
-// App settings — persisted, app-wide preferences that are neither modes (WAY the agent works) nor
-// presets (WHICH models). Plain {subscribe, snapshot, actions} module in the tab-store idiom
-// (mirrors modes.ts / presets.ts): timers/persistence live here, React only reads via hooks.
-//
-// defaultProjectDirectory is the folder new threads open in when the composer does not pick one
-// explicitly. `null` means "let the sidecar's own default directory govern" (client.path.get()),
-// so we distinguish "unset" from any real path. The folder-picker bridge (window.desktopBridge
-// .pickFolder) writes an absolute path here; the home composer reads it into OpenNewThreadInput.
+// App-wide prefs outside mode and preset. null directory defers to the sidecar default.
+// Compact density stays default so OpenCode assistant-message seams stay transport detail.
 
+import {
+  DEFAULT_CONVERSATION_DENSITY,
+  USER_CONVERSATION_DENSITY_VALUES,
+  type ConversationDensity,
+} from "@honk/shared/conversation-density";
 import { useSyncExternalStore } from "react";
 
 export type AppSettings = {
-  /** Absolute path new threads open in; null → use the sidecar's default directory. */
+  /** Absolute path for new threads. null uses the sidecar default. */
   readonly defaultProjectDirectory: string | null;
+  readonly conversationDensity: ConversationDensity;
 };
 
-const STORAGE_KEY = "honk:app-next:app-settings";
+const STORAGE_KEY = "honk:app:app-settings";
 const DEFAULT_SNAPSHOT: AppSettings = Object.freeze({
   defaultProjectDirectory: null,
+  conversationDensity: DEFAULT_CONVERSATION_DENSITY,
 });
 
 const listeners = new Set<() => void>();
@@ -50,8 +51,15 @@ export function useDefaultProjectDirectory(): string | null {
   );
 }
 
+export function useConversationDensity(): ConversationDensity {
+  return useSyncExternalStore(
+    subscribe,
+    () => snapshot.conversationDensity,
+    () => DEFAULT_SNAPSHOT.conversationDensity,
+  );
+}
+
 export const actions = {
-  /** Pin a default project directory. A blank string clears it back to the sidecar default. */
   setDefaultProjectDirectory(directory: string | null): void {
     const next = directory === null || directory.trim().length === 0 ? null : directory;
     if (next === snapshot.defaultProjectDirectory) {
@@ -60,12 +68,25 @@ export const actions = {
     publish({ ...snapshot, defaultProjectDirectory: next });
   },
 
-  /** Clear the pinned directory (revert to the sidecar's default). */
   clearDefaultProjectDirectory(): void {
     if (snapshot.defaultProjectDirectory === null) {
       return;
     }
     publish({ ...snapshot, defaultProjectDirectory: null });
+  },
+
+  setConversationDensity(conversationDensity: ConversationDensity): void {
+    if (conversationDensity === snapshot.conversationDensity) {
+      return;
+    }
+    publish({ ...snapshot, conversationDensity });
+  },
+
+  resetConversationDensity(): void {
+    if (snapshot.conversationDensity === DEFAULT_CONVERSATION_DENSITY) {
+      return;
+    }
+    publish({ ...snapshot, conversationDensity: DEFAULT_CONVERSATION_DENSITY });
   },
 } as const;
 
@@ -88,6 +109,7 @@ function hydrate(): AppSettings {
     }
     const parsed = JSON.parse(raw) as Partial<{
       defaultProjectDirectory: unknown;
+      conversationDensity: unknown;
     }>;
     const directory =
       typeof parsed.defaultProjectDirectory === "string" &&
@@ -96,10 +118,17 @@ function hydrate(): AppSettings {
         : null;
     return Object.freeze({
       defaultProjectDirectory: directory,
+      conversationDensity: isConversationDensity(parsed.conversationDensity)
+        ? parsed.conversationDensity
+        : DEFAULT_CONVERSATION_DENSITY,
     });
   } catch {
     return DEFAULT_SNAPSHOT;
   }
+}
+
+function isConversationDensity(value: unknown): value is ConversationDensity {
+  return USER_CONVERSATION_DENSITY_VALUES.some((density) => density === value);
 }
 
 function persist(next: AppSettings): void {
@@ -109,6 +138,6 @@ function persist(next: AppSettings): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
-    // Persistence must never break the settings surface.
+    // localStorage failure must not break settings.
   }
 }

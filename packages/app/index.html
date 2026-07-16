@@ -4,6 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>honk</title>
+    <script>
+      try {
+        const appearance = JSON.parse(localStorage.getItem("honk:app:appearance") || "null");
+        const theme = appearance && appearance.theme;
+        document.documentElement.style.colorScheme =
+          theme === "light" || theme === "dark" ? theme : "light dark";
+      } catch {
+        document.documentElement.style.colorScheme = "light dark";
+      }
+    </script>
     <link rel="stylesheet" href="/src/index.css" />
   </head>
   <body>

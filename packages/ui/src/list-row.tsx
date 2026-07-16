@@ -1,27 +1,23 @@
-// The compact content row — one selectable line in any list of things (threads, projects,
-// command-menu results). Snapped to the shared control scale exactly like menu.tsx's item:
-// fixed h-md height, control inline pad, control radius — so a list row, a menu row, and a
-// small button all read as the same size across the system. Structure is slots, not props:
-//
-//   ListRow            the row itself (a <button>): fixed height, hover wash, active fill
-//   ├ ListRow.Slot     leading glyph box (status dot / matrix / icon), icon-md square
-//   ├ ListRow.Title    the primary label — truncates, medium weight
-//   ├ ListRow.Subtitle the inline secondary label — truncates after the title, faint detail
-//   └ ListRow.Meta     right-aligned trailing cluster (time, counts, chips), faint detail
-//
-// Zero logic, zero effects. Selection/highlight state comes in as `isActive` — the caller
-// (keyboard nav, filters) owns it; the row only draws it.
-
 import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
-import { colorVars, controlVars, fontVars, iconVars, motionVars, radiusVars } from "./tokens.stylex";
+import { applyStyle, type HonkStyle, type StyleProp } from "./style";
+import {
+  colorVars,
+  controlVars,
+  fontVars,
+  iconVars,
+  motionVars,
+  radiusVars,
+  sidebarVars,
+} from "./tokens.stylex";
 
-// Focus ring intrinsics — the shared 1px accent hairline (button.tsx recipe). Drawn INSIDE
-// the row (negative offset) because rows live in clipped scroll columns where an outside
-// ring would be cut off; control anatomy, not a token.
-const FOCUS_RING_WIDTH = "1px";
+// Focus ring is inset. Rows sit in clipped scroll columns where an outside ring would clip.
 const FOCUS_RING_OFFSET_INSET = "-1px";
+// ListRow aligns text to its 20px leading slot, independent of the title's font size.
+const CONTENT_LINE_HEIGHT = "20px";
+// Old-main sidebar actions use a fixed 20px visual box inside a 28px row.
+const SIDEBAR_ACTION_SIZE = "20px";
 
 const sx = stylex.create({
   root: {
@@ -32,30 +28,32 @@ const sx = stylex.create({
     width: "100%",
     flexShrink: 0,
     boxSizing: "border-box",
-    height: controlVars["--honk-control-h-md"],
+    minHeight: controlVars["--honk-control-h-md"],
     paddingInline: controlVars["--honk-control-pad-md"],
+    paddingBlock: controlVars["--honk-control-gap"],
     borderStyle: "none",
     borderRadius: radiusVars["--honk-radius-control"],
-    // The hover wash (state-hover), not a layer step — a row highlight is a transient
-    // pointer state, same reasoning as menu.tsx's item.
     backgroundColor: {
       default: "transparent",
       ":hover": {
         "@media (hover: hover)": colorVars["--honk-color-state-hover"],
       },
+      ":active": colorVars["--honk-color-state-press"],
     },
     color: colorVars["--honk-color-text-primary"],
     fontFamily: fontVars["--honk-font-family-ui"],
     fontSize: fontVars["--honk-font-size-body"],
-    lineHeight: 1, // tight box; the fixed height centers the line, not leading
+    // Titles ellipsize in an overflow-hidden wrapper, so this must include descenders.
+    lineHeight: CONTENT_LINE_HEIGHT,
     textAlign: "start",
     whiteSpace: "nowrap",
     userSelect: "none",
-    cursor: "pointer",
+    cursor: { default: "pointer", ":disabled": "default" },
     outlineColor: colorVars["--honk-color-accent"],
     outlineStyle: { default: "none", ":focus-visible": "solid" },
-    outlineWidth: FOCUS_RING_WIDTH,
+    outlineWidth: controlVars["--honk-control-focus-ring-width"],
     outlineOffset: FOCUS_RING_OFFSET_INSET,
+    opacity: { default: 1, ":disabled": controlVars["--honk-control-disabled-opacity"] },
     transitionProperty: "background-color",
     transitionDuration: {
       default: motionVars["--honk-motion-duration-hover"],
@@ -63,10 +61,25 @@ const sx = stylex.create({
     },
     transitionTimingFunction: motionVars["--honk-motion-ease-out"],
   },
-  // The selected/highlighted fill — ALF primary_50, because active is a standing state while
-  // the neutral state-hover wash above is transient.
-  active: {
-    backgroundColor: colorVars["--honk-color-accent-subtle"],
+  selected: {
+    backgroundColor: {
+      default: colorVars["--honk-color-control-selected"],
+      ":hover": {
+        "@media (hover: hover)": colorVars["--honk-color-control-selected"],
+      },
+      ":active": colorVars["--honk-color-control-selected"],
+    },
+  },
+  highlighted: {
+    backgroundColor: colorVars["--honk-color-state-hover"],
+  },
+  content: {
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    minWidth: 0,
+    flexGrow: 1,
+    gap: controlVars["--honk-control-gap"],
   },
   slot: {
     display: "grid",
@@ -83,7 +96,7 @@ const sx = stylex.create({
     whiteSpace: "nowrap",
     fontWeight: fontVars["--honk-font-weight-medium"],
   },
-  subtitle: {
+  description: {
     minWidth: 0,
     flexShrink: 1,
     overflow: "hidden",
@@ -104,51 +117,192 @@ const sx = stylex.create({
     fontVariantNumeric: "tabular-nums",
     whiteSpace: "nowrap",
   },
+  action: {
+    appearance: "none",
+    width: SIDEBAR_ACTION_SIZE,
+    height: SIDEBAR_ACTION_SIZE,
+    display: "grid",
+    placeItems: "center",
+    flexShrink: 0,
+    padding: 0,
+    borderStyle: "none",
+    borderRadius: radiusVars["--honk-radius-control"],
+    backgroundColor: {
+      default: "transparent",
+      ":hover": {
+        "@media (hover: hover)": colorVars["--honk-color-state-hover"],
+      },
+      ":active": colorVars["--honk-color-state-press"],
+    },
+    color: colorVars["--honk-color-text-faint"],
+    cursor: "pointer",
+    outlineColor: colorVars["--honk-color-accent"],
+    outlineStyle: { default: "none", ":focus-visible": "solid" },
+    outlineWidth: controlVars["--honk-control-focus-ring-width"],
+    outlineOffset: FOCUS_RING_OFFSET_INSET,
+  },
+  actionActive: {
+    backgroundColor: colorVars["--honk-color-control-selected"],
+    color: colorVars["--honk-color-text-primary"],
+  },
 });
 
-interface ListRowProps
-  extends Omit<React.ComponentPropsWithoutRef<"button">, "className" | "style"> {
-  // Standing selection/keyboard-highlight state, owned by the caller.
-  isActive?: boolean;
+// Exact old-main sidebar row geometry from shell.css / honkkit SidebarItem.
+const sizeStyles = stylex.create({
+  sm: {
+    gap: sidebarVars["--honk-sidebar-item-gap"],
+    minHeight: sidebarVars["--honk-sidebar-item-height"],
+    paddingInline: sidebarVars["--honk-sidebar-row-padding-inline"],
+    paddingBlock: sidebarVars["--honk-sidebar-row-padding-block"],
+    fontSize: sidebarVars["--honk-sidebar-label-size"],
+    lineHeight: sidebarVars["--honk-sidebar-label-leading"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
+  },
+});
+
+const sizeSlotStyles = stylex.create({
+  sm: {
+    width: sidebarVars["--honk-sidebar-icon-slot"],
+    height: sidebarVars["--honk-sidebar-icon-slot"],
+  },
+});
+
+const sizeTitleStyles = stylex.create({
+  sm: {
+    fontWeight: fontVars["--honk-font-weight-regular"],
+  },
+});
+
+const sizeMetaStyles = stylex.create({
+  sm: {
+    gap: sidebarVars["--honk-sidebar-item-gap"],
+    fontSize: sidebarVars["--honk-sidebar-subtitle-size"],
+    lineHeight: sidebarVars["--honk-sidebar-subtitle-leading"],
+  },
+});
+
+type ListRowSize = "sm" | "md";
+
+const ListRowSizeContext = React.createContext<ListRowSize>("md");
+
+interface ListRowProps extends Omit<
+  React.ComponentPropsWithoutRef<"button">,
+  "className" | "style"
+> {
+  isSelected?: boolean;
+  isHighlighted?: boolean;
+  size?: ListRowSize;
   ref?: React.Ref<HTMLButtonElement>;
-  xstyle?: stylex.StyleXStyles;
+  style?: StyleProp<HonkStyle>;
 }
 
 function ListRowRoot({
-  isActive = false,
-  xstyle,
+  isSelected = false,
+  isHighlighted = false,
+  size = "md",
+  style,
   children,
   ...rest
 }: ListRowProps): React.ReactElement {
   return (
-    <button type="button" {...rest} {...stylex.props(sx.root, isActive && sx.active, xstyle)}>
-      {children}
-    </button>
+    <ListRowSizeContext.Provider value={size}>
+      <button
+        type="button"
+        {...rest}
+        data-slot="list-row"
+        data-size={size}
+        {...applyStyle(
+          stylex.props(
+            sx.root,
+            size === "sm" && sizeStyles.sm,
+            isHighlighted && sx.highlighted,
+            isSelected && sx.selected,
+          ),
+          style,
+        )}
+      >
+        {children}
+      </button>
+    </ListRowSizeContext.Provider>
   );
 }
 
 interface ListRowPieceProps {
   children?: React.ReactNode;
-  xstyle?: stylex.StyleXStyles;
+  style?: StyleProp<HonkStyle>;
 }
 
-function Slot({ children, xstyle }: ListRowPieceProps): React.ReactElement {
-  return <span {...stylex.props(sx.slot, xstyle)}>{children}</span>;
+interface ListRowActionProps extends Omit<
+  React.ComponentPropsWithoutRef<"button">,
+  "className" | "style"
+> {
+  isActive?: boolean;
 }
 
-function Title({ children, xstyle }: ListRowPieceProps): React.ReactElement {
-  return <span {...stylex.props(sx.title, xstyle)}>{children}</span>;
+function Slot({ children, style }: ListRowPieceProps): React.ReactElement {
+  const size = React.use(ListRowSizeContext);
+  return (
+    <span
+      data-slot="list-row-leading"
+      {...applyStyle(stylex.props(sx.slot, size === "sm" && sizeSlotStyles.sm), style)}
+    >
+      {children}
+    </span>
+  );
 }
 
-function Subtitle({ children, xstyle }: ListRowPieceProps): React.ReactElement {
-  return <span {...stylex.props(sx.subtitle, xstyle)}>{children}</span>;
+function Content({ children, style }: ListRowPieceProps): React.ReactElement {
+  return (
+    <span data-slot="list-row-content" {...applyStyle(stylex.props(sx.content), style)}>
+      {children}
+    </span>
+  );
 }
 
-function Meta({ children, xstyle }: ListRowPieceProps): React.ReactElement {
-  return <span {...stylex.props(sx.meta, xstyle)}>{children}</span>;
+function Title({ children, style }: ListRowPieceProps): React.ReactElement {
+  const size = React.use(ListRowSizeContext);
+  return (
+    <span
+      data-slot="list-row-title"
+      {...applyStyle(stylex.props(sx.title, size === "sm" && sizeTitleStyles.sm), style)}
+    >
+      {children}
+    </span>
+  );
 }
 
-const ListRow = Object.assign(ListRowRoot, { Slot, Title, Subtitle, Meta });
+function Description({ children, style }: ListRowPieceProps): React.ReactElement {
+  return (
+    <span data-slot="list-row-description" {...applyStyle(stylex.props(sx.description), style)}>
+      {children}
+    </span>
+  );
+}
+
+function Meta({ children, style }: ListRowPieceProps): React.ReactElement {
+  const size = React.use(ListRowSizeContext);
+  return (
+    <span
+      data-slot="list-row-meta"
+      {...applyStyle(stylex.props(sx.meta, size === "sm" && sizeMetaStyles.sm), style)}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Action({ isActive = false, type, ...rest }: ListRowActionProps): React.ReactElement {
+  return (
+    <button
+      type={type ?? "button"}
+      {...rest}
+      data-slot="list-row-action"
+      {...stylex.props(sx.action, isActive && sx.actionActive)}
+    />
+  );
+}
+
+const ListRow = Object.assign(ListRowRoot, { Slot, Content, Title, Description, Meta, Action });
 
 export { ListRow };
-export type { ListRowPieceProps, ListRowProps };
+export type { ListRowActionProps, ListRowPieceProps, ListRowProps, ListRowSize };

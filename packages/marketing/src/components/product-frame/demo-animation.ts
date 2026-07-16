@@ -1,7 +1,18 @@
-import type { ToolDiffArtifact } from "~/session-logic";
-import type { ToolCallModel } from "~/components/chat/message/tool-renderer";
-
 import type { MarketingDemoThreadId, ThreadState } from "./demo-data";
+
+type MarketingToolCallModel = {
+  tool: {
+    case: string;
+    value: {
+      action: string;
+      details?: string;
+      path?: string;
+      output?: string;
+      stats?: { additions: number; deletions: number };
+      artifacts?: readonly Record<string, unknown>[];
+    };
+  };
+};
 
 export type MarketingTimelineItem =
   | { kind: "user"; text: string }
@@ -9,9 +20,9 @@ export type MarketingTimelineItem =
   | {
       kind: "tool";
       callId: string;
-      toolCall: ToolCallModel;
+      toolCall: MarketingToolCallModel;
       loading: boolean;
-      defaultEditExpanded?: boolean;
+      preview?: string;
     };
 
 export type MarketingDemoScene = {
@@ -34,14 +45,6 @@ const MARKETING_INDEX_PATCH = [
   '+            <ProductFrame className="w-full max-w-6xl @max-lg:hidden" />',
   '            <EdgeMask intensity="soft" />',
 ].join("\n");
-
-const marketingEditDiffArtifact = {
-  type: "diff",
-  format: "unified",
-  source: "result",
-  files: [{ path: "packages/marketing/src/routes/index.tsx", additions: 1, deletions: 1 }],
-  unifiedDiff: MARKETING_INDEX_PATCH,
-} as const satisfies ToolDiffArtifact;
 
 const marketingHomepageUser: MarketingTimelineItem = {
   kind: "user",
@@ -105,7 +108,7 @@ const marketingHomepageEdit: MarketingTimelineItem = {
   kind: "tool",
   callId: "edit-index",
   loading: false,
-  defaultEditExpanded: true,
+  preview: MARKETING_INDEX_PATCH,
   toolCall: {
     tool: {
       case: "editToolCall",
@@ -114,7 +117,6 @@ const marketingHomepageEdit: MarketingTimelineItem = {
         details: "index.tsx",
         path: "index.tsx",
         stats: { additions: 1, deletions: 1 },
-        artifacts: [marketingEditDiffArtifact],
       },
     },
   },
@@ -206,25 +208,25 @@ const authRedirectEdit: MarketingTimelineItem = {
 
 const darkModeUser: MarketingTimelineItem = {
   kind: "user",
-  text: "Add dark mode tokens for the marketing surfaces and keep contrast aligned with HonkKit.",
+  text: "Add dark mode tokens for the marketing surfaces and keep contrast aligned with the shared UI theme.",
 };
 
 const darkModeAssistant: MarketingTimelineItem = {
   kind: "assistant",
-  text: "I mapped the edge masks and download controls to HonkKit tokens. Need your call on accent contrast for the CTA row.",
+  text: "I mapped the edge masks and download controls to the shared UI tokens. Need your call on accent contrast for the CTA row.",
 };
 
 const darkModeRead: MarketingTimelineItem = {
   kind: "tool",
-  callId: "read-honkkit-tokens",
+  callId: "read-ui-tokens",
   loading: false,
   toolCall: {
     tool: {
       case: "readToolCall",
       value: {
         action: "Read",
-        details: "styles.css",
-        path: "packages/honkkit/src/styles.css",
+        details: "theme.ts",
+        path: "packages/ui/src/theme.ts",
       },
     },
   },
@@ -247,14 +249,6 @@ const REFACTOR_REGISTRY_PATCH = [
   '-import { everyTool } from "./tools/all";',
   '+const everyTool = () => import("./tools/all").then((m) => m.everyTool);',
 ].join("\n");
-
-const refactorRegistryDiffArtifact = {
-  type: "diff",
-  format: "unified",
-  source: "result",
-  files: [{ path: "packages/core/src/catalog.ts", additions: 1, deletions: 1 }],
-  unifiedDiff: REFACTOR_REGISTRY_PATCH,
-} as const satisfies ToolDiffArtifact;
 
 const refactorRegistryUser: MarketingTimelineItem = {
   kind: "user",
@@ -286,7 +280,7 @@ const refactorRegistryEdit: MarketingTimelineItem = {
   kind: "tool",
   callId: "edit-tool-registry",
   loading: false,
-  defaultEditExpanded: true,
+  preview: REFACTOR_REGISTRY_PATCH,
   toolCall: {
     tool: {
       case: "editToolCall",
@@ -295,7 +289,6 @@ const refactorRegistryEdit: MarketingTimelineItem = {
         details: "catalog.ts",
         path: "packages/core/src/catalog.ts",
         stats: { additions: 1, deletions: 1 },
-        artifacts: [refactorRegistryDiffArtifact],
       },
     },
   },

@@ -1,18 +1,19 @@
+import babel from "@rolldown/plugin-babel";
 import stylex from "@stylexjs/unplugin";
 import tailwindcss from "@tailwindcss/vite";
-import react from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-// Mirrors packages/ui/vite.config.ts: StyleX before React, Tailwind after so utilities
-// resolve against the emitted --honk-* vars via the bridge. optimizeDeps.exclude is
-// mandatory for raw-source @honk/ui — forgetting it silently drops all StyleX styles
-// (ADR 0025 §4).
+// oxlint-disable-next-line eslint/no-control-regex -- rolldown virtual module id
+const rolldownRuntimeModulePattern = new RegExp("^\\u0000rolldown/runtime\\.js$");
+
+// Match packages/ui plugin order. StyleX before React, Tailwind after. optimizeDeps.exclude
+// for raw-source @honk/ui is mandatory. Forgetting it silently drops all StyleX styles.
 export default defineConfig({
   plugins: [
     stylex.vite({
       useCSSLayers: true,
-      // Same lightningcss pin as @honk/ui: keep light-dark() intact so token values
-      // declared at :root still resolve under the Shell frame's color-scheme.
+      // Pin lightningcss like @honk/ui so light-dark() tokens still resolve under Shell color-scheme.
       lightningcssOptions: {
         targets: {
           chrome: 123 << 16,
@@ -23,19 +24,25 @@ export default defineConfig({
       },
     }),
     react(),
+    babel({
+      // plugin-babel only auto-enables TS/JSX for CWD-relative globs. Workspace packages need this.
+      exclude: [/[/\\]node_modules[/\\]/, rolldownRuntimeModulePattern],
+      parserOpts: { plugins: ["typescript", "jsx"] },
+      presets: [reactCompilerPreset()],
+    }),
     tailwindcss(),
   ],
   optimizeDeps: {
     exclude: ["@honk/ui"],
   },
   resolve: {
-    // This source tree still has stale generated .js siblings. Prefer the TS sources
-    // so extensionless imports like "./home" render the current app-next home page.
+    // @honk/ui is raw workspace source and keeps its own preview React install. The app must
+    // always resolve UI primitives and Base UI onto the renderer's React singleton.
+    dedupe: ["react", "react-dom"],
+    // Prefer TS over stale generated .js siblings for extensionless imports.
     extensions: [".tsx", ".ts", ".mts", ".jsx", ".js", ".mjs", ".json"],
   },
-  // Desktop `pnpm dev` probes and loads `http://127.0.0.1:5173`. Pin host+port so
-  // Vite cannot bind ::1-only (Node/macOS localhost default) while the Electron
-  // host and readiness probe use IPv4 loopback.
+  // Pin IPv4 loopback. Desktop probes 127.0.0.1 while Node may otherwise bind ::1-only.
   server: {
     host: "127.0.0.1",
     port: 5173,

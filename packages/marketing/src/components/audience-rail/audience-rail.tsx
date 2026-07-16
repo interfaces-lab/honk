@@ -1,4 +1,4 @@
-import { cn } from "@honk/honkkit/utils";
+import { cn } from "../../lib/classes";
 
 import { audienceWords } from "./audience-copy";
 

@@ -5,8 +5,7 @@ import * as OpencodeSidecar from "../../backend/opencode-sidecar";
 import * as IpcChannels from "../channels";
 import { makeIpcMethod } from "../desktop-ipc";
 
-// Snapshot of the opencode sidecar the renderer reads to point @opencode-ai/sdk
-// at the local server. Mirrors the aux-endpoint bridge method shape.
+// Sidecar endpoint snapshot for the renderer SDK client.
 const OpencodeSidecarSnapshotSchema = Schema.Struct({
   status: Schema.Literals(["idle", "starting", "ready", "restarting", "stopped", "error"]),
   url: Schema.NullOr(Schema.String),

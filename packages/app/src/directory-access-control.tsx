@@ -1,5 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
-import { Icon, Popover, Tooltip } from "@honk/ui";
+import { basename } from "@honk/shared/paths";
+import { Button, Icon, IconButton, Popover, Tooltip } from "@honk/ui";
 import { IconCrossSmall, IconFolder1, IconFolderAddRight } from "@honk/ui/icons";
 import { colorVars, controlVars, fontVars, radiusVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
@@ -19,27 +20,6 @@ const styles = stylex.create({
     gap: controlVars["--honk-control-gap"],
     overflowX: "auto",
     scrollbarWidth: "none",
-  },
-  projectChip: {
-    flexShrink: 0,
-    minWidth: 0,
-    maxWidth: DIRECTORY_CHIP_MAX_WIDTH,
-    height: controlVars["--honk-control-h-sm"],
-    display: "inline-flex",
-    alignItems: "center",
-    gap: controlVars["--honk-control-gap"],
-    paddingInline: spaceVars["--honk-space-gutter"],
-    borderWidth: 0,
-    borderStyle: "none",
-    borderRadius: radiusVars["--honk-radius-pill"],
-    backgroundColor: {
-      default: "transparent",
-      ":hover": { "@media (hover: hover)": colorVars["--honk-color-state-hover"] },
-    },
-    color: colorVars["--honk-color-text-faint"],
-    fontFamily: fontVars["--honk-font-family-ui"],
-    fontSize: fontVars["--honk-font-size-detail"],
-    cursor: "pointer",
   },
   attachedChip: {
     flexShrink: 0,
@@ -64,29 +44,7 @@ const styles = stylex.create({
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
-  remove: {
-    flexShrink: 0,
-    width: controlVars["--honk-control-h-sm"],
-    height: controlVars["--honk-control-h-sm"],
-    display: "grid",
-    placeItems: "center",
-    padding: 0,
-    borderWidth: 0,
-    borderStyle: "none",
-    borderRadius: radiusVars["--honk-radius-pill"],
-    backgroundColor: {
-      default: "transparent",
-      ":hover": { "@media (hover: hover)": colorVars["--honk-color-state-hover"] },
-    },
-    color: colorVars["--honk-color-text-faint"],
-    cursor: "pointer",
-  },
 });
-
-function basename(path: string): string {
-  const trimmed = path.replace(/[\\/]+$/, "");
-  return trimmed.split(/[\\/]/).pop() ?? path;
-}
 
 function DirectoryAccessControl({
   cwd,
@@ -121,15 +79,15 @@ function DirectoryAccessControl({
       >
         <Popover.Trigger
           render={
-            <button
-              type="button"
+            <Button
+              size="sm"
+              variant="quiet"
               aria-label="Manage folder access"
               title={`${cwd} — manage folder access`}
-              {...stylex.props(styles.projectChip)}
+              iconStart={<Icon icon={IconFolderAddRight} size="sm" tone="faint" />}
             >
-              <Icon icon={IconFolderAddRight} size="sm" tone="faint" />
               <span {...stylex.props(styles.label)}>{basename(cwd)}</span>
-            </button>
+            </Button>
           }
         />
         <Popover.Popup side="top" align="start">
@@ -148,17 +106,17 @@ function DirectoryAccessControl({
           <span {...stylex.props(styles.attachedChip)}>
             <Icon icon={IconFolder1} size="sm" tone="muted" />
             <span {...stylex.props(styles.label)}>{basename(path)}</span>
-            <button
-              type="button"
+            <IconButton
+              size="sm"
+              variant="quiet"
               aria-label={`Remove ${path}`}
               disabled={isPending}
-              {...stylex.props(styles.remove)}
               onClick={() => {
                 onDetach(path);
               }}
             >
               <Icon icon={IconCrossSmall} size="sm" tone="faint" />
-            </button>
+            </IconButton>
           </span>
         </Tooltip>
       ))}

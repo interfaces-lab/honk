@@ -1,6 +1,4 @@
-// Toast viewport — app-level surface (no Toast primitive in @honk/ui yet; DS gap).
-// Placement: bottom-right. Titlebar is tab chrome; bottom-right keeps status off the
-// work surface and clear of the DEV/update trailing slot (locked §0 quiet chrome).
+// App toast viewport. No Toast primitive in @honk/ui yet.
 
 import * as stylex from "@stylexjs/stylex";
 import { Button, Icon, IconButton, Spinner, Text } from "@honk/ui";
@@ -25,20 +23,18 @@ import { useSyncExternalStore } from "react";
 
 import {
   actions as toastActions,
-  getActiveTabKey,
   shouldRenderToast,
   useToasts,
   type ToastItem,
   type ToastType,
 } from "./toast-store";
-import { subscribe as subscribeTabs } from "./tab-store";
+import { getSnapshot as getTabSnapshot, subscribe as subscribeTabs } from "./tab-store";
 
-// ── Anatomy (named intrinsics — toast chrome, not identity vocabulary) ───────────────────────
 const TOAST_MAX_WIDTH = "340px";
 const TOAST_GAP = "8px";
-// Slide distance for entrance — signature motion geometry, not a spacing token.
+// Entrance slide offset. Motion geometry, not a spacing token.
 const TOAST_ENTER_OFFSET = "12px";
-// Copy-error confirmation hold — interaction timing, not a motion token.
+// Copy confirmation hold. Interaction timing, not a motion token.
 const COPY_CONFIRM_MS = 1500;
 // Icon optical nudge so the glyph aligns with the first title line.
 const ICON_OPTICAL_NUDGE = "2px";
@@ -173,7 +169,7 @@ function ToastTypeIcon(props: { type: ToastType }): React.ReactElement {
     );
   }
   if (props.type === "warning") {
-    // No triangle glyph in the curated set — exclamation circle + warn tone.
+    // Curated set has no triangle glyph. Exclamation circle with warn tone.
     return (
       <span {...stylex.props(styles.iconSlot, tone)}>
         <Icon icon={IconExclamationCircle} size="sm" tone="warn" />
@@ -190,13 +186,13 @@ function ToastTypeIcon(props: { type: ToastType }): React.ReactElement {
 // Copy confirmation is event-driven local state (click → setCopied), not an effect.
 function CopyErrorButton(props: { text: string }): React.ReactElement {
   const [isCopied, setCopied] = React.useState(false);
-  // Module-level timer id held on the element via closure — cleared on next click.
+  // Cleared on the next click so rapid copies do not leave a stale timeout.
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   return (
     <IconButton
       size="sm"
-      variant="ghost"
+      variant="quiet"
       aria-label={isCopied ? "Copied" : "Copy error"}
       title={isCopied ? "Copied" : "Copy error"}
       onClick={() => {
@@ -251,7 +247,7 @@ function ToastCard(props: { toast: ToastItem }): React.ReactElement {
           <div {...stylex.props(styles.actions)}>
             <Button
               size="sm"
-              variant="secondary"
+              variant="neutral"
               onClick={() => {
                 toastActions.invokeAction(toast.id);
               }}
@@ -263,7 +259,7 @@ function ToastCard(props: { toast: ToastItem }): React.ReactElement {
       </div>
       <IconButton
         size="sm"
-        variant="ghost"
+        variant="quiet"
         aria-label="Dismiss notification"
         title="Dismiss"
         onClick={() => {
@@ -278,6 +274,10 @@ function ToastCard(props: { toast: ToastItem }): React.ReactElement {
 
 function useActiveTabKey(): string {
   return useSyncExternalStore(subscribeTabs, getActiveTabKey, getActiveTabKey);
+}
+
+function getActiveTabKey(): string {
+  return getTabSnapshot().activeKey;
 }
 
 function ToastViewport(): React.ReactElement | null {

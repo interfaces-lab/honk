@@ -1,143 +1,61 @@
 import * as React from "react";
-import { Alert, FlatList, View, type ListRenderItemInfo } from "react-native";
-import { Redirect, Stack, router } from "expo-router";
-import type { ThreadSummary } from "@honk/opencode";
+import { FlatList, type ListRenderItemInfo } from "react-native";
+import { Redirect, Stack } from "expo-router";
+import { openCodeSessionKey } from "@honk/opencode";
 
 import { useRemote } from "../src/remote-context";
+import type { RemoteSession } from "../src/remote-context";
 import { ThreadRow } from "../src/thread-row";
-import { ActionButton, DetailText, EmptyState, Page, useHonkTheme } from "../src/ui";
+import { EmptyState, Page, useHonkTheme } from "../src/ui";
 
+// OpenCode exposes archived sessions in the session index but offers no
+// restore/delete operations, so this screen is read-only.
 export default function ArchivedTasksRoute(): React.ReactElement {
   const theme = useHonkTheme();
   const remote = useRemote();
-  const [threads, setThreads] = React.useState<readonly ThreadSummary[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [pendingId, setPendingId] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+  const [refreshing, setRefreshing] = React.useState(false);
 
-  const load = React.useCallback(async (): Promise<void> => {
-    const client = remote.client;
-    if (client === null) return;
-    setLoading(true);
-    setError(null);
+  if (remote.servers.length === 0) return <Redirect href="/connect" />;
+
+  const sessions = remote.sessions.filter(
+    (session) => session.info.time.archived !== undefined,
+  );
+
+  const refresh = async (): Promise<void> => {
+    setRefreshing(true);
     try {
-      setThreads(await client.threads.listArchived());
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Archived tasks could not be loaded.");
+      await remote.refreshSessions();
     } finally {
-      setLoading(false);
-    }
-  }, [remote.client]);
-
-  React.useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (remote.client === null) return <Redirect href="/connect" />;
-
-  const restore = async (thread: ThreadSummary): Promise<void> => {
-    setPendingId(thread.id);
-    setError(null);
-    try {
-      const restored = await remote.client?.threads.restoreAsCopy(thread.id);
-      if (restored === undefined) {
-        throw new Error("The Honk host disconnected while restoring the task.");
-      }
-      setThreads((current) => current.filter((item) => item.id !== thread.id));
-      await remote.refreshWorkspace();
-      router.replace({
-        pathname: "/(tabs)/home/[threadId]",
-        params: { threadId: restored.id },
-      });
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The task could not be restored.");
-    } finally {
-      setPendingId(null);
+      setRefreshing(false);
     }
   };
 
-  const remove = (thread: ThreadSummary): void => {
-    Alert.alert(
-      `Delete “${thread.title}”?`,
-      "This permanently removes the task and its conversation.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            setPendingId(thread.id);
-            void remote.client?.threads
-              .remove(thread.id)
-              .then(() => setThreads((current) => current.filter((item) => item.id !== thread.id)))
-              .catch((cause: unknown) =>
-                setError(cause instanceof Error ? cause.message : "The task could not be deleted."),
-              )
-              .finally(() => setPendingId(null));
-          },
-        },
-      ],
-    );
-  };
-
-  const renderItem = ({ item }: ListRenderItemInfo<ThreadSummary>): React.ReactElement => (
-    <View>
-      <ThreadRow
-        href={{ pathname: "/(tabs)/home/[threadId]", params: { threadId: item.id } }}
-        thread={item}
-      />
-      <View
-        style={{
-          flexDirection: "row",
-          gap: theme.metrics.space.contentGap,
-          justifyContent: "flex-end",
-          padding: theme.metrics.space.contentGap,
-        }}
-      >
-        <ActionButton
-          label="Restore as copy"
-          onPress={() => void restore(item)}
-          pending={pendingId === item.id}
-          tone="neutral"
-        />
-        <ActionButton
-          label="Delete"
-          onPress={() => remove(item)}
-          pending={pendingId === item.id}
-          tone="destructive"
-        />
-      </View>
-    </View>
+  const renderItem = ({ item }: ListRenderItemInfo<RemoteSession>): React.ReactElement => (
+    <ThreadRow
+      href={{
+        pathname: "/(tabs)/home/server/[serverKey]/session/[sessionId]",
+        params: { serverKey: item.ref.server, sessionId: item.ref.sessionID },
+      }}
+      session={item}
+    />
   );
 
   return (
     <Page>
-      <Stack.Screen options={{ title: "Archived tasks" }} />
-      {error === null ? null : (
-        <DetailText
-          accessibilityLiveRegion="polite"
-          style={{ color: theme.colors.errFg, padding: theme.metrics.space.screenGutter }}
-        >
-          {error}
-        </DetailText>
-      )}
+      <Stack.Screen options={{ title: "Archived sessions" }} />
       <FlatList
         contentContainerStyle={[
           { paddingHorizontal: theme.metrics.space.screenGutter },
-          threads.length === 0 ? { flexGrow: 1 } : undefined,
+          sessions.length === 0 ? { flexGrow: 1 } : undefined,
         ]}
         contentInsetAdjustmentBehavior="automatic"
-        data={threads}
-        keyExtractor={(thread) => thread.id}
+        data={sessions}
+        keyExtractor={(session) => openCodeSessionKey(session.ref)}
         ListEmptyComponent={
-          loading ? (
-            <EmptyState body="Fetching archived tasks from your Honk host." title="Loading…" />
-          ) : (
-            <EmptyState body="Archived tasks will appear here." title="No archived tasks" />
-          )
+          <EmptyState body="Archived sessions will appear here." title="No archived sessions" />
         }
-        onRefresh={() => void load()}
-        refreshing={loading}
+        onRefresh={() => void refresh()}
+        refreshing={refreshing}
         renderItem={renderItem}
       />
     </Page>

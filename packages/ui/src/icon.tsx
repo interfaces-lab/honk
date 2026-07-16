@@ -1,27 +1,11 @@
-// <Icon> — the glyph leaf. Wraps a central-icons glyph in a sized, toned box. NO logic, NO state,
-// NO effects (ADR 0025): a size/tone picks a pre-built style object, stylex merges them (base →
-// size → tone → caller xstyle last).
-//
-// THE SIZING PATTERN (required, and the reason there is a wrapper at all): StyleX 0.19 has no
-// descendant selectors, so the box can't be sized by targeting the inner <svg>. Instead the wrapper
-// span sets `font-size` from an --honk-icon-size-* token and the glyph is rendered at size="1em", so
-// the glyph fills the token-sized font box — the token owns the geometry, and tone flows in through
-// `currentColor` (every central-icons stroke is currentColor). The glyph is passed as a COMPONENT
-// (icon={IconFolder1}) and rendered here directly — no cloneElement, no children juggling.
-//
-// Prop grammar mirrors honkkit's prior Icon (packages/honkkit/src/icon.tsx) minus its Base-UI
-// coupling (useRender/mergeProps/themeProps): this package is StyleX-only and effect-free, so the
-// render-delegation and external-CSS-targeting surfaces are dropped. Tones are re-expressed over
-// THIS package's color tokens; `current` (the default) inherits the surrounding text color.
+// central-icons leaf. size then tone then caller style.
 
 import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
+import { applyStyle, type HonkStyle, type StyleProp } from "./style";
 import { colorVars, iconVars } from "./tokens.stylex";
 
-// The shape every central-icons glyph satisfies (verified: React.FC<{size?; ariaHidden?} & SVGProps>,
-// default size 24, strokes in currentColor). Typed structurally rather than imported from the pack so
-// the primitive wraps ANY such glyph and stays icon-library-agnostic.
 type Glyph = React.ComponentType<
   { size?: string | number } & React.SVGProps<SVGSVGElement>
 >;
@@ -38,20 +22,15 @@ type IconTone =
   | "info";
 
 interface IconProps {
-  // The glyph component to render, e.g. icon={IconCrossSmall}.
   icon: Glyph;
   size?: IconSize;
   tone?: IconTone;
-  // Accessible name. Omit for a decorative glyph (the default → aria-hidden); provide it when the
-  // icon carries meaning on its own (→ role="img" + the label). Most call sites wrap the icon in a
-  // labelled control and leave this unset.
+  // Omit label for decorative glyphs (aria-hidden). Provide label when the icon is the sole cue.
+
   label?: string;
-  // Caller override, merged last (charter merge order).
-  xstyle?: stylex.StyleXStyles;
+  style?: StyleProp<HonkStyle>;
 }
 
-// The glyph fills the wrapper's icon-size font box. Fixed intrinsic of the sizing pattern above, not
-// a design value — a named constant with this justification per the stylex skill (Tokens rule 3).
 const GLYPH_SIZE = "1em";
 
 const styles = stylex.create({
@@ -60,10 +39,8 @@ const styles = stylex.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    // pin the line box to the glyph so inherited leading never stretches the 1em icon box
     lineHeight: 1,
   },
-  // Size sets font-size only; the glyph's size="1em" reads it (see THE SIZING PATTERN).
   sizeXs: {
     fontSize: iconVars["--honk-icon-size-xs"],
   },
@@ -79,8 +56,6 @@ const styles = stylex.create({
   sizeXl: {
     fontSize: iconVars["--honk-icon-size-xl"],
   },
-  // Tone = the paint colour; the glyph's currentColor strokes inherit it. `current` inherits the
-  // surrounding text colour (so an icon inside a hover-tinted control follows the control for free).
   toneCurrent: {
     color: "currentColor",
   },
@@ -107,7 +82,6 @@ const styles = stylex.create({
   },
 });
 
-// Lookup tables — the variant→style pick happens in JS, so the render body is branch-free.
 const sizeStyles: Record<IconSize, stylex.StyleXStyles> = {
   xs: styles.sizeXs,
   sm: styles.sizeSm,
@@ -132,17 +106,16 @@ function Icon({
   size = "md",
   tone = "current",
   label,
-  xstyle,
+  style,
 }: IconProps): React.ReactElement {
   const decorative = label === undefined;
   return (
     <span
-      // decorative by default; a provided label promotes the glyph to an accessible image
       aria-hidden={decorative || undefined}
       role={decorative ? undefined : "img"}
       aria-label={label}
       data-slot="icon"
-      {...stylex.props(styles.root, sizeStyles[size], toneStyles[tone], xstyle)}
+      {...applyStyle(stylex.props(styles.root, sizeStyles[size], toneStyles[tone]), style)}
     >
       <Glyph size={GLYPH_SIZE} />
     </span>

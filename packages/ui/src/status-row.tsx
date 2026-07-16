@@ -1,35 +1,17 @@
-// The status row — the timeline's waiting indicator: a shimmer-masked label ("Planning next
-// moves") that appends while the agent is between visible steps. Anatomy and values ported
-// exactly from the app's WorkingStatusRow + honkkit's ChatLoader (packages/app/src/components/
-// chat/message/status-row.tsx wrapping packages/honkkit/src/conversation-loader.tsx ChatLoader),
-// flattened per the recon memo §5: the row-level overrides (min-h-6 · px-conversation-inset ·
-// py-0 · text-conversation) win over ChatLoader's own metrics at the call site, so one element
-// carries them here. The label's shimmer is a MASK sweep (honkkit styles.css
-// [data-slot="conversation-loader-thinking"] + @keyframes thinking-shimmer), distinct from the
-// tool line's background-clip shine.
-//
-// Presentational and effect-free (ADR 0025): the label is a prop; the 15s "This is taking a bit
-// longer..." swap is caller/store timing (the app's waiting-status.ts), never a component timer.
 
 import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
+import { applyStyle, type HonkStyle, type StyleProp } from "./style";
 import { colorVars, conversationVars, fontVars, motionVars } from "./tokens.stylex";
 
-// ── Row intrinsics (justified per the stylex skill) ────────────────────────────────────────
-const ROW_PAD_Y = "2px"; // py-0.5 on the app's WorkingStatusRow wrapper (status-row.tsx)
-// text-muted-foreground/80: the label's 80% alpha step over fg-secondary, applied as element
-// opacity — equivalent for a single text node, and it composes with the mask (conversation-
-// loader.tsx ChatLoader call site).
+const ROW_PAD_Y = "2px";
 const LABEL_OPACITY = 0.8;
-// The shimmer mask, verbatim from honkkit styles.css: 0.45-alpha shoulders around an opaque
-// center. An ALPHA ramp (black = mask alpha, not a theme color) — an intrinsic, not vocabulary.
+// Mask uses black as alpha, not a theme color. Stop offsets are fixed animation geometry.
 const SHIMMER_MASK =
   "linear-gradient(90deg, oklch(0 0 0 / 0.45) 0%, oklch(0 0 0 / 0.45) 30%, " +
   "oklch(0 0 0) 50%, oklch(0 0 0 / 0.45) 70%, oklch(0 0 0 / 0.45) 100%)";
 
-// One mask sweep, verbatim from styles.css @keyframes thinking-shimmer: slide from the resting
-// position to -200% center (mask-size is 200%, so one full pass).
 const thinkingShimmer = stylex.keyframes({
   to: { maskPosition: "-200% center" },
 });
@@ -54,9 +36,7 @@ const styles = stylex.create({
     color: colorVars["--honk-color-fg-secondary"],
     opacity: LABEL_OPACITY,
   },
-  // The label's mask sweep. Reduced motion drops the animation AND the mask (the app's
-  // motion-reduce:animate-none would leave a part-faded still mask; removing it renders the
-  // honest still label instead).
+  // Reduced motion drops the animation and the mask. Leaving a still partial mask would look faded.
   label: {
     animationName: {
       default: thinkingShimmer,
@@ -77,16 +57,13 @@ const styles = stylex.create({
 });
 
 interface StatusRowProps {
-  // The waiting label — a string so it can double as the row's accessible name (the app's
-  // ChatLoader: role="status" + aria-label, with the shimmering span aria-hidden).
   children: string;
-  // Caller override, merged last (charter merge order).
-  xstyle?: stylex.StyleXStyles;
+  style?: StyleProp<HonkStyle>;
 }
 
-function StatusRow({ children, xstyle }: StatusRowProps): React.ReactElement {
+function StatusRow({ children, style }: StatusRowProps): React.ReactElement {
   return (
-    <div role="status" aria-label={children} {...stylex.props(styles.row, xstyle)}>
+    <div role="status" aria-label={children} {...applyStyle(stylex.props(styles.row), style)}>
       <span {...stylex.props(styles.loader)}>
         <span aria-hidden={true} {...stylex.props(styles.label)}>
           {children}
