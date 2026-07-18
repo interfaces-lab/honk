@@ -14,15 +14,13 @@ import {
   promptFilesFromPaths,
   restoreSessionRevert,
   revertSessionFromMessage,
-  sendSessionPrompt,
 } from "../open-code-view";
+import { sendSessionPrompt } from "../session-prompt";
 import { actions as toastActions } from "../toast-store";
 import { runMessageEdit } from "./message-edit";
 import { useThreadRuntime } from "./runtime";
 
 const EDITOR_MAX_HEIGHT = "200px";
-// Cursor groups adjacent edit controls at 4px inside the toolbar's 8px main gap.
-const EDIT_CONTROL_GAP = "4px";
 const COMPOSER_RING = `inset 0 0 0 1px ${workbenchSurfaceVars["--honk-workbench-input-border"]}`;
 const COMPOSER_RING_ACTIVE = `inset 0 0 0 1px ${workbenchSurfaceVars["--honk-workbench-input-border-active"]}`;
 
@@ -65,7 +63,8 @@ const styles = stylex.create({
   leadingControls: {
     display: "flex",
     alignItems: "center",
-    gap: EDIT_CONTROL_GAP,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px is Cursor's fixed sub-grouping of adjacent edit controls inside the 8px toolbar gap, no composer spacing token owns it
+    gap: "4px",
   },
   spacer: { flexGrow: 1, minWidth: 0 },
 });
@@ -164,16 +163,17 @@ export function InlineMessageEditComposer({
       });
   };
 
-  const submit = (payload: PromptSubmit): void => {
+  const submit = (payload: PromptSubmit): boolean => {
     if (sendingRef.current || pendingSubmissionRef.current !== null || payload.command !== null) {
-      return;
+      return false;
     }
     if (!draft.requiresRevertConfirmation) {
       executeEdit(payload);
-      return;
+      return false;
     }
     pendingSubmissionRef.current = payload;
     setPendingSubmission(payload);
+    return false;
   };
 
   const dismissConfirmation = (): void => {

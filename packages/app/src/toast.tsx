@@ -30,14 +30,10 @@ import {
 } from "./toast-store";
 import { getSnapshot as getTabSnapshot, subscribe as subscribeTabs } from "./tab-store";
 
-const TOAST_MAX_WIDTH = "340px";
-const TOAST_GAP = "8px";
 // Entrance slide offset. Motion geometry, not a spacing token.
 const TOAST_ENTER_OFFSET = "12px";
 // Copy confirmation hold. Interaction timing, not a motion token.
 const COPY_CONFIRM_MS = 1500;
-// Icon optical nudge so the glyph aligns with the first title line.
-const ICON_OPTICAL_NUDGE = "2px";
 
 const enter = stylex.keyframes({
   from: {
@@ -58,9 +54,9 @@ const styles = stylex.create({
     zIndex: zVars["--honk-z-toast"],
     display: "flex",
     flexDirection: "column-reverse",
-    gap: TOAST_GAP,
+    gap: spaceVars["--honk-space-gutter"],
     width: "100%",
-    maxWidth: TOAST_MAX_WIDTH,
+    maxWidth: "340px",
     pointerEvents: "none",
   },
   toast: {
@@ -104,7 +100,9 @@ const styles = stylex.create({
   },
   iconSlot: {
     flexShrink: 0,
-    marginTop: ICON_OPTICAL_NUDGE,
+    // Icon optical nudge so the glyph aligns with the first title line.
+    // oxlint-disable-next-line honk/design-no-raw-values -- 2px optical glyph-alignment nudge is fixed geometry, no spacing token owns it
+    marginTop: "2px",
   },
   toneError: {
     color: colorVars["--honk-color-err-fg"],
@@ -231,7 +229,7 @@ function ToastCard(props: { toast: ToastItem }): React.ReactElement {
       <ToastTypeIcon type={toast.type} />
       <div {...stylex.props(styles.body)}>
         <div {...stylex.props(styles.titleRow)}>
-          <Text as="span" size="sm" weight="medium">
+          <Text as="span" size="sm" weight="regular">
             {toast.title}
           </Text>
           {copyText !== undefined && copyText.length > 0 ? (

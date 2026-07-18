@@ -20,7 +20,7 @@ const sx = stylex.create({
     color: colorVars["--honk-color-text-muted"],
     fontFamily: fontVars["--honk-font-family-ui"],
     fontSize: fontVars["--honk-font-size-detail"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
     lineHeight: fontVars["--honk-leading-detail"],
   },
   labelInvalid: {
@@ -46,6 +46,7 @@ const sx = stylex.create({
   },
   surfaceInvalid: {
     backgroundColor: colorVars["--honk-color-err-bg"],
+    // oxlint-disable-next-line honk/design-no-raw-values -- inset ring emulates a 1px border via box-shadow; width and color are tokens, the "inset 0 0 0" geometry is fixed and no shadow token owns it
     boxShadow: `inset 0 0 0 ${controlVars["--honk-control-border-width"]} ${colorVars["--honk-color-err-border"]}`,
     outlineColor: colorVars["--honk-color-err-fg"],
   },

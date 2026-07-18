@@ -19,10 +19,6 @@ import {
   zVars,
 } from "./tokens.stylex";
 
-const MENU_MIN_WIDTH = "200px";
-const MENU_MAX_WIDTH = "320px";
-const HAIRLINE = "1px";
-const MENU_FINE_GAP = "4px";
 const MENU_GUTTER_PX = 4;
 const SUBMENU_GUTTER_PX = 0;
 const SUBMENU_ALIGN_OFFSET_PX = -4;
@@ -34,8 +30,8 @@ const sx = stylex.create({
     zIndex: zVars["--honk-z-menu"],
   },
   popup: {
-    minWidth: MENU_MIN_WIDTH,
-    maxWidth: MENU_MAX_WIDTH,
+    minWidth: "200px",
+    maxWidth: "320px",
     // Equal inline + block gutter so each item's rounded highlight is inset from the
     // popup edge on both axes (not full-bleed horizontally).
     padding: spaceVars["--honk-space-gutter"],
@@ -105,15 +101,17 @@ const sx = stylex.create({
   },
   groupLabel: {
     paddingInline: controlVars["--honk-control-pad-md"],
-    paddingBlock: MENU_FINE_GAP,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px group-label vertical padding is a fixed menu intrinsic; no menu spacing token owns 4px
+    paddingBlock: "4px",
     color: colorVars["--honk-color-text-muted"],
     fontSize: fontVars["--honk-font-size-caption"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
     userSelect: "none",
   },
   separator: {
-    height: HAIRLINE,
-    marginBlock: MENU_FINE_GAP,
+    height: "1px",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px separator vertical margin is a fixed menu intrinsic; no menu spacing token owns 4px
+    marginBlock: "4px",
     backgroundColor: colorVars["--honk-color-border-muted"],
   },
   indicator: {

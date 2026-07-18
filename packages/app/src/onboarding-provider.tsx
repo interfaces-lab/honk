@@ -1,33 +1,29 @@
+// Provider step of the desktop onboarding. Follows the step system: the copy
+// column owns the decision (account rows + the Codex auth flow), the stage
+// panel shows the consequence (which account powers the composer, live).
+
 import * as stylex from "@stylexjs/stylex";
 import { Badge, Button, Field, ListRow, Spinner, Text } from "@honk/ui";
-import { colorVars, radiusVars, spaceVars } from "@honk/ui/tokens.stylex";
+import { spaceVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
+import { ProviderDemo } from "./onboarding-demo";
+import { OnboardingStepCopy, OnboardingStepPanel, onboardingStepStyles } from "./onboarding-step";
 import { providerAuthActions, type OpenAiFlow, useProviderAuth } from "./provider-auth";
 
 const styles = stylex.create({
-  stage: { minHeight: 0, flexGrow: 1, display: "flex", flexDirection: "column" },
-  body: {
-    minHeight: 0,
-    flexGrow: 1,
+  rows: {
+    width: "100%",
+    minWidth: 0,
     display: "flex",
     flexDirection: "column",
-    gap: spaceVars["--honk-space-panel-pad"],
-    padding: spaceVars["--honk-space-panel-pad"],
   },
-  heading: { display: "flex", flexDirection: "column", gap: spaceVars["--honk-space-gutter"] },
-  panel: {
-    borderRadius: radiusVars["--honk-radius-panel"],
-    backgroundColor: colorVars["--honk-color-layer-01"],
-    padding: spaceVars["--honk-space-panel-pad"],
-  },
-  rows: { display: "flex", flexDirection: "column" },
   flow: {
+    width: "100%",
     display: "flex",
     flexDirection: "column",
     alignItems: "flex-start",
     gap: spaceVars["--honk-space-gutter"],
-    marginTop: spaceVars["--honk-space-gutter"],
   },
   actions: {
     display: "flex",
@@ -42,13 +38,6 @@ const styles = stylex.create({
     alignItems: "flex-start",
     gap: spaceVars["--honk-space-gutter"],
   },
-  footer: {
-    display: "flex",
-    alignItems: "center",
-    gap: spaceVars["--honk-space-gutter"],
-    padding: spaceVars["--honk-space-panel-pad"],
-  },
-  spacer: { flexGrow: 1 },
 });
 
 function TextPrompt(props: {
@@ -66,7 +55,7 @@ function TextPrompt(props: {
         void props.onSubmit(value);
       }}
     >
-      <Text size="sm" weight="medium">{props.label}</Text>
+      <Text size="sm" weight="regular">{props.label}</Text>
       <Field>
         <Field.Input
           autoFocus
@@ -117,7 +106,7 @@ function CodexFlow({ flow }: { readonly flow: OpenAiFlow }): React.ReactElement 
     const methods = flow.methods.filter((method) => method.type === "oauth");
     return (
       <div {...stylex.props(styles.flow)}>
-        <Text size="sm" weight="medium">Choose a Codex sign-in method</Text>
+        <Text size="sm" weight="regular">Choose a Codex sign-in method</Text>
         {methods.length === 0 ? (
           <Text size="sm" tone="muted">
             Codex sign-in is unavailable. Continue now, then add an API key in Settings.
@@ -146,7 +135,7 @@ function CodexFlow({ flow }: { readonly flow: OpenAiFlow }): React.ReactElement 
     if (prompt.type === "select") {
       return (
         <div {...stylex.props(styles.flow)}>
-          <Text size="sm" weight="medium">{prompt.message}</Text>
+          <Text size="sm" weight="regular">{prompt.message}</Text>
           <div {...stylex.props(styles.actions)}>
             {prompt.options.map((option) => (
               <Button
@@ -187,11 +176,9 @@ function CodexFlow({ flow }: { readonly flow: OpenAiFlow }): React.ReactElement 
   );
 }
 
-export function OnboardingProvider(props: {
+export function OnboardingProviderStep(props: {
   readonly onBack: () => void;
-  readonly onComplete: () => void;
-  readonly isCompleting: boolean;
-  readonly completionError: string | null;
+  readonly onContinue: () => void;
 }): React.ReactElement {
   const state = useProviderAuth();
   const anthropicLabel =
@@ -204,16 +191,13 @@ export function OnboardingProvider(props: {
           : "Checking…";
 
   return (
-    <div {...stylex.props(styles.stage)}>
-      <div {...stylex.props(styles.body)}>
-        <div {...stylex.props(styles.heading)}>
-          <Text as="p" size="lg" weight="semibold">Set up coding accounts</Text>
+    <div {...stylex.props(onboardingStepStyles.stage)}>
+      <div {...stylex.props(onboardingStepStyles.body)}>
+        <OnboardingStepCopy step="provider" title="Set up coding accounts">
           <Text as="p" size="base" tone="muted">
             Codex sign-in is optional. Honk imports Claude Code credentials when the Claude Code
             plugin is installed.
           </Text>
-        </div>
-        <section {...stylex.props(styles.panel)} aria-label="Coding accounts">
           <div {...stylex.props(styles.rows)}>
             <ListRow>
               <ListRow.Content>
@@ -261,26 +245,22 @@ export function OnboardingProvider(props: {
           {state.errorMessage === null ? null : (
             <Text as="p" role="alert" size="sm" tone="err">{state.errorMessage}</Text>
           )}
-          {props.completionError === null ? null : (
-            <Text as="p" role="alert" size="sm" tone="err">{props.completionError}</Text>
-          )}
-        </section>
+          <Text as="p" size="sm" tone="faint">
+            Connect or disconnect accounts at any time in Settings.
+          </Text>
+        </OnboardingStepCopy>
+        <OnboardingStepPanel label="Connected account preview">
+          <ProviderDemo
+            codexConnected={state.openAiConnected}
+            claudeConnected={state.anthropic.kind === "connected"}
+          />
+        </OnboardingStepPanel>
       </div>
-      <div {...stylex.props(styles.footer)}>
+      <div {...stylex.props(onboardingStepStyles.footer)}>
         <Button size="md" variant="quiet" onClick={props.onBack}>Back</Button>
-        <span {...stylex.props(styles.spacer)} />
-        <Button
-          autoFocus
-          size="md"
-          variant="primary"
-          disabled={props.isCompleting}
-          onClick={props.onComplete}
-        >
-          {props.isCompleting
-            ? "Opening Honk…"
-            : state.openAiConnected
-              ? "Start using Honk"
-              : "Continue without connecting"}
+        <span {...stylex.props(onboardingStepStyles.footerSpacer)} />
+        <Button autoFocus size="md" variant="primary" onClick={props.onContinue}>
+          {state.openAiConnected ? "Continue" : "Continue without connecting"}
         </Button>
       </div>
     </div>

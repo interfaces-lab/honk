@@ -4,14 +4,6 @@ import * as React from "react";
 import { applyStyle, type HonkStyle, type StyleProp } from "./style";
 import { colorVars, conversationVars, fontVars, motionVars } from "./tokens.stylex";
 
-// Streaming caret geometry is law-fixed, not a design token. Identity rounds must not swap it.
-const CARET_WIDTH = "2px";
-const CARET_HEIGHT = "1em";
-const CARET_GAP = "1px";
-const CARET_RADIUS = "1px";
-// Blink period is a text-cursor convention. Do not borrow a motion token or it drifts with spinner timing.
-const CARET_BLINK_PERIOD = "1s";
-
 const caretBlink = stylex.keyframes({
   "0%": { opacity: 1 },
   "50%": { opacity: 0 },
@@ -40,11 +32,14 @@ const styles = stylex.create({
   },
   caret: {
     display: "inline-block",
-    width: CARET_WIDTH,
-    height: CARET_HEIGHT,
-    marginInlineStart: CARET_GAP,
+    // Streaming caret geometry is law-fixed, not a design token. Identity rounds must not swap it.
+    width: "2px",
+    height: "1em",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1px caret offset is fixed cursor geometry, no spacing token owns it
+    marginInlineStart: "1px",
     verticalAlign: "text-bottom",
-    borderRadius: CARET_RADIUS,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1px caret corner is fixed cursor geometry, smallest radius token is 4px
+    borderRadius: "1px",
     backgroundColor: colorVars["--honk-color-fg"],
     // Reduced motion keeps the caret lit and still.
     opacity: 1,
@@ -53,7 +48,8 @@ const styles = stylex.create({
       "@media (prefers-reduced-motion: reduce)": "none",
     },
     animationDuration: {
-      default: CARET_BLINK_PERIOD,
+      // oxlint-disable-next-line honk/design-no-raw-values -- 1s blink is a text-cursor convention, not spinner motion; borrowing a motion token would drift with spinner timing
+      default: "1s",
       "@media (prefers-reduced-motion: reduce)": "0s",
     },
     animationTimingFunction: "linear",

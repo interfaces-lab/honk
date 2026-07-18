@@ -3,12 +3,11 @@ import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
 import { applyStyle, type HonkStyle, type StyleProp } from "./style";
-import { colorVars, fontVars, motionVars } from "./tokens.stylex";
+import { colorVars, controlVars, fontVars, motionVars } from "./tokens.stylex";
 
 const DOT_DIAMETER = 2.5;
 const DOT_PITCH = 9;
 const TRACK_HEIGHT = "4px";
-const LABEL_ROW_GAP = "6px";
 
 type PresetTone = "low" | "medium" | "high" | "ultra";
 
@@ -60,7 +59,7 @@ const styles = stylex.create({
     display: "flex",
     alignItems: "baseline",
     justifyContent: "space-between",
-    marginTop: LABEL_ROW_GAP,
+    marginTop: controlVars["--honk-control-gap"],
   },
   label: {
     margin: 0,

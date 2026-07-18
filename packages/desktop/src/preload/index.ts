@@ -37,6 +37,7 @@ const SET_THEME_CHANNEL = "desktop:set-theme";
 const SET_BACKGROUND_COLOR_CHANNEL = "desktop:set-background-color";
 const SET_VIBRANCY_CHANNEL = "desktop:set-vibrancy";
 const SET_DISPLAY_ZOOM_CHANNEL = "desktop:set-display-zoom";
+const SET_KEEP_AWAKE_CHANNEL = "desktop:set-keep-awake";
 const EXPAND_WINDOW_WIDTH_CHANNEL = "desktop:expand-window-width";
 const CONTEXT_MENU_CHANNEL = "desktop:context-menu";
 const OPEN_EXTERNAL_CHANNEL = "desktop:open-external";
@@ -175,6 +176,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   setBackgroundColor: (color) => ipcRenderer.invoke(SET_BACKGROUND_COLOR_CHANNEL, color),
   setVibrancy: (enabled) => ipcRenderer.invoke(SET_VIBRANCY_CHANNEL, enabled),
   setDisplayZoom: (factor) => ipcRenderer.invoke(SET_DISPLAY_ZOOM_CHANNEL, factor),
+  setKeepAwake: (enabled) => ipcRenderer.invoke(SET_KEEP_AWAKE_CHANNEL, enabled),
   expandWindowWidth: (additionalWidth) =>
     ipcRenderer.invoke(EXPAND_WINDOW_WIDTH_CHANNEL, additionalWidth),
   showContextMenu: (items, position) => ipcRenderer.invoke(CONTEXT_MENU_CHANNEL, items, position),

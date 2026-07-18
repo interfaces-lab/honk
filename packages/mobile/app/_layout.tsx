@@ -4,6 +4,7 @@ import { Stack } from "expo-router";
 import { DarkTheme, DefaultTheme, ThemeProvider, type Theme } from "expo-router/react-navigation";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { RemoteProvider } from "../src/remote";
 import { useHonkTheme } from "../src/ui";
@@ -55,9 +56,11 @@ function RootNavigator(): React.ReactElement {
 export default function RootLayout(): React.ReactElement {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <RemoteProvider>
-        <RootNavigator />
-      </RemoteProvider>
+      <KeyboardProvider>
+        <RemoteProvider>
+          <RootNavigator />
+        </RemoteProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

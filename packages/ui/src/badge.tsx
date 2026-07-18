@@ -15,8 +15,6 @@ type BadgeSize = "sm" | "md";
 
 const BADGE_H_SM = "16px";
 const BADGE_H_MD = "20px";
-const BADGE_PAD_SM = "4px";
-const BADGE_PAD_MD = "6px";
 // Inset ring so outline tone never shifts layout.
 const BADGE_RING = `inset 0 0 0 1px ${colorVars["--honk-color-border-base"]}`;
 
@@ -30,20 +28,22 @@ const styles = stylex.create({
     gap: controlVars["--honk-control-gap"],
     borderRadius: radiusVars["--honk-radius-control"],
     fontFamily: fontVars["--honk-font-family-ui"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
     lineHeight: 1,
     whiteSpace: "nowrap",
   },
   sm: {
     height: BADGE_H_SM,
     minWidth: BADGE_H_SM,
-    paddingInline: BADGE_PAD_SM,
+    // oxlint-disable-next-line honk/design-no-raw-values -- badge sm horizontal inset is fixed intrinsic geometry; no spacing/control padding token owns 4px
+    paddingInline: "4px",
     fontSize: fontVars["--honk-font-size-micro"],
   },
   md: {
     height: BADGE_H_MD,
     minWidth: BADGE_H_MD,
-    paddingInline: BADGE_PAD_MD,
+    // oxlint-disable-next-line honk/design-no-raw-values -- badge md horizontal inset is fixed intrinsic geometry; no spacing/control padding token owns 6px
+    paddingInline: "6px",
     fontSize: fontVars["--honk-font-size-caption"],
   },
   neutral: {

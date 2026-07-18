@@ -24,10 +24,8 @@ import { actions as settingsActions } from "./settings-store";
 import { actions as tabActions, type TabStatus } from "./tab-store";
 import { useSessionInventoryWatch } from "./use-sdk-watch";
 
-const HOME_MAX_WIDTH = "1080px";
 const NAV_COLUMN = "280px";
 const CONTENT_COLUMN = "minmax(0, 720px)";
-const COMPOSER_MAX_WIDTH = "720px";
 const LG_MEDIA = "@media (min-width: 1024px)";
 const HOME_GAP = "16px";
 const HOME_GAP_LARGE = "32px";
@@ -39,7 +37,6 @@ const HOME_FINE_GAP = "4px";
 const HAIRLINE = "1px";
 const SCROLL_PAD_BOTTOM = "64px";
 const NEGATIVE_PANEL_PAD = "-12px";
-const BRANCH_CHIP_MAX_WIDTH = "160px";
 const PROJECT_ALL_KEY = "all";
 // OpenCode Home deliberately keeps the default inventory bounded while search owns deep history.
 const HOME_SESSION_LIMIT = 64;
@@ -58,7 +55,7 @@ const styles = stylex.create({
     boxSizing: "border-box",
     height: "100%",
     width: "100%",
-    maxWidth: HOME_MAX_WIDTH,
+    maxWidth: "1080px",
     marginInline: "auto",
     display: "flex",
     flexDirection: "column",
@@ -71,13 +68,14 @@ const styles = stylex.create({
   composerLane: {
     boxSizing: "border-box",
     width: "100%",
-    maxWidth: COMPOSER_MAX_WIDTH,
+    maxWidth: "720px",
     height: COMPOSER_LANE_HEIGHT,
     marginInline: "auto",
     flexShrink: 0,
     display: "flex",
     flexDirection: "column",
     justifyContent: "flex-end",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 16px composer-lane bottom inset; no spaceVars token owns 16px
     paddingBottom: HOME_GAP,
   },
   columns: {
@@ -94,6 +92,7 @@ const styles = stylex.create({
       [LG_MEDIA]: "1fr",
     },
     gap: {
+      // oxlint-disable-next-line honk/design-no-raw-values -- 16px mobile column gap; no spaceVars token owns 16px
       default: HOME_GAP,
       [LG_MEDIA]: HOME_GAP_LARGE,
     },
@@ -104,6 +103,7 @@ const styles = stylex.create({
     minHeight: 0,
     display: "flex",
     flexDirection: "column",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 16px nav stack gap; no spaceVars token owns 16px
     gap: HOME_GAP,
     overflow: "hidden",
     maxHeight: {
@@ -119,7 +119,7 @@ const styles = stylex.create({
     justifyContent: "space-between",
     paddingInline: controlVars["--honk-control-pad-md"],
     color: colorVars["--honk-color-text-muted"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
   },
   avatar: {
     display: "grid",
@@ -175,6 +175,7 @@ const styles = stylex.create({
     bottom: AVATAR_BADGE_OFFSET,
     display: "grid",
     placeItems: "center",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1.5px base-surface ring around the status dot is fixed geometry, no spacing token owns it
     padding: AVATAR_BADGE_RING,
     borderRadius: radiusVars["--honk-radius-pill"],
     backgroundColor: colorVars["--honk-color-bg-base"],
@@ -183,6 +184,7 @@ const styles = stylex.create({
     minHeight: 0,
     display: "flex",
     flexDirection: "column",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1px row separation; the border-hairline token owns border width, not gap spacing
     gap: HAIRLINE,
     overflowY: "auto",
     scrollbarWidth: "none",
@@ -196,8 +198,11 @@ const styles = stylex.create({
     flexShrink: 0,
     display: "flex",
     flexDirection: "column",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px footer row gap; spaceVars owns no 4px (sidebar-item-gap belongs to the app sidebar surface)
     gap: HOME_FINE_GAP,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 16px footer top offset; no spaceVars token owns 16px
     marginTop: HOME_GAP,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 32px footer bottom rhythm; no spaceVars token owns 32px
     marginBottom: HOME_GAP_LARGE,
     paddingRight: spaceVars["--honk-space-panel-pad"],
   },
@@ -215,6 +220,7 @@ const styles = stylex.create({
     flexBasis: "0%",
     minHeight: 0,
     // Scrollbar rides the gutter; rows keep their inset.
+    // oxlint-disable-next-line honk/design-no-raw-values -- negative gutter pull for the scrollbar; no spacing token owns -12px
     marginRight: NEGATIVE_PANEL_PAD,
     display: "flex",
     flexDirection: "column",
@@ -225,6 +231,7 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     paddingRight: spaceVars["--honk-space-panel-pad"],
+    // oxlint-disable-next-line honk/design-no-raw-values -- 64px scroll end-padding is a fixed intrinsic, no spacing token owns it
     paddingBottom: SCROLL_PAD_BOTTOM,
   },
   groupHead: {
@@ -249,7 +256,7 @@ const styles = stylex.create({
   },
   chip: {
     display: "inline-block",
-    maxWidth: BRANCH_CHIP_MAX_WIDTH,
+    maxWidth: "160px",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
@@ -335,6 +342,13 @@ function HomePage(): React.ReactElement {
             ? { location: openCodeLocationRef({ directory: targetDirectory }) }
             : {})}
           {...(targetLabel !== undefined ? { directoryLabel: targetLabel } : {})}
+          {...(selectedProject?.projectID === null || selectedProject?.projectID === undefined
+            ? {}
+            : { projectID: selectedProject.projectID })}
+          {...(selectedProject?.directory === null || selectedProject?.directory === undefined
+            ? {}
+            : { projectDirectory: selectedProject.directory })}
+          resolveLocationOnMount={pickedDirectory !== null}
           {...(selectedProject?.server === null || selectedProject?.server === undefined
             ? {}
             : { server: selectedProject.server })}
@@ -367,7 +381,7 @@ function HomePage(): React.ReactElement {
 
           {threads.length === 0 ? (
             <div {...stylex.props(styles.center)}>
-              <Text as="p" size="sm" tone="muted" weight="medium">
+              <Text as="p" size="sm" tone="muted" weight="regular">
                 No threads yet
               </Text>
               <Text as="p" size="xs" tone="faint">
@@ -376,7 +390,7 @@ function HomePage(): React.ReactElement {
             </div>
           ) : visibleThreads.length === 0 ? (
             <div {...stylex.props(styles.center)}>
-              <Text as="p" size="sm" tone="muted" weight="medium">
+              <Text as="p" size="sm" tone="muted" weight="regular">
                 No threads in this project
               </Text>
               <Text as="p" size="xs" tone="faint">
@@ -548,6 +562,7 @@ function activeThreads(threads: readonly CommandMenuThread[]): readonly CommandM
 type ProjectFilter = {
   readonly key: string;
   readonly label: string;
+  readonly projectID: string | null;
   // Worktree path used as the composer cwd when this row is selected.
   readonly directory: string | null;
   readonly server: OpenCodeServerKey | null;
@@ -566,6 +581,7 @@ function buildProjectFilters(threads: readonly CommandMenuThread[]): readonly Pr
     string,
     {
       label: string;
+      projectID: string | null;
       directory: string | null;
       server: OpenCodeServerKey;
       threads: CommandMenuThread[];
@@ -578,6 +594,7 @@ function buildProjectFilters(threads: readonly CommandMenuThread[]): readonly Pr
     if (existing === undefined) {
       byProject.set(key, {
         label: projectLabel(thread),
+        projectID: thread.projectId,
         directory: thread.projectDirectory,
         server: thread.server,
         threads: [thread],
@@ -591,6 +608,7 @@ function buildProjectFilters(threads: readonly CommandMenuThread[]): readonly Pr
     .map(([key, value]) => ({
       key,
       label: value.label,
+      projectID: value.projectID,
       directory: value.directory,
       server: value.server,
       count: value.threads.length,
@@ -602,6 +620,7 @@ function buildProjectFilters(threads: readonly CommandMenuThread[]): readonly Pr
     {
       key: PROJECT_ALL_KEY,
       label: "All",
+      projectID: null,
       directory: null,
       server: null,
       count: threads.length,

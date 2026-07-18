@@ -190,7 +190,7 @@ PODS:
     - ExpoModulesCore
   - ExpoFont (57.0.0):
     - ExpoModulesCore
-  - ExpoGlassEffect (57.0.0):
+  - ExpoGlassEffect (57.0.1):
     - ExpoModulesCore
   - ExpoHaptics (57.0.0):
     - ExpoModulesCore
@@ -1679,6 +1679,51 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - react-native-keyboard-controller (1.21.9):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - react-native-keyboard-controller/common (= 1.21.9)
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
+  - react-native-keyboard-controller/common (1.21.9):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - react-native-safe-area-context (5.7.0):
     - hermes-engine
     - RCTRequired
@@ -2357,6 +2402,28 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - RNTrueSheet (3.11.9):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - RNWorklets (0.10.0):
     - hermes-engine
     - RCTRequired
@@ -2445,7 +2512,7 @@ DEPENDENCIES:
   - "ExpoDomWebView (from `../../../node_modules/.pnpm/@expo+dom-webview@57.0.0_expo@57.0.4_react-native@0.86.0_@babel+core@7.29.7_@react-nati_2873e1a5bab5432af8c26d7f6f766666/node_modules/@expo/dom-webview/ios`)"
   - "ExpoFileSystem (from `../../../node_modules/.pnpm/expo-file-system@57.0.0_expo@57.0.4_react-native@0.86.0_@babel+core@7.29.7_@react-nativ_97e6a89c72fee899765c9cd95d0b83bc/node_modules/expo-file-system/ios/ExpoFileSystem.podspec`)"
   - "ExpoFont (from `../../../node_modules/.pnpm/expo-font@57.0.0_expo@57.0.4_react-native@0.86.0_@babel+core@7.29.7_@react-native+metro_54a5bafdf073d1e0f2fe6633d59cfcb5/node_modules/expo-font/ios/ExpoFont.podspec`)"
-  - "ExpoGlassEffect (from `../../../node_modules/.pnpm/expo-glass-effect@57.0.0_expo@57.0.4_react-native@0.86.0_@babel+core@7.29.7_@react-nati_5c0d430ed2de4726f78f1abbcb514760/node_modules/expo-glass-effect/ios`)"
+  - "ExpoGlassEffect (from `../../../node_modules/.pnpm/expo-glass-effect@57.0.1_expo@57.0.4_react-native@0.86.0_@babel+core@7.29.7_@react-nati_d06df99001b96360d4c9fde1bc33864d/node_modules/expo-glass-effect/ios`)"
   - "ExpoHaptics (from `../../../node_modules/.pnpm/expo-haptics@57.0.0_expo@57.0.4/node_modules/expo-haptics/ios`)"
   - "ExpoImage (from `../../../node_modules/.pnpm/expo-image@57.0.0_expo@57.0.4_react-native-web@0.21.2_encoding@0.1.13_react-dom@19.2.3__8004a6b9f4711506bcac8baec54b3084/node_modules/expo-image/ios/ExpoImage.podspec`)"
   - "ExpoImagePicker (from `../../../node_modules/.pnpm/expo-image-picker@57.0.2_expo@57.0.4/node_modules/expo-image-picker/ios`)"
@@ -2501,6 +2568,7 @@ DEPENDENCIES:
   - "React-Mapbuffer (from `../../../node_modules/.pnpm/react-native@0.86.0_@babel+core@7.29.7_@react-native+metro-config@0.86.0_@babel+core@7._8ad687c1df5ef68f743dca0c886f8df1/node_modules/react-native/ReactCommon`)"
   - "React-microtasksnativemodule (from `../../../node_modules/.pnpm/react-native@0.86.0_@babel+core@7.29.7_@react-native+metro-config@0.86.0_@babel+core@7._8ad687c1df5ef68f743dca0c886f8df1/node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)"
   - "React-mutationobservernativemodule (from `../../../node_modules/.pnpm/react-native@0.86.0_@babel+core@7.29.7_@react-native+metro-config@0.86.0_@babel+core@7._8ad687c1df5ef68f743dca0c886f8df1/node_modules/react-native/ReactCommon/react/nativemodule/mutationobserver`)"
+  - "react-native-keyboard-controller (from `../../../node_modules/.pnpm/react-native-keyboard-controller@1.21.9_react-native-reanimated@4.5.0_react-native-work_fa4bc20d1d77e12d824e616bc91d1c75/node_modules/react-native-keyboard-controller`)"
   - "react-native-safe-area-context (from `../../../node_modules/.pnpm/react-native-safe-area-context@5.7.0_react-native@0.86.0_@babel+core@7.29.7_@react-nati_805fbd7266c94788e68d7b0207503391/node_modules/react-native-safe-area-context`)"
   - "React-NativeModulesApple (from `../../../node_modules/.pnpm/react-native@0.86.0_@babel+core@7.29.7_@react-native+metro-config@0.86.0_@babel+core@7._8ad687c1df5ef68f743dca0c886f8df1/node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)"
   - "React-networking (from `../../../node_modules/.pnpm/react-native@0.86.0_@babel+core@7.29.7_@react-native+metro-config@0.86.0_@babel+core@7._8ad687c1df5ef68f743dca0c886f8df1/node_modules/react-native/ReactCommon/react/networking`)"
@@ -2542,6 +2610,7 @@ DEPENDENCIES:
   - "RNGestureHandler (from `../../../node_modules/.pnpm/react-native-gesture-handler@2.32.0_react-native@0.86.0_@babel+core@7.29.7_@react-nativ_daaad674610cddb5c062d794da91bcac/node_modules/react-native-gesture-handler`)"
   - "RNReanimated (from `../../../node_modules/.pnpm/react-native-reanimated@4.5.0_react-native-worklets@0.10.0_@babel+core@7.29.7_@react-na_e22ea25889e522c8b569d3a5ff7c9e68/node_modules/react-native-reanimated`)"
   - "RNScreens (from `../../../node_modules/.pnpm/react-native-screens@4.25.2_react-native@0.86.0_@babel+core@7.29.7_@react-native+metro-_3f6e91da9c03819ab5c982ed110a0cea/node_modules/react-native-screens`)"
+  - "RNTrueSheet (from `../../../node_modules/.pnpm/@lodev09+react-native-true-sheet@3.11.9_728b59e7c3840fd2d530a937f281c468/node_modules/@lodev09/react-native-true-sheet`)"
   - "RNWorklets (from `../../../node_modules/.pnpm/react-native-worklets@0.10.0_@babel+core@7.29.7_@react-native+metro-config@0.86.0_@babe_6cdd05f70d3d43edd71f555ce63fd544/node_modules/react-native-worklets`)"
   - "Yoga (from `../../../node_modules/.pnpm/react-native@0.86.0_@babel+core@7.29.7_@react-native+metro-config@0.86.0_@babel+core@7._8ad687c1df5ef68f743dca0c886f8df1/node_modules/react-native/ReactCommon/yoga`)"
 
@@ -2575,7 +2644,7 @@ EXTERNAL SOURCES:
   ExpoFont:
     :podspec: "../../../node_modules/.pnpm/expo-font@57.0.0_expo@57.0.4_react-native@0.86.0_@babel+core@7.29.7_@react-native+metro_54a5bafdf073d1e0f2fe6633d59cfcb5/node_modules/expo-font/ios/ExpoFont.podspec"
   ExpoGlassEffect:
-    :path: "../../../node_modules/.pnpm/expo-glass-effect@57.0.0_expo@57.0.4_react-native@0.86.0_@babel+core@7.29.7_@react-nati_5c0d430ed2de4726f78f1abbcb514760/node_modules/expo-glass-effect/ios"
+    :path: "../../../node_modules/.pnpm/expo-glass-effect@57.0.1_expo@57.0.4_react-native@0.86.0_@babel+core@7.29.7_@react-nati_d06df99001b96360d4c9fde1bc33864d/node_modules/expo-glass-effect/ios"
   ExpoHaptics:
     :path: "../../../node_modules/.pnpm/expo-haptics@57.0.0_expo@57.0.4/node_modules/expo-haptics/ios"
   ExpoImage:
@@ -2685,6 +2754,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/.pnpm/react-native@0.86.0_@babel+core@7.29.7_@react-native+metro-config@0.86.0_@babel+core@7._8ad687c1df5ef68f743dca0c886f8df1/node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
   React-mutationobservernativemodule:
     :path: "../../../node_modules/.pnpm/react-native@0.86.0_@babel+core@7.29.7_@react-native+metro-config@0.86.0_@babel+core@7._8ad687c1df5ef68f743dca0c886f8df1/node_modules/react-native/ReactCommon/react/nativemodule/mutationobserver"
+  react-native-keyboard-controller:
+    :path: "../../../node_modules/.pnpm/react-native-keyboard-controller@1.21.9_react-native-reanimated@4.5.0_react-native-work_fa4bc20d1d77e12d824e616bc91d1c75/node_modules/react-native-keyboard-controller"
   react-native-safe-area-context:
     :path: "../../../node_modules/.pnpm/react-native-safe-area-context@5.7.0_react-native@0.86.0_@babel+core@7.29.7_@react-nati_805fbd7266c94788e68d7b0207503391/node_modules/react-native-safe-area-context"
   React-NativeModulesApple:
@@ -2767,6 +2838,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/.pnpm/react-native-reanimated@4.5.0_react-native-worklets@0.10.0_@babel+core@7.29.7_@react-na_e22ea25889e522c8b569d3a5ff7c9e68/node_modules/react-native-reanimated"
   RNScreens:
     :path: "../../../node_modules/.pnpm/react-native-screens@4.25.2_react-native@0.86.0_@babel+core@7.29.7_@react-native+metro-_3f6e91da9c03819ab5c982ed110a0cea/node_modules/react-native-screens"
+  RNTrueSheet:
+    :path: "../../../node_modules/.pnpm/@lodev09+react-native-true-sheet@3.11.9_728b59e7c3840fd2d530a937f281c468/node_modules/@lodev09/react-native-true-sheet"
   RNWorklets:
     :path: "../../../node_modules/.pnpm/react-native-worklets@0.10.0_@babel+core@7.29.7_@react-native+metro-config@0.86.0_@babe_6cdd05f70d3d43edd71f555ce63fd544/node_modules/react-native-worklets"
   Yoga:
@@ -2787,7 +2860,7 @@ SPEC CHECKSUMS:
   ExpoDomWebView: 73ba90107a5acc0017a09b06e66d8eb238e089b8
   ExpoFileSystem: ffcd56066188802f263254b6b2e60f74b6a0bdae
   ExpoFont: 35fd7ad72f697d3a9656545909972d8b9f60d5da
-  ExpoGlassEffect: 72e96f2f6cae69f970238b80656d869d1a9a98ff
+  ExpoGlassEffect: 4b62afb489e6b84357701737ce002137c9d5fdbc
   ExpoHaptics: c6d063c3bfda1c1d6d7fdf237ffb612c4fc09954
   ExpoImage: 65b2a2279aab4791eb242156a4bd9b891fab8d12
   ExpoImagePicker: 27f4e9a5d797abc31c75237362f90ac012d1a8fe
@@ -2842,6 +2915,7 @@ SPEC CHECKSUMS:
   React-Mapbuffer: ce449ccdf3b80384415b925606be8a4bdcfc65d3
   React-microtasksnativemodule: 2eb3f49d0d8e77b5343455eccd057010b8d38b6b
   React-mutationobservernativemodule: f0a0d5ae9b51caf7becbeabf836d716cfedb6bf2
+  react-native-keyboard-controller: d4796248609d4c03cd6b5f73a9fd083d7c5f33d6
   react-native-safe-area-context: 6b4966397ada0f7dd481e4486a2ef936834861a1
   React-NativeModulesApple: a092d89b58f635ebfab88048b0eda9fb516819fd
   React-networking: 968bbbe73590149feb1e72b2af4f6a68e4796ece
@@ -2883,6 +2957,7 @@ SPEC CHECKSUMS:
   RNGestureHandler: 92172e79df6e88e0e93b6341f9dcd8b5a02746ba
   RNReanimated: 2fcbc44bef83df32cccdab52ff9732b6f9e4374d
   RNScreens: f94000b3cb1eb14cbb8d08dd6074fdd6ccf0e6b0
+  RNTrueSheet: fa8b104afa2fa9eca2338f879880a147cae322f9
   RNWorklets: d22860b29cbafb2a87e2aa8a6cc701ca33c30e39
   Yoga: fe50ab299e578f397fef753cf309c6703a4db29b
 

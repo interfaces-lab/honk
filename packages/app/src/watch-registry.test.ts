@@ -1,226 +1,35 @@
-import {
-  createOpenCodeServer,
-  openCodeSessionRef,
-  type OpenCodeClient,
-  type OpenCodeEvent,
-  type OpenCodeServerDescriptor,
-  type OpenCodeSessionInfo,
-} from "@honk/opencode";
+import { openCodeSessionRef, type OpenCodeEvent } from "@honk/opencode";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { appSessionSummary, projectSessionSummaries } from "./open-code-view";
+import {
+  cloud,
+  createClient,
+  createDurableEventQueue,
+  createEventQueue,
+  local,
+  reasoningEvent,
+  reasoningMessage,
+  sessionInfo,
+  waitUntil,
+} from "./watch-registry.test-helpers";
 
 import {
   bindOpenCodeClient,
   getBoundOpenCodeClient,
+  getOpenCodeCatalogRevision,
   getOpenCodeClient,
   getOpenCodeServersSnapshot,
   getSessionWatchSnapshot,
   getWorkspaceWatchSnapshot,
+  noteOpenCodeSessionPromptAccepted,
   registerOpenCodeClient,
   selectOpenCodeServer,
+  subscribeOpenCodeCatalog,
   subscribeSessionWatch,
   subscribeWorkspaceWatch,
   unregisterOpenCodeClient,
 } from "./watch-registry";
-
-const local = createOpenCodeServer({
-  origin: "http://127.0.0.1:4096",
-  label: "This Mac",
-  kind: "local",
-});
-const cloud = createOpenCodeServer({
-  origin: "https://cloud.example.test",
-  label: "Cloud",
-  kind: "cloud",
-});
-const SESSION_REFETCH_WAIT_MS = 120;
-
-function sessionInfo(
-  id: string,
-  title: string,
-  directory: string,
-  options?: {
-    readonly agent?: string;
-    readonly parentID?: string;
-    readonly updated?: number;
-  },
-): OpenCodeSessionInfo {
-  return {
-    id,
-    ...(options?.agent === undefined ? {} : { agent: options.agent }),
-    ...(options?.parentID === undefined ? {} : { parentID: options.parentID }),
-    projectID: `project-${id}`,
-    cost: 0,
-    tokens: {
-      input: 0,
-      output: 0,
-      reasoning: 0,
-      cache: { read: 0, write: 0 },
-    },
-    time: { created: 1, updated: options?.updated ?? 2 },
-    title,
-    location: { directory },
-  };
-}
-
-function createClient(input: {
-  readonly server: OpenCodeServerDescriptor;
-  readonly info: OpenCodeSessionInfo;
-  readonly inventory?: readonly OpenCodeSessionInfo[];
-  readonly activeSessionIDs?: readonly string[];
-  readonly needsAttention?: boolean;
-  readonly attentionRequestsFail?: boolean;
-  readonly isActive?: boolean;
-  readonly onAttentionRequest?: () => void;
-  readonly events?: (signal?: AbortSignal) => AsyncIterable<OpenCodeEvent>;
-  readonly onTranscript?: () => void;
-  readonly transcriptGate?: Promise<void>;
-  readonly onPump: () => void;
-}): OpenCodeClient {
-  const inventory = input.inventory ?? [input.info];
-  const activeSessionIDs = new Set(input.activeSessionIDs);
-  if (input.isActive === true || input.needsAttention === true) {
-    activeSessionIDs.add(input.info.id);
-  }
-  const waitForAbort = (signal?: AbortSignal): Promise<void> =>
-    new Promise((resolve) => {
-      if (signal?.aborted === true) {
-        resolve();
-        return;
-      }
-      signal?.addEventListener("abort", () => resolve(), { once: true });
-    });
-  const events =
-    input.events ??
-    ((signal?: AbortSignal): AsyncIterable<OpenCodeEvent> => ({
-      async *[Symbol.asyncIterator]() {
-        input.onPump();
-        await waitForAbort(signal);
-        yield* [] as OpenCodeEvent[];
-      },
-    }));
-  return {
-    server: input.server,
-    requests: {
-      permissions: async () => {
-        input.onAttentionRequest?.();
-        if (input.attentionRequestsFail === true) throw new Error("permission request failed");
-        return {
-          location: {
-            directory: input.info.location.directory,
-            project: { id: input.info.projectID, directory: input.info.location.directory },
-          },
-          data:
-            input.needsAttention === true
-              ? [
-                  {
-                    id: `permission-${input.info.id}`,
-                    sessionID: input.info.id,
-                    action: "read",
-                    resources: [input.info.location.directory],
-                  },
-                ]
-              : [],
-        };
-      },
-      questions: async () => {
-        input.onAttentionRequest?.();
-        if (input.attentionRequestsFail === true) throw new Error("question request failed");
-        return {
-          location: {
-            directory: input.info.location.directory,
-            project: { id: input.info.projectID, directory: input.info.location.directory },
-          },
-          data: [],
-        };
-      },
-    },
-    sessions: {
-      list: async () => ({ data: inventory, cursor: {} }),
-      active: async () =>
-        Object.fromEntries(
-          [...activeSessionIDs].map((sessionID) => [sessionID, { type: "running" }]),
-        ),
-      get: async () => input.info,
-      messages: async () => ({ data: [], cursor: {} }),
-      transcript: async () => {
-        input.onTranscript?.();
-        await input.transcriptGate;
-        return {
-          info: input.info,
-          messages: [],
-          parts: [],
-          sources: { persistedMessages: 0, projectedMessages: 0 },
-        };
-      },
-      permissions: async () => {
-        if (input.attentionRequestsFail === true) throw new Error("permission request failed");
-        return input.needsAttention === true
-          ? [
-              {
-                id: `permission-${input.info.id}`,
-                sessionID: input.info.id,
-                action: "read",
-                resources: [input.info.location.directory],
-              },
-            ]
-          : [];
-      },
-      questions: async () => {
-        if (input.attentionRequestsFail === true) throw new Error("question request failed");
-        return [];
-      },
-    },
-    events,
-  } as unknown as OpenCodeClient;
-}
-
-function createEventQueue(): {
-  readonly push: (event: OpenCodeEvent) => void;
-  readonly events: (signal?: AbortSignal) => AsyncIterable<OpenCodeEvent>;
-} {
-  const queued: OpenCodeEvent[] = [];
-  let resolveNext: ((event: OpenCodeEvent | null) => void) | null = null;
-
-  return {
-    push(event) {
-      const resolve = resolveNext;
-      if (resolve === null) {
-        queued.push(event);
-        return;
-      }
-      resolveNext = null;
-      resolve(event);
-    },
-    events(signal) {
-      return {
-        async *[Symbol.asyncIterator]() {
-          while (signal?.aborted !== true) {
-            const next =
-              queued.shift() ??
-              (await new Promise<OpenCodeEvent | null>((resolve) => {
-                resolveNext = resolve;
-                signal?.addEventListener("abort", () => resolve(null), { once: true });
-              }));
-            if (next === null) return;
-            yield next;
-          }
-        },
-      };
-    },
-  };
-}
-
-async function waitUntil(predicate: () => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  throw new Error(
-    `Timed out waiting for watch state: ${JSON.stringify(getWorkspaceWatchSnapshot())}`,
-  );
-}
 
 afterEach(async () => {
   unregisterOpenCodeClient(local.key);
@@ -230,8 +39,319 @@ afterEach(async () => {
 });
 
 describe("OpenCode watch registry", () => {
+  it("keeps deleted project paths as display data until a session action needs resolution", async () => {
+    const resolveLocation = vi.fn();
+    const info = sessionInfo("ses_deleted", "Deleted project", "/deleted/sachi");
+    registerOpenCodeClient(
+      createClient({
+        server: local,
+        info,
+        onResolveLocation: resolveLocation,
+        resolvedProjectDirectory: "/Users/me/Developer/sachi",
+        onPump: () => undefined,
+      }),
+      { primary: true },
+    );
+    const unsubscribeWorkspace = subscribeWorkspaceWatch(() => undefined);
+
+    await waitUntil(() => getWorkspaceWatchSnapshot().state?.sessions.length === 1);
+    expect(getWorkspaceWatchSnapshot().state?.sessions[0]?.projectDirectory).toBe("/deleted/sachi");
+    expect(resolveLocation).not.toHaveBeenCalled();
+
+    const ref = openCodeSessionRef(local.key, info.id);
+    const unsubscribeSession = subscribeSessionWatch(ref, () => undefined);
+    await waitUntil(() => getSessionWatchSnapshot(ref).status === "live");
+    expect(resolveLocation).toHaveBeenCalledOnce();
+    expect(getSessionWatchSnapshot(ref).state?.app.summary.projectDirectory).toBe(
+      "/Users/me/Developer/sachi",
+    );
+
+    unsubscribeSession();
+    unsubscribeWorkspace();
+  });
+
+  it("publishes catalog revisions from OpenCode catalog updates", async () => {
+    const events = createEventQueue();
+    const info = sessionInfo("ses_catalog", "Catalog", "/local/repo");
+    registerOpenCodeClient(
+      createClient({
+        server: local,
+        info,
+        events: events.events,
+        onPump: () => undefined,
+      }),
+      { primary: true },
+    );
+    const before = getOpenCodeCatalogRevision();
+    const listener = vi.fn();
+    const unsubscribe = subscribeOpenCodeCatalog(listener);
+
+    events.push({ id: "event-catalog", type: "catalog.updated", data: {} });
+    await waitUntil(() => getOpenCodeCatalogRevision() > before);
+
+    expect(listener).toHaveBeenCalledOnce();
+    unsubscribe();
+  });
+
+  it("keeps an accepted prompt busy when its signal immediately precedes a workspace fetch", async () => {
+    const info = sessionInfo("ses_initial_prompt", "Initial prompt", "/local/repo");
+    registerOpenCodeClient(
+      createClient({
+        server: local,
+        info,
+        onPump: () => undefined,
+      }),
+      { primary: true },
+    );
+    const ref = openCodeSessionRef(local.key, info.id);
+
+    noteOpenCodeSessionPromptAccepted(ref);
+    const unsubscribe = subscribeWorkspaceWatch(() => undefined);
+    await waitUntil(() => getWorkspaceWatchSnapshot().state?.sessions.length === 1);
+
+    expect(getWorkspaceWatchSnapshot().state?.sessions[0]).toMatchObject({
+      id: info.id,
+      status: "running",
+    });
+    unsubscribe();
+  });
+
+  it("refreshes workspace metadata without replacing a transcript on global reconnect", async () => {
+    let sessionListLoads = 0;
+    let transcriptLoads = 0;
+    let sessionPumps = 0;
+    const events = createEventQueue();
+    const info = sessionInfo("ses_reconnected", "Reconnected", "/local/repo");
+    registerOpenCodeClient(
+      createClient({
+        server: local,
+        info,
+        events: events.events,
+        onSessionList: () => {
+          sessionListLoads += 1;
+        },
+        onTranscript: () => {
+          transcriptLoads += 1;
+        },
+        onSessionPump: () => {
+          sessionPumps += 1;
+        },
+        onPump: () => undefined,
+      }),
+      { primary: true },
+    );
+    const ref = openCodeSessionRef(local.key, info.id);
+    const unsubscribeWorkspace = subscribeWorkspaceWatch(() => undefined);
+    const unsubscribeSession = subscribeSessionWatch(ref, () => undefined);
+    await waitUntil(
+      () =>
+        getWorkspaceWatchSnapshot().state?.sessions.length === 1 &&
+        getSessionWatchSnapshot(ref).status === "live" &&
+        sessionPumps === 1,
+    );
+    expect(sessionListLoads).toBe(1);
+    expect(transcriptLoads).toBe(2);
+
+    events.push({ id: "evt_connected", type: "server.connected", data: {} });
+    await new Promise((resolve) => setTimeout(resolve, 220));
+    await waitUntil(() => sessionListLoads === 2);
+    expect(transcriptLoads).toBe(2);
+    expect(sessionPumps).toBe(1);
+
+    unsubscribeSession();
+    unsubscribeWorkspace();
+  });
+
+  it("skips a throwing event without marking the pump as reconnecting", async () => {
+    const events = createEventQueue();
+    const info = sessionInfo("ses_malformed", "Malformed event", "/local/repo");
+    registerOpenCodeClient(
+      createClient({
+        server: local,
+        info,
+        events: events.events,
+        onPump: () => undefined,
+      }),
+      { primary: true },
+    );
+    const ref = openCodeSessionRef(local.key, info.id);
+    const unsubscribe = subscribeSessionWatch(ref, () => undefined);
+    await waitUntil(() => getSessionWatchSnapshot(ref).status === "live");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    try {
+      events.push({
+        id: "evt_malformed",
+        type: "session.status",
+        data: { sessionID: info.id },
+      } as unknown as OpenCodeEvent);
+      await waitUntil(() => warn.mock.calls.length === 1);
+      expect(warn.mock.calls[0]?.[0]).toContain("session.status");
+      expect(getSessionWatchSnapshot(ref).status).toBe("live");
+
+      events.push({
+        id: "evt_busy",
+        type: "session.status",
+        data: { sessionID: info.id, status: { type: "busy" } },
+      });
+      await waitUntil(() => getSessionWatchSnapshot(ref).state?.activity === "busy");
+      expect(getSessionWatchSnapshot(ref).status).toBe("live");
+    } finally {
+      warn.mockRestore();
+      unsubscribe();
+    }
+  });
+
+  it("keeps a healthy quiet event pump connected past the heartbeat timeout", async () => {
+    vi.useFakeTimers();
+    let pumpCount = 0;
+    let healthChecks = 0;
+    const info = sessionInfo("ses_watchdog", "Watchdog", "/local/repo");
+    registerOpenCodeClient(
+      createClient({
+        server: local,
+        info,
+        events: (signal) => ({
+          async *[Symbol.asyncIterator]() {
+            pumpCount += 1;
+            yield { id: `evt_connected_${String(pumpCount)}`, type: "server.connected", data: {} };
+            await new Promise<void>((resolve) => {
+              if (signal?.aborted === true) {
+                resolve();
+                return;
+              }
+              signal?.addEventListener("abort", () => resolve(), { once: true });
+            });
+          },
+        }),
+        onHealth: () => {
+          healthChecks += 1;
+        },
+        onPump: () => undefined,
+      }),
+      { primary: true },
+    );
+    const unsubscribe = subscribeOpenCodeCatalog(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(pumpCount).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(45_000);
+    await vi.advanceTimersByTimeAsync(250);
+    expect(healthChecks).toBe(1);
+    expect(pumpCount).toBe(1);
+    unsubscribe();
+  });
+
+  it("resubscribes when a quiet event pump fails its health probe", async () => {
+    vi.useFakeTimers();
+    let pumpCount = 0;
+    const info = sessionInfo("ses_failed_watchdog", "Failed watchdog", "/local/repo");
+    registerOpenCodeClient(
+      createClient({
+        server: local,
+        info,
+        healthFails: true,
+        events: (signal) => ({
+          async *[Symbol.asyncIterator]() {
+            pumpCount += 1;
+            yield { id: `evt_connected_${String(pumpCount)}`, type: "server.connected", data: {} };
+            await new Promise<void>((resolve) => {
+              if (signal?.aborted === true) {
+                resolve();
+                return;
+              }
+              signal?.addEventListener("abort", () => resolve(), { once: true });
+            });
+          },
+        }),
+        onPump: () => undefined,
+      }),
+      { primary: true },
+    );
+    const unsubscribe = subscribeOpenCodeCatalog(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(pumpCount).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(45_000);
+    await vi.advanceTimersByTimeAsync(250);
+    expect(pumpCount).toBe(2);
+    unsubscribe();
+  });
+
+  it("preserves a queued workspace refetch across a zero-subscriber window", async () => {
+    let releaseSessionList: (() => void) | undefined;
+    const sessionListGate = new Promise<void>((resolve) => {
+      releaseSessionList = resolve;
+    });
+    let sessionListLoads = 0;
+    const events = createEventQueue();
+    const info = sessionInfo("ses_deferred_inventory", "Deferred inventory", "/local/repo");
+    registerOpenCodeClient(
+      createClient({
+        server: local,
+        info,
+        events: events.events,
+        sessionListGate,
+        onSessionList: () => {
+          sessionListLoads += 1;
+        },
+        onPump: () => undefined,
+      }),
+      { primary: true },
+    );
+    const unsubscribeFirst = subscribeWorkspaceWatch(() => undefined);
+    expect(sessionListLoads).toBe(1);
+
+    events.push({
+      id: "evt_inventory_dirty",
+      type: "session.updated",
+      data: { sessionID: info.id, info },
+    } as unknown as OpenCodeEvent);
+    await new Promise((resolve) => setTimeout(resolve, 220));
+    unsubscribeFirst();
+    releaseSessionList?.();
+    await waitUntil(() => getWorkspaceWatchSnapshot().state?.sessions.length === 1);
+    expect(sessionListLoads).toBe(1);
+
+    const unsubscribeSecond = subscribeWorkspaceWatch(() => undefined);
+    await waitUntil(() => sessionListLoads === 2);
+    unsubscribeSecond();
+  });
+
+  it("coalesces cold workspace subscribers into one inventory fetch", async () => {
+    let releaseSessionList: (() => void) | undefined;
+    const sessionListGate = new Promise<void>((resolve) => {
+      releaseSessionList = resolve;
+    });
+    let sessionListLoads = 0;
+    const info = sessionInfo("ses_inventory", "Inventory", "/local/repo");
+    registerOpenCodeClient(
+      createClient({
+        server: local,
+        info,
+        sessionListGate,
+        onSessionList: () => {
+          sessionListLoads += 1;
+        },
+        onPump: () => undefined,
+      }),
+      { primary: true },
+    );
+
+    const unsubscribers = Array.from({ length: 5 }, () => subscribeWorkspaceWatch(() => undefined));
+    try {
+      expect(sessionListLoads).toBe(1);
+      releaseSessionList?.();
+      await waitUntil(() => getWorkspaceWatchSnapshot().state?.sessions.length === 1);
+      expect(sessionListLoads).toBe(1);
+    } finally {
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
+    }
+  });
+
   it("keeps warm session data through leaf subscriber swaps without reloading", async () => {
     let transcriptLoads = 0;
+    let sessionPumps = 0;
     const info = sessionInfo("ses_warm", "Warm", "/local/repo");
     registerOpenCodeClient(
       createClient({
@@ -240,24 +360,29 @@ describe("OpenCode watch registry", () => {
         onTranscript: () => {
           transcriptLoads += 1;
         },
+        onSessionPump: () => {
+          sessionPumps += 1;
+        },
         onPump: () => undefined,
       }),
       { primary: true },
     );
     const ref = openCodeSessionRef(local.key, info.id);
     const releaseRetainer = subscribeSessionWatch(ref, () => undefined);
-    await waitUntil(() => getSessionWatchSnapshot(ref).status === "live");
+    await waitUntil(() => sessionPumps === 1);
 
     for (let visit = 0; visit < 20; visit += 1) {
       const releaseLeaf = subscribeSessionWatch(ref, () => undefined);
       releaseLeaf();
     }
-    expect(transcriptLoads).toBe(1);
+    expect(transcriptLoads).toBe(2);
+    expect(sessionPumps).toBe(1);
     releaseRetainer();
   });
 
   it("tears down an unretained session and performs one cold load when reopened", async () => {
     let transcriptLoads = 0;
+    let sessionPumps = 0;
     const info = sessionInfo("ses_reopen", "Reopen", "/local/repo");
     registerOpenCodeClient(
       createClient({
@@ -266,29 +391,34 @@ describe("OpenCode watch registry", () => {
         onTranscript: () => {
           transcriptLoads += 1;
         },
+        onSessionPump: () => {
+          sessionPumps += 1;
+        },
         onPump: () => undefined,
       }),
       { primary: true },
     );
     const ref = openCodeSessionRef(local.key, info.id);
     const releaseFirst = subscribeSessionWatch(ref, () => undefined);
-    await waitUntil(() => getSessionWatchSnapshot(ref).status === "live");
+    await waitUntil(() => sessionPumps === 1);
+    expect(transcriptLoads).toBe(2);
     releaseFirst();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(getSessionWatchSnapshot(ref).state).toBeNull();
 
     const releaseReopened = subscribeSessionWatch(ref, () => undefined);
-    await waitUntil(() => transcriptLoads === 2 && getSessionWatchSnapshot(ref).status === "live");
-    expect(transcriptLoads).toBe(2);
+    await waitUntil(() => sessionPumps === 2);
+    expect(transcriptLoads).toBe(3);
     releaseReopened();
   });
 
-  it("coalesces cold subscribers and queues one event-driven trailing fetch", async () => {
+  it("coalesces cold subscribers without letting global invalidations reload the transcript", async () => {
     let releaseTranscript: (() => void) | undefined;
     const transcriptGate = new Promise<void>((resolve) => {
       releaseTranscript = resolve;
     });
     let transcriptLoads = 0;
+    let sessionPumps = 0;
     const events = createEventQueue();
     const info = sessionInfo("ses_coalesced", "Coalesced", "/local/repo");
     registerOpenCodeClient(
@@ -299,6 +429,9 @@ describe("OpenCode watch registry", () => {
         transcriptGate,
         onTranscript: () => {
           transcriptLoads += 1;
+        },
+        onSessionPump: () => {
+          sessionPumps += 1;
         },
         onPump: () => undefined,
       }),
@@ -314,13 +447,12 @@ describe("OpenCode watch registry", () => {
         type: "session.updated",
         data: { sessionID: info.id, info },
       } as unknown as OpenCodeEvent);
-      await new Promise((resolve) => setTimeout(resolve, SESSION_REFETCH_WAIT_MS + 20));
+      await new Promise((resolve) => setTimeout(resolve, 0));
       expect(transcriptLoads).toBe(1);
 
       releaseTranscript?.();
-      await waitUntil(
-        () => transcriptLoads === 2 && getSessionWatchSnapshot(ref).status === "live",
-      );
+      await waitUntil(() => sessionPumps === 1);
+      expect(transcriptLoads).toBe(2);
     } finally {
       unsubscribeFirst();
       unsubscribeSecond();
@@ -435,10 +567,137 @@ describe("OpenCode watch registry", () => {
     unsubscribe();
   });
 
+  it("uses durable boundaries for canonical messages and global deltas only as overlays", async () => {
+    let transcriptLoads = 0;
+    let messageLoads = 0;
+    const events = createEventQueue();
+    const durable = createDurableEventQueue();
+    const info = sessionInfo("ses_incremental", "Incremental", "/local/repo");
+    const messageID = "message-assistant";
+    const partID = "part-reasoning";
+    let message = reasoningMessage(messageID, partID, ".");
+    registerOpenCodeClient(
+      createClient({
+        server: local,
+        info,
+        events: events.events,
+        sessionEvents: durable.events,
+        sessionMessage: async () => {
+          messageLoads += 1;
+          return message;
+        },
+        onTranscript: () => {
+          transcriptLoads += 1;
+        },
+        onPump: () => undefined,
+      }),
+      { primary: true },
+    );
+    const ref = openCodeSessionRef(local.key, info.id);
+    const unsubscribe = subscribeSessionWatch(ref, () => undefined);
+    await waitUntil(() => durable.after.length === 1);
+
+    events.push({
+      id: "event-early-delta",
+      type: "session.next.reasoning.delta",
+      data: {
+        timestamp: 2,
+        sessionID: info.id,
+        assistantMessageID: messageID,
+        reasoningID: partID,
+        delta: ".",
+      },
+    });
+    durable.push(
+      reasoningEvent("session.next.reasoning.started", {
+        seq: 1,
+        sessionID: info.id,
+        messageID,
+        partID,
+      }),
+    );
+    await waitUntil(() => {
+      const reasoning = getSessionWatchSnapshot(ref).state?.app.parts[0];
+      return reasoning?.type === "reasoning" && reasoning.text === ".";
+    });
+    Array.from({ length: 24 }, (_, index) => index + 1).forEach((index) => {
+      events.push({
+        id: `event-compat-delta-${String(index)}`,
+        type: "message.part.delta",
+        data: {
+          sessionID: info.id,
+          messageID,
+          partID,
+          field: "text",
+          delta: "ignored",
+        },
+      } as unknown as OpenCodeEvent);
+      events.push({
+        id: `event-next-delta-${String(index)}`,
+        type: "session.next.reasoning.delta",
+        data: {
+          timestamp: index + 2,
+          sessionID: info.id,
+          assistantMessageID: messageID,
+          reasoningID: partID,
+          delta: ".",
+        },
+      });
+    });
+
+    await waitUntil(() => {
+      const reasoning = getSessionWatchSnapshot(ref).state?.app.parts[0];
+      return reasoning?.type === "reasoning" && reasoning.text.length === 25;
+    });
+    expect(transcriptLoads).toBe(2);
+    expect(messageLoads).toBe(1);
+    expect(getSessionWatchSnapshot(ref).state?.app.messages).toHaveLength(1);
+
+    message = reasoningMessage(messageID, partID, "authoritative", 100);
+    durable.push(
+      reasoningEvent("session.next.reasoning.ended", {
+        seq: 2,
+        sessionID: info.id,
+        messageID,
+        partID,
+        text: "authoritative",
+        timestamp: 100,
+      }),
+    );
+    await waitUntil(() => {
+      const reasoning = getSessionWatchSnapshot(ref).state?.app.parts[0];
+      return reasoning?.type === "reasoning" && reasoning.text === "authoritative";
+    });
+    events.push({
+      id: "event-delayed-delta",
+      type: "session.next.reasoning.delta",
+      data: {
+        timestamp: 99,
+        sessionID: info.id,
+        assistantMessageID: messageID,
+        reasoningID: partID,
+        delta: "ignored",
+      },
+    });
+    events.push({
+      id: "event-incremental-idle",
+      type: "session.idle",
+      data: { sessionID: info.id },
+    });
+    expect(transcriptLoads).toBe(2);
+    expect(messageLoads).toBe(2);
+    expect(getSessionWatchSnapshot(ref).state?.app.parts[0]).toMatchObject({
+      type: "reasoning",
+      text: "authoritative",
+    });
+    unsubscribe();
+  });
+
   it.each(["session.status", "session.idle"] as const)(
-    "keeps a trailing transcript refetch for %s after an earlier debounce",
+    "does not reload a durable transcript for global %s invalidations",
     async (terminalEvent) => {
       let transcriptLoads = 0;
+      let sessionPumps = 0;
       const events = createEventQueue();
       const info = sessionInfo(`ses_terminal_${terminalEvent}`, "Terminal", "/local/repo");
       registerOpenCodeClient(
@@ -449,14 +708,17 @@ describe("OpenCode watch registry", () => {
           onTranscript: () => {
             transcriptLoads += 1;
           },
+          onSessionPump: () => {
+            sessionPumps += 1;
+          },
           onPump: () => undefined,
         }),
         { primary: true },
       );
       const ref = openCodeSessionRef(local.key, info.id);
       const unsubscribe = subscribeSessionWatch(ref, () => undefined);
-      await waitUntil(() => getSessionWatchSnapshot(ref).status === "live");
-      expect(transcriptLoads).toBe(1);
+      await waitUntil(() => sessionPumps === 1);
+      expect(transcriptLoads).toBe(2);
 
       vi.useFakeTimers();
       events.push({
@@ -478,12 +740,7 @@ describe("OpenCode watch registry", () => {
               data: { sessionID: info.id },
             }) as unknown as OpenCodeEvent,
       );
-      await vi.advanceTimersByTimeAsync(21);
-
-      // The first debounce would have fired at 120ms. A terminal event moves
-      // the fetch to 120ms after itself so the final persisted part is loaded.
-      expect(transcriptLoads).toBe(1);
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(500);
       expect(transcriptLoads).toBe(2);
       unsubscribe();
     },

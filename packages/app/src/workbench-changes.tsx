@@ -15,7 +15,7 @@ import {
   IconDotGrid1x3Horizontal,
   IconEyeOpen,
 } from "@honk/ui/icons";
-import { colorVars, controlVars, fontVars, spaceVars } from "@honk/ui/tokens.stylex";
+import { borderVars, colorVars, controlVars, fontVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
 import { errorMessage } from "./error-message";
@@ -28,9 +28,6 @@ import { getOpenCodeClient } from "./watch-registry";
 const CHANGES_RESOURCE_GRACE_MS = 30_000;
 const CHANGES_TREE_BASIS = "30%";
 const CHANGES_TREE_MAX = "40%";
-const HAIRLINE_WIDTH = "1px";
-// Sub-token intrinsic: tightest token is --honk-control-gap (6px); the add/del counts sit tighter.
-const META_GAP = "4px";
 const DIFF_STYLE_STORAGE_KEY = "honk:git-diff-style";
 
 type DiffStyle = "unified" | "split";
@@ -71,7 +68,8 @@ const styles = stylex.create({
     flexShrink: 0,
     display: "inline-flex",
     alignItems: "center",
-    gap: META_GAP,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px is a sub-token meta gap; tightest spacing token (--honk-control-gap) is 6px and would loosen the add/del counts
+    gap: "4px",
     color: colorVars["--honk-color-text-faint"],
     fontSize: fontVars["--honk-font-size-caption"],
     fontVariantNumeric: "tabular-nums",
@@ -88,7 +86,7 @@ const styles = stylex.create({
     minWidth: 0,
     minHeight: 0,
     overflowY: "auto",
-    borderInlineEndWidth: HAIRLINE_WIDTH,
+    borderInlineEndWidth: borderVars["--honk-border-hairline"],
     borderInlineEndStyle: "solid",
     borderInlineEndColor: colorVars["--honk-color-border-muted"],
   },
@@ -390,7 +388,7 @@ function WorkbenchChanges({
   if (snapshot.phase === "error") {
     return (
       <div {...stylex.props(styles.center)}>
-        <Text as="p" size="sm" tone="muted" weight="medium">
+        <Text as="p" size="sm" tone="muted" weight="regular">
           Can't load changes
         </Text>
         <Text as="p" size="xs" tone="faint">
@@ -418,7 +416,7 @@ function WorkbenchChanges({
           </Button>
         </div>
         <div {...stylex.props(styles.center)}>
-          <Text as="p" size="sm" tone="muted" weight="medium">
+          <Text as="p" size="sm" tone="muted" weight="regular">
             No changes
           </Text>
           <Text as="p" size="xs" tone="faint">

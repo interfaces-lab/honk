@@ -4,6 +4,7 @@ import { radiusVars, spaceVars, workbenchSurfaceVars, zVars } from "@honk/ui/tok
 import * as React from "react";
 
 import { ComposerAttachmentButton, ModeControl } from "../composer/controls";
+import { readComposerDraft, writeComposerDraft } from "../composer/draft-store";
 import { PromptEditor } from "../composer/prompt-editor";
 import { ComposerSubmitButton } from "../composer/submit-button";
 import type { PromptEditorHandle, PromptSubmit } from "../composer/types";
@@ -15,8 +16,8 @@ import {
   APP_HOST_CAPABILITIES,
   gatedCapabilityError,
   promptFilesFromPaths,
-  sendSessionPrompt,
 } from "../open-code-view";
+import { sendSessionPrompt } from "../session-prompt";
 import { actions as toastActions } from "../toast-store";
 import { useWorkspaceWatchSelector } from "../use-sdk-watch";
 import { useThreadRuntime } from "./runtime";
@@ -34,21 +35,20 @@ const THREAD_COMMANDS = [
     subtask: false,
   },
 ] as const;
-const COMPOSER_COLLAPSED_MIN_HEIGHT = "44px";
 const COMPOSER_COLLAPSED_PADDING_INLINE_PX = 10;
 const COMPOSER_COLLAPSED_PADDING_INLINE = `${COMPOSER_COLLAPSED_PADDING_INLINE_PX}px`;
 // The absolute composer shares the transcript's root gutter plus its scrollport inset.
 const COMPOSER_OVERLAY_INLINE_INSET = `calc(${spaceVars["--honk-space-gutter"]} + ${spaceVars["--honk-space-panel-pad"]})`;
 const COMPOSER_EDITOR_LINE_HEIGHT = "20px";
-const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT = "120px";
-const COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT = "200px";
 const COMPOSER_EDITOR_COLLAPSED_PADDING_INLINE = "4px";
 const COMPOSER_CONTROLS_EXPANDED_PADDING_BLOCK = "6px";
 const COMPOSER_RING = `inset 0 0 0 1px ${workbenchSurfaceVars["--honk-workbench-input-border"]}`;
 const COMPOSER_RING_ACTIVE = `inset 0 0 0 1px ${workbenchSurfaceVars["--honk-workbench-input-border-active"]}`;
+// 96px of the panel stays visible above a fully grown composer.
+const COMPOSER_OVERLAY_MAX_HEIGHT = "calc(100% - 96px)";
 const styles = stylex.create({
   composerCollapsed: {
-    minHeight: COMPOSER_COLLAPSED_MIN_HEIGHT,
+    minHeight: "44px",
     flexShrink: 0,
     display: "flex",
     flexDirection: "row",
@@ -82,33 +82,42 @@ const styles = stylex.create({
     insetInlineStart: COMPOSER_OVERLAY_INLINE_INSET,
     insetInlineEnd: COMPOSER_OVERLAY_INLINE_INSET,
     insetBlockEnd: spaceVars["--honk-space-panel-pad"],
+    // Cap growth against the thread panel so a long reply keeps a strip of transcript visible and
+    // never runs past the window; the editor scrolls internally once this binds.
+    maxHeight: COMPOSER_OVERLAY_MAX_HEIGHT,
   },
   editorContainerCollapsed: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
   editorContainerExpanded: { width: "100%" },
   editorCollapsed: {
     minHeight: COMPOSER_EDITOR_LINE_HEIGHT,
-    maxHeight: COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT,
+    maxHeight: "120px",
     paddingTop: 0,
     paddingBottom: 0,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px collapsed-editor inline padding is fixed geometry, no spacing token owns 4px
     paddingInline: COMPOSER_EDITOR_COLLAPSED_PADDING_INLINE,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 20px editor line-height is a fixed intrinsic, no body-leading token matches (leading-body is 18px)
     lineHeight: COMPOSER_EDITOR_LINE_HEIGHT,
   },
   editorExpanded: {
     minHeight: COMPOSER_EDITOR_LINE_HEIGHT,
-    maxHeight: COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT,
+    // Screen-level backstop; the overlay's panel-relative maxHeight is the real bound.
+    maxHeight: "calc(100dvh - 120px)",
     paddingTop: spaceVars["--honk-space-gutter"],
     paddingBottom: 0,
     paddingInline: spaceVars["--honk-space-panel-pad"],
+    // oxlint-disable-next-line honk/design-no-raw-values -- 20px editor line-height is a fixed intrinsic, no body-leading token matches (leading-body is 18px)
     lineHeight: COMPOSER_EDITOR_LINE_HEIGHT,
   },
   placeholderCollapsed: {
     insetInlineStart: COMPOSER_EDITOR_COLLAPSED_PADDING_INLINE,
     insetBlockStart: 0,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 20px placeholder line-height matches the editor's fixed intrinsic, no body-leading token matches (leading-body is 18px)
     lineHeight: COMPOSER_EDITOR_LINE_HEIGHT,
   },
   placeholderExpanded: {
     insetInlineStart: spaceVars["--honk-space-panel-pad"],
     insetBlockStart: spaceVars["--honk-space-gutter"],
+    // oxlint-disable-next-line honk/design-no-raw-values -- 20px placeholder line-height matches the editor's fixed intrinsic, no body-leading token matches (leading-body is 18px)
     lineHeight: COMPOSER_EDITOR_LINE_HEIGHT,
   },
   controlsCollapsed: {
@@ -118,9 +127,11 @@ const styles = stylex.create({
     gap: spaceVars["--honk-space-gutter"],
   },
   controlsExpanded: {
+    flexShrink: 0,
     display: "flex",
     alignItems: "center",
     gap: spaceVars["--honk-space-gutter"],
+    // oxlint-disable-next-line honk/design-no-raw-values -- 6px controls-row block padding is fixed geometry, control-gap is a gap token not a padding token
     paddingBlock: COMPOSER_CONTROLS_EXPANDED_PADDING_BLOCK,
     paddingInline: COMPOSER_COLLAPSED_PADDING_INLINE,
   },
@@ -143,6 +154,7 @@ export function ThreadComposer({
 }): React.ReactElement {
   const runtime = useThreadRuntime();
   const mode = useThreadMode(runtime.tabKey);
+  const [initialDraft] = React.useState(() => readComposerDraft(runtime.tabKey));
   const recentDirectories = useWorkspaceWatchSelector(
     (snapshot) => snapshot.state?.recentDirectories ?? EMPTY_DIRECTORIES,
   );
@@ -281,8 +293,8 @@ export function ThreadComposer({
     });
   };
 
-  const handleSubmit = (payload: PromptSubmit): void => {
-    if (isSending) return;
+  const handleSubmit = (payload: PromptSubmit): boolean | Promise<boolean> => {
+    if (isSending) return false;
     const client = runtime.client;
     if (client === null) {
       toastActions.add({
@@ -291,7 +303,7 @@ export function ThreadComposer({
         description: "The OpenCode connection is not ready yet.",
         threadKey: runtime.tabKey,
       });
-      return;
+      return false;
     }
 
     if (payload.command?.name === "cd") {
@@ -300,7 +312,7 @@ export function ThreadComposer({
       } else {
         attachDirectory(payload.command.arguments);
       }
-      return;
+      return true;
     }
 
     setSending(true);
@@ -312,7 +324,8 @@ export function ThreadComposer({
             agent: modeAgentName(mode),
             ...(payload.files.length > 0 ? { files: promptFilesFromPaths(payload.files) } : {}),
           });
-    void work
+    return work
+      .then(() => true)
       .catch((error: unknown) => {
         const message = errorMessage(error);
         toastActions.add({
@@ -322,6 +335,7 @@ export function ThreadComposer({
           copyableError: message,
           threadKey: runtime.tabKey,
         });
+        return false;
       })
       .finally(() => {
         setSending(false);
@@ -367,6 +381,7 @@ export function ThreadComposer({
         }}
         onSubmit={handleSubmit}
         onHasTextChange={setHasText}
+        onDraftChange={(draft) => writeComposerDraft(runtime.tabKey, draft)}
         onMultilineChange={setExpanded}
         multilineMeasureWidth={measureCompactEditorWidth}
         multilineMeasureStyle={styles.editorCollapsed}
@@ -377,6 +392,7 @@ export function ThreadComposer({
         placeholderStyle={
           composerExpanded ? styles.placeholderExpanded : styles.placeholderCollapsed
         }
+        {...(initialDraft === undefined ? {} : { initialDraft })}
         handleRef={editorRef}
       />
       <div

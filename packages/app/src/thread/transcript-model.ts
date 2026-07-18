@@ -56,6 +56,13 @@ export function groupMessagesIntoTurns(messages: readonly ThreadMessage[]): read
   return turns;
 }
 
+export function isSyntheticOnlyUserMessage(parts: readonly ThreadPart[]): boolean {
+  return (
+    parts.some((part) => part.type === "text" && part.synthetic === true) &&
+    !parts.some((part) => part.type === "file" || (part.type === "text" && part.synthetic !== true))
+  );
+}
+
 export function turnDiffs(message: UserThreadMessage | null): readonly RenderableThreadDiff[] {
   const diffs = message?.summary?.diffs ?? [];
   const seen = new Set<string>();

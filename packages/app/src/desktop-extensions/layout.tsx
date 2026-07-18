@@ -1,14 +1,11 @@
 import * as stylex from "@stylexjs/stylex";
-import { colorVars } from "@honk/ui/tokens.stylex";
+import { colorVars, controlVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
 import { useHonkDesktopPanes } from "./runtime";
 import type { HonkDesktopPaneContribution } from "./sdk";
 
-const RESIZE_HANDLE_WIDTH = "8px";
 const PANE_KEYBOARD_RESIZE_STEP = 8;
-const HAIRLINE = "1px";
-const FOCUS_RING_OFFSET = "-2px";
 
 const styles = stylex.create({
   root: {
@@ -40,7 +37,7 @@ const styles = stylex.create({
   resizeHandle: {
     position: "absolute",
     insetBlock: 0,
-    width: RESIZE_HANDLE_WIDTH,
+    width: "8px",
     borderStyle: "none",
     padding: 0,
     backgroundColor: "transparent",
@@ -48,8 +45,8 @@ const styles = stylex.create({
     touchAction: "none",
     outlineColor: colorVars["--honk-color-accent"],
     outlineStyle: { default: "none", ":focus-visible": "solid" },
-    outlineWidth: HAIRLINE,
-    outlineOffset: FOCUS_RING_OFFSET,
+    outlineWidth: controlVars["--honk-control-focus-ring-width"],
+    outlineOffset: "-2px",
   },
   resizeHandleLeft: {
     right: 0,

@@ -65,12 +65,12 @@ interface ComboboxProps {
 }
 
 const COMBOBOX_GUTTER = 4;
-const HAIRLINE = "1px";
 // The list, rather than the whole popup, scrolls so search, pinned choices, and actions remain fixed.
 const COMBOBOX_POPUP_MAX_HEIGHT = "min(360px, var(--available-height))";
 const POPUP_RING = `inset 0 0 0 1px ${colorVars["--honk-color-border-muted"]}`;
 const SECTION_DIVIDER = `inset 0 -1px 0 ${colorVars["--honk-color-border-muted"]}`;
 const SECTION_DIVIDER_TOP = `inset 0 1px 0 ${colorVars["--honk-color-border-muted"]}`;
+const SECTION_DIVIDER_FOCUS = `inset 0 -1px 0 ${colorVars["--honk-color-accent"]}`;
 
 const sx = stylex.create({
   trigger: {
@@ -87,7 +87,7 @@ const sx = stylex.create({
     color: colorVars["--honk-color-text-primary"],
     fontFamily: fontVars["--honk-font-family-ui"],
     fontSize: fontVars["--honk-font-size-body"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
     lineHeight: 1,
     whiteSpace: "nowrap",
     cursor: { default: "pointer", ":disabled": "default" },
@@ -190,7 +190,7 @@ const sx = stylex.create({
     color: colorVars["--honk-color-text-muted"],
     boxShadow: {
       default: SECTION_DIVIDER,
-      ":focus-within": `inset 0 -${HAIRLINE} 0 ${colorVars["--honk-color-accent"]}`,
+      ":focus-within": SECTION_DIVIDER_FOCUS,
     },
   },
   input: {
@@ -267,7 +267,7 @@ const sx = stylex.create({
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
   },
   optionDescription: {
     overflow: "hidden",
@@ -291,7 +291,7 @@ const sx = stylex.create({
     paddingBlock: controlVars["--honk-control-gap"],
     color: colorVars["--honk-color-text-muted"],
     fontSize: fontVars["--honk-font-size-caption"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
     userSelect: "none",
   },
   message: {

@@ -36,7 +36,6 @@ export type {
   SessionStatus,
   SessionV2Info as OpenCodeSessionInfo,
   SessionsResponse as OpenCodeSessions,
-  V2Event as OpenCodeEvent,
   VcsFileDiff as OpenCodeVcsFileDiff,
   VcsFileStatus as OpenCodeVcsFileStatus,
   VcsInfo as OpenCodeVcsInfo,

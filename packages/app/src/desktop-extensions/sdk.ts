@@ -53,7 +53,7 @@ export interface HonkDesktopTabs {
   activate(key: string): void;
   close(key: string): void;
   create(relativeToKey?: string): void;
-  reorder(from: number, to: number): void;
+  openDraft(directory: string): void;
 }
 
 export interface HonkDesktopSettingsToggleOptions {
@@ -71,6 +71,18 @@ export interface HonkDesktopSettingsToggleOptions {
 
 export interface HonkDesktopSettings {
   toggle(options: HonkDesktopSettingsToggleOptions): HonkDesktopDispose;
+}
+
+export interface HonkDesktopNewSessionToggleOptions {
+  readonly id: string;
+  readonly title: string;
+  readonly description?: string;
+  readonly value: HonkDesktopCell<boolean>;
+  readonly order?: number;
+}
+
+export interface HonkDesktopNewSession {
+  toggle(options: HonkDesktopNewSessionToggleOptions): HonkDesktopDispose;
 }
 
 export type HonkDesktopPaneSide = "left" | "right";
@@ -106,6 +118,17 @@ export interface HonkDesktopTitlebar {
     readonly id: string;
     readonly hidden: HonkDesktopCell<boolean>;
   }): HonkDesktopDispose;
+  toggle(options: {
+    readonly id: string;
+    readonly label: string;
+    readonly value: HonkDesktopCell<boolean>;
+    readonly icon: (active: boolean) => ReactNode;
+    readonly order?: number;
+  }): HonkDesktopDispose;
+}
+
+export interface HonkDesktopPower {
+  setKeepAwake(enabled: boolean): Promise<boolean>;
 }
 
 export interface HonkDesktopOpenCode {
@@ -118,8 +141,10 @@ export interface HonkDesktopExtensionContext {
   readonly state: HonkDesktopExtensionState;
   readonly opencode: HonkDesktopOpenCode;
   readonly desktop: {
+    readonly power: HonkDesktopPower;
     readonly titlebar: HonkDesktopTitlebar;
     readonly settings: HonkDesktopSettings;
+    readonly newSession: HonkDesktopNewSession;
     readonly panes: HonkDesktopPanes;
     readonly tabs: HonkDesktopTabs;
   };
@@ -143,6 +168,22 @@ export interface HonkDesktopSettingsToggleContribution extends HonkDesktopSettin
   readonly extension: HonkDesktopExtensionIdentity;
 }
 
+export interface HonkDesktopNewSessionToggleContribution
+  extends HonkDesktopNewSessionToggleOptions {
+  readonly key: string;
+  readonly extension: HonkDesktopExtensionIdentity;
+}
+
+export interface HonkDesktopTitlebarToggleContribution {
+  readonly key: string;
+  readonly id: string;
+  readonly label: string;
+  readonly value: HonkDesktopCell<boolean>;
+  readonly icon: (active: boolean) => ReactNode;
+  readonly order?: number;
+  readonly extension: HonkDesktopExtensionIdentity;
+}
+
 export interface HonkDesktopPaneContribution {
   readonly key: string;
   readonly extension: HonkDesktopExtensionIdentity;
@@ -161,10 +202,13 @@ export interface HonkDesktopExtensionHost {
   register(extension: HonkDesktopExtensionDefinition): HonkDesktopDispose;
   subscribeSettings(listener: () => void): HonkDesktopDispose;
   getSettingsSnapshot(): readonly HonkDesktopSettingsToggleContribution[];
+  subscribeNewSession(listener: () => void): HonkDesktopDispose;
+  getNewSessionSnapshot(): readonly HonkDesktopNewSessionToggleContribution[];
   subscribePanes(listener: () => void): HonkDesktopDispose;
   getPanesSnapshot(): readonly HonkDesktopPaneContribution[];
   subscribeTitlebar(listener: () => void): HonkDesktopDispose;
   getTitlebarTabStripHiddenSnapshot(): boolean;
+  getTitlebarTogglesSnapshot(): readonly HonkDesktopTitlebarToggleContribution[];
   dispose(): void;
 }
 
@@ -172,6 +216,7 @@ export interface HonkDesktopExtensionHostOptions {
   readonly storage: Pick<Storage, "getItem" | "setItem">;
   readonly tabs: HonkDesktopTabs;
   readonly opencode: HonkDesktopOpenCode;
+  readonly power: HonkDesktopPower;
   readonly onError?: (error: unknown, extensionID: string) => void;
 }
 
@@ -234,15 +279,20 @@ export function createHonkDesktopExtensionHost(
   options: HonkDesktopExtensionHostOptions,
 ): HonkDesktopExtensionHost {
   const settings = new Map<string, HonkDesktopSettingsToggleContribution>();
+  const newSession = new Map<string, HonkDesktopNewSessionToggleContribution>();
   const panes = new Map<string, InternalPaneRecord>();
-  const titlebar = new Map<string, InternalTitlebarRecord>();
+  const titlebarTabStrips = new Map<string, InternalTitlebarRecord>();
+  const titlebarToggles = new Map<string, HonkDesktopTitlebarToggleContribution>();
   const activeExtensions = new Map<string, HonkDesktopDispose>();
   const settingsListeners = new Set<() => void>();
+  const newSessionListeners = new Set<() => void>();
   const paneListeners = new Set<() => void>();
   const titlebarListeners = new Set<() => void>();
 
   let settingsSnapshot: readonly HonkDesktopSettingsToggleContribution[] = Object.freeze([]);
+  let newSessionSnapshot: readonly HonkDesktopNewSessionToggleContribution[] = Object.freeze([]);
   let paneSnapshot: readonly HonkDesktopPaneContribution[] = Object.freeze([]);
+  let titlebarToggleSnapshot: readonly HonkDesktopTitlebarToggleContribution[] = Object.freeze([]);
   let isTitlebarTabStripHidden = false;
 
   const report = (error: unknown, extensionID: string): void => {
@@ -261,6 +311,16 @@ export function createHonkDesktopExtensionHost(
       ),
     );
     notify(settingsListeners);
+  };
+
+  const publishNewSession = (): void => {
+    newSessionSnapshot = Object.freeze(
+      [...newSession.values()].sort(
+        (left, right) =>
+          (left.order ?? 0) - (right.order ?? 0) || left.title.localeCompare(right.title),
+      ),
+    );
+    notify(newSessionListeners);
   };
 
   const publishPanes = (): void => {
@@ -293,11 +353,22 @@ export function createHonkDesktopExtensionHost(
   };
 
   const publishTitlebar = (): void => {
-    const next = [...titlebar.values()].some((record) => record.hidden.get());
-    if (next === isTitlebarTabStripHidden) {
+    const nextHidden = [...titlebarTabStrips.values()].some((record) => record.hidden.get());
+    const nextToggles = Object.freeze(
+      [...titlebarToggles.values()].sort(
+        (left, right) =>
+          (left.order ?? 0) - (right.order ?? 0) || left.label.localeCompare(right.label),
+      ),
+    );
+    if (
+      nextHidden === isTitlebarTabStripHidden &&
+      nextToggles.length === titlebarToggleSnapshot.length &&
+      nextToggles.every((toggle, index) => toggle === titlebarToggleSnapshot[index])
+    ) {
       return;
     }
-    isTitlebarTabStripHidden = next;
+    isTitlebarTabStripHidden = nextHidden;
+    titlebarToggleSnapshot = nextToggles;
     notify(titlebarListeners);
   };
 
@@ -357,22 +428,61 @@ export function createHonkDesktopExtensionHost(
       });
     };
 
+    const addNewSessionToggle = (
+      toggle: HonkDesktopNewSessionToggleOptions,
+    ): HonkDesktopDispose => {
+      validateIdentifier(toggle.id, "new-session contribution");
+      const key = contributionKey(extension.id, toggle.id);
+      if (newSession.has(key)) {
+        throw new Error(`Duplicate Honk desktop new-session contribution: ${key}`);
+      }
+      const contribution = Object.freeze({ ...toggle, key, extension: identity });
+      newSession.set(key, contribution);
+      publishNewSession();
+      return own(() => {
+        if (newSession.delete(key)) {
+          publishNewSession();
+        }
+      });
+    };
+
     const addTitlebarTabStrip = (input: {
       readonly id: string;
       readonly hidden: HonkDesktopCell<boolean>;
     }): HonkDesktopDispose => {
       validateIdentifier(input.id, "titlebar contribution");
       const key = contributionKey(extension.id, input.id);
-      if (titlebar.has(key)) {
+      if (titlebarTabStrips.has(key)) {
         throw new Error(`Duplicate Honk desktop titlebar contribution: ${key}`);
       }
       const record = Object.freeze({ key, hidden: input.hidden });
-      titlebar.set(key, record);
+      titlebarTabStrips.set(key, record);
       const unsubscribe = input.hidden.subscribe(publishTitlebar);
       publishTitlebar();
       return own(() => {
         unsubscribe();
-        if (titlebar.delete(key)) {
+        if (titlebarTabStrips.delete(key)) {
+          publishTitlebar();
+        }
+      });
+    };
+
+    const addTitlebarToggle = (toggle: {
+      readonly id: string;
+      readonly label: string;
+      readonly value: HonkDesktopCell<boolean>;
+      readonly icon: (active: boolean) => ReactNode;
+      readonly order?: number;
+    }): HonkDesktopDispose => {
+      validateIdentifier(toggle.id, "titlebar contribution");
+      const key = contributionKey(extension.id, toggle.id);
+      if (titlebarToggles.has(key)) {
+        throw new Error(`Duplicate Honk desktop titlebar contribution: ${key}`);
+      }
+      titlebarToggles.set(key, Object.freeze({ ...toggle, key, extension: identity }));
+      publishTitlebar();
+      return own(() => {
+        if (titlebarToggles.delete(key)) {
           publishTitlebar();
         }
       });
@@ -471,8 +581,10 @@ export function createHonkDesktopExtensionHost(
       state: createExtensionState(options.storage, extension.id),
       opencode: options.opencode,
       desktop: Object.freeze({
-        titlebar: Object.freeze({ tabStrip: addTitlebarTabStrip }),
+        power: options.power,
+        titlebar: Object.freeze({ tabStrip: addTitlebarTabStrip, toggle: addTitlebarToggle }),
         settings: Object.freeze({ toggle: addSetting }),
+        newSession: Object.freeze({ toggle: addNewSessionToggle }),
         panes: Object.freeze({ add: addPane }),
         tabs: options.tabs,
       }),
@@ -508,6 +620,13 @@ export function createHonkDesktopExtensionHost(
       };
     },
     getSettingsSnapshot: () => settingsSnapshot,
+    subscribeNewSession(listener: () => void) {
+      newSessionListeners.add(listener);
+      return () => {
+        newSessionListeners.delete(listener);
+      };
+    },
+    getNewSessionSnapshot: () => newSessionSnapshot,
     subscribePanes(listener: () => void) {
       paneListeners.add(listener);
       return () => {
@@ -522,15 +641,19 @@ export function createHonkDesktopExtensionHost(
       };
     },
     getTitlebarTabStripHiddenSnapshot: () => isTitlebarTabStripHidden,
+    getTitlebarTogglesSnapshot: () => titlebarToggleSnapshot,
     dispose() {
       for (const dispose of [...activeExtensions.values()].reverse()) {
         dispose();
       }
       activeExtensions.clear();
       settings.clear();
+      newSession.clear();
       panes.clear();
-      titlebar.clear();
+      titlebarTabStrips.clear();
+      titlebarToggles.clear();
       publishSettings();
+      publishNewSession();
       publishPanes();
       publishTitlebar();
     },

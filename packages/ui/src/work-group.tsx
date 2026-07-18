@@ -3,24 +3,28 @@ import * as React from "react";
 
 import { applyStyle, type HonkStyle, type StyleProp } from "./style";
 import { DiffStats, ToolCallLineChevron, toolCallShimmer } from "./tool-call";
-import { colorVars, conversationVars, fontVars, motionVars, radiusVars } from "./tokens.stylex";
+import {
+  colorVars,
+  controlVars,
+  conversationVars,
+  fontVars,
+  motionVars,
+  radiusVars,
+} from "./tokens.stylex";
 
 // Preview and output caps are law-fixed, not design tokens. Identity rounds must not swap them.
 const PREVIEW_MAX_HEIGHT = "144px";
 const OUTPUT_STRIP_MAX_HEIGHT = "90px";
 // Fade mask uses black as alpha, not a theme color. The 32px shoulder is surface geometry.
 const PREVIEW_FADE_MASK = "linear-gradient(to bottom, rgb(0 0 0 / 0.35) 0, rgb(0 0 0) 32px)";
-const GROUP_PAD_Y = "2px";
-const STOP_PAD_X = "8px";
-const STOP_PAD_Y = "2px";
-const STOP_BORDER_WIDTH = "1px";
 
 const styles = stylex.create({
   group: {
     display: "flex",
     flexDirection: "column",
     gap: conversationVars["--honk-conversation-row-gap"],
-    paddingBlock: GROUP_PAD_Y,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 2px group vertical breathing room is fixed geometry, no spacing token owns 2px
+    paddingBlock: "2px",
     minWidth: 0,
     maxWidth: "100%",
     fontFamily: fontVars["--honk-font-family-ui"],
@@ -95,9 +99,10 @@ const styles = stylex.create({
       default: "var(--_reveal, 0)",
       ":focus-visible": "1",
     },
-    paddingInline: STOP_PAD_X,
-    paddingBlock: STOP_PAD_Y,
-    borderWidth: STOP_BORDER_WIDTH,
+    paddingInline: controlVars["--honk-control-pad-sm"],
+    // oxlint-disable-next-line honk/design-no-raw-values -- 2px stop-button vertical padding is fixed geometry, no control/spacing token owns 2px
+    paddingBlock: "2px",
+    borderWidth: controlVars["--honk-control-border-width"],
     borderStyle: "solid",
     borderColor: colorVars["--honk-color-border-base"],
     borderRadius: radiusVars["--honk-radius-control"],
@@ -120,6 +125,7 @@ const styles = stylex.create({
     paddingTop: conversationVars["--honk-conversation-step-gap"],
   },
   previewScrollable: {
+    // oxlint-disable-next-line honk/design-no-raw-values -- fade mask uses black as an alpha ramp, not a theme color, so no colorVars token applies
     maskImage: PREVIEW_FADE_MASK,
   },
   outputWindow: {
@@ -131,6 +137,7 @@ const styles = stylex.create({
     boxSizing: "border-box",
     paddingInline: conversationVars["--honk-conversation-inset"],
     // Top fade so the 90px cap does not slice the first visible mono line mid-glyph.
+    // oxlint-disable-next-line honk/design-no-raw-values -- fade mask uses black as an alpha ramp, not a theme color, so no colorVars token applies
     maskImage: PREVIEW_FADE_MASK,
   },
   output: {

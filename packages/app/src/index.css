@@ -19,6 +19,19 @@ body,
   margin: 0;
 }
 
+/* Cursor applies its font-aliasing choice at the workbench root. Honk uses <html> so the same
+ * preference also reaches Base UI portals mounted outside the React shell. */
+html {
+  -webkit-font-smoothing: var(--honk-font-smoothing);
+  -moz-osx-font-smoothing: var(--honk-font-smoothing-moz);
+}
+
+body {
+  font-family: var(--honk-font-family-ui);
+  font-size: var(--honk-font-size-body);
+  font-weight: var(--honk-font-weight-regular);
+}
+
 /* Hue and intensity use native range geometry so pointer, keyboard, and assistive interactions
  * stay platform-correct. The rest of the settings surface remains on shared controls. */
 .honk-appearance-tint-slider {

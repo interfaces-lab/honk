@@ -15,7 +15,6 @@ import { workbenchLayout } from "./workbench-layout.stylex";
 
 const HAIRLINE = "1px";
 const HEADER_SEPARATOR_SHADOW = `inset 0 -${HAIRLINE} 0 ${colorVars["--honk-color-border-muted"]}`;
-const TAB_MAX_WIDTH = "144px";
 const ISLAND_GAP = "1px";
 const FOCUS_RING_OFFSET_INSET = "-1px";
 
@@ -43,12 +42,14 @@ const styles = stylex.create({
     height: "100%",
     display: "flex",
     alignItems: "center",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1px seam between adjacent tab controls is a fixed hairline, no spacing token owns it
     gap: ISLAND_GAP,
   },
   tabs: {
     height: "100%",
     display: "flex",
     alignItems: "center",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1px seam between adjacent tab controls is a fixed hairline, no spacing token owns it
     gap: ISLAND_GAP,
     paddingInlineStart: spaceVars["--honk-space-gutter"],
     boxSizing: "border-box",
@@ -57,7 +58,7 @@ const styles = stylex.create({
   tabIsland: {
     position: "relative",
     flexShrink: 0,
-    maxWidth: TAB_MAX_WIDTH,
+    maxWidth: "144px",
     height: controlVars["--honk-control-h-sm"],
     display: "flex",
     alignItems: "center",

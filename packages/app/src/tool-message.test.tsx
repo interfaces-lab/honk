@@ -17,6 +17,7 @@ function completedTool(
   input: Record<string, unknown>,
   output: string,
   metadata: Record<string, unknown> = {},
+  title = tool,
 ): ToolPart {
   return {
     id: `part-${tool}`,
@@ -29,17 +30,14 @@ function completedTool(
       status: "completed",
       input,
       output,
-      title: tool,
+      title,
       metadata,
       time: { start: 1, end: 2 },
     },
   };
 }
 
-function runningTool(
-  tool: string,
-  metadata: Record<string, unknown>,
-): ToolPart {
+function runningTool(tool: string, metadata: Record<string, unknown>): ToolPart {
   return {
     id: `part-${tool}`,
     sessionID: "session-1",
@@ -83,6 +81,7 @@ describe("tool artifact normalization", () => {
 
     expect(toolArtifact(part)).toEqual({
       kind: "source",
+      operation: "read",
       path: "/repo/src/value.ts",
       contents: "export const value = 1;\nexport const other = 2;",
       lineStart: 41,
@@ -101,6 +100,7 @@ describe("tool artifact normalization", () => {
     const patch = sourceArtifactPatch(
       {
         kind: "source",
+        operation: "read",
         path: "src/value.ts",
         contents: "one\ntwo\nthree\nfour\nfive",
         lineStart: 41,
@@ -182,7 +182,7 @@ describe("tool artifact normalization", () => {
     expect(artifact.patch).toContain("+++ b/src/b.ts");
   });
 
-  it("does not invent a write diff when no prior content was observed", () => {
+  it("uses completed write content as a source preview when no prior content was observed", () => {
     const part = completedTool(
       "write",
       { filePath: "src/new.ts", content: "const one = 1;\nconst two = 2;\n" },
@@ -190,7 +190,17 @@ describe("tool artifact normalization", () => {
     );
     const artifact = toolArtifact(part);
 
-    expect(artifact).toBeUndefined();
+    expect(artifact).toEqual({
+      kind: "source",
+      operation: "write",
+      path: "src/new.ts",
+      contents: "const one = 1;\nconst two = 2;\n",
+      lineStart: 1,
+      lineEnd: 3,
+      totalLines: 3,
+      truncated: false,
+      files: [{ path: "src/new.ts", additions: 0, deletions: 0 }],
+    });
   });
 
   it("uses an observed write diff instead of inferring file history", () => {
@@ -273,8 +283,8 @@ describe("tool artifact rendering", () => {
             text: "export const value = 1;",
             lineStart: 1,
             lineEnd: 1,
-            totalLines: 1,
-            truncated: false,
+            totalLines: 20,
+            truncated: true,
           },
         })}
       />,
@@ -286,7 +296,35 @@ describe("tool artifact rendering", () => {
     expect(html).toContain('data-tool-artifact="source"');
     expect(html).toContain('data-pierre-tool-source=""');
     expect(html).toContain("src/value.ts · lines 1–1");
+    expect(html).not.toContain("truncated");
     expect(html).not.toContain("human-facing output");
+    expect(html).not.toContain("data-work-preview-output");
+  });
+
+  it("renders completed write content in the source card without inventing diff stats", () => {
+    const html = renderToStaticMarkup(
+      <ToolMessage
+        part={completedTool(
+          "write",
+          {
+            filePath: "src/value.ts",
+            content: "export const value = 1;\nexport const other = 2;",
+          },
+          "Wrote src/value.ts",
+          { filepath: "/repo/src/value.ts", exists: true },
+          "src/value.ts",
+        )}
+      />,
+    );
+
+    expect(html).toContain(">Edited<");
+    expect(html).toContain("src/value.ts");
+    expect(html).not.toContain("lines 1–2");
+    expect(html).toContain('data-tool-artifact="source"');
+    expect(html).toContain('data-pierre-tool-source=""');
+    expect(html).not.toContain('data-pierre-tool-diff=""');
+    expect(html).not.toContain("data-diff-stats");
+    expect(html).not.toContain("Wrote src/value.ts");
     expect(html).not.toContain("data-work-preview-output");
   });
 
@@ -344,11 +382,9 @@ describe("tool artifact rendering", () => {
     );
 
     expect(html).toContain('data-tool-status="running"');
-    expect(html).toContain("Delegating");
+    expect(html).toContain("Working");
     expect(html).toContain('aria-expanded="true"');
-    expect(html).toContain(
-      'aria-label="Delegating Review the transcript. Minimize current subagent preview"',
-    );
+    expect(html).toContain('aria-label="Working Review the transcript. Minimize work details"');
     expect(html).toContain('aria-controls="task-tool-region:part-task"');
     expect(html).not.toContain("Background task started");
     expect(html).not.toContain("data-work-preview-output");
@@ -373,8 +409,8 @@ describe("tool artifact rendering", () => {
     const html = renderToStaticMarkup(<ToolMessage part={part} defaultExpanded />);
 
     expect(html).toContain('data-tool-status="failed"');
-    expect(html).toContain("Delegation failed");
+    expect(html).toContain("Work failed");
     expect(html).toContain("The delegated task could not start");
-    expect(html).not.toContain("current subagent preview");
+    expect(html).not.toContain("work details");
   });
 });

@@ -1,7 +1,6 @@
 import {
   openCodeSessionKey,
   openCodeSessionRef,
-  resolveOpenCodeProjectDirectories,
   type OpenCodeClient,
   type OpenCodeEvent,
   type OpenCodeLocationQuery,
@@ -12,36 +11,34 @@ import {
 } from "@honk/opencode";
 
 import {
-  appSessionState,
   appSessionStatusFromActivity,
   appSessionSummary,
   projectSessionSummaries,
   type AppChildSessionSummary,
-  type AppSessionState,
   type AppSessionSummary,
 } from "./open-code-view";
+import {
+  createSessionWatchController,
+  INITIAL_SESSION_SNAPSHOT,
+  type AdapterWatchStatus,
+  type SessionActivity,
+  type SessionEntry,
+  type SessionWatchSnapshot,
+} from "./session-watch";
 
-export type WatchStatus = "live" | "reconnecting" | "closed" | "unauthorized";
-export type AdapterWatchStatus = "connecting" | WatchStatus;
-export type SessionActivity = "busy" | "retry" | "idle";
+export type {
+  AdapterWatchStatus,
+  SessionActivity,
+  SessionWatchSnapshot,
+  SessionWatchState,
+  WatchStatus,
+} from "./session-watch";
 
 export type WorkspaceWatchState = {
   readonly sessions: readonly AppSessionSummary[];
   readonly rootSessions: readonly AppSessionSummary[];
   readonly childSessions: readonly AppChildSessionSummary[];
   readonly recentDirectories: readonly string[];
-};
-
-export type SessionWatchState = {
-  readonly app: AppSessionState;
-  readonly attachedDirectories: readonly string[];
-  readonly activity: SessionActivity;
-  readonly needsAttention: boolean;
-};
-
-export type SessionWatchSnapshot = {
-  readonly state: SessionWatchState | null;
-  readonly status: AdapterWatchStatus;
 };
 
 export type WorkspaceWatchSnapshot = {
@@ -63,15 +60,10 @@ const WORKSPACE_LIST_LIMIT = 200;
 const ATTENTION_REQUEST_CONCURRENCY = 6;
 const RECENT_DIRECTORY_LIMIT = 8;
 const WORKSPACE_REFETCH_DEBOUNCE_MS = 200;
-const SESSION_REFETCH_DEBOUNCE_MS = 120;
 const PUMP_RECONNECT_BASE_MS = 250;
 const PUMP_RECONNECT_CEILING_MS = 10_000;
+const PUMP_HEARTBEAT_TIMEOUT_MS = 45_000;
 const STRICT_MODE_GRACE_MS = 0;
-
-const INITIAL_SESSION_SNAPSHOT: SessionWatchSnapshot = Object.freeze({
-  state: null,
-  status: "connecting",
-});
 
 const INITIAL_WORKSPACE_SNAPSHOT: WorkspaceWatchSnapshot = Object.freeze({
   state: null,
@@ -82,24 +74,14 @@ const INITIAL_SERVER_SNAPSHOT: OpenCodeServerWatchSnapshot = Object.freeze({
   servers: Object.freeze([]),
 });
 
-type SessionEntry = {
-  readonly ref: OpenCodeSessionRef;
-  refCount: number;
-  fetchSeq: number;
-  fetchPromise: Promise<void> | null;
-  refetchAfterFetch: boolean;
-  refetchTimer: ReturnType<typeof setTimeout> | null;
-  teardownTimer: ReturnType<typeof setTimeout> | null;
-  snapshot: SessionWatchSnapshot;
-  readonly listeners: Set<() => void>;
-};
-
 type ServerContext = {
   readonly client: OpenCodeClient;
   readonly server: OpenCodeServerKey;
   status: AdapterWatchStatus;
   loaded: boolean;
   workspaceFetchSeq: number;
+  workspaceFetchPromise: Promise<void> | null;
+  workspaceRefetchAfterFetch: boolean;
   workspaceRefetchTimer: ReturnType<typeof setTimeout> | null;
   sessionInfos: Map<string, OpenCodeSessionInfo>;
   projectDirectories: Map<string, string>;
@@ -115,9 +97,11 @@ const contexts = new Map<OpenCodeServerKey, ServerContext>();
 const sessionEntries = new Map<string, SessionEntry>();
 const workspaceListeners = new Set<() => void>();
 const serverListeners = new Set<() => void>();
+const catalogListeners = new Set<() => void>();
 let workspaceRefCount = 0;
 let workspaceSnapshot = INITIAL_WORKSPACE_SNAPSHOT;
 let serverSnapshot = INITIAL_SERVER_SNAPSHOT;
+let catalogRevision = 0;
 let primaryServer: OpenCodeServerKey | null = null;
 let boundServer: OpenCodeServerKey | null = null;
 
@@ -190,11 +174,21 @@ function noteSignal(context: ServerContext, sessionID: string): void {
   context.signalSeqBySession.set(sessionID, context.signalSeq);
 }
 
-function publishSession(entry: SessionEntry, next: SessionWatchSnapshot): void {
-  if (entry.snapshot.state === next.state && entry.snapshot.status === next.status) return;
-  entry.snapshot = Object.freeze(next);
-  notify(entry.listeners);
-}
+const sessionWatch = createSessionWatchController<ServerContext>({
+  getContext: (server) => contexts.get(server),
+  getEntry: (ref) => sessionEntries.get(sessionEntryKey(ref)),
+  getEntryBySession: (context, sessionID) =>
+    sessionEntries.get(sessionEntryKey(openCodeSessionRef(context.server, sessionID))),
+  activityOf,
+  attentionOf,
+  replaceAttention,
+  noteBusy: (context, sessionID) => {
+    noteSignal(context, sessionID);
+    context.activityBySession.set(sessionID, "busy");
+    publishDerived(context);
+  },
+  publishDerived,
+});
 
 function contextStatus(): AdapterWatchStatus {
   if (contexts.size === 0) return "connecting";
@@ -277,6 +271,11 @@ function publishServers(): void {
   notify(serverListeners);
 }
 
+function publishCatalog(): void {
+  catalogRevision += 1;
+  notify(catalogListeners);
+}
+
 function entriesForServer(server: OpenCodeServerKey): readonly SessionEntry[] {
   return [...sessionEntries.values()].filter((entry) => entry.ref.server === server);
 }
@@ -310,12 +309,18 @@ function publishDerived(context: ServerContext): void {
     ) {
       continue;
     }
-    publishSession(entry, {
+    sessionWatch.publish(entry, {
       state: Object.freeze({
         ...state,
         app: Object.freeze({
           ...state.app,
-          summary: Object.freeze({ ...state.app.summary, status, needsAttention, updatedAt }),
+          summary: Object.freeze({
+            ...state.app.summary,
+            ...projected,
+            status,
+            needsAttention,
+            updatedAt,
+          }),
         }),
         activity,
         needsAttention,
@@ -330,9 +335,6 @@ function setContextStatus(context: ServerContext, status: AdapterWatchStatus): v
     context.status = status;
     publishWorkspace();
     publishServers();
-  }
-  for (const entry of entriesForServer(context.server)) {
-    publishSession(entry, { state: entry.snapshot.state, status });
   }
 }
 
@@ -418,7 +420,32 @@ async function loadAttentionRequests(
   return requests;
 }
 
-async function fetchWorkspace(context: ServerContext): Promise<void> {
+function fetchWorkspace(
+  context: ServerContext,
+  options?: { readonly queueIfFetching?: boolean },
+): Promise<void> {
+  if (context.workspaceFetchPromise !== null) {
+    if (options?.queueIfFetching === true) context.workspaceRefetchAfterFetch = true;
+    return context.workspaceFetchPromise;
+  }
+
+  const promise = performWorkspaceFetch(context).finally(() => {
+    if (context.workspaceFetchPromise !== promise) return;
+    context.workspaceFetchPromise = null;
+    const shouldRefetch = context.workspaceRefetchAfterFetch;
+    context.workspaceRefetchAfterFetch = false;
+    if (!shouldRefetch || contexts.get(context.server) !== context) return;
+    if (workspaceRefCount === 0) {
+      context.workspaceRefetchAfterFetch = true;
+      return;
+    }
+    void fetchWorkspace(context);
+  });
+  context.workspaceFetchPromise = promise;
+  return promise;
+}
+
+async function performWorkspaceFetch(context: ServerContext): Promise<void> {
   const seq = ++context.workspaceFetchSeq;
   const signalSeq = context.signalSeq;
   try {
@@ -426,13 +453,13 @@ async function fetchWorkspace(context: ServerContext): Promise<void> {
       listAllSessions(context.client),
       context.client.sessions.active(),
     ]);
-    const [attention, projectDirectories] = await Promise.all([
-      loadAttentionRequests(context, list, active),
-      resolveOpenCodeProjectDirectories(context.client, list),
-    ]);
+    const attention = await loadAttentionRequests(context, list, active);
     if (seq !== context.workspaceFetchSeq || contexts.get(context.server) !== context) return;
     context.sessionInfos = new Map(list.map((info) => [info.id, info]));
-    context.projectDirectories = new Map(projectDirectories);
+    const currentProjectIDs = new Set(list.map((info) => info.projectID));
+    context.projectDirectories = new Map(
+      [...context.projectDirectories].filter(([projectID]) => currentProjectIDs.has(projectID)),
+    );
     const currentIDs = new Set(context.sessionInfos.keys());
     for (const id of context.activityBySession.keys()) {
       if (!currentIDs.has(id)) context.activityBySession.delete(id);
@@ -444,7 +471,7 @@ async function fetchWorkspace(context: ServerContext): Promise<void> {
       if (!currentIDs.has(id)) context.signalSeqBySession.delete(id);
     }
     for (const id of context.sessionInfos.keys()) {
-      if ((context.signalSeqBySession.get(id) ?? 0) <= signalSeq) {
+      if ((context.signalSeqBySession.get(id) ?? -1) < signalSeq) {
         context.activityBySession.set(id, id in active ? "busy" : "idle");
         const requestIDs = attention.get(id);
         if (requestIDs !== undefined) replaceAttention(context, id, requestIDs);
@@ -461,131 +488,41 @@ async function fetchWorkspace(context: ServerContext): Promise<void> {
   }
 }
 
-function fetchSession(
-  entry: SessionEntry,
-  options?: { readonly queueIfFetching?: boolean },
-): Promise<void> {
-  if (entry.fetchPromise !== null) {
-    if (options?.queueIfFetching === true) entry.refetchAfterFetch = true;
-    return entry.fetchPromise;
-  }
-
-  const promise = performSessionFetch(entry).finally(() => {
-    if (entry.fetchPromise !== promise) return;
-    entry.fetchPromise = null;
-    const shouldRefetch = entry.refetchAfterFetch;
-    entry.refetchAfterFetch = false;
-    if (
-      shouldRefetch &&
-      entry.refCount > 0 &&
-      sessionEntries.get(sessionEntryKey(entry.ref)) === entry
-    ) {
-      void fetchSession(entry);
-    }
-  });
-  entry.fetchPromise = promise;
-  return promise;
-}
-
-async function performSessionFetch(entry: SessionEntry): Promise<void> {
-  const context = contexts.get(entry.ref.server);
-  if (context === undefined) return;
-  const seq = ++entry.fetchSeq;
-  const signalSeq = context.signalSeq;
-  try {
-    const [transcript, permissions, questions] = await Promise.all([
-      context.client.sessions.transcript(entry.ref),
-      context.client.sessions.permissions(entry.ref).catch(() => []),
-      context.client.sessions.questions(entry.ref).catch(() => []),
-    ]);
-    const info = transcript.info;
-    const projectDirectory =
-      context.projectDirectories.get(info.projectID) ??
-      (await resolveOpenCodeProjectDirectories(context.client, [info])).get(info.projectID) ??
-      info.location.directory;
-    if (
-      seq !== entry.fetchSeq ||
-      contexts.get(entry.ref.server) !== context ||
-      sessionEntries.get(sessionEntryKey(entry.ref)) !== entry
-    ) {
-      return;
-    }
-    context.projectDirectories.set(info.projectID, projectDirectory);
-    context.sessionInfos.set(info.id, info);
-    if ((context.signalSeqBySession.get(info.id) ?? 0) <= signalSeq) {
-      replaceAttention(context, info.id, [
-        ...permissions.map((request) => request.id),
-        ...questions.map((request) => request.id),
-      ]);
-    }
-    const activity = activityOf(context, entry.ref.sessionID);
-    const needsAttention = attentionOf(context, entry.ref.sessionID);
-    publishSession(entry, {
-      state: Object.freeze({
-        app: appSessionState({
-          transcript,
-          server: context.server,
-          status: appSessionStatusFromActivity(activity),
-          permissions,
-          questions,
-          projectDirectory,
-        }),
-        attachedDirectories: Object.freeze([]),
-        activity,
-        needsAttention,
-      }),
-      status: "live",
-    });
-    publishDerived(context);
-  } catch (error) {
-    if (
-      seq !== entry.fetchSeq ||
-      contexts.get(entry.ref.server) !== context ||
-      sessionEntries.get(sessionEntryKey(entry.ref)) !== entry
-    ) {
-      return;
-    }
-    publishSession(entry, {
-      state: entry.snapshot.state,
-      status: isUnauthorized(error) ? "unauthorized" : "reconnecting",
-    });
-  }
-}
-
 function scheduleWorkspaceRefetch(context: ServerContext): void {
   if (context.workspaceRefetchTimer !== null) return;
   context.workspaceRefetchTimer = setTimeout(() => {
     context.workspaceRefetchTimer = null;
-    void fetchWorkspace(context);
+    void fetchWorkspace(context, { queueIfFetching: true });
   }, WORKSPACE_REFETCH_DEBOUNCE_MS);
-}
-
-function scheduleSessionRefetch(
-  context: ServerContext,
-  sessionID: string,
-  mode: "debounced" | "trailing" = "debounced",
-): void {
-  const entry = sessionEntries.get(sessionEntryKey(openCodeSessionRef(context.server, sessionID)));
-  if (entry === undefined) return;
-  if (entry.refetchTimer !== null) {
-    if (mode === "debounced") return;
-    clearTimeout(entry.refetchTimer);
-  }
-  entry.refetchTimer = setTimeout(() => {
-    entry.refetchTimer = null;
-    void fetchSession(entry, { queueIfFetching: true });
-  }, SESSION_REFETCH_DEBOUNCE_MS);
 }
 
 function handleEvent(context: ServerContext, event: OpenCodeEvent): void {
   const sessionID = eventSessionID(event);
   switch (event.type) {
+    case "server.connected":
+      scheduleWorkspaceRefetch(context);
+      for (const entry of entriesForServer(context.server)) {
+        if (entry.refCount > 0) void sessionWatch.refreshRequests(entry);
+      }
+      return;
+    case "server.heartbeat":
+      return;
+    case "catalog.updated":
+      publishCatalog();
+      return;
     case "session.created":
     case "session.updated":
-    case "session.deleted":
     case "session.compacted":
       scheduleWorkspaceRefetch(context);
-      if (sessionID !== null) scheduleSessionRefetch(context, sessionID);
+      return;
+    case "session.deleted":
+      scheduleWorkspaceRefetch(context);
+      if (sessionID !== null) {
+        const entry = sessionEntries.get(
+          sessionEntryKey(openCodeSessionRef(context.server, sessionID)),
+        );
+        if (entry !== undefined) sessionWatch.close(entry);
+      }
       return;
     case "session.status": {
       const status = event.data.status.type;
@@ -595,7 +532,6 @@ function handleEvent(context: ServerContext, event: OpenCodeEvent): void {
       publishDerived(context);
       if (activity === "idle") {
         scheduleWorkspaceRefetch(context);
-        scheduleSessionRefetch(context, event.data.sessionID, "trailing");
       }
       return;
     }
@@ -605,8 +541,34 @@ function handleEvent(context: ServerContext, event: OpenCodeEvent): void {
         context.activityBySession.set(sessionID, "idle");
         publishDerived(context);
         scheduleWorkspaceRefetch(context);
-        scheduleSessionRefetch(context, sessionID, "trailing");
       }
+      return;
+    case "session.next.text.delta":
+      sessionWatch.recordLiveDelta(context, {
+        sessionID: event.data.sessionID,
+        partID: event.data.textID,
+        kind: "text",
+        delta: event.data.delta,
+        timestamp: event.data.timestamp,
+      });
+      return;
+    case "session.next.reasoning.delta":
+      sessionWatch.recordLiveDelta(context, {
+        sessionID: event.data.sessionID,
+        partID: event.data.reasoningID,
+        kind: "text",
+        delta: event.data.delta,
+        timestamp: event.data.timestamp,
+      });
+      return;
+    case "session.next.tool.input.delta":
+      sessionWatch.recordLiveDelta(context, {
+        sessionID: event.data.sessionID,
+        partID: event.data.callID,
+        kind: "tool-input",
+        delta: event.data.delta,
+        timestamp: event.data.timestamp,
+      });
       return;
     case "question.asked":
     case "question.v2.asked":
@@ -617,7 +579,10 @@ function handleEvent(context: ServerContext, event: OpenCodeEvent): void {
         noteSignal(context, sessionID);
         markAttention(context, sessionID, requestID);
         publishDerived(context);
-        scheduleSessionRefetch(context, sessionID);
+        const entry = sessionEntries.get(
+          sessionEntryKey(openCodeSessionRef(context.server, sessionID)),
+        );
+        if (entry !== undefined) void sessionWatch.refreshRequests(entry);
       }
       return;
     }
@@ -631,11 +596,14 @@ function handleEvent(context: ServerContext, event: OpenCodeEvent): void {
         noteSignal(context, sessionID);
         clearAttention(context, sessionID, eventRequestID(event));
         publishDerived(context);
-        scheduleSessionRefetch(context, sessionID);
+        const entry = sessionEntries.get(
+          sessionEntryKey(openCodeSessionRef(context.server, sessionID)),
+        );
+        if (entry !== undefined) void sessionWatch.refreshRequests(entry);
       }
       return;
     default:
-      if (sessionID !== null) scheduleSessionRefetch(context, sessionID);
+      return;
   }
 }
 
@@ -653,12 +621,70 @@ async function runPump(context: ServerContext, generation: number): Promise<void
     const controller = new AbortController();
     context.pumpController = controller;
     let receivedEvent = false;
+    let lastReceivedEventAt = Date.now();
+    let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
+    const armWatchdog = (): void => {
+      if (watchdogTimer !== null) clearTimeout(watchdogTimer);
+      watchdogTimer = setTimeout(
+        () => {
+          if (
+            generation !== context.pumpGeneration ||
+            contexts.get(context.server) !== context ||
+            context.pumpController !== controller ||
+            controller.signal.aborted
+          ) {
+            return;
+          }
+          if (Date.now() - lastReceivedEventAt < PUMP_HEARTBEAT_TIMEOUT_MS) {
+            armWatchdog();
+            return;
+          }
+          const observedAt = lastReceivedEventAt;
+          // Some v2 transports send SSE comment heartbeats that the decoded event iterator does
+          // not yield. Confirm server health before declaring a quiet stream disconnected.
+          void context.client.health().then(
+            () => {
+              if (
+                generation !== context.pumpGeneration ||
+                contexts.get(context.server) !== context ||
+                context.pumpController !== controller ||
+                controller.signal.aborted ||
+                lastReceivedEventAt !== observedAt
+              ) {
+                return;
+              }
+              lastReceivedEventAt = Date.now();
+              armWatchdog();
+            },
+            () => {
+              if (
+                generation === context.pumpGeneration &&
+                contexts.get(context.server) === context &&
+                context.pumpController === controller &&
+                !controller.signal.aborted &&
+                lastReceivedEventAt === observedAt
+              ) {
+                controller.abort();
+              }
+            },
+          );
+        },
+        Math.max(0, PUMP_HEARTBEAT_TIMEOUT_MS - (Date.now() - lastReceivedEventAt)),
+      );
+    };
+    armWatchdog();
     try {
       for await (const event of context.client.events(controller.signal)) {
         if (generation !== context.pumpGeneration) return;
         receivedEvent = true;
         attempt = 0;
-        handleEvent(context, event);
+        lastReceivedEventAt = Date.now();
+        armWatchdog();
+        try {
+          handleEvent(context, event);
+        } catch (error) {
+          console.warn(`Skipping OpenCode event ${event.type} after handler failure.`, error);
+        }
       }
     } catch (error) {
       if (generation !== context.pumpGeneration || contexts.get(context.server) !== context) return;
@@ -666,22 +692,23 @@ async function runPump(context: ServerContext, generation: number): Promise<void
         setContextStatus(context, "unauthorized");
         return;
       }
+    } finally {
+      if (watchdogTimer !== null) clearTimeout(watchdogTimer);
     }
     if (generation !== context.pumpGeneration || contexts.get(context.server) !== context) return;
     setContextStatus(context, "reconnecting");
     await wait(reconnectDelay(receivedEvent ? 0 : attempt));
     attempt += 1;
     if (generation !== context.pumpGeneration || contexts.get(context.server) !== context) return;
-    if (workspaceRefCount > 0) void fetchWorkspace(context);
-    for (const entry of entriesForServer(context.server)) {
-      if (entry.refCount > 0) void fetchSession(entry, { queueIfFetching: true });
-    }
+    if (workspaceRefCount > 0) void fetchWorkspace(context, { queueIfFetching: true });
   }
 }
 
 function hasContextConsumers(context: ServerContext): boolean {
   return (
-    workspaceRefCount > 0 || entriesForServer(context.server).some((entry) => entry.refCount > 0)
+    workspaceRefCount > 0 ||
+    catalogListeners.size > 0 ||
+    entriesForServer(context.server).some((entry) => entry.refCount > 0)
   );
 }
 
@@ -706,6 +733,8 @@ function createContext(client: OpenCodeClient): ServerContext {
     status: "connecting",
     loaded: false,
     workspaceFetchSeq: 0,
+    workspaceFetchPromise: null,
+    workspaceRefetchAfterFetch: false,
     workspaceRefetchTimer: null,
     sessionInfos: new Map(),
     projectDirectories: new Map(),
@@ -719,10 +748,6 @@ function createContext(client: OpenCodeClient): ServerContext {
 }
 
 function clearSessionTimers(entry: SessionEntry): void {
-  if (entry.refetchTimer !== null) {
-    clearTimeout(entry.refetchTimer);
-    entry.refetchTimer = null;
-  }
   if (entry.teardownTimer !== null) {
     clearTimeout(entry.teardownTimer);
     entry.teardownTimer = null;
@@ -732,20 +757,20 @@ function clearSessionTimers(entry: SessionEntry): void {
 function disposeContext(context: ServerContext): void {
   stopPump(context);
   context.workspaceFetchSeq += 1;
+  context.workspaceFetchPromise = null;
+  context.workspaceRefetchAfterFetch = false;
   if (context.workspaceRefetchTimer !== null) {
     clearTimeout(context.workspaceRefetchTimer);
     context.workspaceRefetchTimer = null;
   }
   for (const entry of entriesForServer(context.server)) {
+    sessionWatch.dispose(entry);
     clearSessionTimers(entry);
-    entry.fetchSeq += 1;
-    entry.fetchPromise = null;
-    entry.refetchAfterFetch = false;
     if (entry.refCount === 0) {
       sessionEntries.delete(sessionEntryKey(entry.ref));
       continue;
     }
-    publishSession(entry, { state: entry.snapshot.state, status: "closed" });
+    sessionWatch.publish(entry, { state: entry.snapshot.state, status: "closed" });
   }
 }
 
@@ -768,7 +793,7 @@ export function registerOpenCodeClient(
   if (primaryServer === null || options?.primary === true) primaryServer = context.server;
   if (workspaceRefCount > 0) void fetchWorkspace(context);
   for (const entry of entriesForServer(context.server)) {
-    if (entry.refCount > 0) void fetchSession(entry, { queueIfFetching: true });
+    if (entry.refCount > 0) sessionWatch.ensurePump(entry);
   }
   ensurePump(context);
   publishWorkspace();
@@ -818,6 +843,26 @@ export function getOpenCodeServersSnapshot(): OpenCodeServerWatchSnapshot {
   return serverSnapshot;
 }
 
+export function subscribeOpenCodeCatalog(listener: () => void): () => void {
+  catalogListeners.add(listener);
+  for (const context of contexts.values()) ensurePump(context);
+  return () => {
+    catalogListeners.delete(listener);
+    if (catalogListeners.size > 0) return;
+    for (const context of contexts.values()) {
+      if (!hasContextConsumers(context)) stopPump(context);
+    }
+  };
+}
+
+export function getOpenCodeCatalogRevision(): number {
+  return catalogRevision;
+}
+
+export function getOpenCodeCatalogServerRevision(): number {
+  return 0;
+}
+
 export function getOpenCodeClient(server: OpenCodeServerKey): OpenCodeClient | null {
   return contexts.get(server)?.client ?? null;
 }
@@ -832,27 +877,23 @@ export function requireBoundOpenCodeClient(): OpenCodeClient {
   return client;
 }
 
-function createSessionEntry(ref: OpenCodeSessionRef): SessionEntry {
-  return {
-    ref,
-    refCount: 0,
-    fetchSeq: 0,
-    fetchPromise: null,
-    refetchAfterFetch: false,
-    refetchTimer: null,
-    teardownTimer: null,
-    snapshot: INITIAL_SESSION_SNAPSHOT,
-    listeners: new Set(),
-  };
+export function noteOpenCodeSessionPromptAccepted(ref: OpenCodeSessionRef): void {
+  const context = contexts.get(ref.server);
+  if (context === undefined) return;
+  noteSignal(context, ref.sessionID);
+  context.activityBySession.set(ref.sessionID, "busy");
+  publishDerived(context);
 }
 
 function teardownSessionEntry(key: string): void {
   const entry = sessionEntries.get(key);
   if (entry === undefined || entry.refCount > 0) return;
+  sessionWatch.stopPump(entry);
   clearSessionTimers(entry);
   entry.fetchSeq += 1;
   entry.fetchPromise = null;
   entry.refetchAfterFetch = false;
+  entry.requestSeq += 1;
   sessionEntries.delete(key);
   const context = contexts.get(entry.ref.server);
   if (context !== undefined && !hasContextConsumers(context)) stopPump(context);
@@ -862,7 +903,7 @@ export function subscribeSessionWatch(ref: OpenCodeSessionRef, listener: () => v
   const key = sessionEntryKey(ref);
   let entry = sessionEntries.get(key);
   if (entry === undefined) {
-    entry = createSessionEntry(ref);
+    entry = sessionWatch.createEntry(ref);
     sessionEntries.set(key, entry);
   }
   if (entry.teardownTimer !== null) {
@@ -873,7 +914,7 @@ export function subscribeSessionWatch(ref: OpenCodeSessionRef, listener: () => v
   entry.refCount += 1;
   const context = contexts.get(ref.server);
   if (context !== undefined) {
-    if (entry.snapshot.state === null && entry.refetchTimer === null) void fetchSession(entry);
+    sessionWatch.ensurePump(entry);
     ensurePump(context);
   }
 
@@ -900,8 +941,19 @@ export function getSessionWatchServerSnapshot(): SessionWatchSnapshot {
 
 export function subscribeWorkspaceWatch(listener: () => void): () => void {
   workspaceListeners.add(listener);
+  const activatingWorkspace = workspaceRefCount === 0;
   workspaceRefCount += 1;
   for (const context of contexts.values()) {
+    if (
+      activatingWorkspace &&
+      context.workspaceRefetchAfterFetch &&
+      context.workspaceFetchPromise === null
+    ) {
+      context.workspaceRefetchAfterFetch = false;
+      void fetchWorkspace(context);
+      ensurePump(context);
+      continue;
+    }
     if (!context.loaded && context.workspaceRefetchTimer === null) void fetchWorkspace(context);
     ensurePump(context);
   }

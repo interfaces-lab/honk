@@ -1,9 +1,9 @@
 import * as stylex from "@stylexjs/stylex";
 import { openCodeSessionRef } from "@honk/opencode";
-import { Outlet, useLocation } from "@tanstack/react-router";
+import { Outlet, useParams } from "@tanstack/react-router";
 import * as React from "react";
 
-import { parseOpenCodeTabHref } from "./opencode/tab-route";
+import { openCodeSessionRefFromRouteParams } from "./opencode/tab-route";
 import { latestSubmittedPlan } from "./thread/follow-up";
 import { latestTodos } from "./tool-part-projection";
 import { useSessionWatch } from "./use-sdk-watch";
@@ -47,14 +47,14 @@ function resolveWorkbenchFrame(
 }
 
 function SessionWorkbenchLayout(): React.ReactElement {
-  const location = useLocation();
-  const route = parseOpenCodeTabHref(location.href);
-  if (route?.type !== "session") {
+  const params = useParams({ from: "/server/$serverKey/session/$sessionId" });
+  const routeRef = openCodeSessionRefFromRouteParams(params.serverKey, params.sessionId);
+  if (routeRef === null) {
     throw new Error("The session workbench route is invalid.");
   }
-  const routeServer = route.ref.server;
-  const routeSessionID = route.ref.sessionID;
-  const watch = useSessionWatch(route.ref);
+  const routeServer = routeRef.server;
+  const routeSessionID = routeRef.sessionID;
+  const watch = useSessionWatch(routeRef);
   const currentFrame = resolveWorkbenchFrame(routeServer, routeSessionID, watch.state);
   const [retainedFrame, setRetainedFrame] = React.useState(currentFrame);
 
@@ -71,7 +71,7 @@ function SessionWorkbenchLayout(): React.ReactElement {
         <Workbench
           key={frame.workspaceKey}
           workspaceKey={frame.workspaceKey}
-          routeRef={route.ref}
+          routeRef={routeRef}
           isRouteReady={currentFrame !== null}
           surfaceSessionRef={frame.sessionRef}
           directory={frame.directory}

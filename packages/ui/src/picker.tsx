@@ -46,7 +46,7 @@ const sx = stylex.create({
     color: colorVars["--honk-color-text-primary"],
     fontFamily: fontVars["--honk-font-family-ui"],
     fontSize: fontVars["--honk-font-size-body"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
     lineHeight: 1,
     whiteSpace: "nowrap",
     cursor: { default: "pointer", ":disabled": "default" },
@@ -188,7 +188,7 @@ const sx = stylex.create({
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
   },
   optionDescription: {
     overflow: "hidden",
@@ -212,7 +212,7 @@ const sx = stylex.create({
     paddingBlock: controlVars["--honk-control-gap"],
     color: colorVars["--honk-color-text-muted"],
     fontSize: fontVars["--honk-font-size-caption"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
     userSelect: "none",
   },
   separator: {

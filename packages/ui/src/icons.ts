@@ -20,6 +20,7 @@ import {
   IconCircleCheck,
   IconClawd,
   IconClipboard,
+  IconCode,
   IconComputerUse,
   IconConsole,
   IconConsoleSimple,
@@ -28,8 +29,14 @@ import {
   IconCrossSmall,
   IconDotGrid1x3Horizontal,
   IconExclamationCircle,
+  IconExpand45,
   IconEyeOpen,
   IconFileBend,
+  IconFileJpg,
+  IconFilePdf,
+  IconFilePng,
+  IconFileText,
+  IconFileZip,
   IconFiles,
   IconFilter2,
   IconFolder1,
@@ -37,8 +44,11 @@ import {
   IconFolderOpen,
   IconGlobe,
   IconHomeRoofDoor,
+  IconJavascript,
+  IconJson,
   IconLayoutSidebar,
   IconMagnifyingGlass,
+  IconMarkdown,
   IconMinusSmall,
   IconOpenaiCodex,
   IconPencilLine,
@@ -48,9 +58,12 @@ import {
   IconSettingsGear2,
   IconServer,
   IconSidebarSimpleRightWide,
+  IconSleep,
   IconStepBack,
   IconSummary,
+  IconSun,
   IconTrashCan,
+  IconTypescript,
   IconUnpin,
   IconWindowSquare,
   IconWindowSquarePlus,
@@ -66,11 +79,28 @@ export {
   IconChevronLeftMedium,
   IconChevronDoubleLeft,
   IconChevronDoubleRight,
+  IconExpand45,
   IconStepBack,
 };
 
 // Files
-export { IconFolder1, IconFolderOpen, IconFolderAddRight, IconFiles, IconFileBend };
+export {
+  IconFolder1,
+  IconFolderOpen,
+  IconFolderAddRight,
+  IconFiles,
+  IconFileBend,
+  IconFileJpg,
+  IconFilePdf,
+  IconFilePng,
+  IconFileText,
+  IconFileZip,
+  IconCode,
+  IconJavascript,
+  IconJson,
+  IconMarkdown,
+  IconTypescript,
+};
 
 // Content actions
 export {
@@ -92,7 +122,7 @@ export { IconPin, IconUnpin, IconArchive1 };
 export { IconCrossSmall, IconCrossMedium, IconCrossMediumDefault };
 
 // Status
-export { IconCircleCheck, IconExclamationCircle, IconBubbleQuestion };
+export { IconCircleCheck, IconExclamationCircle, IconBubbleQuestion, IconSleep, IconSun };
 
 // Model providers
 export { IconClawd, IconOpenaiCodex };
@@ -135,6 +165,7 @@ const ICON_CATALOG: readonly IconCatalogSection[] = [
       ["IconChevronLeftMedium", IconChevronLeftMedium],
       ["IconChevronDoubleLeft", IconChevronDoubleLeft],
       ["IconChevronDoubleRight", IconChevronDoubleRight],
+      ["IconExpand45", IconExpand45],
       ["IconStepBack", IconStepBack],
     ],
   },
@@ -146,6 +177,16 @@ const ICON_CATALOG: readonly IconCatalogSection[] = [
       ["IconFolderAddRight", IconFolderAddRight],
       ["IconFiles", IconFiles],
       ["IconFileBend", IconFileBend],
+      ["IconFileJpg", IconFileJpg],
+      ["IconFilePdf", IconFilePdf],
+      ["IconFilePng", IconFilePng],
+      ["IconFileText", IconFileText],
+      ["IconFileZip", IconFileZip],
+      ["IconCode", IconCode],
+      ["IconJavascript", IconJavascript],
+      ["IconJson", IconJson],
+      ["IconMarkdown", IconMarkdown],
+      ["IconTypescript", IconTypescript],
     ],
   },
   {
@@ -184,6 +225,8 @@ const ICON_CATALOG: readonly IconCatalogSection[] = [
       ["IconCircleCheck", IconCircleCheck],
       ["IconExclamationCircle", IconExclamationCircle],
       ["IconBubbleQuestion", IconBubbleQuestion],
+      ["IconSleep", IconSleep],
+      ["IconSun", IconSun],
     ],
   },
   {

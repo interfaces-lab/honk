@@ -25,6 +25,7 @@ type ToolDiffArtifact = {
 
 type ToolSourceArtifact = {
   readonly kind: "source";
+  readonly operation: "read" | "write";
   readonly path: string;
   readonly contents: string;
   readonly lineStart: number;
@@ -50,7 +51,7 @@ function toolArtifact(part: ToolPart): ToolArtifact | undefined {
     return editDiffArtifact(part);
   }
   if (part.tool === "write") {
-    return editDiffArtifact(part);
+    return editDiffArtifact(part) ?? writeSourceArtifact(part);
   }
   return undefined;
 }
@@ -81,12 +82,36 @@ function readSourceArtifact(part: ToolPart): ToolSourceArtifact | undefined {
 
   return {
     kind: "source",
+    operation: "read",
     path,
     contents,
     lineStart,
     lineEnd,
     totalLines,
     truncated,
+    files: [{ path, additions: 0, deletions: 0 }],
+  };
+}
+
+function writeSourceArtifact(part: ToolPart): ToolSourceArtifact | undefined {
+  if (part.state.status !== "completed") return undefined;
+  const contents = stringField(part.state.input, "content");
+  if (contents === undefined) return undefined;
+  const path =
+    stringField(part.state.input, "filePath") ??
+    stringField(toolMetadata(part), "filepath") ??
+    part.state.title ??
+    "file";
+  const totalLines = contents.split("\n").length;
+  return {
+    kind: "source",
+    operation: "write",
+    path,
+    contents,
+    lineStart: 1,
+    lineEnd: totalLines,
+    totalLines,
+    truncated: false,
     files: [{ path, additions: 0, deletions: 0 }],
   };
 }

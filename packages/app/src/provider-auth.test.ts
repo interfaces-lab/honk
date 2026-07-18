@@ -42,10 +42,14 @@ const conditionalMethod: OpenCodeProviderAuthMethod = {
   ],
 };
 
-function inventory(openAiConnected: boolean): OpenCodeProviderInventory {
+function inventory(
+  openAiConnected: boolean,
+  openCodeGoConnected = false,
+): OpenCodeProviderInventory {
   return {
     providers: [
       { id: "openai", name: "OpenAI", connected: openAiConnected },
+      { id: "opencode-go", name: "OpenCode Go", connected: openCodeGoConnected },
       { id: "anthropic", name: "Anthropic", connected: false },
     ],
   };
@@ -155,24 +159,43 @@ describe("provider auth coordinator", () => {
     expect(coordinator.getSnapshot().openAiConnected).toBe(true);
   });
 
+  it("detects OpenCode Go credentials supplied by the environment inventory", async () => {
+    const coordinator = createProviderAuthCoordinator(
+      fakeClient({
+        ensureManagedAnthropicImport: vi
+          .fn()
+          .mockResolvedValue(managedResult(inventory(false, true))),
+      }),
+    );
+    await coordinator.start();
+    expect(coordinator.getSnapshot().openCodeGoConnected).toBe(true);
+  });
+
+  it("saves a trimmed OpenCode key against the opencode-go provider", async () => {
+    const setApiKey = vi.fn().mockResolvedValue(undefined);
+    const coordinator = createProviderAuthCoordinator(
+      fakeClient({
+        setApiKey,
+        list: vi.fn().mockResolvedValue(inventory(false, true)),
+      }),
+    );
+    await coordinator.startOpenCodeGo();
+    await coordinator.submitOpenCodeGoApiKey("  go-secret  ");
+    expect(setApiKey).toHaveBeenCalledWith("opencode-go", "go-secret");
+    expect(coordinator.getSnapshot().openCodeGoConnected).toBe(true);
+  });
+
   it("opens code OAuth and completes with a trimmed callback code", async () => {
     const completeOauth = vi.fn().mockResolvedValue(undefined);
     const list = vi.fn().mockResolvedValue(inventory(true));
     const openUrl = vi.fn().mockResolvedValue(undefined);
-    const coordinator = createProviderAuthCoordinator(
-      fakeClient({ completeOauth, list }),
-      openUrl,
-    );
+    const coordinator = createProviderAuthCoordinator(fakeClient({ completeOauth, list }), openUrl);
     await coordinator.startOpenAi();
     await coordinator.chooseOpenAiMethod(conditionalMethod.index);
     await coordinator.submitOpenAiPrompt("team");
     await coordinator.submitOpenAiPrompt("acme");
     await coordinator.submitOpenAiCode("  callback-code  ");
-    expect(completeOauth).toHaveBeenCalledWith(
-      "openai",
-      conditionalMethod.index,
-      "callback-code",
-    );
+    expect(completeOauth).toHaveBeenCalledWith("openai", conditionalMethod.index, "callback-code");
     expect(coordinator.getSnapshot().openAiConnected).toBe(true);
   });
 

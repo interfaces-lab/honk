@@ -28,6 +28,8 @@ function openCodeTabDescriptors(input: {
   readonly state: OpenCodeTabState;
   readonly servers: readonly OpenCodeServerDescriptor[];
   readonly presentations?: OpenCodeTabPresentations;
+  // Server home directories by server key. The tab preview abbreviates paths with ~.
+  readonly homes?: Readonly<Record<string, string>>;
 }): readonly OpenCodeTabDescriptor[] {
   const serverByKey = new Map(input.servers.map((server) => [server.key, server]));
   const showServer = input.servers.length > 1;
@@ -35,6 +37,7 @@ function openCodeTabDescriptors(input: {
     const key = openCodeTabKey(tab);
     const presentation = input.presentations?.[key];
     const server = showServer ? serverByKey.get(tab.server) : undefined;
+    const homePath = input.homes?.[tab.server];
     const owner = openCodeTabSessionRef(tab);
     const info = input.state.info[owner === null ? key : openCodeSessionTabKey(owner)];
     const directory = tab.type === "draft" ? tab.location.directory : info?.directory;
@@ -53,6 +56,7 @@ function openCodeTabDescriptors(input: {
       status: presentation?.status ?? (tab.type === "draft" ? "draft" : "idle"),
       repository,
       ...(directory === undefined ? {} : { path: directory }),
+      ...(homePath === undefined ? {} : { homePath }),
       ...(server === undefined
         ? {}
         : {

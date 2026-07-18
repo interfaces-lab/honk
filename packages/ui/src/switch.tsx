@@ -5,23 +5,11 @@ import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
 import { applyStyle, type HonkStyle, type StyleProp } from "./style";
-import { colorVars, motionVars, radiusVars } from "./tokens.stylex";
+import { colorVars, controlVars, motionVars, radiusVars } from "./tokens.stylex";
 
 type SwitchSize = "sm" | "md";
 
-const THUMB_INSET = "2px";
-const MD_TRACK_W = "30px";
-const MD_TRACK_H = "18px";
-const MD_THUMB = "14px";
-const SM_TRACK_W = "26px";
-const SM_TRACK_H = "16px";
-const SM_THUMB = "12px";
-const MD_SHIFT = "translateX(12px)";
-const SM_SHIFT = "translateX(10px)";
-
 const RING_MUTED = `inset 0 0 0 1px ${colorVars["--honk-color-border-muted"]}`;
-const FOCUS_RING_WIDTH = "1px";
-const FOCUS_RING_OFFSET = "2px";
 
 const sx = stylex.create({
   root: {
@@ -30,7 +18,8 @@ const sx = stylex.create({
     display: "inline-flex",
     alignItems: "center",
     flexShrink: 0,
-    padding: THUMB_INSET,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 2px thumb inset is fixed switch-track geometry, no spacing token owns it
+    padding: "2px",
     borderStyle: "none",
     borderRadius: radiusVars["--honk-radius-pill"],
     userSelect: "none",
@@ -46,8 +35,8 @@ const sx = stylex.create({
     // Focus drawn with `outline` so it never collides with the ring box-shadow (button.tsx slot).
     outlineColor: colorVars["--honk-color-accent"],
     outlineStyle: { default: "none", ":focus-visible": "solid" },
-    outlineWidth: FOCUS_RING_WIDTH,
-    outlineOffset: FOCUS_RING_OFFSET,
+    outlineWidth: controlVars["--honk-control-focus-ring-width"],
+    outlineOffset: controlVars["--honk-control-focus-ring-offset"],
     opacity: { default: 1, "[data-disabled]": 0.4 },
     transitionProperty: "background-color, box-shadow",
     transitionDuration: {
@@ -56,8 +45,8 @@ const sx = stylex.create({
     },
     transitionTimingFunction: motionVars["--honk-motion-ease-out"],
   },
-  trackMd: { width: MD_TRACK_W, height: MD_TRACK_H },
-  trackSm: { width: SM_TRACK_W, height: SM_TRACK_H },
+  trackMd: { width: "30px", height: "18px" },
+  trackSm: { width: "26px", height: "16px" },
 
   thumb: {
     display: "block",
@@ -73,14 +62,14 @@ const sx = stylex.create({
     transitionTimingFunction: motionVars["--honk-motion-ease-out"],
   },
   thumbMd: {
-    width: MD_THUMB,
-    height: MD_THUMB,
-    transform: { default: "translateX(0)", "[data-checked]": MD_SHIFT },
+    width: "14px",
+    height: "14px",
+    transform: { default: "translateX(0)", "[data-checked]": "translateX(12px)" },
   },
   thumbSm: {
-    width: SM_THUMB,
-    height: SM_THUMB,
-    transform: { default: "translateX(0)", "[data-checked]": SM_SHIFT },
+    width: "12px",
+    height: "12px",
+    transform: { default: "translateX(0)", "[data-checked]": "translateX(10px)" },
   },
 });
 

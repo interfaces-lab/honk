@@ -15,7 +15,9 @@ import { InlineMessageEditComposer } from "./inline-message-edit-composer";
 import { ThreadRuntimeContext, type ThreadRuntime } from "./runtime";
 import { projectTaskChildLinks, taskToolControlID } from "./subagent-session";
 import { SubagentTray } from "./subagent-tray";
+import { taskMission, taskModelLabel } from "./task-message";
 import { ThreadStream } from "./transcript";
+import type { ToolPart } from "./transcript-model";
 import { DebugTray, PlanTray } from "./trays";
 
 const THREAD_MAX_WIDTH = "840px";
@@ -114,10 +116,16 @@ export function ThreadSurface({
     server,
   });
   const taskLinkByPartID = new Map(taskLinks.map((link) => [link.partID, link] as const));
-  const taskStateByPartID = new Map(taskLinks.map((link) => [link.partID, link.state] as const));
   const [selectedTaskPartID, setSelectedTaskPartID] = React.useState<string | null>(null);
   const selectedTaskLink =
     selectedTaskPartID === null ? null : (taskLinkByPartID.get(selectedTaskPartID) ?? null);
+  const selectedTaskPart =
+    selectedTaskPartID === null
+      ? null
+      : (state.parts.find(
+          (part): part is ToolPart =>
+            part.id === selectedTaskPartID && part.type === "tool" && part.tool === "task",
+        ) ?? null);
   const invalidTaskPartID =
     selectedTaskPartID !== null && selectedTaskLink === null ? selectedTaskPartID : null;
 
@@ -224,7 +232,7 @@ export function ThreadSurface({
             editComposer={inlineEditComposer}
             {...(onReviewChanges === undefined ? {} : { onReviewChanges })}
             openTaskPartID={selectedTaskLink?.partID ?? null}
-            taskStateByPartID={taskStateByPartID}
+            taskLinkByPartID={taskLinkByPartID}
             hasActiveSubagent={taskLinks.some(
               (link) => link.ownsLiveState && link.state === "running",
             )}
@@ -245,13 +253,7 @@ export function ThreadSurface({
           cwd={state.cwd}
           attachedDirectories={state.attachedDirectories}
         >
-          {selectedTaskLink !== null ? (
-            <SubagentTray
-              partID={selectedTaskLink.partID}
-              child={selectedTaskLink.child}
-              onMinimize={minimizeTaskPreview}
-            />
-          ) : editDraft === null ? (
+          {selectedTaskLink === null && editDraft === null ? (
             <>
               <PlanTray
                 threadId={threadId}
@@ -262,6 +264,24 @@ export function ThreadSurface({
             </>
           ) : null}
         </ThreadComposer>
+        {selectedTaskLink !== null ? (
+          <SubagentTray
+            partID={selectedTaskLink.partID}
+            child={selectedTaskLink.child}
+            mission={
+              selectedTaskPart === null
+                ? selectedTaskLink.child.title
+                : taskMission(selectedTaskPart, selectedTaskLink.child)
+            }
+            model={
+              selectedTaskPart === null
+                ? null
+                : taskModelLabel(selectedTaskPart, selectedTaskLink.child)
+            }
+            anchorRef={composerElementRef}
+            onMinimize={minimizeTaskPreview}
+          />
+        ) : null}
       </div>
     </ThreadRuntimeContext.Provider>
   );

@@ -2,24 +2,19 @@ import type { OpenCodeVcsFileStatus } from "@honk/opencode";
 import { basename, normalizePathSeparators } from "@honk/shared/paths";
 import { Checkbox, Icon, IconButton, Spinner, Text } from "@honk/ui";
 import { IconChevronDownMedium, IconChevronRightMedium, IconClipboard } from "@honk/ui/icons";
-import { colorVars, controlVars, fontVars, radiusVars, spaceVars } from "@honk/ui/tokens.stylex";
+import { borderVars, colorVars, controlVars, fontVars, radiusVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { PatchDiff } from "@pierre/diffs/react";
 import * as React from "react";
 
 import { buildDiffOptions } from "./lib/diff-rendering";
 
-const HAIRLINE_WIDTH = "1px";
-// Sub-token intrinsic: the tightest token is --honk-control-gap (6px); the placeholder
-// stack wants a hairline gap between its two lines.
-const PLACEHOLDER_GAP = "2px";
-
 const styles = stylex.create({
   root: {
     minWidth: 0,
     display: "flex",
     flexDirection: "column",
-    borderBlockEndWidth: HAIRLINE_WIDTH,
+    borderBlockEndWidth: borderVars["--honk-border-hairline"],
     borderBlockEndStyle: "solid",
     borderBlockEndColor: colorVars["--honk-color-border-muted"],
   },
@@ -115,7 +110,8 @@ const styles = stylex.create({
   placeholder: {
     display: "flex",
     flexDirection: "column",
-    gap: PLACEHOLDER_GAP,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 2px hairline gap between the two placeholder lines; tightest spacing token is 6px
+    gap: "2px",
     paddingBlock: spaceVars["--honk-space-gutter"],
     paddingInline: spaceVars["--honk-space-panel-pad"],
   },
@@ -270,7 +266,7 @@ function WorkbenchChangesCard({
             </div>
           ) : (
             <div {...stylex.props(styles.placeholder)}>
-              <Text as="p" size="sm" tone="muted" weight="medium">
+              <Text as="p" size="sm" tone="muted" weight="regular">
                 {placeholder.title}
               </Text>
               <Text as="p" size="xs" tone="faint">

@@ -109,7 +109,7 @@ function DirectoryPicker({
         </form>
 
         <div className="px-control-pad-x">
-          <Text as="div" size="xs" tone="faint" weight="medium">
+          <Text as="div" size="xs" tone="faint" weight="regular">
             Recents
           </Text>
         </div>

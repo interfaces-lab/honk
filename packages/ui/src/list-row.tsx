@@ -14,8 +14,6 @@ import {
 
 // Focus ring is inset. Rows sit in clipped scroll columns where an outside ring would clip.
 const FOCUS_RING_OFFSET_INSET = "-1px";
-// ListRow aligns text to its 20px leading slot, independent of the title's font size.
-const CONTENT_LINE_HEIGHT = "20px";
 // Old-main sidebar actions use a fixed 20px visual box inside a 28px row.
 const SIDEBAR_ACTION_SIZE = "20px";
 
@@ -44,7 +42,7 @@ const sx = stylex.create({
     fontFamily: fontVars["--honk-font-family-ui"],
     fontSize: fontVars["--honk-font-size-body"],
     // Titles ellipsize in an overflow-hidden wrapper, so this must include descenders.
-    lineHeight: CONTENT_LINE_HEIGHT,
+    lineHeight: fontVars["--honk-leading-title"],
     textAlign: "start",
     whiteSpace: "nowrap",
     userSelect: "none",
@@ -94,7 +92,7 @@ const sx = stylex.create({
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
   },
   description: {
     minWidth: 0,

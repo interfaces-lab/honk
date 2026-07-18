@@ -51,30 +51,32 @@ import {
 } from "../open-code-view";
 
 const EDITOR_MIN_HEIGHT = "52px";
-const EDITOR_MAX_HEIGHT = "180px";
+// Screen-level backstop only. Hosts bound the editor through the flex chain (minHeight: 0 down to
+// the scrollable ContentEditable), so the editor grows to the space its host allows and never past
+// the viewport.
+const EDITOR_MAX_HEIGHT = "calc(100dvh - 120px)";
 const EDITOR_PAD_X = "16px";
 const EDITOR_PAD_TOP = "16px";
-const EDITOR_PAD_BOTTOM = "8px";
 const EDITOR_LEADING = "21px";
 const MENU_MAX_HEIGHT = "240px";
 const MENU_ROW_HEIGHT = "28px";
-const MENU_FINE_GAP = "1px";
-const MENU_PAD = "4px";
 const MENU_GUTTER = "6px";
 const FILE_SEARCH_DEBOUNCE_MS = 120;
 const MENU_MAX_ITEMS = 32;
 
 const styles = stylex.create({
-  editorBlock: { position: "relative", display: "flex", flexDirection: "column" },
+  editorBlock: { position: "relative", display: "flex", flexDirection: "column", minHeight: 0 },
   hiddenInput: { display: "none" },
   editor: {
     width: "100%",
     boxSizing: "border-box",
     minHeight: EDITOR_MIN_HEIGHT,
     maxHeight: EDITOR_MAX_HEIGHT,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 16px composer editor inline padding; no 16px spacing token owns this surface
     paddingInline: EDITOR_PAD_X,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 16px composer editor top padding; no 16px spacing token owns this surface
     paddingTop: EDITOR_PAD_TOP,
-    paddingBottom: EDITOR_PAD_BOTTOM,
+    paddingBottom: spaceVars["--honk-space-gutter"],
     margin: 0,
     borderWidth: 0,
     outline: "none",
@@ -82,13 +84,16 @@ const styles = stylex.create({
     color: colorVars["--honk-color-text-primary"],
     fontFamily: fontVars["--honk-font-family-ui"],
     fontSize: fontVars["--honk-font-size-body-lg"],
+    // oxlint-disable-next-line honk/design-no-raw-values -- 21px composer leading has no matching fontVars size/leading pair for body-lg text
     lineHeight: EDITOR_LEADING,
     overflowY: "auto",
     whiteSpace: "pre-wrap",
     overflowWrap: "break-word",
     cursor: "text",
   },
-  editorShell: { position: "relative", minHeight: 0 },
+  // Flex column so a height-constrained host shrinks the ContentEditable itself, which then
+  // scrolls internally instead of pushing the composer past its container.
+  editorShell: { position: "relative", minHeight: 0, display: "flex", flexDirection: "column" },
   editorPlaceholder: {
     position: "absolute",
     insetInlineStart: EDITOR_PAD_X,
@@ -98,6 +103,7 @@ const styles = stylex.create({
     color: colorVars["--honk-color-text-faint"],
     fontFamily: fontVars["--honk-font-family-ui"],
     fontSize: fontVars["--honk-font-size-body-lg"],
+    // oxlint-disable-next-line honk/design-no-raw-values -- 21px composer leading has no matching fontVars size/leading pair for body-lg text
     lineHeight: EDITOR_LEADING,
   },
   menu: {
@@ -106,17 +112,27 @@ const styles = stylex.create({
     zIndex: zVars["--honk-z-stage-float"],
     display: "flex",
     flexDirection: "column",
-    gap: MENU_FINE_GAP,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1px hairline gap between menu rows is fixed geometry; no spacing token is 1px
+    gap: "1px",
     maxHeight: MENU_MAX_HEIGHT,
     overflowY: "auto",
-    padding: MENU_PAD,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px menu popover inner inset is fixed geometry; no spacing token is 4px
+    padding: "4px",
     boxSizing: "border-box",
     backgroundColor: colorVars["--honk-color-bg-base"],
     borderRadius: radiusVars["--honk-radius-panel"],
     boxShadow: elevationVars["--honk-elevation-floating"],
   },
-  menuAbove: { bottom: "100%", marginBottom: MENU_GUTTER },
-  menuBelow: { top: "100%", marginTop: MENU_GUTTER },
+  menuAbove: {
+    bottom: "100%",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 6px composer menu offset from its anchor; no composer-surface spacing token owns it
+    marginBottom: MENU_GUTTER,
+  },
+  menuBelow: {
+    top: "100%",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 6px composer menu offset from its anchor; no composer-surface spacing token owns it
+    marginTop: MENU_GUTTER,
+  },
   menuRow: {
     flexShrink: 0,
     height: MENU_ROW_HEIGHT,
@@ -174,9 +190,10 @@ export function PromptEditor(props: {
   readonly localCommands?: readonly ComposerCommand[];
   readonly onCommandSelect?: (name: string) => boolean;
   readonly menuPlacement?: "above" | "below";
-  readonly onSubmit: (payload: PromptSubmit) => void;
+  readonly onSubmit: (payload: PromptSubmit) => boolean | void | Promise<boolean | void>;
   readonly onEscape?: () => void;
   readonly onHasTextChange?: (hasText: boolean) => void;
+  readonly onDraftChange?: (draft: PromptEditorDraft) => void;
   readonly onMultilineChange?: (multiline: boolean) => void;
   // Measure with the compact width. Measuring after expansion makes the editor flip between layouts.
   readonly multilineMeasureWidth?: () => number | null;
@@ -225,6 +242,7 @@ function PromptEditorInner({
   onSubmit,
   onEscape,
   onHasTextChange,
+  onDraftChange,
   onMultilineChange,
   multilineMeasureWidth,
   multilineMeasureStyle,
@@ -242,9 +260,10 @@ function PromptEditorInner({
   readonly localCommands?: readonly ComposerCommand[];
   readonly onCommandSelect?: (name: string) => boolean;
   readonly menuPlacement?: "above" | "below";
-  readonly onSubmit: (payload: PromptSubmit) => void;
+  readonly onSubmit: (payload: PromptSubmit) => boolean | void | Promise<boolean | void>;
   readonly onEscape?: () => void;
   readonly onHasTextChange?: (hasText: boolean) => void;
+  readonly onDraftChange?: (draft: PromptEditorDraft) => void;
   readonly onMultilineChange?: (multiline: boolean) => void;
   readonly multilineMeasureWidth?: () => number | null;
   readonly multilineMeasureStyle?: stylex.StyleXStyles;
@@ -334,13 +353,30 @@ function PromptEditorInner({
   };
   reportMultilineRef.current = reportMultiline;
 
+  const currentDraft = (): PromptEditorDraft => {
+    const serialized = serializePrompt(editor);
+    return {
+      text: serialized.text,
+      files: [
+        ...serialized.mentions.map((mention) => ({
+          path: mention.path,
+          filename: mention.label,
+          ...(mention.mime !== undefined ? { mime: mention.mime } : {}),
+        })),
+        ...attachmentsRef.current.map((attachment) => ({
+          path: attachment.path,
+          filename: attachment.label,
+          ...(attachment.mime !== undefined ? { mime: attachment.mime } : {}),
+        })),
+      ],
+    };
+  };
+
   const notifyContent = (): void => {
-    const text = editor
-      .getEditorState()
-      .read(() => $getRoot().getTextContent())
-      .trim();
+    const draft = currentDraft();
     // Attachment-only prompts are sendable.
-    onHasTextChange?.(text.length > 0 || attachmentsRef.current.length > 0);
+    onHasTextChange?.(draft.text.trim().length > 0 || draft.files.length > 0);
+    onDraftChange?.(draft);
   };
 
   const setAttachmentList = (next: readonly Attachment[]): void => {
@@ -597,20 +633,42 @@ function PromptEditorInner({
       localCommands,
       serverCommands: commandsRef.current ?? [],
     });
-    onSubmit({ text, files, command });
-    editor.update(() => {
-      const root = $getRoot();
-      root.clear();
-      root.append($createParagraphNode());
-    });
-    setAttachmentList([]);
-    closeMenu();
+    const clear = (): void => {
+      editor.update(() => {
+        const root = $getRoot();
+        root.clear();
+        root.append($createParagraphNode());
+      });
+      setAttachmentList([]);
+      onDraftChange?.({ text: "", files: [] });
+      closeMenu();
+    };
+    const result = onSubmit({ text, files, command });
+    if (result === false) return;
+    if (result === undefined || result === true) {
+      clear();
+      return;
+    }
+    editor.setEditable(false);
+    void result
+      .then(
+        (accepted) => {
+          if (accepted === false) return;
+          onDraftChange?.({ text: "", files: [] });
+          if (editor.getRootElement() !== null) clear();
+        },
+        () => undefined,
+      )
+      .finally(() => {
+        if (editor.getRootElement() !== null) editor.setEditable(true);
+      });
   };
 
   const handleChange = (): void => {
-    const text = editor.getEditorState().read(() => $getRoot().getTextContent());
-    setIsEmpty(text.length === 0);
-    onHasTextChange?.(text.trim().length > 0 || attachmentsRef.current.length > 0);
+    const draft = currentDraft();
+    setIsEmpty(draft.text.length === 0);
+    onHasTextChange?.(draft.text.trim().length > 0 || draft.files.length > 0);
+    onDraftChange?.(draft);
     reportMultiline();
     syncTrigger();
   };
@@ -798,12 +856,6 @@ function PromptEditorInner({
         </div>
       )}
 
-      <AttachmentList
-        attachments={attachments}
-        onRemove={(key) => {
-          setAttachmentList(attachmentsRef.current.filter((entry) => entry.key !== key));
-        }}
-      />
       <div
         ref={registerEditor}
         {...stylex.props(styles.editorShell)}
@@ -840,6 +892,12 @@ function PromptEditorInner({
           ErrorBoundary={LexicalErrorBoundary}
         />
       </div>
+      <AttachmentList
+        attachments={attachments}
+        onRemove={(key) => {
+          setAttachmentList(attachmentsRef.current.filter((entry) => entry.key !== key));
+        }}
+      />
     </div>
   );
 }

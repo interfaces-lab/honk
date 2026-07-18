@@ -38,10 +38,17 @@ import {
   nextModeId,
   useHomeMode,
 } from "../modes";
-import { actions as presetActions, presetById, useSelectedPreset } from "../presets";
+import {
+  actions as presetActions,
+  openCodeGoPreset,
+  PRESETS,
+  presetById,
+  type PresetDefinition,
+  useSelectedPreset,
+} from "../presets";
 import { promptFilesFromPaths, type AppSessionSummary } from "../open-code-view";
 import { actions as tabActions } from "../tab-store";
-import { useSessionInventoryWatch } from "../use-sdk-watch";
+import { useOpenCodeCatalogRevision, useSessionInventoryWatch } from "../use-sdk-watch";
 import { getBoundOpenCodeClient, getOpenCodeClient } from "../watch-registry";
 import { ComposerAttachmentButton, ModeControl, PresetSelector } from "./controls";
 import { PromptEditor } from "./prompt-editor";
@@ -50,23 +57,18 @@ import type { PromptEditorHandle, PromptSubmit } from "./types";
 
 const EMPTY_DIRECTORY_PATHS: readonly string[] = Object.freeze([]);
 const EMPTY_SESSION_SUMMARIES: readonly AppSessionSummary[] = Object.freeze([]);
-const HOME_COMPOSER_MIN_HEIGHT = "96px";
-const HOME_COMPOSER_FOOTER_HEIGHT = "44px";
-const HOME_COMPOSER_FOOTER_PADDING_INLINE = "16px";
-// A branch name stays subordinate to the project and worktree controls in the compact footer.
-const BRANCH_LABEL_MAX_WIDTH = "180px";
 const COMPOSER_RING = `inset 0 0 0 1px ${workbenchSurfaceVars["--honk-workbench-input-border"]}`;
 const COMPOSER_RING_ACTIVE = `inset 0 0 0 1px ${workbenchSurfaceVars["--honk-workbench-input-border-active"]}`;
 const LOCAL_TARGET_VALUE = "target:main-checkout";
 const NEW_WORKTREE_TARGET_VALUE = "target:new-worktree";
 const WORKTREE_TARGET_VALUE_PREFIX = "target:worktree:";
 const styles = stylex.create({
-  root: { display: "flex", flexDirection: "column", width: "100%" },
+  root: { display: "flex", flexDirection: "column", width: "100%", minHeight: 0 },
   card: {
     position: "relative",
     display: "flex",
     flexDirection: "column",
-    minHeight: HOME_COMPOSER_MIN_HEIGHT,
+    minHeight: "96px",
     backgroundColor: workbenchSurfaceVars["--honk-workbench-input-background"],
     borderRadius: radiusVars["--honk-radius-panel"],
     boxShadow: {
@@ -76,12 +78,13 @@ const styles = stylex.create({
     },
   },
   footer: {
-    height: HOME_COMPOSER_FOOTER_HEIGHT,
+    height: "44px",
     flexShrink: 0,
     display: "flex",
     alignItems: "center",
     gap: controlVars["--honk-control-gap"],
-    paddingInline: HOME_COMPOSER_FOOTER_PADDING_INLINE,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 16px composer footer inline padding is fixed geometry, no spacing token owns 16px
+    paddingInline: "16px",
   },
   footerSpacer: { flexGrow: 1 },
   locationLabel: {
@@ -91,6 +94,7 @@ const styles = stylex.create({
     whiteSpace: "nowrap",
   },
   locationBar: {
+    flexShrink: 0,
     minHeight: controlVars["--honk-control-h-sm"],
     marginTop: spaceVars["--honk-space-gutter"],
     display: "flex",
@@ -120,7 +124,8 @@ const styles = stylex.create({
     color: colorVars["--honk-color-text-muted"],
   },
   branchLabel: {
-    maxWidth: BRANCH_LABEL_MAX_WIDTH,
+    // A branch name stays subordinate to the project and worktree controls in the compact footer.
+    maxWidth: "180px",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
@@ -208,6 +213,9 @@ function sessionWorktreeLocations(input: {
 export function HomeComposer({
   location,
   directoryLabel,
+  projectID,
+  projectDirectory,
+  resolveLocationOnMount = true,
   recentDirectories = EMPTY_DIRECTORY_PATHS,
   server,
   target,
@@ -218,6 +226,10 @@ export function HomeComposer({
 }: {
   readonly location?: OpenCodeLocationRef;
   readonly directoryLabel?: string;
+  readonly projectID?: string;
+  readonly projectDirectory?: string;
+  /** Resolve newly picked locations eagerly so their worktree controls become available. */
+  readonly resolveLocationOnMount?: boolean;
   readonly recentDirectories?: readonly string[];
   readonly server?: OpenCodeServerKey;
   readonly target?: OpenCodeSessionTarget;
@@ -228,7 +240,7 @@ export function HomeComposer({
   readonly autoFocus?: boolean;
 }): React.ReactElement {
   const presetId = useSelectedPreset();
-  const preset = presetById(presetId);
+  const catalogRevision = useOpenCodeCatalogRevision();
   const mode = useHomeMode();
   const editorRef = React.useRef<PromptEditorHandle | null>(null);
   const [hasText, setHasText] = React.useState(false);
@@ -238,6 +250,22 @@ export function HomeComposer({
   const activeServer = client?.server.key ?? server;
   const sourceDirectory = location?.directory;
   const sourceWorkspaceID = location?.workspaceID;
+  const modelCatalogKey = JSON.stringify([
+    client?.server.key ?? null,
+    sourceDirectory ?? null,
+    sourceWorkspaceID ?? null,
+  ]);
+  const [openCodeGoCatalog, setOpenCodeGoCatalog] = React.useState<{
+    readonly key: string;
+    readonly preset: PresetDefinition | null;
+  } | null>(null);
+  const availableOpenCodeGoPreset =
+    openCodeGoCatalog?.key === modelCatalogKey ? openCodeGoCatalog.preset : null;
+  const presets =
+    availableOpenCodeGoPreset === null
+      ? PRESETS
+      : Object.freeze([...PRESETS, availableOpenCodeGoPreset]);
+  const preset = presetById(presetId, presets);
   const sourceKey = locationKey(activeServer, location);
   const [internalTarget, setInternalTarget] = React.useState<{
     readonly sourceKey: string;
@@ -253,7 +281,38 @@ export function HomeComposer({
   const [loadedBranch, setLoadedBranch] = React.useState<LoadedBranch | null>(null);
 
   React.useEffect(() => {
-    if (client === null || sourceDirectory === undefined) return;
+    if (client === null) return;
+    let active = true;
+    void client.models
+      .list(
+        sourceDirectory === undefined
+          ? undefined
+          : {
+              directory: sourceDirectory,
+              ...(sourceWorkspaceID === undefined ? {} : { workspaceID: sourceWorkspaceID }),
+            },
+      )
+      .then((result) => {
+        if (!active) return;
+        setOpenCodeGoCatalog({ key: modelCatalogKey, preset: openCodeGoPreset(result.data) });
+      })
+      .catch(() => {
+        if (active) setOpenCodeGoCatalog({ key: modelCatalogKey, preset: null });
+      });
+    return () => {
+      active = false;
+    };
+  }, [catalogRevision, client, modelCatalogKey, sourceDirectory, sourceWorkspaceID]);
+
+  React.useEffect(() => {
+    if (
+      client === null ||
+      sourceDirectory === undefined ||
+      !resolveLocationOnMount ||
+      (projectID !== undefined && projectDirectory !== undefined)
+    ) {
+      return;
+    }
     const sourceLocation = openCodeLocationRef({
       directory: sourceDirectory,
       ...(sourceWorkspaceID === undefined ? {} : { workspaceID: sourceWorkspaceID }),
@@ -270,26 +329,37 @@ export function HomeComposer({
     return () => {
       active = false;
     };
-  }, [client, sourceDirectory, sourceKey, sourceWorkspaceID]);
+  }, [
+    client,
+    projectDirectory,
+    projectID,
+    resolveLocationOnMount,
+    sourceDirectory,
+    sourceKey,
+    sourceWorkspaceID,
+  ]);
 
   const resolvedLocation = loadedLocation?.key === sourceKey ? loadedLocation.info : null;
-  const worktreeEnabled = resolvedLocation !== null && resolvedLocation.project.id !== "global";
-  const projectID =
+  const resolvedProjectID =
     resolvedLocation !== null && resolvedLocation.project.id !== "global"
       ? resolvedLocation.project.id
-      : undefined;
-  const projectDirectory =
+      : projectID === "global"
+        ? undefined
+        : projectID;
+  const resolvedProjectDirectory =
     resolvedLocation !== null && resolvedLocation.project.id !== "global"
       ? resolvedLocation.project.directory
-      : undefined;
+      : projectDirectory;
+  const worktreeEnabled =
+    resolvedProjectID !== undefined && resolvedProjectDirectory !== undefined;
   const effectiveTarget =
     resolvedLocation?.project.id === "global" ? OPEN_CODE_LOCAL_SESSION_TARGET : selectedTarget;
   const promptLocation =
     effectiveTarget.type === "workspace"
       ? effectiveTarget.location
-      : resolvedLocation === null
+      : resolvedProjectDirectory === undefined
         ? location
-        : openCodeLocationRef({ directory: resolvedLocation.project.directory });
+        : openCodeLocationRef({ directory: resolvedProjectDirectory });
   const promptDirectory = promptLocation?.directory;
   const promptWorkspaceID = promptLocation?.workspaceID;
   const branchKey = locationKey(activeServer, promptLocation);
@@ -318,8 +388,8 @@ export function HomeComposer({
   const worktrees = sessionWorktreeLocations({
     sessions: sessionInventory.state?.rootSessions ?? EMPTY_SESSION_SUMMARIES,
     server: activeServer,
-    projectID,
-    projectDirectory,
+    projectID: resolvedProjectID,
+    projectDirectory: resolvedProjectDirectory,
     target: effectiveTarget,
   });
   const worktreeStatus =
@@ -341,9 +411,12 @@ export function HomeComposer({
         ? NEW_WORKTREE_TARGET_VALUE
         : worktreeTargetValue(activeServer, effectiveTarget.location);
   const projectLabel =
-    resolvedLocation === null
-      ? (directoryLabel ?? (location === undefined ? "Default" : basename(location.directory)))
-      : basename(resolvedLocation.project.directory);
+    directoryLabel ??
+    (resolvedProjectDirectory === undefined
+      ? location === undefined
+        ? "Default"
+        : basename(location.directory)
+      : basename(resolvedProjectDirectory));
   const projectGroups: readonly ComboboxGroup[] = [
     ...(location === undefined
       ? []
@@ -417,7 +490,7 @@ export function HomeComposer({
         agent: modeAgentName(mode),
         mode,
         model: preset.mainModel,
-        variant: preset.mainVariant,
+        ...(preset.mainVariant === undefined ? {} : { variant: preset.mainVariant }),
         ...(activeServer === undefined ? {} : { server: activeServer }),
         ...(location === undefined ? {} : { location }),
         target: effectiveTarget,
@@ -490,7 +563,8 @@ export function HomeComposer({
             }}
           />
           <PresetSelector
-            value={presetId}
+            value={preset.id}
+            presets={presets}
             onValueChange={(id) => {
               presetActions.select(id);
             }}

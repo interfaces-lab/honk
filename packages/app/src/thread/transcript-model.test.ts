@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   groupMessagesIntoTurns,
   groupPartsByMessage,
+  isSyntheticOnlyUserMessage,
   segmentAssistantTurn,
   turnHasVisibleActivity,
   turnDiffs,
@@ -53,6 +54,31 @@ describe("transcript projection", () => {
     ).toEqual(["p1", "p3"]);
   });
 
+  it("distinguishes internal user callbacks from visible user content", () => {
+    const synthetic = part({
+      id: "synthetic",
+      messageID: "u1",
+      type: "text",
+      text: '<task state="completed">',
+      synthetic: true,
+    });
+
+    expect(isSyntheticOnlyUserMessage([synthetic])).toBe(true);
+    expect(
+      isSyntheticOnlyUserMessage([
+        synthetic,
+        part({ id: "empty", messageID: "u1", type: "text", text: "" }),
+      ]),
+    ).toBe(false);
+    expect(
+      isSyntheticOnlyUserMessage([
+        synthetic,
+        part({ id: "file", messageID: "u1", type: "file", url: "file:///image.png" }),
+      ]),
+    ).toBe(false);
+    expect(isSyntheticOnlyUserMessage([])).toBe(false);
+  });
+
   it("derives visible generation activity from the latest turn only", () => {
     const turns = groupMessagesIntoTurns([
       user("u1"),
@@ -79,6 +105,40 @@ describe("transcript projection", () => {
 
     expect(turnHasVisibleActivity(turns[0], grouped)).toBe(true);
     expect(turnHasVisibleActivity(turns[1], grouped)).toBe(false);
+  });
+
+  it("defers empty active reasoning to the waiting status until its first text delta", () => {
+    const messages = [assistant("a1")];
+    const emptyActive = part({
+      id: "reasoning-empty",
+      messageID: "a1",
+      type: "reasoning",
+      text: "",
+      time: { start: 1 },
+    });
+    const streaming = part({
+      id: "reasoning-streaming",
+      messageID: "a1",
+      type: "reasoning",
+      text: "Weighing options",
+      time: { start: 1 },
+    });
+    const completedEmpty = part({
+      id: "reasoning-completed",
+      messageID: "a1",
+      type: "reasoning",
+      text: "",
+      time: { start: 1, end: 2 },
+    });
+    const turn = { key: "a1", user: null, assistants: messages };
+
+    expect(turnHasVisibleActivity(turn, groupPartsByMessage([emptyActive]))).toBe(false);
+    expect(segmentAssistantTurn(messages, groupPartsByMessage([emptyActive]))).toEqual([]);
+    expect(turnHasVisibleActivity(turn, groupPartsByMessage([streaming]))).toBe(true);
+    expect(segmentAssistantTurn(messages, groupPartsByMessage([streaming]))).toMatchObject([
+      { kind: "reasoning", key: "reasoning-streaming" },
+    ]);
+    expect(segmentAssistantTurn(messages, groupPartsByMessage([completedEmpty]))).toEqual([]);
   });
 
   it("segments prose, work, notices, and message errors across assistant seams", () => {

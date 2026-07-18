@@ -26,7 +26,7 @@ const managedMethod = () => ({
 
 describe("managed Anthropic import", () => {
   it("pins the plugin and exact managed method contract", () => {
-    expect(MANAGED_ANTHROPIC_PLUGIN_SPEC).toBe("opencode-anthropic-login-via-cli@1.4.0");
+    expect(MANAGED_ANTHROPIC_PLUGIN_SPEC).toBe("opencode-anthropic-login-via-cli@1.6.1");
     expect(MANAGED_ANTHROPIC_METHOD_LABEL).toBe("Claude Code (auto)");
   });
 
@@ -65,6 +65,29 @@ describe("managed Anthropic import", () => {
     await expect(ensure()).resolves.toMatchObject({ kind: "failed" });
     expect(api.authorizeOauth).toHaveBeenCalledOnce();
     expect(api.completeOauth).not.toHaveBeenCalled();
+  });
+
+  it("re-attempts a settled episode when forced", async () => {
+    const api = {
+      list: vi
+        .fn()
+        .mockResolvedValueOnce(inventory(false))
+        .mockResolvedValueOnce(inventory(false))
+        .mockResolvedValueOnce(inventory(false))
+        .mockResolvedValue(inventory(true)),
+      authMethods: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([managedMethod()]),
+      authorizeOauth: vi
+        .fn()
+        .mockResolvedValue({ url: "http://localhost/callback", method: "auto", instructions: "" }),
+      completeOauth: vi.fn().mockResolvedValue(undefined),
+    } satisfies ManagedAnthropicDependencies;
+    const ensure = createManagedAnthropicImport(api);
+    await expect(ensure()).resolves.toMatchObject({ kind: "unavailable" });
+    await expect(ensure()).resolves.toMatchObject({ kind: "unavailable" });
+    expect(api.authMethods).toHaveBeenCalledOnce();
+    await expect(ensure({ force: true })).resolves.toMatchObject({ kind: "connected" });
+    expect(api.authMethods).toHaveBeenCalledTimes(2);
+    expect(api.authorizeOauth).toHaveBeenCalledOnce();
   });
 
   it("starts a new episode after a connected-to-disconnected transition", async () => {

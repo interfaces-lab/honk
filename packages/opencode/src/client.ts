@@ -6,6 +6,7 @@ import {
   type LocationInfo as OpenCodeLocationInfo,
   type ModelRef as OpenCodeModelRef,
   type ModelV2Info as OpenCodeModelInfo,
+  type Path as OpenCodePathInfo,
   type PermissionV2Reply as OpenCodePermissionReply,
   type PermissionV2Request as OpenCodePermissionRequest,
   type ProjectCopyCopy as OpenCodeProjectCopy,
@@ -20,7 +21,7 @@ import {
   type SessionV2Info as OpenCodeSessionInfo,
   type SessionsResponse as OpenCodeSessions,
   type TextPartInput as OpenCodeTextPartInput,
-  type V2Event as OpenCodeEvent,
+  type V2Event,
   type V2SessionActiveResponse as OpenCodeSessionActiveResponse,
   type VcsFileDiff as OpenCodeVcsFileDiff,
   type VcsFileStatus as OpenCodeVcsFileStatus,
@@ -87,6 +88,10 @@ type OpenCodeRemoveProjectCopyInput = {
   readonly force: boolean;
 };
 
+type OpenCodeUpdateSessionInput = {
+  readonly title?: string;
+};
+
 type OpenCodePromptInput = {
   readonly id?: OpenCodeMessageID;
   readonly prompt: OpenCodePrompt;
@@ -131,6 +136,7 @@ type OpenCodeSessionApi = {
   readonly create: (input?: OpenCodeCreateSessionInput) => Promise<OpenCodeSessionInfo>;
   readonly active: () => Promise<OpenCodeSessionActiveResponse["data"]>;
   readonly get: (ref: OpenCodeSessionRef) => Promise<OpenCodeSessionInfo>;
+  readonly update: (ref: OpenCodeSessionRef, input: OpenCodeUpdateSessionInput) => Promise<void>;
   readonly switchAgent: (ref: OpenCodeSessionRef, agent: string) => Promise<void>;
   readonly switchModel: (ref: OpenCodeSessionRef, model: OpenCodeModelRef) => Promise<void>;
   readonly prompt: (ref: OpenCodeSessionRef, input: OpenCodePromptInput) => Promise<void>;
@@ -176,6 +182,18 @@ type OpenCodeLocatedResult<T> = {
   readonly data: readonly T[];
 };
 
+type OpenCodeEventWithOptionalID<Event> = Event extends { readonly id: string }
+  ? Omit<Event, "id"> & { readonly id?: string }
+  : Event;
+
+type OpenCodeEvent =
+  | OpenCodeEventWithOptionalID<V2Event>
+  | {
+      readonly id?: string;
+      readonly type: "server.heartbeat";
+      readonly data: Readonly<Record<string, unknown>>;
+    };
+
 type OpenCodeRequestApi = {
   readonly permissions: (
     location: OpenCodeLocationQuery,
@@ -214,6 +232,7 @@ type OpenCodeClient = {
   readonly server: OpenCodeServerDescriptor;
   readonly health: () => Promise<void>;
   readonly resolveLocation: (location?: OpenCodeLocationQuery) => Promise<OpenCodeLocationInfo>;
+  readonly resolvePath: (location?: OpenCodeLocationQuery) => Promise<OpenCodePathInfo>;
   readonly sessions: OpenCodeSessionApi;
   readonly requests: OpenCodeRequestApi;
   readonly agents: OpenCodeAgentApi;
@@ -244,7 +263,7 @@ const OPEN_CODE_SESSION_CAPABILITIES = Object.freeze({
   revert: true,
   permissions: true,
   questions: true,
-  rename: false,
+  rename: true,
   archive: false,
   remove: false,
   fork: false,
@@ -320,11 +339,22 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function requireStreamEvent<T>(value: unknown, operation: string): T {
-  if (!isRecord(value) || typeof value.type !== "string") {
-    throw new OpenCodeRequestError(operation, "OpenCode sent an invalid event payload.");
-  }
+function streamEvent<T>(value: unknown): T | null {
+  if (!isRecord(value) || typeof value.type !== "string" || !isRecord(value.data)) return null;
   return value as T;
+}
+
+function globalStreamEvent(value: unknown): OpenCodeEvent | null {
+  if (!isRecord(value) || !isRecord(value.payload)) return null;
+  const payload = value.payload;
+  if (typeof payload.type !== "string" || payload.type === "sync") return null;
+  const control = payload.type === "server.connected" || payload.type === "server.heartbeat";
+  if (!control && !isRecord(payload.properties)) return null;
+  return {
+    ...(typeof payload.id === "string" ? { id: payload.id } : {}),
+    type: payload.type,
+    data: isRecord(payload.properties) ? payload.properties : {},
+  } as OpenCodeEvent;
 }
 
 function eventUrl(origin: string, path: string, query?: URLSearchParams): string {
@@ -681,6 +711,17 @@ function createOpenCodeClient(
       return rememberSessionLocation(requireData(result, "session.get").data);
     },
 
+    async update(ref, input) {
+      // Title mutation lives on the stable session group; V2 has no update method.
+      const location = await resolveSessionLocation(ref);
+      const result = await sdk.session.update({
+        sessionID: sessionID(ref),
+        ...sessionLocationQuery(location),
+        ...(input.title !== undefined ? { title: input.title } : {}),
+      });
+      requireSuccess(result, "session.update");
+    },
+
     async switchAgent(ref, agent) {
       const result = await sdk.v2.session.switchAgent({ sessionID: sessionID(ref), agent });
       requireSuccess(result, "session.switchAgent");
@@ -745,7 +786,8 @@ function createOpenCodeClient(
               signal: tracked.controller.signal,
             });
             for await (const event of stream) {
-              yield requireStreamEvent<OpenCodeDurableSessionEvent>(event, "session.events");
+              const parsed = streamEvent<OpenCodeDurableSessionEvent>(event);
+              if (parsed !== null) yield parsed;
             }
             return;
           }
@@ -757,7 +799,8 @@ function createOpenCodeClient(
             { signal: tracked.controller.signal },
           );
           for await (const event of result.stream) {
-            yield requireStreamEvent<OpenCodeDurableSessionEvent>(event, "session.events");
+            const parsed = streamEvent<OpenCodeDurableSessionEvent>(event);
+            if (parsed !== null) yield parsed;
           }
         } finally {
           tracked.release();
@@ -1002,6 +1045,10 @@ function createOpenCodeClient(
       const result = await sdk.v2.location.get(query === undefined ? {} : { location: query });
       return requireData(result, "location.get");
     },
+    async resolvePath(location) {
+      const result = await sdk.path.get(locationQuery(location) ?? {});
+      return requireData(result, "path.get");
+    },
     sessions,
     requests,
     agents,
@@ -1015,18 +1062,20 @@ function createOpenCodeClient(
         try {
           if (options?.eventSource !== undefined) {
             const stream = await options.eventSource({
-              url: eventUrl(server.origin, "/api/event"),
+              url: eventUrl(server.origin, "/global/event"),
               headers,
               signal: tracked.controller.signal,
             });
             for await (const event of stream) {
-              yield requireStreamEvent<OpenCodeEvent>(event, "event.subscribe");
+              const parsed = globalStreamEvent(event);
+              if (parsed !== null) yield parsed;
             }
             return;
           }
-          const result = await sdk.v2.event.subscribe({ signal: tracked.controller.signal });
+          const result = await sdk.global.event({ signal: tracked.controller.signal });
           for await (const event of result.stream) {
-            yield requireStreamEvent<OpenCodeEvent>(event, "event.subscribe");
+            const parsed = globalStreamEvent(event);
+            if (parsed !== null) yield parsed;
           }
         } finally {
           tracked.release();
@@ -1056,6 +1105,7 @@ export type {
   OpenCodeClientOptions,
   OpenCodeCreateProjectCopyInput,
   OpenCodeCreateSessionInput,
+  OpenCodeEvent,
   OpenCodeHistoryInput,
   OpenCodeListSessionsInput,
   OpenCodeLocatedResult,
@@ -1068,6 +1118,8 @@ export type {
   OpenCodeRevertInput,
   OpenCodeSessionEventsInput,
   OpenCodeSessionApi,
+  OpenCodePathInfo,
   OpenCodeRemoveProjectCopyInput,
+  OpenCodeUpdateSessionInput,
   OpenCodeVcsApi,
 };

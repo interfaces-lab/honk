@@ -62,6 +62,7 @@ type DesktopBridgeSurface = {
   readonly replayOnboarding: () => Promise<void>;
   readonly onOnboardingWindowShown: (listener: () => void) => () => void;
   readonly setTheme?: (theme: "system" | "light" | "dark") => Promise<void>;
+  readonly setKeepAwake?: (enabled: boolean) => Promise<boolean>;
   readonly syncBrowserView: (
     input: DesktopBrowserViewSyncInput,
   ) => Promise<DesktopBrowserViewState>;
@@ -143,6 +144,14 @@ export function readShellWindowID(): string {
 
 export function shouldUseDesktopGlass(): boolean {
   return readDesktopBridge() !== null && /^Mac/.test(navigator.platform);
+}
+
+export function canSetDesktopKeepAwake(): boolean {
+  return readDesktopBridge()?.setKeepAwake !== undefined;
+}
+
+export async function setDesktopKeepAwake(enabled: boolean): Promise<boolean> {
+  return (await readDesktopBridge()?.setKeepAwake?.(enabled)) ?? false;
 }
 
 function readBootstrapCredential(): BootstrapCredential | null {

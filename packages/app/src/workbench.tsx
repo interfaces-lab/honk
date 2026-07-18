@@ -4,14 +4,13 @@ import { Icon, IconButton, Tooltip } from "@honk/ui";
 import { IconSidebarSimpleRightWide, IconWindowSquare } from "@honk/ui/icons";
 import { controlVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
-import { useLocation } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 
 import { removeBrowserResource } from "./browser-store";
 import {
   openCodeSideChatHref,
   openCodeWorkbenchClosedHref,
   openCodeWorkbenchTabHref,
-  parseOpenCodeTabHref,
   type OpenCodeWorkbenchToolKind,
 } from "./opencode/tab-route";
 import { actions as tabActions } from "./tab-store";
@@ -72,18 +71,19 @@ function Workbench({
   plan,
   tasks,
 }: WorkbenchProps): React.ReactElement {
-  const location = useLocation();
-  const parsedRoute = parseOpenCodeTabHref(location.href);
-  if (
-    parsedRoute?.type !== "session" ||
-    parsedRoute.ref.server !== routeRef.server ||
-    parsedRoute.ref.sessionID !== routeRef.sessionID
-  ) {
-    throw new Error("The workbench route does not belong to this session.");
-  }
-  const routeTarget = parsedRoute.workbench;
-  const routeTabID = routeTarget?.type === "tab" ? routeTarget.tabID : null;
-  const routeSideChatID = routeTarget?.type === "side-chat" ? routeTarget.sessionID : null;
+  // Read the deep link from this route's own matched params, never the global location:
+  // during a navigation the location already points at the next route while this tree
+  // renders its final frame, so any cross-check against it misfires on every transition.
+  const workbenchParams = useParams({
+    from: "/server/$serverKey/session/$sessionId/workbench/$workbenchTab",
+    shouldThrow: false,
+  });
+  const sideChatParams = useParams({
+    from: "/server/$serverKey/session/$sessionId/side-chat/$sideChatId",
+    shouldThrow: false,
+  });
+  const routeTabID = workbenchParams?.workbenchTab ?? null;
+  const routeSideChatID = sideChatParams?.sideChatId ?? null;
   const routeServer = routeRef.server;
   const routeSessionID = routeRef.sessionID;
   const surfaceServer = surfaceSessionRef.server;

@@ -3,7 +3,12 @@ import { Badge, Button, Field, Spinner, Text } from "@honk/ui";
 import { spaceVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
-import { providerAuthActions, type OpenAiFlow, useProviderAuth } from "./provider-auth";
+import {
+  providerAuthActions,
+  type OpenAiFlow,
+  type OpenCodeGoFlow,
+  useProviderAuth,
+} from "./provider-auth";
 import { SettingsRow, SettingsRows, SettingsSection } from "./settings-controls";
 
 const styles = stylex.create({
@@ -34,6 +39,7 @@ function ValueForm(props: {
   readonly secret?: boolean;
   readonly submitLabel: string;
   readonly onSubmit: (value: string) => Promise<void>;
+  readonly onCancel: () => void;
 }): React.ReactElement {
   const [value, setValue] = React.useState("");
   return (
@@ -44,7 +50,9 @@ function ValueForm(props: {
         void props.onSubmit(value);
       }}
     >
-      <Text size="sm" weight="medium">{props.label}</Text>
+      <Text size="sm" weight="regular">
+        {props.label}
+      </Text>
       <Field>
         <Field.Input
           autoFocus
@@ -61,7 +69,7 @@ function ValueForm(props: {
         <Button type="submit" variant="primary" disabled={value.trim().length === 0}>
           {props.submitLabel}
         </Button>
-        <Button type="button" variant="quiet" onClick={providerAuthActions.cancelOpenAi}>
+        <Button type="button" variant="quiet" onClick={props.onCancel}>
           Cancel
         </Button>
       </div>
@@ -80,14 +88,18 @@ function OpenAiFlowPanel({ flow }: { readonly flow: OpenAiFlow }): React.ReactEl
             {flow.kind === "authorizing" ? `Starting ${flow.label}…` : flow.instructions}
           </Text>
         </div>
-        <Button variant="quiet" onClick={providerAuthActions.cancelOpenAi}>Cancel</Button>
+        <Button variant="quiet" onClick={providerAuthActions.cancelOpenAi}>
+          Cancel
+        </Button>
       </div>
     );
   }
   if (flow.kind === "choosing") {
     return (
       <div {...stylex.props(styles.flow)}>
-        <Text size="sm" weight="medium">Choose how to connect Codex</Text>
+        <Text size="sm" weight="regular">
+          Choose how to connect Codex
+        </Text>
         <div {...stylex.props(styles.actions)}>
           {flow.methods.map((method) => (
             <Button
@@ -100,7 +112,9 @@ function OpenAiFlowPanel({ flow }: { readonly flow: OpenAiFlow }): React.ReactEl
               {method.label}
             </Button>
           ))}
-          <Button variant="quiet" onClick={providerAuthActions.cancelOpenAi}>Cancel</Button>
+          <Button variant="quiet" onClick={providerAuthActions.cancelOpenAi}>
+            Cancel
+          </Button>
         </div>
       </div>
     );
@@ -110,7 +124,9 @@ function OpenAiFlowPanel({ flow }: { readonly flow: OpenAiFlow }): React.ReactEl
     if (prompt.type === "select") {
       return (
         <div {...stylex.props(styles.flow)}>
-          <Text size="sm" weight="medium">{prompt.message}</Text>
+          <Text size="sm" weight="regular">
+            {prompt.message}
+          </Text>
           <div {...stylex.props(styles.actions)}>
             {prompt.options.map((option) => (
               <Button
@@ -123,7 +139,9 @@ function OpenAiFlowPanel({ flow }: { readonly flow: OpenAiFlow }): React.ReactEl
                 {option.label}
               </Button>
             ))}
-            <Button variant="quiet" onClick={providerAuthActions.cancelOpenAi}>Cancel</Button>
+            <Button variant="quiet" onClick={providerAuthActions.cancelOpenAi}>
+              Cancel
+            </Button>
           </div>
         </div>
       );
@@ -135,6 +153,7 @@ function OpenAiFlowPanel({ flow }: { readonly flow: OpenAiFlow }): React.ReactEl
         {...(prompt.placeholder === undefined ? {} : { placeholder: prompt.placeholder })}
         submitLabel="Continue"
         onSubmit={providerAuthActions.submitOpenAiPrompt}
+        onCancel={providerAuthActions.cancelOpenAi}
       />
     );
   }
@@ -144,6 +163,7 @@ function OpenAiFlowPanel({ flow }: { readonly flow: OpenAiFlow }): React.ReactEl
         label={flow.instructions.length > 0 ? flow.instructions : "Paste the authorization code"}
         submitLabel="Finish sign in"
         onSubmit={providerAuthActions.submitOpenAiCode}
+        onCancel={providerAuthActions.cancelOpenAi}
       />
     );
   }
@@ -154,12 +174,41 @@ function OpenAiFlowPanel({ flow }: { readonly flow: OpenAiFlow }): React.ReactEl
       secret
       submitLabel="Save API key"
       onSubmit={providerAuthActions.submitOpenAiApiKey}
+      onCancel={providerAuthActions.cancelOpenAi}
+    />
+  );
+}
+
+function OpenCodeGoFlowPanel({
+  flow,
+}: {
+  readonly flow: OpenCodeGoFlow;
+}): React.ReactElement | null {
+  if (flow.kind === "idle") return null;
+  if (flow.kind === "saving") {
+    return (
+      <div {...stylex.props(styles.actions)}>
+        <Spinner size="sm" />
+        <Text size="sm" tone="muted">
+          Saving OpenCode Go key…
+        </Text>
+      </div>
+    );
+  }
+  return (
+    <ValueForm
+      label="OpenCode API key"
+      secret
+      submitLabel="Save API key"
+      onSubmit={providerAuthActions.submitOpenCodeGoApiKey}
+      onCancel={providerAuthActions.cancelOpenCodeGo}
     />
   );
 }
 
 export function SettingsProviders(): React.ReactElement {
   const state = useProviderAuth();
+  const providerFlowBusy = state.openAi.kind !== "idle" || state.openCodeGo.kind !== "idle";
   const anthropic =
     state.anthropic.kind === "connected"
       ? { tone: "ok" as const, label: "Connected" }
@@ -172,7 +221,7 @@ export function SettingsProviders(): React.ReactElement {
   return (
     <SettingsSection
       title="Authentication"
-      description="Connect Codex here. Honk imports Claude Code credentials from this computer."
+      description="Connect Codex or OpenCode Go here. Honk imports Claude Code credentials from this computer."
     >
       <SettingsRows>
         <SettingsRow
@@ -187,7 +236,7 @@ export function SettingsProviders(): React.ReactElement {
               <Button
                 size="sm"
                 variant="quiet"
-                disabled={state.openAi.kind !== "idle"}
+                disabled={providerFlowBusy}
                 onClick={() => {
                   void providerAuthActions.disconnectOpenAi();
                 }}
@@ -198,7 +247,7 @@ export function SettingsProviders(): React.ReactElement {
               <Button
                 size="sm"
                 variant="neutral"
-                disabled={state.phase === "unavailable" || state.openAi.kind !== "idle"}
+                disabled={state.phase === "unavailable" || providerFlowBusy}
                 onClick={() => {
                   void providerAuthActions.startOpenAi();
                 }}
@@ -209,6 +258,26 @@ export function SettingsProviders(): React.ReactElement {
           }
         />
         <SettingsRow
+          title="OpenCode Go"
+          description={
+            state.openCodeGoConnected
+              ? "Connected with OPENCODE_API_KEY or a saved OpenCode key."
+              : "Uses OPENCODE_API_KEY from your environment, or add an OpenCode key here."
+          }
+          control={
+            <Button
+              size="sm"
+              variant={state.openCodeGoConnected ? "quiet" : "neutral"}
+              disabled={state.phase === "unavailable" || providerFlowBusy}
+              onClick={() => {
+                void providerAuthActions.startOpenCodeGo();
+              }}
+            >
+              {state.openCodeGoConnected ? "Replace key" : "Add key"}
+            </Button>
+          }
+        />
+        <SettingsRow
           title="Claude Code"
           description={
             state.anthropic.kind === "failed"
@@ -216,12 +285,31 @@ export function SettingsProviders(): React.ReactElement {
               : "Honk checks this computer for Claude Code credentials."
           }
           isLast
-          control={<Badge tone={anthropic.tone}>{anthropic.label}</Badge>}
+          control={
+            <div {...stylex.props(styles.actions)}>
+              <Badge tone={anthropic.tone}>{anthropic.label}</Badge>
+              {state.anthropic.kind === "failed" || state.anthropic.kind === "unavailable" ? (
+                <Button
+                  size="sm"
+                  variant="neutral"
+                  disabled={providerFlowBusy}
+                  onClick={() => {
+                    void providerAuthActions.retryAnthropic();
+                  }}
+                >
+                  Retry
+                </Button>
+              ) : null}
+            </div>
+          }
         />
       </SettingsRows>
       <OpenAiFlowPanel flow={state.openAi} />
+      <OpenCodeGoFlowPanel flow={state.openCodeGo} />
       {state.errorMessage === null ? null : (
-        <Text as="p" role="alert" size="sm" tone="err">{state.errorMessage}</Text>
+        <Text as="p" role="alert" size="sm" tone="err">
+          {state.errorMessage}
+        </Text>
       )}
     </SettingsSection>
   );

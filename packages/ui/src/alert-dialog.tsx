@@ -18,7 +18,6 @@ import {
 const DIALOG_MAX_WIDTH = "480px";
 const DIALOG_MAX_HEIGHT = "min(640px, calc(100dvh - 48px))";
 const DIALOG_PAD = "20px";
-const DIALOG_GAP = "12px";
 const DIALOG_HEADER_GAP = "4px";
 
 const RING_MUTED = `inset 0 0 0 1px ${colorVars["--honk-color-border-muted"]}`;
@@ -57,15 +56,16 @@ const sx = stylex.create({
     zIndex: zVars["--honk-z-dialog"],
     display: "flex",
     flexDirection: "column",
-    rowGap: DIALOG_GAP,
+    rowGap: spaceVars["--honk-space-panel-pad"],
     width: "100%",
     maxWidth: DIALOG_MAX_WIDTH,
     maxHeight: DIALOG_MAX_HEIGHT,
     overflowY: "auto",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 20px dialog surface inset is fixed geometry, no spacing token owns it
     padding: DIALOG_PAD,
     borderRadius: radiusVars["--honk-radius-window"],
     backgroundColor: colorVars["--honk-color-bg-base"],
-    boxShadow: `${RING_MUTED}, ${elevationVars["--honk-elevation-floating"]}`,
+    boxShadow: `${RING_MUTED}, ${elevationVars["--honk-elevation-overlay"]}`,
     color: colorVars["--honk-color-text-primary"],
     fontFamily: fontVars["--honk-font-family-ui"],
     fontSize: fontVars["--honk-font-size-body"],
@@ -96,13 +96,14 @@ const sx = stylex.create({
   header: {
     display: "flex",
     flexDirection: "column",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px title/description gap is fixed tight geometry, no spacing token owns it
     rowGap: DIALOG_HEADER_GAP,
   },
   title: {
     margin: 0,
     fontSize: fontVars["--honk-font-size-body"],
     lineHeight: fontVars["--honk-leading-title"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
     color: colorVars["--honk-color-text-primary"],
   },
   description: {
@@ -117,7 +118,7 @@ const sx = stylex.create({
     alignItems: "center",
     justifyContent: "flex-end",
     gap: spaceVars["--honk-space-gutter"],
-    paddingTop: DIALOG_GAP,
+    paddingTop: spaceVars["--honk-space-panel-pad"],
     boxShadow: FOOTER_DIVIDER,
   },
 });

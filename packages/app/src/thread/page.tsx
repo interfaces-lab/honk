@@ -2,10 +2,10 @@ import { openCodeSessionKey } from "@honk/opencode";
 import { Spinner, Text } from "@honk/ui";
 import { spaceVars } from "@honk/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { useLocation } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import * as React from "react";
 
-import { parseOpenCodeTabHref } from "../opencode/tab-route";
+import { openCodeSessionRefFromRouteParams } from "../opencode/tab-route";
 import { useSessionWatch } from "../use-sdk-watch";
 import { workbenchActions } from "../workbench-controller";
 import { ThreadSurface } from "./surface";
@@ -34,14 +34,16 @@ const styles = stylex.create({
 });
 
 export function ThreadPage(): React.ReactElement {
-  const location = useLocation();
-  const route = parseOpenCodeTabHref(location.href);
-  if (route?.type !== "session") {
+  // Match-scoped params stay coherent while this tree renders its final transition frame;
+  // the global location does not.
+  const params = useParams({ from: "/server/$serverKey/session/$sessionId" });
+  const sessionRef = openCodeSessionRefFromRouteParams(params.serverKey, params.sessionId);
+  if (sessionRef === null) {
     throw new Error("The session route is invalid.");
   }
 
-  const threadId = route.ref.sessionID;
-  const watch = useSessionWatch(route.ref);
+  const threadId = sessionRef.sessionID;
+  const watch = useSessionWatch(sessionRef);
   const state = threadViewState(watch.state);
   const isConnecting = watch.status === "connecting" && state === null;
   const isDisconnected = watch.status === "closed" || watch.status === "unauthorized";
@@ -59,7 +61,7 @@ export function ThreadPage(): React.ReactElement {
     return (
       <div {...stylex.props(styles.page)}>
         <div {...stylex.props(styles.center)}>
-          <Text as="p" size="lg" tone="muted" weight="medium">
+          <Text as="p" size="lg" tone="muted" weight="regular">
             Thread unavailable
           </Text>
           <Text as="p" size="xs" tone="faint" family="mono">
@@ -73,8 +75,8 @@ export function ThreadPage(): React.ReactElement {
   return (
     <div {...stylex.props(styles.page)}>
       <ThreadSurface
-        key={openCodeSessionKey(route.ref)}
-        sessionRef={route.ref}
+        key={openCodeSessionKey(sessionRef)}
+        sessionRef={sessionRef}
         state={state}
         watchStatus={watch.status}
         showHeader

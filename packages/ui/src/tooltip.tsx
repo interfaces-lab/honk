@@ -3,7 +3,15 @@ import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
 import { applyStyle, type HonkStyle, type StyleProp } from "./style";
-import { colorVars, elevationVars, fontVars, motionVars, radiusVars, zVars } from "./tokens.stylex";
+import {
+  colorVars,
+  elevationVars,
+  fontVars,
+  motionVars,
+  radiusVars,
+  spaceVars,
+  zVars,
+} from "./tokens.stylex";
 
 // Long enough that scrubbing across triggers does not flash tooltips.
 const TOOLTIP_OPEN_DELAY_MS = 500;
@@ -11,18 +19,15 @@ const TOOLTIP_OPEN_DELAY_MS = 500;
 const TOOLTIP_SKIP_MS = 300;
 const TOOLTIP_GUTTER_PX = 6;
 
-const TOOLTIP_MAX_WIDTH = "280px";
-const TOOLTIP_PAD_X = "8px";
-const TOOLTIP_PAD_Y = "4px";
-
 const sx = stylex.create({
   positioner: {
     zIndex: zVars["--honk-z-tooltip"],
   },
   popup: {
-    maxWidth: TOOLTIP_MAX_WIDTH,
-    paddingInline: TOOLTIP_PAD_X,
-    paddingBlock: TOOLTIP_PAD_Y,
+    maxWidth: "280px",
+    paddingInline: spaceVars["--honk-space-gutter"],
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px vertical tooltip padding is fixed intrinsic geometry, no spacing token owns it
+    paddingBlock: "4px",
     borderRadius: radiusVars["--honk-radius-control"],
     backgroundColor: colorVars["--honk-color-bg-base"],
     boxShadow: elevationVars["--honk-elevation-floating"],

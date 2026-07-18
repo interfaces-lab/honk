@@ -7,7 +7,7 @@ import * as React from "react";
 import { Icon } from "./icon";
 import { IconCheckmark1 } from "./icons";
 import { applyStyle, type HonkStyle, type StyleProp } from "./style";
-import { colorVars, motionVars, radiusVars } from "./tokens.stylex";
+import { colorVars, controlVars, motionVars, radiusVars } from "./tokens.stylex";
 
 type CheckboxSize = "sm" | "md";
 
@@ -16,8 +16,6 @@ const BOX_SIZE_SM = "16px";
 const DASH_WIDTH = "8px";
 const DASH_HEIGHT = "2px";
 const RING_BASE = `inset 0 0 0 1px ${colorVars["--honk-color-border-base"]}`;
-const FOCUS_RING_WIDTH = "1px";
-const FOCUS_RING_OFFSET = "2px";
 
 const sx = stylex.create({
   root: {
@@ -44,8 +42,8 @@ const sx = stylex.create({
     // Focus drawn with `outline` so it never collides with the ring box-shadow (button.tsx slot).
     outlineColor: colorVars["--honk-color-accent"],
     outlineStyle: { default: "none", ":focus-visible": "solid" },
-    outlineWidth: FOCUS_RING_WIDTH,
-    outlineOffset: FOCUS_RING_OFFSET,
+    outlineWidth: controlVars["--honk-control-focus-ring-width"],
+    outlineOffset: controlVars["--honk-control-focus-ring-offset"],
     opacity: { default: 1, "[data-disabled]": 0.4 },
     transitionProperty: "background-color, box-shadow",
     transitionDuration: {

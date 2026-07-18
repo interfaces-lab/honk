@@ -94,8 +94,8 @@
   --spacing-tab-gap: var(--honk-shell-tab-gap);
 
   /* ── Font ─────────────────────────────────────────────────────────────────
-   * font-ui, font-mono; text-body/detail/caption/micro; font-medium,
-   * font-semibold (the token 510 "medium" replaces Tailwind's default 500).
+   * font-ui, font-mono; text-body/detail/caption/micro; font-semibold.
+   * Ordinary UI text inherits the Cursor-derived regular token.
    */
   --font-ui: var(--honk-font-family-ui);
   --font-mono: var(--honk-font-family-mono);
@@ -103,7 +103,6 @@
   --text-detail: var(--honk-font-size-detail);
   --text-caption: var(--honk-font-size-caption);
   --text-micro: var(--honk-font-size-micro);
-  --font-weight-medium: var(--honk-font-weight-medium);
   --font-weight-semibold: var(--honk-font-weight-semibold);
 
   /* ── Elevation ────────────────────────────────────────────────────────────

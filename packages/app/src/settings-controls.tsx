@@ -1,12 +1,10 @@
 import * as stylex from "@stylexjs/stylex";
 import { Button, Icon, IconButton, Text, Tooltip } from "@honk/ui";
 import { IconStepBack } from "@honk/ui/icons";
-import { colorVars, controlVars, radiusVars, spaceVars } from "@honk/ui/tokens.stylex";
+import { borderVars, colorVars, controlVars, radiusVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
 const SETTINGS_WIDE_MEDIA = "@media (min-width: 720px)";
-const HAIRLINE = "1px";
-const STEPPER_VALUE_MIN_WIDTH = "2ch";
 
 const styles = stylex.create({
   section: {
@@ -32,7 +30,7 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
-    borderWidth: HAIRLINE,
+    borderWidth: borderVars["--honk-border-hairline"],
     borderStyle: "solid",
     borderColor: colorVars["--honk-color-border-muted"],
     borderRadius: radiusVars["--honk-radius-field"],
@@ -54,7 +52,7 @@ const styles = stylex.create({
     minHeight: controlVars["--honk-control-h-lg"],
     paddingInline: spaceVars["--honk-space-panel-pad"],
     paddingBlock: controlVars["--honk-control-pad-md"],
-    borderBottomWidth: HAIRLINE,
+    borderBottomWidth: borderVars["--honk-border-hairline"],
     borderBottomStyle: "solid",
     borderBottomColor: colorVars["--honk-color-border-muted"],
   },
@@ -121,7 +119,7 @@ export function SettingsRow(props: {
     <div {...stylex.props(styles.row, props.isLast === true && styles.rowLast)}>
       <div {...stylex.props(styles.rowCopy)}>
         <div {...stylex.props(styles.rowTitleLine)}>
-          <Text size="base" weight="medium">
+          <Text size="base" weight="regular">
             {props.title}
           </Text>
           {props.resetAction}
@@ -188,7 +186,7 @@ export function NumberStepper(props: {
       <Text
         size="sm"
         family="mono"
-        style={{ minWidth: STEPPER_VALUE_MIN_WIDTH, textAlign: "center" }}
+        style={{ minWidth: "2ch", textAlign: "center" }}
       >
         {props.value}
       </Text>

@@ -43,14 +43,8 @@ import {
 import { Tooltip, TooltipProvider } from "./tooltip";
 
 // Local tab geometry. Promote to tokens only when a second consumer needs the same sizes.
-const TAB_PADDING_X = "6px";
-const HOME_PADDING_X = "10px";
-const TAB_CONTENT_GAP = "6px";
 const STATUS_SLOT_SIZE = "16px";
-const AVATAR_RING_WIDTH = "0.5px";
 const AVATAR_STATUS_OFFSET = "-2px";
-const SEPARATOR_WIDTH = "1.5px";
-const SEPARATOR_HEIGHT = "12px";
 const SCROLL_FADE_SIZE = "24px";
 const TAB_PREVIEW_MAX_WIDTH = "256px";
 // Scale the 20px matrix into the 16px slot without changing glyph geometry.
@@ -113,8 +107,8 @@ const stripStyles = stylex.create({
     pointerEvents: "none",
   },
   separator: {
-    width: SEPARATOR_WIDTH,
-    height: SEPARATOR_HEIGHT,
+    width: "1.5px",
+    height: "12px",
     flexShrink: 0,
     borderRadius: radiusVars["--honk-radius-pill"],
     // Border vocabulary, not a surface fill, so the pill does not read as an active-tab layer.
@@ -163,7 +157,7 @@ const tabStyles = stylex.create({
     position: "relative",
     display: "flex",
     alignItems: "center",
-    gap: TAB_CONTENT_GAP,
+    gap: controlVars["--honk-control-gap"],
     height: shellVars["--honk-shell-tab-h"],
     borderRadius: radiusVars["--honk-radius-control"],
     backgroundColor: "var(--_tab-bg)",
@@ -173,13 +167,14 @@ const tabStyles = stylex.create({
     width: shellVars["--honk-shell-tab-max-w"],
     minWidth: shellVars["--honk-shell-tab-min-w"],
     flexShrink: 1,
-    paddingInline: TAB_PADDING_X,
+    // oxlint-disable-next-line honk/design-no-raw-values -- thread tab inline padding is a fixed 6px; no control padding token equals 6px
+    paddingInline: "6px",
     // Touch scrolls the strip. Reorder stays mouse and pen only.
     touchAction: "pan-x",
   },
   home: {
     width: "auto",
-    paddingInline: HOME_PADDING_X,
+    paddingInline: spaceVars["--honk-space-control-pad-x"],
     // Home never collapses. Thread tabs absorb squeeze.
     flexShrink: 0,
   },
@@ -214,6 +209,7 @@ const tabStyles = stylex.create({
     whiteSpace: "nowrap",
     fontSize: fontVars["--honk-font-size-body"],
     fontWeight: fontVars["--honk-font-weight-regular"],
+    // oxlint-disable-next-line honk/design-no-raw-values -- title line box is pinned to the 16px status-slot height for glyph centering, not a text leading
     lineHeight: STATUS_SLOT_SIZE,
     color: {
       default: colorVars["--honk-color-text-muted"],
@@ -222,6 +218,22 @@ const tabStyles = stylex.create({
   },
   titleActive: {
     color: colorVars["--honk-color-text-primary"],
+  },
+  // The rename input replaces the title span in the same flex slot. Chrome text styling, no field chrome.
+  renameInput: {
+    flexGrow: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    height: "100%",
+    padding: 0,
+    borderStyle: "none",
+    // The tab itself is the editing surface. A focus ring inside a 28px tab would double-outline it.
+    outlineStyle: "none",
+    backgroundColor: "transparent",
+    color: colorVars["--honk-color-text-primary"],
+    fontFamily: "inherit",
+    fontSize: fontVars["--honk-font-size-body"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
   },
   // The close button owns a fixed flex slot, so the title truncates before it instead of fading beneath it.
   close: {
@@ -267,14 +279,15 @@ const tabStyles = stylex.create({
     display: "grid",
     placeItems: "center",
     overflow: "hidden",
-    borderWidth: AVATAR_RING_WIDTH,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 0.5px avatar ring is a sub-pixel hairline; no border token owns half-pixel widths
+    borderWidth: "0.5px",
     borderStyle: "solid",
     borderColor: colorVars["--honk-color-border-base"],
     borderRadius: radiusVars["--honk-radius-avatar"],
     backgroundColor: colorVars["--honk-color-layer-03"],
     color: colorVars["--honk-color-text-muted"],
     fontSize: fontVars["--honk-font-size-caption"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
     lineHeight: 1,
     textTransform: "uppercase",
     fontVariantNumeric: "tabular-nums",
@@ -308,10 +321,17 @@ const dynamic = stylex.create({
 });
 
 const previewStyles = stylex.create({
+  // The tooltip trigger must be a real element. Render-merging trigger props onto a composed
+  // component (the context-menu wrapper) silently drops them and the preview never opens.
+  trigger: {
+    display: "flex",
+    minWidth: 0,
+  },
   root: {
     display: "flex",
     flexDirection: "column",
-    gap: TAB_CONTENT_GAP,
+    // oxlint-disable-next-line honk/design-no-raw-values -- preview card stacks text rows at a fixed 6px popup gap; no vertical spacing token owns it
+    gap: "6px",
     width: "100%",
     fontVariantNumeric: "tabular-nums",
   },
@@ -319,25 +339,25 @@ const previewStyles = stylex.create({
     overflowWrap: "anywhere",
     color: colorVars["--honk-color-text-muted"],
     fontSize: fontVars["--honk-font-size-body"],
-    fontWeight: 440,
-    letterSpacing: "-0.04px",
-    lineHeight: 1.5,
+    fontWeight: fontVars["--honk-font-weight-regular"],
+    letterSpacing: fontVars["--honk-letter-spacing-body"],
+    lineHeight: fontVars["--honk-leading-body"],
   },
   title: {
     overflowWrap: "anywhere",
     color: colorVars["--honk-color-text-primary"],
     fontSize: fontVars["--honk-font-size-body"],
-    fontWeight: 530,
-    letterSpacing: "-0.04px",
-    lineHeight: 1.5,
+    fontWeight: fontVars["--honk-font-weight-semibold"],
+    letterSpacing: fontVars["--honk-letter-spacing-body"],
+    lineHeight: fontVars["--honk-leading-body"],
   },
   detail: {
     overflowWrap: "anywhere",
     color: colorVars["--honk-color-text-muted"],
     fontSize: fontVars["--honk-font-size-body"],
-    fontWeight: 440,
-    letterSpacing: "-0.04px",
-    lineHeight: 1.5,
+    fontWeight: fontVars["--honk-font-weight-regular"],
+    letterSpacing: fontVars["--honk-letter-spacing-body"],
+    lineHeight: fontVars["--honk-leading-body"],
   },
   server: {
     overflow: "hidden",
@@ -345,9 +365,9 @@ const previewStyles = stylex.create({
     whiteSpace: "nowrap",
     color: colorVars["--honk-color-text-muted"],
     fontSize: fontVars["--honk-font-size-body"],
-    fontWeight: 440,
-    letterSpacing: "-0.04px",
-    lineHeight: 1,
+    fontWeight: fontVars["--honk-font-weight-regular"],
+    letterSpacing: fontVars["--honk-letter-spacing-body"],
+    lineHeight: fontVars["--honk-leading-body"],
   },
 });
 
@@ -359,6 +379,16 @@ function closestClose(target: EventTarget | null): HTMLElement | null {
   return target instanceof Element ? target.closest<HTMLElement>("[data-tab-close]") : null;
 }
 
+function closestRenameInput(target: EventTarget | null): HTMLElement | null {
+  return target instanceof Element ? target.closest<HTMLElement>("[data-tab-editing]") : null;
+}
+
+// Callback ref. Runs once on mount so the rename input opens focused with the title selected.
+function seatRenameInput(element: HTMLInputElement | null): void {
+  element?.focus();
+  element?.select();
+}
+
 // Close pointerdown must not start a reorder. Stop it before the strip's delegated handler runs.
 function stopPointerDown(event: React.PointerEvent<HTMLButtonElement>): void {
   event.stopPropagation();
@@ -366,6 +396,17 @@ function stopPointerDown(event: React.PointerEvent<HTMLButtonElement>): void {
 
 function repositoryInitial(label: string): string {
   return Array.from(label.trim())[0] ?? "?";
+}
+
+// Abbreviate the server home to ~ for display. Functional consumers keep the raw path.
+function previewPath(path: string, homePath: string | undefined): string {
+  if (homePath === undefined || homePath.length === 0) {
+    return path;
+  }
+  if (path === homePath) {
+    return "~";
+  }
+  return path.startsWith(`${homePath}/`) ? `~${path.slice(homePath.length)}` : path;
 }
 
 function TabPreview({ tab }: { tab: TabDescriptor }): React.ReactElement {
@@ -376,7 +417,9 @@ function TabPreview({ tab }: { tab: TabDescriptor }): React.ReactElement {
       {project === null ? null : <span {...stylex.props(previewStyles.project)}>{project}</span>}
       <span {...stylex.props(previewStyles.title)}>{tab.title}</span>
       {tab.kind !== "home" && tab.path !== undefined ? (
-        <span {...stylex.props(previewStyles.detail)}>{tab.path}</span>
+        <span {...stylex.props(previewStyles.detail)}>
+          {previewPath(tab.path, tab.kind === "thread" ? tab.homePath : undefined)}
+        </span>
       ) : null}
       {tab.kind !== "home" && tab.server !== undefined ? (
         <span {...stylex.props(previewStyles.server)}>{tab.server.label}</span>
@@ -453,6 +496,7 @@ interface TabProps {
   isActive: boolean;
   isCompact: boolean;
   dragOffset: number | null;
+  onRename?: TabStripProps["onRename"];
   renderContextMenu?: TabStripProps["renderContextMenu"];
 }
 
@@ -498,14 +542,53 @@ function SessionTabPreviewTooltip({
       disabled={disabled}
       popupStyle={forward.tabPreviewPopup}
     >
-      {children}
+      <div data-tab-preview-trigger="" {...stylex.props(previewStyles.trigger)}>
+        {children}
+      </div>
     </Tooltip>
   );
 }
 
 // Memo so only the dragged row re-renders on pointermove. Handlers live on the strip via data-tab-* attributes.
-const Tab = ({ tab, isActive, isCompact, dragOffset, renderContextMenu }: TabProps) => {
+const Tab = ({ tab, isActive, isCompact, dragOffset, onRename, renderContextMenu }: TabProps) => {
   const isHome = tab.kind === "home";
+  const [editing, setEditing] = React.useState(false);
+  // Enter commits and unmount blurs in the same tick. The ref makes whichever fires second a no-op.
+  const renameDoneRef = React.useRef(false);
+  const canRename =
+    onRename !== undefined && tab.kind === "thread" && tab.status !== "draft" && !isCompact;
+
+  const startRename = (event: React.MouseEvent): void => {
+    event.preventDefault();
+    event.stopPropagation();
+    renameDoneRef.current = false;
+    setEditing(true);
+  };
+
+  const finishRename = (element: HTMLInputElement, save: boolean): void => {
+    if (renameDoneRef.current) {
+      return;
+    }
+    renameDoneRef.current = true;
+    setEditing(false);
+    const next = element.value.trim();
+    if (save && next.length > 0 && next !== tab.title) {
+      onRename?.(tab.key, next);
+    }
+  };
+
+  const handleRenameKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
+    // The editor owns keystrokes. Shell hotkeys must not fire while a title is being typed.
+    event.stopPropagation();
+    if (event.key === "Enter") {
+      event.preventDefault();
+      finishRename(event.currentTarget, true);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      finishRename(event.currentTarget, false);
+    }
+  };
+
   const seatActiveTab = React.useCallback(
     (element: HTMLDivElement | null): void => {
       if (element !== null && isActive && tab.kind !== "home") {
@@ -533,6 +616,7 @@ const Tab = ({ tab, isActive, isCompact, dragOffset, renderContextMenu }: TabPro
       aria-label={accessibleName}
       data-tab-key={tab.key}
       data-active={isActive ? "" : undefined}
+      data-editing={editing ? "" : undefined}
       data-shell-no-drag=""
       {...stylex.props(
         tabStyles.base,
@@ -551,15 +635,32 @@ const Tab = ({ tab, isActive, isCompact, dragOffset, renderContextMenu }: TabPro
           <ThreadIdentity tab={tab} />
         )}
       </span>
-      {!isHome && !isCompact && (
-        <span
-          data-tab-title=""
-          {...stylex.props(tabStyles.title, isActive && tabStyles.titleActive)}
-        >
-          {tab.title}
-        </span>
-      )}
-      {!isHome && (
+      {!isHome &&
+        (editing ? (
+          <input
+            type="text"
+            data-tab-editing=""
+            aria-label={`Rename ${tab.title}`}
+            defaultValue={tab.title}
+            ref={seatRenameInput}
+            onKeyDown={handleRenameKeyDown}
+            onBlur={(event) => {
+              finishRename(event.currentTarget, true);
+            }}
+            {...stylex.props(tabStyles.renameInput)}
+          />
+        ) : (
+          !isCompact && (
+            <span
+              data-tab-title=""
+              onDoubleClick={canRename ? startRename : undefined}
+              {...stylex.props(tabStyles.title, isActive && tabStyles.titleActive)}
+            >
+              {tab.title}
+            </span>
+          )
+        ))}
+      {!isHome && !editing && (
         <button
           type="button"
           aria-label={`Close ${tab.title}`}
@@ -579,7 +680,11 @@ const Tab = ({ tab, isActive, isCompact, dragOffset, renderContextMenu }: TabPro
   }
 
   return (
-    <SessionTabPreviewTooltip tab={tab} disabled={dragOffset !== null}>
+    // No preview while dragging or renaming, and none before the session location resolves.
+    <SessionTabPreviewTooltip
+      tab={tab}
+      disabled={dragOffset !== null || editing || tab.path === undefined}
+    >
       {contextMenuElement}
     </SessionTabPreviewTooltip>
   );
@@ -592,6 +697,7 @@ function TabStrip({
   onClose,
   onReorder,
   onNew,
+  onRename,
   renderContextMenu,
   style,
 }: TabStripProps): React.ReactElement {
@@ -687,6 +793,10 @@ function TabStrip({
     }
     // Close pointerdown is stopped, but its mousedown still bubbles. Guard activate here too.
     if (closestClose(event.target) !== null) {
+      return;
+    }
+    // Clicks inside the rename input place the caret. They never re-activate.
+    if (closestRenameInput(event.target) !== null) {
       return;
     }
     const key = closestTab(event.target)?.dataset["tabKey"];
@@ -811,6 +921,10 @@ function TabStrip({
     }
     const tabEl = closestTab(event.target);
     if (tabEl === null) {
+      return;
+    }
+    // Text selection inside the rename input must not become a reorder drag.
+    if (tabEl.dataset["editing"] !== undefined) {
       return;
     }
     const key = tabEl.dataset["tabKey"];
@@ -940,6 +1054,7 @@ function TabStrip({
         isActive={tab.key === activeKey}
         isCompact={isCompact}
         dragOffset={drag !== null && drag.fromIndex === index ? drag.dx : null}
+        {...(onRename === undefined ? {} : { onRename })}
         {...(renderContextMenu === undefined ? {} : { renderContextMenu })}
       />,
     );

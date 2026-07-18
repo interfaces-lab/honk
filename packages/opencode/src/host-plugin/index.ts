@@ -1,9 +1,9 @@
 // Loaded from Honk's state directory. Canonical agents plus OpenCode pairing hooks.
 
 import {
+  HONK_BASE_SYSTEM,
   HONK_MODES,
-  HONK_SIDEKICK_SYSTEM,
-  HONK_TOOL_USE_POLICY,
+  HONK_SIDEKICK_PROMPT,
   honkModeAgentName,
   type HonkPermissionConfig,
 } from "./agents";
@@ -27,15 +27,6 @@ const READONLY_AGENTS = new Set<string>([AGENT_ASK, AGENT_PLAN]);
 const NON_DELEGATING_AGENTS = new Set<string>([AGENT_ASK, AGENT_PLAN, AGENT_DEBUG]);
 const EDIT_TOOLS = new Set<string>(["edit", "write", "patch", "apply_patch"]);
 
-const MODE_DIRECTIVES: Readonly<Record<string, string>> = {
-  [AGENT_ASK]:
-    "honk ask mode: strictly read-only. Do not modify files or system state. Answer concisely and cite concrete file paths and line references.",
-  [AGENT_PLAN]:
-    "honk plan mode: investigate the codebase read-only, then call the plan_submit tool exactly once with the finished implementation plan. After you have submitted the plan, your final text should be one short closing line — do not restate the plan.",
-  [AGENT_DEBUG]:
-    "honk debug mode: reproduce and observe before concluding. Trace the failure to its root cause; propose a fix and apply only a minimal, approved edit to verify it.",
-};
-
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -48,16 +39,7 @@ function stringField(value: unknown, key: string): string | undefined {
 }
 
 function mainDirective(pairing: HonkAgentPairing): string {
-  const sidekick = honkSidekickAgentName(pairing.stop);
-  return `honk main mode: own the user's intent, planning, ambiguity decisions, and final review. Delegate execution-heavy code search, edits, and verification to the persistent ${sidekick} agent through the task tool. Keep your own tool use minimal, do not choose another subagent, and do not pass a task_id; Honk pairs and resumes the same sidekick automatically. Background delegation is the default, so continue only non-overlapping reasoning and never edit the same files while the sidekick is writing. Before answering, inspect its result and the resulting diff or verification evidence, then close any remaining gap yourself or with a follow-up to the same sidekick.`;
-}
-
-function mainSystem(): string {
-  const routes = HONK_AGENT_PAIRINGS.map(
-    (pairing) =>
-      `${pairing.main.providerID}/${pairing.main.id} (${pairing.main.variant}) -> ${honkSidekickAgentName(pairing.stop)}`,
-  ).join("\n");
-  return `You are Honk's main coding agent. Own user intent, planning, ambiguity, and final review, while delegating execution-heavy repository work to the persistent sidekick paired with your selected model. Use this routing table:\n${routes}\nKeep your own actions minimal, avoid overlapping writes, and review the sidekick's result before answering.\n\n${HONK_TOOL_USE_POLICY}`;
+  return `Build mode: delegate scoped implementation and verification to ${honkSidekickAgentName(pairing.stop)} with the task tool, then review its work before answering.`;
 }
 
 function permissionRules(permission: HonkPermissionConfig): PermissionRule[] {
@@ -96,8 +78,7 @@ export async function setup(context: PluginContext): Promise<void> {
         agent.description = mode.description;
         agent.mode = "primary";
         agent.hidden = false;
-        if (mode.id === "build") agent.system = mainSystem();
-        else if (mode.prompt !== null) agent.system = mode.prompt;
+        agent.system = HONK_BASE_SYSTEM;
         addPermissionRules(agent.permissions, permissionRules(mode.permission));
       });
     }
@@ -105,13 +86,14 @@ export async function setup(context: PluginContext): Promise<void> {
     for (const pairing of HONK_AGENT_PAIRINGS) {
       draft.update(honkSidekickAgentName(pairing.stop), (agent) => {
         agent.model = pairing.sidekick;
-        agent.system = HONK_SIDEKICK_SYSTEM;
+        agent.system = HONK_BASE_SYSTEM;
         agent.description = `Persistent execution sidekick for the ${pairing.stop} preset.`;
         agent.mode = "subagent";
         agent.hidden = true;
         addPermissionRules(agent.permissions, [
           { action: "task", resource: "*", effect: "deny" },
           { action: "todowrite", resource: "*", effect: "deny" },
+          { action: "plan_submit", resource: "*", effect: "deny" },
         ]);
       });
     }
@@ -204,12 +186,12 @@ export async function server(plugin: PluginInput): Promise<Hooks> {
       }
 
       if (honkPairingForSidekick(agent) !== undefined) {
-        output.system.push(HONK_SIDEKICK_SYSTEM);
+        output.system.push(HONK_SIDEKICK_PROMPT);
         return;
       }
 
-      const directive = agent === undefined ? undefined : MODE_DIRECTIVES[agent];
-      if (directive !== undefined) output.system.push(directive);
+      const mode = HONK_MODES.find((item) => item.agent === agent);
+      if (mode?.prompt !== null && mode?.prompt !== undefined) output.system.push(mode.prompt);
     },
 
     async "permission.ask"(input, output) {

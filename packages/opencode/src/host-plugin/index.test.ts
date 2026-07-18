@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildHonkOpencodeConfig } from "../host";
 import { server, setup } from "./index";
+import { HONK_BASE_SYSTEM } from "./agents";
 import { HONK_AGENT_PAIRINGS } from "./pairing";
 import type { AgentInfo, PluginContext, PluginInput, PluginMessageGroup } from "./types";
 
@@ -116,6 +117,35 @@ describe("Honk main + sidekick plugin", () => {
     expect(args.task_id).toBe("ses_existing");
   });
 
+  it("injects only the active mode prompt and scopes plan_submit to plan mode", async () => {
+    const hooks = await server(pluginWithMessages([]));
+
+    await hooks["chat.message"]?.({ sessionID: "ses_ask", agent: "honk-ask" }, {});
+    const askSystem = { system: [] as string[] };
+    await hooks["experimental.chat.system.transform"]?.(
+      { sessionID: "ses_ask", model: {} },
+      askSystem,
+    );
+    expect(askSystem.system).toEqual([
+      "Ask mode: investigate the codebase without modifying files or system state, then answer concisely with concrete file references.",
+    ]);
+
+    await hooks["chat.message"]?.({ sessionID: "ses_plan", agent: "honk-plan" }, {});
+    const planSystem = { system: [] as string[] };
+    await hooks["experimental.chat.system.transform"]?.(
+      { sessionID: "ses_plan", model: {} },
+      planSystem,
+    );
+    expect(planSystem.system).toHaveLength(1);
+    expect(planSystem.system[0]).toContain("call plan_submit exactly once");
+
+    const config = buildHonkOpencodeConfig("/state/honk-opencode-plugin/index.ts");
+    expect(config.agent["honk-plan"]?.permission?.plan_submit).toBe("allow");
+    for (const mode of ["build", "ask", "debug"]) {
+      expect(config.agent[`honk-${mode}`]?.permission?.plan_submit).toBe("deny");
+    }
+  });
+
   it("registers the same paired agents through the canonical transform", async () => {
     const agents = new Map<string, AgentInfo>();
     const context: PluginContext = {
@@ -139,9 +169,8 @@ describe("Honk main + sidekick plugin", () => {
 
     expect(agents).toHaveLength(8);
     for (const agent of agents.values()) {
-      expect(agent.system).toContain("Never use computer-control or GUI automation");
+      expect(agent.system).toBe(HONK_BASE_SYSTEM);
     }
-    expect(agents.get("honk-build")?.system).toContain("honk-sidekick-medium");
     expect(agents.get("honk-sidekick-medium")).toMatchObject({
       hidden: true,
       mode: "subagent",
@@ -156,6 +185,11 @@ describe("Honk main + sidekick plugin", () => {
         .get("honk-sidekick-medium")
         ?.permissions.filter((rule) => rule.action === "task" && rule.effect === "deny"),
     ).toHaveLength(1);
+    expect(
+      agents
+        .get("honk-sidekick-medium")
+        ?.permissions.some((rule) => rule.action === "plan_submit" && rule.effect === "deny"),
+    ).toBe(true);
   });
 
   it("emits sidekicks instead of the retired oracle agents", () => {
@@ -174,6 +208,8 @@ describe("Honk main + sidekick plugin", () => {
       hidden: true,
       model: "openai/gpt-5.6-sol",
       variant: "medium",
+      prompt: HONK_BASE_SYSTEM,
+      permission: { plan_submit: "deny" },
     });
   });
 });

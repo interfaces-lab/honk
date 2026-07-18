@@ -1,9 +1,9 @@
 import type { ProviderAuthAuthorization, ProviderAuthMethod } from "@opencode-ai/sdk/v2/client";
 
-export const MANAGED_ANTHROPIC_PLUGIN_SPEC = "opencode-anthropic-login-via-cli@1.4.0";
+export const MANAGED_ANTHROPIC_PLUGIN_SPEC = "opencode-anthropic-login-via-cli@1.6.1";
 export const MANAGED_ANTHROPIC_METHOD_LABEL = "Claude Code (auto)";
 
-export type OpenCodeInteractiveProviderID = "openai";
+export type OpenCodeInteractiveProviderID = "openai" | "opencode-go";
 export type OpenCodeManagedProviderID = "anthropic";
 export type OpenCodeProviderID = OpenCodeInteractiveProviderID | OpenCodeManagedProviderID;
 export type OpenCodeProviderAuthPrompt = NonNullable<ProviderAuthMethod["prompts"]>[number];
@@ -51,7 +51,9 @@ export type OpenCodeProviderApi = {
   ) => Promise<void>;
   readonly setApiKey: (providerID: OpenCodeInteractiveProviderID, value: string) => Promise<void>;
   readonly removeAuth: (providerID: OpenCodeInteractiveProviderID) => Promise<void>;
-  readonly ensureManagedAnthropicImport: () => Promise<ManagedAnthropicImport>;
+  readonly ensureManagedAnthropicImport: (options?: {
+    readonly force?: boolean;
+  }) => Promise<ManagedAnthropicImport>;
 };
 
 export type ManagedAnthropicDependencies = Pick<
@@ -72,7 +74,7 @@ function errorMessage(error: unknown): string {
 
 export function createManagedAnthropicImport(
   api: ManagedAnthropicDependencies,
-): () => Promise<ManagedAnthropicImport> {
+): (options?: { readonly force?: boolean }) => Promise<ManagedAnthropicImport> {
   let inFlight: Promise<ManagedAnthropicImport> | null = null;
   let observedConnected = false;
   let episodeAttempted = false;
@@ -136,8 +138,13 @@ export function createManagedAnthropicImport(
     }
   };
 
-  return () => {
+  return (options) => {
     if (inFlight !== null) return inFlight;
+    // A user-initiated retry opens a new episode instead of replaying its result.
+    if (options?.force === true) {
+      episodeAttempted = false;
+      episodeResult = null;
+    }
     inFlight = run().finally(() => {
       inFlight = null;
     });

@@ -1,5 +1,18 @@
 # Agent Rules
 
+## Development servers
+
+- Never start this repository's persistent development stack. Do not run `pnpm dev`, `pnpm run dev`, `pnpm dev:*`, `pnpm --filter ... dev`, `pnpm start:desktop`, or equivalent long-running app/server commands unless the user explicitly asks for that exact action.
+- The user owns development-process lifecycle. Reuse the running app for inspection and QA; if it is absent or stale, ask the user to start or restart it instead of launching another instance.
+- Use bounded commands such as targeted tests, typechecks, lints, and builds for verification. Do not turn a persistent process into a background, `tmux`, or detached workaround.
+
+## Backend / OpenCode requests
+
+- Do not make ad-hoc HTTP requests to the OpenCode sidecar, Honk host, or retired Core `/core/v1` APIs (`curl`, shell `fetch`, browser evaluate/fetch, pairing via `~/.honk/core/core-app-secret`) unless the user explicitly asks for that exact action.
+- Inspect the running local app UI for QA. If it is absent or stale, ask the user to start or restart it — do not start servers (see Development servers).
+- Client code must use `@honk/opencode` / `sdk.v2` only. Do not restore Core v1, compat facades, or call capability-gated ops (`OPEN_CODE_SESSION_CAPABILITIES` / `APP_HOST_CAPABILITIES`) through unsupported endpoints.
+- Stale docs that still mention `/core/v1` or `packages/core` are historical. The live boundary is documented in `docs/opencode-shell.md` and enforced by `packages/opencode/scripts/check-protocol-boundary.mjs`.
+
 ## Style Guide
 
 ### General Principles

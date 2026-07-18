@@ -2,11 +2,10 @@ import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
 import { type WorkbenchRailLabelProps, type WorkbenchRailRowProps } from "./workbench-rail.types";
-import { colorVars, controlVars, fontVars, motionVars, radiusVars } from "./tokens.stylex";
+import { colorVars, controlVars, fontVars, motionVars, radiusVars, sidebarVars } from "./tokens.stylex";
 
-// Recovered from Cursor's collapsed-apps rail. These are component intrinsics, not theme choices.
+// Recovered from Cursor's collapsed-apps rail. A component intrinsic, not a theme choice.
 const LABEL_DESCENDER = "3px";
-const FOCUS_RING_OFFSET_INSET = "-1px";
 
 const styles = stylex.create({
   row: {
@@ -34,7 +33,7 @@ const styles = stylex.create({
     fontFamily: fontVars["--honk-font-family-ui"],
     fontSize: fontVars["--honk-font-size-body"],
     fontWeight: fontVars["--honk-font-weight-regular"],
-    lineHeight: "20px",
+    lineHeight: sidebarVars["--honk-sidebar-label-leading"],
     letterSpacing: "-0.08px",
     WebkitFontSmoothing: fontVars["--honk-font-smoothing"],
     MozOsxFontSmoothing: fontVars["--honk-font-smoothing-moz"],
@@ -45,7 +44,7 @@ const styles = stylex.create({
     outlineColor: colorVars["--honk-color-accent"],
     outlineStyle: { default: "none", ":focus-visible": "solid" },
     outlineWidth: controlVars["--honk-control-focus-ring-width"],
-    outlineOffset: FOCUS_RING_OFFSET_INSET,
+    outlineOffset: "-1px",
     opacity: { default: 1, ":disabled": controlVars["--honk-control-disabled-opacity"] },
     transitionProperty: "background-color, color",
     transitionDuration: {
@@ -58,7 +57,9 @@ const styles = stylex.create({
     flexGrow: 0,
     flexShrink: 1,
     minWidth: 0,
+    // oxlint-disable-next-line honk/design-no-raw-values -- descender trim is fixed typographic geometry, no spacing token owns it
     marginBlockEnd: `-${LABEL_DESCENDER}`,
+    // oxlint-disable-next-line honk/design-no-raw-values -- descender trim is fixed typographic geometry, no spacing token owns it
     paddingBlockEnd: LABEL_DESCENDER,
     overflow: "hidden",
     textOverflow: "ellipsis",

@@ -9,7 +9,7 @@ import { colorVars, fontVars } from "./tokens.stylex";
 type TextElement = "span" | "p" | "div";
 type TextSize = "xs" | "sm" | "base" | "lg" | "xl";
 type TextTone = "inherit" | "primary" | "muted" | "faint" | "accent" | "ok" | "warn" | "err";
-type TextWeight = "regular" | "medium" | "semibold";
+type TextWeight = "regular" | "semibold";
 type TextFamily = "ui" | "mono";
 type TextAlign = "start" | "center" | "end";
 
@@ -34,22 +34,27 @@ const styles = stylex.create({
   },
   familyMono: {
     fontFamily: fontVars["--honk-font-family-mono"],
+    letterSpacing: 0,
   },
   sizeXs: {
     fontSize: fontVars["--honk-text-caption"],
     lineHeight: fontVars["--honk-leading-caption"],
+    letterSpacing: fontVars["--honk-letter-spacing-caption"],
   },
   sizeSm: {
     fontSize: fontVars["--honk-text-detail"],
     lineHeight: fontVars["--honk-leading-detail"],
+    letterSpacing: fontVars["--honk-letter-spacing-detail"],
   },
   sizeBase: {
     fontSize: fontVars["--honk-text-body"],
     lineHeight: fontVars["--honk-leading-body"],
+    letterSpacing: fontVars["--honk-letter-spacing-body"],
   },
   sizeLg: {
     fontSize: fontVars["--honk-text-title"],
     lineHeight: fontVars["--honk-leading-title"],
+    letterSpacing: fontVars["--honk-letter-spacing-body-lg"],
   },
   sizeXl: {
     fontSize: fontVars["--honk-text-heading"],
@@ -78,9 +83,6 @@ const styles = stylex.create({
   },
   weightRegular: {
     fontWeight: fontVars["--honk-font-weight-regular"],
-  },
-  weightMedium: {
-    fontWeight: fontVars["--honk-font-weight-medium"],
   },
   weightSemibold: {
     fontWeight: fontVars["--honk-font-weight-semibold"],
@@ -126,7 +128,6 @@ const toneStyles: Record<TextTone, stylex.StyleXStyles | undefined> = {
 
 const weightStyles: Record<TextWeight, stylex.StyleXStyles> = {
   regular: styles.weightRegular,
-  medium: styles.weightMedium,
   semibold: styles.weightSemibold,
 };
 

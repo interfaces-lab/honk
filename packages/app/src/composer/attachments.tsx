@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { Icon, IconButton } from "@honk/ui";
 import { IconCrossSmall } from "@honk/ui/icons";
-import { colorVars, controlVars, radiusVars, spaceVars } from "@honk/ui/tokens.stylex";
+import { colorVars, controlVars, fontVars, radiusVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
 export type Attachment = {
@@ -59,11 +59,14 @@ function previewUrl(attachment: Attachment): string | null {
 }
 
 const styles = stylex.create({
+  // oxlint-disable-next-line honk/design-no-raw-values -- 16px composer gutter inset is fixed layout geometry, no spacing token owns it
   group: { display: "flex", flexWrap: "wrap", gap: spaceVars["--honk-space-gutter"], paddingInline: "16px", paddingTop: spaceVars["--honk-space-gutter"] },
+  // oxlint-disable-next-line honk/design-no-raw-values -- 1px inset hairline ring drawn via box-shadow, no elevation token owns a border ring
   attachment: { position: "relative", width: "56px", height: "56px", overflow: "hidden", borderRadius: radiusVars["--honk-radius-control"], backgroundColor: colorVars["--honk-color-control"], boxShadow: `inset 0 0 0 1px ${colorVars["--honk-color-border-base"]}` },
   media: { width: "100%", height: "100%", objectFit: "cover" },
-  fallback: { width: "100%", height: "100%", display: "grid", placeItems: "center", padding: spaceVars["--honk-space-gutter"], overflow: "hidden", fontSize: "10px" },
+  fallback: { width: "100%", height: "100%", display: "grid", placeItems: "center", padding: spaceVars["--honk-space-gutter"], overflow: "hidden", fontSize: fontVars["--honk-font-size-micro"] },
   action: { position: "absolute", top: "4px", right: "4px" },
+  // oxlint-disable-next-line honk/design-no-raw-values -- 16px composer gutter inset is fixed layout geometry, no spacing token owns it
   chips: { display: "flex", flexWrap: "wrap", gap: controlVars["--honk-control-gap"], paddingInline: "16px", paddingTop: spaceVars["--honk-space-gutter"] },
   chip: { display: "inline-flex", alignItems: "center", gap: controlVars["--honk-control-gap"], maxWidth: "240px", height: "22px", paddingInlineStart: spaceVars["--honk-space-gutter"], borderRadius: radiusVars["--honk-radius-pill"], backgroundColor: colorVars["--honk-color-control"] },
   chipLabel: { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },

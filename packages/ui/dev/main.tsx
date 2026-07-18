@@ -61,6 +61,7 @@ import {
   IconMagnifyingGlass,
 } from "../src/icons";
 import {
+  borderVars,
   colorVars,
   controlVars,
   elevationVars,
@@ -89,35 +90,16 @@ import type { ShellHotkeyActions } from "./hotkeys";
 import { getTabsSnapshot, tabActions, useTabs } from "./tab-store";
 
 const STORY_RAIL_WIDTH = "168px";
-const DIAL_RAIL_WIDTH = "300px";
 const RAIL_ITEM_PAD_Y = "4px";
 const SECTION_GAP = "28px";
 const CANVAS_PAD = "32px";
-const CONTENT_MAX_WIDTH = "1120px";
 const RAIL_ITEM_GAP = "2px";
-const GALLERY_HAIRLINE = "1px";
-const DEMO_WINDOW_MAX_WIDTH = "1120px";
-const DEMO_WINDOW_HEIGHT = "640px";
-const MINI_FRAME_WIDTH = "440px";
-const MINI_FRAME_HEIGHT = "240px";
 // Traffic lights are OS chrome facts for the demo, not product tokens.
 const TRAFFIC_LIGHT_SIZE = "12px";
 const TRAFFIC_LIGHT_GAP = "8px";
 const TRAFFIC_LIGHT_CLOSE = "#ff5f57";
 const TRAFFIC_LIGHT_MINIMIZE = "#febc2e";
 const TRAFFIC_LIGHT_ZOOM = "#28c840";
-const TRUNCATE_DEMO_WIDTH = "160px";
-const SPECIMEN_MAX_WIDTH = "560px";
-const PROSE_SPECIMEN_MAX_WIDTH = "840px";
-const ICON_CELL_WIDTH = "148px";
-const DEMO_SWATCH_W = "72px";
-const DEMO_SWATCH_H = "44px";
-// Gallery fixture geometry is intrinsic to these demonstrations, not product UI.
-const CONTROL_CELL_MIN_WIDTH = "260px";
-const NARROW_FIXTURE_WIDTH = "220px";
-const COMPOSER_FIXTURE_MAX_WIDTH = "720px";
-const COMPOSER_FIXTURE_MIN_HEIGHT = "112px";
-const COMPOSER_FIXTURE_FOOTER_HEIGHT = "44px";
 
 // Shell pins light/dark on itself, so the appearance dial overrides colorScheme via xstyle.
 const schemeStyles: Record<Appearance, React.CSSProperties> = {
@@ -147,7 +129,7 @@ const styles = stylex.create({
     flexGrow: 1,
   },
   galleryColDivided: {
-    borderLeftWidth: GALLERY_HAIRLINE,
+    borderLeftWidth: borderVars["--honk-border-hairline"],
     borderLeftStyle: "solid",
     borderLeftColor: colorVars["--honk-color-border-muted"],
   },
@@ -156,12 +138,13 @@ const styles = stylex.create({
     flexShrink: 0,
   },
   dialRegion: {
-    flexBasis: DIAL_RAIL_WIDTH,
+    flexBasis: "300px",
     flexShrink: 0,
   },
   rail: {
     display: "flex",
     flexDirection: "column",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 2px rail-item gap is fixed intrinsic; no spacing token equals 2px
     gap: RAIL_ITEM_GAP,
     padding: spaceVars["--honk-space-gutter"],
     overflowY: "auto",
@@ -169,6 +152,7 @@ const styles = stylex.create({
   railItem: {
     display: "block",
     paddingInline: spaceVars["--honk-space-control-pad-x"],
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px rail-item vertical pad is fixed intrinsic; no spacing token equals 4px
     paddingBlock: RAIL_ITEM_PAD_Y,
     borderRadius: radiusVars["--honk-radius-control"],
     backgroundColor: {
@@ -182,7 +166,7 @@ const styles = stylex.create({
   railItemActive: {
     backgroundColor: colorVars["--honk-color-layer-02"],
     color: colorVars["--honk-color-text-primary"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
   },
   canvas: {
     flexGrow: 1,
@@ -193,14 +177,17 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 32px canvas gutter is the gallery's fixed demo padding; no spacing token equals 32px
     paddingBlock: CANVAS_PAD,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 32px canvas gutter is the gallery's fixed demo padding; no spacing token equals 32px
     paddingInline: CANVAS_PAD,
   },
   canvasInner: {
     width: "100%",
-    maxWidth: CONTENT_MAX_WIDTH,
+    maxWidth: "1120px",
     display: "flex",
     flexDirection: "column",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 28px section rhythm is the gallery's fixed demo spacing; no spacing token equals 28px
     gap: SECTION_GAP,
   },
   section: {
@@ -218,11 +205,11 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     gap: spaceVars["--honk-space-gutter"],
-    maxWidth: SPECIMEN_MAX_WIDTH,
+    maxWidth: "560px",
   },
   controlsGrid: {
     display: "grid",
-    gridTemplateColumns: `repeat(auto-fit, minmax(${CONTROL_CELL_MIN_WIDTH}, 1fr))`,
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
     gap: spaceVars["--honk-space-panel-pad"],
   },
   controlCell: {
@@ -233,17 +220,18 @@ const styles = stylex.create({
     padding: spaceVars["--honk-space-panel-pad"],
     borderRadius: radiusVars["--honk-radius-panel"],
     backgroundColor: colorVars["--honk-color-layer-01"],
-    boxShadow: `inset 0 0 0 ${GALLERY_HAIRLINE} ${colorVars["--honk-color-border-muted"]}`,
+    // oxlint-disable-next-line honk/design-no-raw-values -- inset 0 0 0 hairline ring is fixed geometry; no elevation token owns a 1px inset ring
+    boxShadow: `inset 0 0 0 ${borderVars["--honk-border-hairline"]} ${colorVars["--honk-color-border-muted"]}`,
   },
   narrowFixture: {
-    width: NARROW_FIXTURE_WIDTH,
+    width: "220px",
     maxWidth: "100%",
   },
   composerFixture: {
     display: "flex",
     width: "100%",
-    maxWidth: COMPOSER_FIXTURE_MAX_WIDTH,
-    minHeight: COMPOSER_FIXTURE_MIN_HEIGHT,
+    maxWidth: "720px",
+    minHeight: "112px",
     flexDirection: "column",
     justifyContent: "flex-end",
     borderRadius: radiusVars["--honk-radius-panel"],
@@ -260,13 +248,13 @@ const styles = stylex.create({
     display: "flex",
     alignItems: "center",
     gap: controlVars["--honk-control-gap"],
-    height: COMPOSER_FIXTURE_FOOTER_HEIGHT,
+    height: "44px",
     paddingInline: spaceVars["--honk-space-panel-pad"],
   },
   composerSpacer: { flexGrow: 1 },
   proseSpecimen: {
     width: "100%",
-    maxWidth: PROSE_SPECIMEN_MAX_WIDTH,
+    maxWidth: "840px",
   },
   statusInline: {
     display: "inline-flex",
@@ -286,10 +274,10 @@ const styles = stylex.create({
     flexDirection: "column",
     alignItems: "center",
     gap: spaceVars["--honk-space-gutter"],
-    width: ICON_CELL_WIDTH,
+    width: "148px",
   },
   truncateBox: {
-    width: TRUNCATE_DEMO_WIDTH,
+    width: "160px",
   },
   trafficLights: {
     position: "absolute",
@@ -299,6 +287,7 @@ const styles = stylex.create({
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 8px macOS traffic-light spacing is fixed OS chrome, deliberately not a product spacing token
     gap: TRAFFIC_LIGHT_GAP,
     pointerEvents: "none",
   },
@@ -308,8 +297,11 @@ const styles = stylex.create({
     flexShrink: 0,
     borderRadius: radiusVars["--honk-radius-pill"],
   },
+  // oxlint-disable-next-line honk/design-no-raw-values -- macOS close-button red is fixed OS chrome, not a product color token
   trafficLightClose: { backgroundColor: TRAFFIC_LIGHT_CLOSE },
+  // oxlint-disable-next-line honk/design-no-raw-values -- macOS minimize-button amber is fixed OS chrome, not a product color token
   trafficLightMinimize: { backgroundColor: TRAFFIC_LIGHT_MINIMIZE },
+  // oxlint-disable-next-line honk/design-no-raw-values -- macOS zoom-button green is fixed OS chrome, not a product color token
   trafficLightZoom: { backgroundColor: TRAFFIC_LIGHT_ZOOM },
   regionContent: {
     flexGrow: 1,
@@ -342,7 +334,7 @@ const styles = stylex.create({
     color: colorVars["--honk-color-text-primary"],
     fontFamily: "inherit",
     fontSize: fontVars["--honk-font-size-body"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
     transitionProperty: "background-color",
     transitionDuration: {
       default: motionVars["--honk-motion-duration-fast"],
@@ -404,7 +396,7 @@ function RegionPlaceholder({
 }): React.ReactElement {
   return (
     <div {...stylex.props(styles.regionContent)}>
-      <Text size="base" tone="muted" weight="medium">
+      <Text size="base" tone="muted" weight="regular">
         {title}
       </Text>
       <Text as="p" size="sm" tone="faint">
@@ -520,8 +512,8 @@ function ShellStory(): React.ReactElement {
           style={[
             {
               width: "100%",
-              maxWidth: DEMO_WINDOW_MAX_WIDTH,
-              height: DEMO_WINDOW_HEIGHT,
+              maxWidth: "1120px",
+              height: "640px",
               flexShrink: 0,
               borderRadius: radiusVars["--honk-radius-window"],
               overflow: "hidden",
@@ -572,8 +564,8 @@ function ShellStory(): React.ReactElement {
         <Shell
           style={[
             {
-              height: MINI_FRAME_HEIGHT,
-              width: MINI_FRAME_WIDTH,
+              height: "240px",
+              width: "440px",
               flexShrink: 0,
               borderRadius: radiusVars["--honk-radius-window"],
               overflow: "hidden",
@@ -837,7 +829,7 @@ const TEXT_TONES: readonly TextTone[] = [
   "err",
   "inherit",
 ];
-const TEXT_WEIGHTS: readonly TextWeight[] = ["regular", "medium", "semibold"];
+const TEXT_WEIGHTS: readonly TextWeight[] = ["regular", "semibold"];
 
 function TextStory(): React.ReactElement {
   return (
@@ -845,7 +837,7 @@ function TextStory(): React.ReactElement {
       <TextDials />
       <Section
         title="Sizes — the prose ramp"
-        note="caption 10/12 · detail 11/14 · body 12/16 · title 13/18 (the conversation tier) · heading 16/21."
+        note="caption 11/14 · detail 12/16 · body 13/18 · title 14/20 (the conversation tier) · heading 16/21."
       >
         {TEXT_SIZES.map((size) => (
           <div key={size} {...stylex.props(styles.specRow)}>
@@ -1227,11 +1219,22 @@ function ConversationStory(): React.ReactElement {
       </Section>
       <Section
         title="ToolCallLine — the activity row"
-        note="verb (74% fg) · detail (54% fg, tabular) · optional diff stats · optional chevron. No status icons, ever — running shimmers, failed goes red, hover promotes one step."
+        note="verb (74% fg) · detail (54% fg, tabular) · optional diff stats · optional chevron. No status icons — running shimmers, failed goes red, hover promotes one step. Sole exception: live-session rows (subagents) opt into the working Matrix via workingGlyph."
       >
         <div {...stylex.props(styles.specColumn)}>
           <ToolCallLine verb="Read" detail="src/tabs.tsx · 687 lines" />
           <ToolCallLine verb="Running" detail="pnpm test composer…" state="running" />
+          <ToolCallLine
+            verb="Fix invalid workbench route"
+            detail="Sol High"
+            supportingText="Read packages/app/src/tab-store.ts"
+            state="running"
+            workingGlyph
+            isExpanded={false}
+            onToggle={() => {
+              toast("Subagent rows open the work details tray");
+            }}
+          />
           <ToolCallLine verb="Command" detail="node .design/lint.mjs · exit 1" state="failed" />
           <ToolCallLine verb="Edited" detail="composer/tokens.ts" added={118} removed={12} />
           <ExpandableToolCall />
@@ -2197,8 +2200,8 @@ const ICON_RAMP = ["xs", "sm", "md", "lg", "xl"] as const;
 
 const swatchStyles = stylex.create({
   box: {
-    width: DEMO_SWATCH_W,
-    height: DEMO_SWATCH_H,
+    width: "72px",
+    height: "44px",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",

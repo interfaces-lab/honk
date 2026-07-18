@@ -59,8 +59,12 @@ Copy:
 
 - Environment input (OS reduce-motion) via a **module-level `matchMedia` store + `useSyncExternalStore`**
   with an SSR server-snapshot. Use this for any `matchMedia` or media dependency.
-- Fixed geometry that must never drift (glyph cells, sweep timing) as **named constants with a
-  one-line justification**. Not tokens. Tokens are swappable. Not inline literals. Lint flags those.
+- Fixed geometry that must never drift (glyph cells, sweep timing) stays **inline on non-token
+  properties** — width, height, inset, transform, opacity take literal intrinsics directly. Hoist to
+  a named constant only when the value is shared or the name carries meaning the property doesn't.
+  On a token-owned property (spacing, color, type, radius, motion, elevation), a raw value takes an
+  `oxlint-disable-next-line honk/design-no-raw-values` with a one-line reason — the lint resolves
+  hoisted constants, so a `const X = "2px"` costume no longer passes.
 - Runtime values (the n×n grid template, per-dot delay) via **function styles** in `stylex.create`,
   never an inline DOM style. `React.memo` + `aria-hidden` on a decorative glyph. The public
   `style` hatch is the plain-object, React-Native-shaped component boundary from `style.ts`. It is
@@ -132,6 +136,7 @@ Do not add a raw `<button>` or repaint a shared Button, Picker, ListRow, or Menu
 migration removes. Focus-sensitive Lexical listbox options are the explicit exception: they keep
 their combobox semantics and editor-focus behavior while reusing canonical row anatomy.
 
-App composition may use token-backed Tailwind wrappers and named intrinsic StyleX values. Surface,
+App composition may use token-backed Tailwind wrappers and inline intrinsic StyleX values on
+non-token properties. Surface,
 radius, ring, typography, and hover/press/selected styling stay in `@honk/ui`; third-party DOM
 adapters live in a colocated CSS module, while root resets and vendor baseline imports stay global.

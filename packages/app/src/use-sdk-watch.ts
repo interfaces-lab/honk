@@ -9,15 +9,26 @@ import { useCallback, useSyncExternalStore } from "react";
 import { useSyncExternalStoreWithSelector } from "use-sync-external-store/with-selector";
 
 import {
+  getOpenCodeCatalogRevision,
+  getOpenCodeCatalogServerRevision,
   getSessionWatchServerSnapshot,
   getSessionWatchSnapshot,
   getWorkspaceWatchServerSnapshot,
   getWorkspaceWatchSnapshot,
+  subscribeOpenCodeCatalog,
   subscribeSessionWatch,
   subscribeWorkspaceWatch,
   type SessionWatchSnapshot,
   type WorkspaceWatchSnapshot,
 } from "./watch-registry";
+
+export function useOpenCodeCatalogRevision(): number {
+  return useSyncExternalStore(
+    subscribeOpenCodeCatalog,
+    getOpenCodeCatalogRevision,
+    getOpenCodeCatalogServerRevision,
+  );
+}
 
 /** Full session watch wrapper: `{ state, status }` from the registry. */
 export function useSessionWatch(ref: OpenCodeSessionRef): SessionWatchSnapshot {

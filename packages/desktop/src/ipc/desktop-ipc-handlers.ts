@@ -9,6 +9,7 @@ import {
 } from "./methods/browser-view";
 import { getAuxEndpoint } from "./methods/aux-endpoint";
 import { getOpencodeSidecar } from "./methods/opencode-sidecar";
+import { setKeepAwake } from "./methods/power";
 import {
   completeOnboarding,
   dismissOnboarding,
@@ -80,6 +81,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(setTheme);
   yield* ipc.handle(setBackgroundColor);
   yield* ipc.handle(setDisplayZoom);
+  yield* ipc.handle(setKeepAwake);
   yield* ipc.handle(expandWindowWidth);
   yield* ipc.handle(setVibrancy);
   yield* ipc.handle(showContextMenu);

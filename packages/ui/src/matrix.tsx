@@ -32,6 +32,21 @@ const sweep = stylex.keyframes({
   "100%": { opacity: 0.2, transform: "scale(0.78)" },
 });
 
+// Compass sweep: a steady center anchor plus eight two-dot rays flashed clockwise from north.
+const COMPASS_DURATION = "1550ms";
+// Negative delay slots each ray into its 1/8 window of the shared loop.
+const COMPASS_STEP_DELAY = "-193.75ms";
+const COMPASS_BASE_OPACITY = 0.08;
+const COMPASS_CENTER_OPACITY = 0.56;
+
+// Near-vertical edges keep the flash stepped rather than crossfaded.
+const compassFlash = stylex.keyframes({
+  "0%": { opacity: 1 },
+  "12.4%": { opacity: 1 },
+  "12.5%": { opacity: COMPASS_BASE_OPACITY },
+  "100%": { opacity: COMPASS_BASE_OPACITY },
+});
+
 // Keyframe samples of the attention pulse. Avoids a requestAnimationFrame render loop.
 const attentionCorePulse = stylex.keyframes({
   "0%": { opacity: ATTENTION_CORE_REST },
@@ -100,6 +115,7 @@ const styles = stylex.create({
   // reduce-motion sibling covers the SSR frame before the matchMedia store hydrates.
   animated: {
     animationName: { default: sweep, "@media (prefers-reduced-motion: reduce)": "none" },
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1.2s sweep cadence is fixed product anatomy, no motion token owns it
     animationDuration: { default: SWEEP_DURATION, "@media (prefers-reduced-motion: reduce)": "0s" },
     animationTimingFunction: SWEEP_EASING,
     animationIterationCount: "infinite",
@@ -112,6 +128,7 @@ const styles = stylex.create({
   attentionOuter: { opacity: ATTENTION_OUTER_REST },
   attentionAnimated: {
     animationDuration: {
+      // oxlint-disable-next-line honk/design-no-raw-values -- 1.4s attention pulse cadence is fixed product anatomy, no motion token owns it
       default: ATTENTION_DURATION,
       "@media (prefers-reduced-motion: reduce)": "0s",
     },
@@ -136,6 +153,19 @@ const styles = stylex.create({
       "@media (prefers-reduced-motion: reduce)": "none",
     },
   },
+  compassCenter: { opacity: COMPASS_CENTER_OPACITY },
+  compassRest: { opacity: COMPASS_BASE_OPACITY },
+  compassRayAnimated: {
+    animationName: { default: compassFlash, "@media (prefers-reduced-motion: reduce)": "none" },
+    animationDuration: {
+      // oxlint-disable-next-line honk/design-no-raw-values -- 1550ms compass cadence is fixed product anatomy, no motion token owns it
+      default: COMPASS_DURATION,
+      "@media (prefers-reduced-motion: reduce)": "0s",
+    },
+    animationTimingFunction: "linear",
+    animationIterationCount: "infinite",
+    opacity: { default: null, "@media (prefers-reduced-motion: reduce)": COMPASS_BASE_OPACITY },
+  },
 });
 
 const dynamic = stylex.create({
@@ -144,7 +174,12 @@ const dynamic = stylex.create({
     gridTemplateRows: `repeat(${n}, ${CELL_SIZE})`,
   }),
   delay: (path: number) => ({
+    // oxlint-disable-next-line honk/design-no-raw-values -- -0.72s per-dot diagonal pre-seek offset is fixed product anatomy, no motion token owns it
     animationDelay: `calc(${path} * ${SWEEP_DELAY_SPAN})`,
+  }),
+  compassDelay: (direction: number) => ({
+    // oxlint-disable-next-line honk/design-no-raw-values -- -193.75ms per-ray window offset is fixed product anatomy, no motion token owns it
+    animationDelay: `calc(${direction} * ${COMPASS_STEP_DELAY})`,
   }),
 });
 
@@ -186,6 +221,40 @@ function diagonalPath(index: number, n: number): number {
   return (row + (n - 1 - col)) / maxPath;
 }
 
+// Clockwise from north; index order is the flash order of the compass sweep.
+const COMPASS_DIRECTIONS: readonly (readonly [number, number])[] = [
+  [-1, 0],
+  [-1, 1],
+  [0, 1],
+  [1, 1],
+  [1, 0],
+  [1, -1],
+  [0, -1],
+  [-1, -1],
+];
+
+type CompassRole =
+  | { readonly kind: "center" }
+  | { readonly kind: "rest" }
+  | { readonly kind: "ray"; readonly direction: number };
+
+function compassRole(index: number, n: number): CompassRole {
+  const center = (n - 1) / 2;
+  const dRow = Math.floor(index / n) - center;
+  const dCol = (index % n) - center;
+  if (dRow === 0 && dCol === 0) {
+    return { kind: "center" };
+  }
+  // Ray cells sit on the horizontal, vertical, or exact diagonal through the center.
+  if (dRow !== 0 && dCol !== 0 && Math.abs(dRow) !== Math.abs(dCol)) {
+    return { kind: "rest" };
+  }
+  const direction = COMPASS_DIRECTIONS.findIndex(
+    ([row, col]) => row === Math.sign(dRow) && col === Math.sign(dCol),
+  );
+  return direction === -1 ? { kind: "rest" } : { kind: "ray", direction };
+}
+
 type AttentionBand = "core" | "ring" | "outer";
 
 function attentionBand(index: number, n: number): AttentionBand | null {
@@ -215,7 +284,7 @@ const attentionAnimatedStyles: Record<AttentionBand, stylex.StyleXStyles> = {
   outer: styles.attentionOuterAnimated,
 };
 
-type MatrixVariant = "working" | "attention";
+type MatrixVariant = "working" | "attention" | "compass";
 
 interface MatrixProps {
   grid?: number;
@@ -247,6 +316,25 @@ const Matrix = React.memo(function Matrix({
       ])}
     >
       {Array.from({ length: grid * grid }, (_, index) => {
+        if (variant === "compass") {
+          const role = compassRole(index, grid);
+          if (role.kind === "center") {
+            return <span key={index} {...stylex.props(styles.dot, styles.compassCenter)} />;
+          }
+          if (role.kind === "rest" || !isAnimating) {
+            return <span key={index} {...stylex.props(styles.dot, styles.compassRest)} />;
+          }
+          return (
+            <span
+              key={index}
+              {...stylex.props(
+                styles.dot,
+                styles.compassRayAnimated,
+                dynamic.compassDelay(role.direction),
+              )}
+            />
+          );
+        }
         if (variant === "attention") {
           const band = attentionBand(index, grid);
           if (band === null) {

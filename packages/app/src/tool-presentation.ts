@@ -45,8 +45,8 @@ function toolView(part: ToolPart): ToolView {
       ? artifactStats
       : metadataStats;
   const detail =
-    artifact?.kind === "source"
-      ? `${artifact.path} · lines ${String(artifact.lineStart)}–${String(artifact.lineEnd)}${artifact.truncated ? " · truncated" : ""}`
+    artifact?.kind === "source" && artifact.operation === "read"
+      ? `${artifact.path} · lines ${String(artifact.lineStart)}–${String(artifact.lineEnd)}`
       : toolDetail(part);
   const body = artifact === undefined ? toolOutput(part) : undefined;
   return {
@@ -94,8 +94,8 @@ function toolVerb(part: ToolPart, state: ToolCallState = toolLineState(part)): s
     case "websearch":
       return isRunning ? "Searching web" : "Searched web";
     case "task":
-      if (state === "failed") return "Delegation failed";
-      return isRunning ? "Delegating" : "Delegated";
+      if (state === "failed") return "Work failed";
+      return isRunning ? "Working" : "Completed";
     case "todowrite":
     case "todoread":
       return isRunning ? "Planning" : "Planned";

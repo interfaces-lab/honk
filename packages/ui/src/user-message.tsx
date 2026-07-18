@@ -7,12 +7,6 @@ import { Button } from "./button";
 import { applyStyle, type HonkStyle, type StyleProp } from "./style";
 import { colorVars, conversationVars, fontVars, radiusVars } from "./tokens.stylex";
 
-// Cursor 3.11.25 UserMessageBox uses spacing-2 inline and spacing-1.5 block.
-const BUBBLE_PAD_X = "10px";
-const BUBBLE_PAD_Y = "8px";
-const BUBBLE_CONTENT_GAP = "6px";
-const BUBBLE_FOOTER_GAP = "4px";
-const RING_WIDTH = "1px";
 // Black carries mask alpha only; the 65% stop is fixed Cursor clipping geometry.
 const PREVIEW_FADE_MASK = "linear-gradient(to bottom, black 65%, transparent 100%)";
 
@@ -44,7 +38,8 @@ const styles = stylex.create({
       position: "absolute",
       inset: 0,
       borderRadius: "inherit",
-      boxShadow: `inset 0 0 0 ${RING_WIDTH} ${colorVars["--honk-color-message-bubble-ring"]}`,
+      // oxlint-disable-next-line honk/design-no-raw-values -- 1px inset ring is fixed bubble geometry; no elevation token owns an inset ring
+      boxShadow: `inset 0 0 0 1px ${colorVars["--honk-color-message-bubble-ring"]}`,
       pointerEvents: "none",
     },
   },
@@ -55,11 +50,13 @@ const styles = stylex.create({
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
-    gap: BUBBLE_CONTENT_GAP,
+    gap: conversationVars["--honk-conversation-step-gap"],
     minWidth: 0,
     width: "100%",
-    paddingInline: BUBBLE_PAD_X,
-    paddingBlock: BUBBLE_PAD_Y,
+    // oxlint-disable-next-line honk/design-no-raw-values -- Cursor UserMessageBox bubble inline padding is fixed clone geometry; no conversation-surface padding token owns it
+    paddingInline: "10px",
+    // oxlint-disable-next-line honk/design-no-raw-values -- Cursor UserMessageBox bubble block padding is fixed clone geometry; no conversation-surface padding token owns it
+    paddingBlock: "8px",
     fontFamily: fontVars["--honk-font-family-ui"],
     fontSize: fontVars["--honk-font-size-body-lg"],
     lineHeight: fontVars["--honk-leading-heading"],
@@ -67,7 +64,7 @@ const styles = stylex.create({
     overflowWrap: "anywhere",
   },
   footer: {
-    marginTop: BUBBLE_FOOTER_GAP,
+    marginTop: conversationVars["--honk-conversation-row-gap"],
   },
   previewRoot: {
     display: "flex",

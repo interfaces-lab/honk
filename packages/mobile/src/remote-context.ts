@@ -1,5 +1,6 @@
 import type {
   OpenCodeClient,
+  OpenCodeEvent,
   OpenCodeServerDescriptor,
   OpenCodeServerKey,
   OpenCodeSessionInfo,
@@ -50,6 +51,10 @@ export interface RemoteContextValue {
   readonly error: string | null;
   readonly hasCredential: boolean;
   readonly clientFor: (server: OpenCodeServerKey) => OpenCodeClient | null;
+  readonly subscribeEvents: (
+    server: OpenCodeServerKey,
+    listener: (event: OpenCodeEvent) => void,
+  ) => () => void;
   readonly selectServer: (server: OpenCodeServerKey) => void;
   readonly connect: (input: ConnectRemoteInput) => Promise<void>;
   readonly retry: (server?: OpenCodeServerKey) => Promise<void>;

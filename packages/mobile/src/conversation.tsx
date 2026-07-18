@@ -1,6 +1,18 @@
 import * as React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import * as Clipboard from "expo-clipboard";
+import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
+import Animated, {
+  Easing,
+  FadeIn,
+  SlideInDown,
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
 import type {
   Message,
   OpenCodePermissionRequest,
@@ -9,17 +21,14 @@ import type {
 } from "@honk/opencode";
 import { TextField } from "@honk/ui/text-field";
 
+import { type ConversationItem, buildConversationItems } from "./conversation-items";
 import { MarkdownText } from "./markdown";
 import { ActionButton, BodyText, DetailText, useHonkTheme } from "./ui";
 
 type AssistantMessage = Extract<Message, { role: "assistant" }>;
 type ToolContent = Extract<Part, { type: "tool" }>;
 
-interface ConversationProps {
-  readonly messages: readonly Message[];
-  readonly parts: readonly Part[];
-  readonly questions: readonly OpenCodeQuestionRequest[];
-  readonly permissions: readonly OpenCodePermissionRequest[];
+interface ConversationActions {
   readonly onAnswerQuestion: (
     requestId: string,
     answers: readonly (readonly string[])[],
@@ -29,31 +38,49 @@ interface ConversationProps {
     requestId: string,
     reply: "once" | "always" | "reject",
   ) => Promise<void>;
+  readonly onOpenReasoning: (reasoning: string) => void;
 }
 
-function ExpandableText({
-  label,
+interface ConversationProps extends ConversationActions {
+  readonly messages: readonly Message[];
+  readonly parts: readonly Part[];
+  readonly questions: readonly OpenCodeQuestionRequest[];
+  readonly permissions: readonly OpenCodePermissionRequest[];
+}
+
+function ReasoningRow({
+  onOpen,
   text,
 }: {
-  readonly label: string;
+  readonly onOpen: () => void;
   readonly text: string;
 }): React.ReactElement | null {
   const theme = useHonkTheme();
-  const [expanded, setExpanded] = React.useState(false);
+  const label = text
+    .split("\n")
+    .map((line) => line.replace(/^#+\s*/, "").trim())
+    .find((line) => line.length > 0);
   if (text.trim() === "") return null;
   return (
-    <View style={{ gap: theme.metrics.space.compactGap }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
-        onPress={() => setExpanded((current) => !current)}
-      >
-        <DetailText>
-          {expanded ? `Hide ${label.toLocaleLowerCase()}` : `Show ${label.toLocaleLowerCase()}`}
-        </DetailText>
-      </Pressable>
-      {expanded ? <DetailText selectable>{text}</DetailText> : null}
-    </View>
+    <Pressable
+      accessibilityHint="Opens the full reasoning summary"
+      accessibilityLabel={label ?? "Reasoning"}
+      accessibilityRole="button"
+      onPress={onOpen}
+      style={({ pressed }) => [
+        styles.reasoningRow,
+        {
+          gap: theme.metrics.space.compactGap,
+          opacity: pressed ? theme.metrics.interaction.pressedOpacity : 1,
+          paddingVertical: theme.metrics.space.compactGap,
+        },
+      ]}
+    >
+      <DetailText numberOfLines={1} style={styles.reasoningLabel}>
+        {label ?? "Reasoning"}
+      </DetailText>
+      <DetailText>›</DetailText>
+    </Pressable>
   );
 }
 
@@ -174,12 +201,71 @@ function ToolContentView({ content }: { readonly content: ToolContent }): React.
   );
 }
 
-function AssistantContentView({ content }: { readonly content: Part }): React.ReactElement | null {
+function ThinkingIndicator(): React.ReactElement {
+  const theme = useHonkTheme();
+  const opacity = useSharedValue(0.35);
+  React.useEffect(() => {
+    opacity.set(withRepeat(withTiming(1, { duration: 900 }), -1, true));
+    return () => cancelAnimation(opacity);
+  }, [opacity]);
+  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.get() }));
+  return (
+    <Animated.Text
+      accessibilityLiveRegion="polite"
+      entering={FadeIn.delay(350).duration(250)}
+      style={[
+        animatedStyle,
+        {
+          color: theme.colors.textMuted,
+          fontSize: theme.metrics.font.detailSize,
+          lineHeight: theme.metrics.font.detailLeading,
+        },
+      ]}
+    >
+      Thinking…
+    </Animated.Text>
+  );
+}
+
+function AssistantActions({ text }: { readonly text: string }): React.ReactElement {
+  const theme = useHonkTheme();
+  const [copied, setCopied] = React.useState(false);
+  return (
+    <View style={[styles.assistantActions, { gap: theme.metrics.space.compactGap }]}>
+      <ActionButton
+        label={copied ? "Copied" : "Copy"}
+        onPress={() => {
+          void Clipboard.setStringAsync(text).then(() => {
+            setCopied(true);
+            if (process.env.EXPO_OS === "ios") void Haptics.selectionAsync();
+            setTimeout(() => setCopied(false), 1_200);
+          });
+        }}
+        size="compact"
+        tone="neutral"
+      />
+      <ActionButton
+        label="Share"
+        onPress={() => void Share.share({ message: text })}
+        size="compact"
+        tone="neutral"
+      />
+    </View>
+  );
+}
+
+function AssistantContentView({
+  content,
+  onOpenReasoning,
+}: {
+  readonly content: Part;
+  readonly onOpenReasoning: (reasoning: string) => void;
+}): React.ReactElement | null {
   switch (content.type) {
     case "text":
       return content.text.trim() === "" ? null : <MarkdownText markdown={content.text} />;
     case "reasoning":
-      return <ExpandableText label="Reasoning" text={content.text} />;
+      return <ReasoningRow onOpen={() => onOpenReasoning(content.text)} text={content.text} />;
     case "tool":
       return <ToolContentView content={content} />;
     case "compaction":
@@ -197,20 +283,32 @@ function assistantError(message: AssistantMessage): string | null {
 
 function AssistantMessageView({
   message,
+  onOpenReasoning,
   parts,
 }: {
   readonly message: AssistantMessage;
+  readonly onOpenReasoning: (reasoning: string) => void;
   readonly parts: readonly Part[];
 }): React.ReactElement {
   const theme = useHonkTheme();
   const error = assistantError(message);
+  const text = parts
+    .filter((part): part is Extract<Part, { type: "text" }> => part.type === "text")
+    .map((part) => part.text)
+    .join("\n\n")
+    .trim();
   return (
     <View style={{ gap: theme.metrics.space.contentGap }}>
       {parts.map((content) => (
-        <AssistantContentView key={content.id} content={content} />
+        <AssistantContentView
+          key={content.id}
+          content={content}
+          onOpenReasoning={onOpenReasoning}
+        />
       ))}
-      {message.time.completed === undefined && parts.length === 0 ? (
-        <DetailText>Thinking…</DetailText>
+      {message.time.completed === undefined && parts.length === 0 ? <ThinkingIndicator /> : null}
+      {message.time.completed !== undefined && text !== "" ? (
+        <AssistantActions text={text} />
       ) : null}
       {error === null ? null : (
         <View
@@ -225,7 +323,9 @@ function AssistantMessageView({
             },
           ]}
         >
-          <BodyText style={{ color: theme.colors.errFg }}>{error}</BodyText>
+          <BodyText selectable style={{ color: theme.colors.errFg }}>
+            {error}
+          </BodyText>
         </View>
       )}
     </View>
@@ -233,10 +333,14 @@ function AssistantMessageView({
 }
 
 function MessageView({
+  animate,
   message,
+  onOpenReasoning,
   parts,
 }: {
+  readonly animate: boolean;
   readonly message: Message;
+  readonly onOpenReasoning: (reasoning: string) => void;
   readonly parts: readonly Part[];
 }): React.ReactElement | null {
   const theme = useHonkTheme();
@@ -244,7 +348,10 @@ function MessageView({
   switch (message.role) {
     case "user":
       return (
-        <View
+        <Animated.View
+          {...(animate
+            ? { entering: SlideInDown.easing(Easing.out(Easing.exp)).duration(700) }
+            : {})}
           style={[
             styles.userMessage,
             {
@@ -271,10 +378,12 @@ function MessageView({
             }
             return null;
           })}
-        </View>
+        </Animated.View>
       );
     case "assistant":
-      return <AssistantMessageView message={message} parts={parts} />;
+      return (
+        <AssistantMessageView message={message} onOpenReasoning={onOpenReasoning} parts={parts} />
+      );
   }
 }
 
@@ -495,39 +604,62 @@ function PermissionCard({
   );
 }
 
+export function ConversationRow({
+  actions,
+  animateMessageID,
+  item,
+}: {
+  readonly actions: ConversationActions;
+  readonly animateMessageID: string | null;
+  readonly item: ConversationItem;
+}): React.ReactElement | null {
+  switch (item.type) {
+    case "message":
+      return (
+        <MessageView
+          key={item.id}
+          animate={item.id === animateMessageID}
+          message={item.message}
+          onOpenReasoning={actions.onOpenReasoning}
+          parts={item.parts}
+        />
+      );
+    case "question":
+      return (
+        <QuestionCard
+          key={item.id}
+          onAnswer={(answers) => actions.onAnswerQuestion(item.request.id, answers)}
+          onReject={() => actions.onRejectQuestion(item.request.id)}
+          request={item.request}
+        />
+      );
+    case "permission":
+      return (
+        <PermissionCard
+          key={item.id}
+          onAnswer={(reply) => actions.onAnswerPermission(item.request.id, reply)}
+          request={item.request}
+        />
+      );
+  }
+}
+
 export function Conversation({
   messages,
   onAnswerPermission,
   onAnswerQuestion,
+  onOpenReasoning,
   onRejectQuestion,
   permissions,
   parts,
   questions,
 }: ConversationProps): React.ReactElement {
   const theme = useHonkTheme();
+  const actions = { onAnswerPermission, onAnswerQuestion, onOpenReasoning, onRejectQuestion };
   return (
     <View style={{ gap: theme.metrics.space.rowGap }}>
-      {messages.map((message) => (
-        <MessageView
-          key={message.id}
-          message={message}
-          parts={parts.filter((part) => part.messageID === message.id)}
-        />
-      ))}
-      {questions.map((request) => (
-        <QuestionCard
-          key={request.id}
-          onAnswer={(answers) => onAnswerQuestion(request.id, answers)}
-          onReject={() => onRejectQuestion(request.id)}
-          request={request}
-        />
-      ))}
-      {permissions.map((request) => (
-        <PermissionCard
-          key={request.id}
-          onAnswer={(reply) => onAnswerPermission(request.id, reply)}
-          request={request}
-        />
+      {buildConversationItems({ messages, parts, permissions, questions }).map((item) => (
+        <ConversationRow key={item.id} actions={actions} animateMessageID={null} item={item} />
       ))}
     </View>
   );
@@ -540,12 +672,22 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "flex-end",
   },
+  assistantActions: {
+    flexDirection: "row",
+  },
   card: {
     width: "100%",
   },
   image: {
     aspectRatio: 4 / 3,
     width: "100%",
+  },
+  reasoningLabel: {
+    flex: 1,
+  },
+  reasoningRow: {
+    alignItems: "center",
+    flexDirection: "row",
   },
   toolHeader: {
     alignItems: "center",

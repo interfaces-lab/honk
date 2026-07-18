@@ -11,9 +11,6 @@ import * as React from "react";
 // its own preact DOM that StyleX cannot reach, so this is a first-party folder-grouped
 // collapsible tree over the same OpenCodeVcsFileStatus rows.
 
-const INDENT_STEP = "14px";
-const ROW_GLYPH_MIN = "14px";
-
 type FileNode = {
   readonly kind: "file";
   readonly name: string;
@@ -116,7 +113,8 @@ const styles = stylex.create({
     },
   },
   indent: (depth: number) => ({
-    paddingInlineStart: `calc(${spaceVars["--honk-space-gutter"]} + ${depth} * ${INDENT_STEP})`,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 14px per-depth tree indent step is fixed geometry, no spacing token owns it
+    paddingInlineStart: `calc(${spaceVars["--honk-space-gutter"]} + ${depth} * 14px)`,
   }),
   disclosure: {
     display: "inline-flex",
@@ -130,7 +128,7 @@ const styles = stylex.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    minWidth: ROW_GLYPH_MIN,
+    minWidth: "14px",
     fontFamily: fontVars["--honk-font-family-mono"],
     fontSize: fontVars["--honk-font-size-caption"],
     lineHeight: 1,
@@ -147,7 +145,7 @@ const styles = stylex.create({
   },
   dirName: {
     color: colorVars["--honk-color-text-muted"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
   },
   fileName: {
     fontFamily: fontVars["--honk-font-family-mono"],

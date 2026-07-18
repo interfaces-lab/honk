@@ -70,10 +70,15 @@ model, retries twice, removes reasoning and extra lines, caps the result, stores
 `session.updated`.
 
 The canonical session runner still creates the timestamp default and explicitly leaves title work
-unfinished; its public session group also has no title mutation. Honk therefore treats
-`session.updated` as an invalidation and will display any server-owned title that arrives, but it
-does not fabricate a first-line title or call the compatibility endpoint. Automatic generation and
-manual rename stay disabled until the canonical server owns both operations.
+unfinished. Honk therefore treats `session.updated` as an invalidation and will display any
+server-owned title that arrives, but it does not fabricate a first-line title or call the
+compatibility endpoint for automatic generation.
+
+Manual rename is enabled: double-clicking a tab title edits it in place, and Honk commits the new
+title through the stable session group's update endpoint (`PATCH /session/{id}`) — the same call
+OpenCode desktop's own tab strip makes. The rename is optimistic in the tab store and reverted
+with a toast if the server rejects it; the resulting `session.updated` event re-syncs every other
+view.
 
 ## Remote host boundary
 
@@ -123,9 +128,18 @@ not code to port into Honk's boundary.
 the current generated namespace or recreate the retired thread/workspace facade inside the adapter.
 
 The global event union still contains transitional metadata events. A server context may use only
-those events' discriminants as invalidation signals and then refetch `sessions.list()`; it must not
-store or export a compatibility event payload as a canonical session record. Durable history and
-projected messages remain session-native.
+those events' discriminants as workspace or request-queue invalidations; it must not store or
+export a compatibility event payload as a canonical session record. The live-only
+`session.next.*.delta` events may temporarily overlay the matching projected part, but they never
+advance a cursor. Projected messages and the per-session durable event stream own canonical
+conversation state.
+
+An open session retains its last applied durable aggregate sequence and reconnects with that value
+as the exclusive `after` cursor. Cold bootstrap loads a visible snapshot, reads durable history to
+its watermark, reconciles the snapshot once, and then subscribes after the watermark. A durable
+boundary fetches only its affected canonical message; whole-transcript reconciliation is reserved
+for aggregate-wide changes such as move, model/agent switch, or committed revert. Global reconnect,
+status, idle, and compatibility message events must never trigger transcript reloads.
 
 ## Port order
 
@@ -133,8 +147,9 @@ projected messages remain session-native.
    make `(server, sessionID)` the only session identity.
 2. Persist session tabs, local drafts, recent selection, display information, and closed-tab history
    per stable desktop window. Promote a draft atomically after `sessions.create()`.
-3. Let one server context own each global event stream and fan invalidations to the session index and
-   open session stores. Do not open one global stream per tab.
+3. Let one server context own each global event stream and fan workspace invalidations and
+   ephemeral deltas to open session stores. Give each retained open session one separately
+   reconnecting durable stream; do not multiply either stream because leaf views remount.
 4. Build Home from paginated `sessions.list()` plus `sessions.active()`; build a session page from
    `get()`, `messages()`, `history()`, and durable events.
 5. Map pending questions or permissions to the yellow circular matrix, active execution to the

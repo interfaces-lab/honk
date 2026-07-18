@@ -73,6 +73,21 @@ function openCodeTabHref(tab: OpenCodeTab): string {
   return openCodeSessionHref(openCodeSessionRef(tab.server, tab.sessionID));
 }
 
+function openCodeSessionRefFromRouteParams(
+  serverSegment: unknown,
+  sessionID: unknown,
+): OpenCodeSessionRef | null {
+  if (typeof serverSegment !== "string" || typeof sessionID !== "string") return null;
+
+  try {
+    const decodedServer = decodeBase64Url(serverSegment);
+    if (encodeBase64Url(decodedServer) !== serverSegment) return null;
+    return openCodeSessionRef(openCodeServerKey(decodedServer), sessionID);
+  } catch {
+    return null;
+  }
+}
+
 function parseOpenCodeTabHref(href: string): OpenCodeTabRoute | null {
   let url: URL;
   try {
@@ -99,12 +114,11 @@ function parseOpenCodeTabHref(href: string): OpenCodeTabRoute | null {
   if (serverSegment === undefined || sessionSegment === undefined) return null;
 
   try {
-    const decodedServer = decodeBase64Url(serverSegment);
-    if (encodeBase64Url(decodedServer) !== serverSegment) return null;
-    const ref = openCodeSessionRef(
-      openCodeServerKey(decodedServer),
+    const ref = openCodeSessionRefFromRouteParams(
+      serverSegment,
       decodeURIComponent(sessionSegment),
     );
+    if (ref === null) return null;
     const workbench: OpenCodeWorkbenchRouteTarget | undefined =
       workbenchSegment !== undefined
         ? Object.freeze({
@@ -172,6 +186,7 @@ export {
   isWorkbenchTool,
   openCodeDraftHref,
   openCodeSessionHref,
+  openCodeSessionRefFromRouteParams,
   openCodeSideChatHref,
   openCodeTabHref,
   openCodeWorkbenchClosedHref,

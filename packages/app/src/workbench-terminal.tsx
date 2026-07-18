@@ -296,7 +296,7 @@ function WorkbenchTerminal({
   if (bridge === null) {
     return (
       <div {...props(styles.center)}>
-        <Text as="p" size="sm" tone="muted" weight="medium">
+        <Text as="p" size="sm" tone="muted" weight="regular">
           Terminal needs the desktop shell
         </Text>
         <Text as="p" size="xs" tone="faint">

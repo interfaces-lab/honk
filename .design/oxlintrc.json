@@ -11,7 +11,7 @@
   },
   "overrides": [
     {
-      "files": ["packages/ui/src/**/*.{ts,tsx}", "packages/ui/dev/**/*.{ts,tsx}"],
+      "files": ["**/packages/ui/src/**/*.{ts,tsx}", "**/packages/ui/dev/**/*.{ts,tsx}"],
       "rules": {
         "honk/design-no-banned-imports": "error",
         "honk/design-no-border-shorthand": "error",
@@ -25,7 +25,7 @@
       }
     },
     {
-      "files": ["packages/app/src/**/*.{ts,tsx}"],
+      "files": ["**/packages/app/src/**/*.{ts,tsx}"],
       "rules": {
         "honk/design-no-border-shorthand": "error",
         "honk/design-no-canonical-control-overrides": "error",
@@ -37,7 +37,7 @@
       }
     },
     {
-      "files": ["packages/mobile/**/*.{ts,tsx}"],
+      "files": ["**/packages/mobile/**/*.{ts,tsx}"],
       "rules": {
         "honk/design-no-canonical-control-overrides": "error"
       }

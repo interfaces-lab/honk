@@ -12,7 +12,7 @@ import { resolveNativeTheme } from "./theme";
 type TextElement = "span" | "p" | "div" | "label";
 type TextSize = "xs" | "sm" | "base" | "lg" | "xl";
 type TextTone = "primary" | "muted" | "faint" | "accent" | "ok" | "warn" | "err" | "inherit";
-type TextWeight = "regular" | "medium" | "semibold";
+type TextWeight = "regular" | "semibold";
 type TextAlign = "start" | "center" | "end";
 type TextFamily = "ui" | "mono" | "rounded";
 
@@ -69,12 +69,7 @@ function Text({
                 : tone === "err"
                   ? theme.colors.errFg
                   : undefined;
-  const fontWeight =
-    weight === "semibold"
-      ? font.weightSemibold
-      : weight === "medium"
-        ? font.weightMedium
-        : font.weightRegular;
+  const fontWeight = weight === "semibold" ? font.weightSemibold : font.weightRegular;
   const textStyle: TextStyle = {
     ...sizeStyle,
     ...(color === undefined ? {} : { color }),
@@ -95,12 +90,4 @@ function Text({
 }
 
 export { Text };
-export type {
-  TextAlign,
-  TextElement,
-  TextFamily,
-  TextProps,
-  TextSize,
-  TextTone,
-  TextWeight,
-};
+export type { TextAlign, TextElement, TextFamily, TextProps, TextSize, TextTone, TextWeight };

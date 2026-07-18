@@ -71,7 +71,7 @@
   color: var(--honk-color-toast-muted);
   font-size: var(--honk-toast-description-size);
   line-height: var(--honk-toast-description-leading);
-  font-weight: var(--honk-font-weight-medium);
+  font-weight: var(--honk-font-weight-regular);
 }
 
 [data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-button] {

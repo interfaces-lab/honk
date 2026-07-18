@@ -50,6 +50,7 @@ minimumReleaseAgeExclude:
   - opencode-windows-arm64@1.17.20 || 1.18.1
   - opencode-windows-x64-baseline@1.17.20 || 1.18.1
   - opencode-windows-x64@1.17.20 || 1.18.1
+  - "@legendapp/list@3.3.3"
 
 patchedDependencies:
   metro@0.84.4: patches/metro@0.84.4.patch

@@ -17,11 +17,30 @@ import {
 import * as React from "react";
 
 const styles = stylex.create({
-  mentionChip: { display: "inline-flex", alignItems: "center", gap: controlVars["--honk-control-gap"], height: "22px", maxWidth: "240px", paddingInline: "5px", borderRadius: radiusVars["--honk-radius-pill"], backgroundColor: colorVars["--honk-color-control"] },
+  mentionChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: controlVars["--honk-control-gap"],
+    height: "22px",
+    maxWidth: "240px",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 5px chip inset is fixed pill geometry, no spacing token owns it
+    paddingInline: "5px",
+    borderRadius: radiusVars["--honk-radius-pill"],
+    backgroundColor: colorVars["--honk-color-control"],
+  },
   mentionChipLabel: { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  commandChip: { display: "inline-flex", alignItems: "center", height: "22px", paddingInline: "5px", borderRadius: radiusVars["--honk-radius-pill"], backgroundColor: colorVars["--honk-color-control"], fontFamily: fontVars["--honk-font-family-mono"] },
+  commandChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    height: "22px",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 5px chip inset is fixed pill geometry, no spacing token owns it
+    paddingInline: "5px",
+    borderRadius: radiusVars["--honk-radius-pill"],
+    backgroundColor: colorVars["--honk-color-control"],
+    fontFamily: fontVars["--honk-font-family-mono"],
+  },
   commandTooltip: { display: "flex", flexDirection: "column", gap: spaceVars["--honk-space-gutter"], maxWidth: "240px" },
-  commandTooltipTitle: { fontWeight: 600 },
+  commandTooltipTitle: { fontWeight: fontVars["--honk-font-weight-semibold"] },
   commandTooltipBody: { color: colorVars["--honk-color-text-muted"] },
 });
 

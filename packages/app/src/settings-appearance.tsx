@@ -11,7 +11,6 @@ import { actions as appSettingsActions, useAppSettings } from "./app-settings-st
 import {
   actions as appearanceActions,
   DEFAULT_APPEARANCE,
-  type FontSmoothing,
   useAppearance,
   type ThemePreference,
 } from "./appearance-store";
@@ -53,11 +52,6 @@ const THEME_OPTIONS = [
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
 ] as const satisfies readonly { readonly value: ThemePreference; readonly label: string }[];
-
-const FONT_SMOOTHING_OPTIONS = [
-  { value: "antialiased", label: "Grayscale" },
-  { value: "auto", label: "Crisp" },
-] as const satisfies readonly { readonly value: FontSmoothing; readonly label: string }[];
 
 const DENSITY_OPTIONS = [
   {
@@ -120,6 +114,7 @@ const styles = stylex.create({
   tabStyleTrafficLights: {
     display: "flex",
     alignItems: "center",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 3px dot spacing is fixed miniature-preview geometry, no spacing token owns the preview scale
     gap: TAB_STYLE_DOT_SIZE,
     flexShrink: 0,
   },
@@ -135,6 +130,7 @@ const styles = stylex.create({
     display: "flex",
     justifyContent: "flex-end",
     alignItems: "center",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 3px tab spacing is fixed miniature-preview geometry, no spacing token owns the preview scale
     gap: TAB_STYLE_DOT_SIZE,
   },
   tabStyleTab: {
@@ -151,7 +147,9 @@ const styles = stylex.create({
     minHeight: 0,
     flexGrow: 1,
     display: "flex",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 3px stage gutter is fixed miniature-preview geometry, no spacing token owns the preview scale
     gap: TAB_STYLE_STAGE_GUTTER,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 3px stage gutter is fixed miniature-preview geometry, no spacing token owns the preview scale
     padding: TAB_STYLE_STAGE_GUTTER,
     backgroundColor: colorVars["--honk-color-bg-deep"],
   },
@@ -160,7 +158,9 @@ const styles = stylex.create({
     flexShrink: 0,
     display: "flex",
     flexDirection: "column",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 3px row spacing is fixed miniature-preview geometry, no spacing token owns the preview scale
     gap: TAB_STYLE_DOT_SIZE,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 3px row inset is fixed miniature-preview geometry, no spacing token owns the preview scale
     paddingBlock: TAB_STYLE_DOT_SIZE,
     // Miniature only — real sidebar uses --honk-sidebar-* tokens, not these preview constants.
     backgroundColor: "transparent",
@@ -183,6 +183,7 @@ const styles = stylex.create({
     padding: spaceVars["--honk-space-gutter"],
     borderRadius: radiusVars["--honk-radius-control"],
     backgroundColor: colorVars["--honk-color-bg-base"],
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1px inset hairline ring is fixed geometry, no elevation token owns an inset 1px border-via-shadow
     boxShadow: `inset 0 0 0 1px ${colorVars["--honk-color-border-muted"]}`,
   },
   tabStyleContentLine: {
@@ -248,31 +249,6 @@ function ThemeSelect(props: {
       </Picker.Trigger>
       <Picker.Popup label="Theme preference" layer="dialog" align="end">
         {THEME_OPTIONS.map((option) => (
-          <Picker.Option key={option.value} value={option.value} label={option.label} />
-        ))}
-      </Picker.Popup>
-    </Picker.Root>
-  );
-}
-
-function FontSmoothingSelect(props: {
-  readonly value: FontSmoothing;
-  readonly onChange: (value: FontSmoothing) => void;
-}): React.ReactElement {
-  const label =
-    FONT_SMOOTHING_OPTIONS.find((option) => option.value === props.value)?.label ?? "Grayscale";
-  return (
-    <Picker.Root
-      value={props.value}
-      onValueChange={(value) => {
-        props.onChange(value as FontSmoothing);
-      }}
-    >
-      <Picker.Trigger size="sm" accessibilityLabel="Font smoothing">
-        {label}
-      </Picker.Trigger>
-      <Picker.Popup label="Font smoothing" layer="dialog" align="end">
-        {FONT_SMOOTHING_OPTIONS.map((option) => (
           <Picker.Option key={option.value} value={option.value} label={option.label} />
         ))}
       </Picker.Popup>
@@ -631,7 +607,7 @@ export function SettingsAppearance(): React.ReactElement {
           />
           <SettingsRow
             title="Font smoothing"
-            description="Grayscale renders text lighter; Crisp uses your system's rendering for heavier, sharper text."
+            description="Use native macOS font anti-aliasing."
             isLast
             resetAction={
               appearance.fontSmoothing === DEFAULT_APPEARANCE.fontSmoothing ? null : (
@@ -644,10 +620,12 @@ export function SettingsAppearance(): React.ReactElement {
               )
             }
             control={
-              <FontSmoothingSelect
-                value={appearance.fontSmoothing}
-                onChange={(value) => {
-                  appearanceActions.setFontSmoothing(value);
+              <Switch
+                size="sm"
+                checked={appearance.fontSmoothing === "antialiased"}
+                aria-label="Font smoothing"
+                onCheckedChange={(checked) => {
+                  appearanceActions.setFontSmoothing(checked ? "antialiased" : "auto");
                 }}
               />
             }

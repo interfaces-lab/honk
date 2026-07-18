@@ -3,7 +3,6 @@ import {
   createOpenCodeTargetedSession,
   createOpenCodeServer,
   openCodeLocationRef,
-  openCodeMessageID,
   openCodeSessionKey,
   openCodeSessionRef,
   openCodeSessionRefFromInfo,
@@ -47,6 +46,7 @@ import {
 } from "./opencode/tab-presentation";
 import { openCodeWorkbenchToolHref, parseOpenCodeTabHref } from "./opencode/tab-route";
 import { createOpenCodeWindowTabStore, type OpenCodeTabStorage } from "./opencode/tab-store";
+import { sendSessionPrompt } from "./session-prompt";
 import { actions as toastActions } from "./toast-store";
 import { getBoundOpenCodeClient, getOpenCodeClient, subscribeSessionWatch } from "./watch-registry";
 
@@ -104,6 +104,9 @@ const windowTabStore = createOpenCodeWindowTabStore({
 });
 const listeners = new Set<() => void>();
 const servers = new Map<OpenCodeServerKey, OpenCodeServerDescriptor>();
+// Server home directories for ~-abbreviated preview paths. Fetched once per server, retried on the next server event when no client was connected yet.
+let serverHomes: Readonly<Record<string, string>> = Object.freeze({});
+const serverHomeLoads = new Set<OpenCodeServerKey>();
 let presentations: OpenCodeTabPresentations = Object.freeze({});
 let controller: OpenCodeTabController | null = null;
 let browserAutomationOpenInstalled = false;
@@ -400,6 +403,48 @@ export const actions = {
     if (resolved !== null) setPresentation(resolved, { title });
   },
 
+  // User rename. Optimistic locally, canonical on the server, reverted with a toast on failure.
+  rename(key: string, title: string): void {
+    const trimmed = title.trim();
+    if (trimmed.length === 0) return;
+    const resolved = resolveOpenTabKey(key);
+    if (resolved === null) return;
+    const state = windowTabStore.getSnapshot();
+    const stateTab = state.tabs.find((candidate) => openCodeTabKey(candidate) === resolved);
+    const ref = stateTab === undefined ? null : openCodeTabSessionRef(stateTab);
+    // Drafts have no session to rename. Their titles stay generated.
+    if (ref === null) return;
+    const sessionKey = openCodeSessionTabKey(ref);
+    const previousTitle = presentations[sessionKey]?.title ?? state.info[sessionKey]?.title;
+    if (trimmed === previousTitle) return;
+    const client = getOpenCodeClient(ref.server);
+    if (client === null) {
+      showConnectionError("The OpenCode connection is not ready yet.");
+      return;
+    }
+    const directory = state.info[sessionKey]?.directory;
+    const remember = (value: string): void => {
+      setPresentation(sessionKey, { title: value });
+      if (directory !== undefined) {
+        windowTabStore.actions.rememberSessionInfo(ref, {
+          title: value,
+          location: { directory },
+        });
+      }
+    };
+    remember(trimmed);
+    void client.sessions.update(ref, { title: trimmed }).catch((error: unknown) => {
+      if (previousTitle !== undefined) remember(previousTitle);
+      const message = errorMessage(error);
+      toastActions.add({
+        type: "error",
+        title: "Rename failed",
+        description: message,
+        copyableError: message,
+      });
+    });
+  },
+
   setStatus(key: string, status: TabStatus): void {
     const resolved = resolveOpenTabKey(key);
     if (resolved !== null) setPresentation(resolved, { status });
@@ -497,6 +542,7 @@ function projectSnapshot(): Snapshot {
     state,
     servers: [...servers.values()],
     presentations,
+    homes: serverHomes,
   });
   const reopenStack = state.closed.map((entry): ReopenEntry => {
     const key = openCodeTabKey(entry.tab);
@@ -565,9 +611,30 @@ function syncRetainedSessionWatches(): void {
 
 function rememberServerKey(key: OpenCodeServerKey): void {
   if (!servers.has(key)) servers.set(key, createOpenCodeServer({ origin: key }));
+  ensureServerHome(key);
+}
+
+function ensureServerHome(key: OpenCodeServerKey): void {
+  if (serverHomes[key] !== undefined || serverHomeLoads.has(key)) return;
+  const client = getOpenCodeClient(key);
+  if (client === null) return;
+  serverHomeLoads.add(key);
+  client
+    .resolvePath()
+    .then((path) => {
+      serverHomes = Object.freeze({ ...serverHomes, [key]: path.home });
+      publishProjection();
+    })
+    .catch(() => {
+      // Preview paths stay unabbreviated. The next server event retries.
+    })
+    .finally(() => {
+      serverHomeLoads.delete(key);
+    });
 }
 
 function rememberServer(server: OpenCodeServerDescriptor): void {
+  ensureServerHome(server.key);
   const previous = servers.get(server.key);
   if (
     previous?.origin === server.origin &&
@@ -751,14 +818,9 @@ async function createAndOpenThread(
   }
 
   try {
-    await client.sessions.prompt(ref, {
-      id: openCodeMessageID(crypto.randomUUID()),
-      prompt: {
-        text: trimmedPrompt,
-        ...(input.files === undefined || input.files.length === 0
-          ? {}
-          : { files: [...input.files] }),
-      },
+    await sendSessionPrompt(client, ref.sessionID, {
+      text: trimmedPrompt,
+      ...(input.files === undefined || input.files.length === 0 ? {} : { files: input.files }),
     });
   } catch (error) {
     const message = errorMessage(error);

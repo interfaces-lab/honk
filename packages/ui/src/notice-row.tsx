@@ -12,8 +12,6 @@ import { colorVars, conversationVars, fontVars } from "./tokens.stylex";
 // role=status for warning. role=alert for error.
 type NoticeSeverity = "warning" | "error";
 
-const ROW_PAD_Y = "2px";
-
 const styles = stylex.create({
   root: {
     display: "flex",
@@ -23,7 +21,8 @@ const styles = stylex.create({
     maxWidth: "100%",
     boxSizing: "border-box",
     paddingInline: conversationVars["--honk-conversation-inset"],
-    paddingBlock: ROW_PAD_Y,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 2px optical top/bottom nudge to align the notice glyph baseline; no spacing token owns this sub-grid value
+    paddingBlock: "2px",
     fontFamily: fontVars["--honk-font-family-ui"],
     fontSize: fontVars["--honk-text-title"],
     lineHeight: fontVars["--honk-leading-title"],
@@ -84,7 +83,7 @@ function NoticeRow({
       <Icon icon={IconExclamationCircle} size="lg" tone="current" />
       <Text as="span" size="lg" tone="inherit" style={forward.content}>
         {name !== undefined && name.length > 0 && (
-          <Text as="span" size="lg" tone="inherit" weight="medium" style={forward.name}>
+          <Text as="span" size="lg" tone="inherit" weight="regular" style={forward.name}>
             {name}
           </Text>
         )}

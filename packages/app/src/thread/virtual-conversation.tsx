@@ -1,9 +1,40 @@
 import * as stylex from "@stylexjs/stylex";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import {
+  elementScroll,
+  useVirtualizer,
+  type VirtualItem,
+  type Virtualizer,
+} from "@tanstack/react-virtual";
 import * as React from "react";
 
 const DEFAULT_OVERSCAN = 8;
 const DEFAULT_FOOTER_ESTIMATE_PX = 48;
+const MAX_RETAINED_CONVERSATIONS = 50;
+
+type RetainedConversation = {
+  readonly offset: number;
+  readonly measurements: Array<VirtualItem>;
+  readonly shouldFollow: boolean;
+};
+
+const retainedConversations = new Map<string, RetainedConversation>();
+
+type ElementScrollOptions = Parameters<typeof elementScroll>[1];
+
+function scrollWithDeferredAdjustments(
+  offset: number,
+  options: ElementScrollOptions,
+  instance: Virtualizer<HTMLDivElement, HTMLDivElement>,
+): void {
+  if (options.adjustments === undefined) {
+    elementScroll(offset, options, instance);
+    return;
+  }
+  // Adjustment writes must land after the sizer grows, or the browser clamps them.
+  queueMicrotask(() => {
+    elementScroll(offset, options, instance);
+  });
+}
 
 const styles = stylex.create({
   plane: {
@@ -20,6 +51,9 @@ const styles = stylex.create({
     boxSizing: "border-box",
     contain: "layout",
   },
+});
+const dynamic = stylex.create({
+  rowGap: (px: number) => ({ paddingBlockEnd: `${String(px)}px` }),
 });
 
 export type VirtualConversationController = {
@@ -44,6 +78,7 @@ export type VirtualConversationProps<Row> = {
   readonly initialViewportHeightPx: number;
   readonly nearEndThresholdPx: number;
   readonly isStreaming: boolean;
+  readonly restorationKey?: string;
 };
 
 export function VirtualConversation<Row>({
@@ -61,12 +96,14 @@ export function VirtualConversation<Row>({
   initialViewportHeightPx,
   nearEndThresholdPx,
   isStreaming,
+  restorationKey,
 }: VirtualConversationProps<Row>): React.ReactElement {
   const rowCount = rows.length;
   const hasFooter = footer != null;
-  const isStreamingRef = React.useRef(isStreaming);
-  const shouldFollowRef = React.useRef(true);
-  isStreamingRef.current = isStreaming;
+  const [restoredConversation] = React.useState(() =>
+    restorationKey === undefined ? null : (retainedConversations.get(restorationKey) ?? null),
+  );
+  const shouldFollowRef = React.useRef(restoredConversation?.shouldFollow ?? true);
 
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rowCount + (hasFooter ? 1 : 0),
@@ -82,21 +119,24 @@ export function VirtualConversation<Row>({
     overscan: DEFAULT_OVERSCAN,
     paddingEnd: bottomClearancePx,
     initialRect: { width: 0, height: initialViewportHeightPx },
+    initialOffset: restoredConversation?.offset ?? 0,
+    initialMeasurementsCache: restoredConversation?.measurements ?? [],
     anchorTo: "end",
     followOnAppend: true,
     scrollEndThreshold: nearEndThresholdPx,
     useAnimationFrameWithResizeObserver: true,
+    directDomUpdates: true,
+    scrollToFn: scrollWithDeferredAdjustments,
   });
-  const totalSize = virtualizer.getTotalSize();
 
   React.useLayoutEffect(() => {
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, delta, instance) => {
       if (delta === 0) return false;
-      if (isStreamingRef.current) return shouldFollowRef.current;
+      if (isStreaming) return shouldFollowRef.current;
       const scrollOffset = instance.scrollOffset ?? 0;
       return item.start < scrollOffset && instance.scrollDirection !== "backward";
     };
-  }, [virtualizer]);
+  }, [isStreaming, virtualizer]);
 
   React.useLayoutEffect(() => {
     const scrollElement = scrollElementRef.current;
@@ -121,7 +161,19 @@ export function VirtualConversation<Row>({
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [bottomClearancePx, isStreaming, rowCount, totalSize, virtualizer]);
+  }, [bottomClearancePx, isStreaming, rowCount, virtualizer]);
+
+  React.useLayoutEffect(() => {
+    if (restorationKey === undefined) return;
+    const scrollElement = scrollElementRef.current;
+    return () => {
+      retainConversation(restorationKey, {
+        offset: virtualizer.scrollOffset ?? scrollElement?.scrollTop ?? 0,
+        measurements: virtualizer.takeSnapshot(),
+        shouldFollow: shouldFollowRef.current,
+      });
+    };
+  }, [restorationKey, scrollElementRef, virtualizer]);
 
   React.useLayoutEffect(() => {
     if (controllerRef === undefined) return;
@@ -143,9 +195,9 @@ export function VirtualConversation<Row>({
 
   return (
     <div
+      ref={virtualizer.containerRef}
       data-virtual-conversation=""
       {...stylex.props(styles.plane)}
-      style={{ height: totalSize }}
     >
       {virtualizer.getVirtualItems().map((virtualRow) => {
         const row = rows[virtualRow.index];
@@ -162,11 +214,7 @@ export function VirtualConversation<Row>({
             }}
             data-index={virtualRow.index}
             data-virtual-conversation-row=""
-            {...stylex.props(styles.row)}
-            style={{
-              transform: `translateY(${String(virtualRow.start)}px)`,
-              paddingBlockEnd: rowGapPx,
-            }}
+            {...stylex.props(styles.row, dynamic.rowGap(rowGapPx))}
           >
             {row === undefined ? footer : renderRow(row, virtualRow.index)}
           </div>
@@ -174,4 +222,12 @@ export function VirtualConversation<Row>({
       })}
     </div>
   );
+}
+
+function retainConversation(key: string, state: RetainedConversation): void {
+  retainedConversations.delete(key);
+  retainedConversations.set(key, state);
+  if (retainedConversations.size <= MAX_RETAINED_CONVERSATIONS) return;
+  const oldest = retainedConversations.keys().next().value;
+  if (oldest !== undefined) retainedConversations.delete(oldest);
 }

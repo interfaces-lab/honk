@@ -4,8 +4,21 @@ import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
 import { Button } from "./button";
-import { Icon } from "./icon";
-import { IconChevronDownMedium, IconFileBend } from "./icons";
+import { Icon, type Glyph } from "./icon";
+import {
+  IconChevronDownMedium,
+  IconCode,
+  IconFileBend,
+  IconFileJpg,
+  IconFilePdf,
+  IconFilePng,
+  IconFileText,
+  IconFileZip,
+  IconJavascript,
+  IconJson,
+  IconMarkdown,
+  IconTypescript,
+} from "./icons";
 import { applyStyle, type HonkStyle, type StyleProp } from "./style";
 import { Text } from "./text";
 import { colorVars, controlVars, fontVars, radiusVars, spaceVars } from "./tokens.stylex";
@@ -30,9 +43,68 @@ interface ChangeReceiptProps {
 const DEFAULT_VISIBLE_COUNT = 5;
 const MIN_VISIBLE_COUNT = 2;
 const RECEIPT_RING_WIDTH = "1px";
-const FOCUS_RING_WIDTH = "1px";
-const FOCUS_RING_OFFSET_INSET = "-1px";
 const RECEIPT_RING = `inset 0 0 0 ${RECEIPT_RING_WIDTH} ${colorVars["--honk-color-border-base"]}`;
+const FILE_TYPE_ICONS: Readonly<Record<string, Glyph>> = {
+  "7z": IconFileZip,
+  bash: IconCode,
+  c: IconCode,
+  cc: IconCode,
+  cjs: IconJavascript,
+  cpp: IconCode,
+  cs: IconCode,
+  css: IconCode,
+  csv: IconFileText,
+  dockerfile: IconCode,
+  fish: IconCode,
+  gitignore: IconCode,
+  go: IconCode,
+  gql: IconCode,
+  graphql: IconCode,
+  gz: IconFileZip,
+  h: IconCode,
+  hpp: IconCode,
+  htm: IconCode,
+  html: IconCode,
+  java: IconCode,
+  jpeg: IconFileJpg,
+  jpg: IconFileJpg,
+  js: IconJavascript,
+  json: IconJson,
+  jsonc: IconJson,
+  jsx: IconJavascript,
+  less: IconCode,
+  log: IconFileText,
+  makefile: IconCode,
+  md: IconMarkdown,
+  mdx: IconMarkdown,
+  mjs: IconJavascript,
+  pdf: IconFilePdf,
+  php: IconCode,
+  png: IconFilePng,
+  py: IconCode,
+  rar: IconFileZip,
+  rb: IconCode,
+  rs: IconCode,
+  sass: IconCode,
+  scss: IconCode,
+  sh: IconCode,
+  sql: IconCode,
+  svelte: IconCode,
+  svg: IconCode,
+  swift: IconCode,
+  tar: IconFileZip,
+  tgz: IconFileZip,
+  toml: IconCode,
+  ts: IconTypescript,
+  tsx: IconTypescript,
+  txt: IconFileText,
+  vue: IconCode,
+  xml: IconCode,
+  yaml: IconCode,
+  yml: IconCode,
+  zip: IconFileZip,
+  zsh: IconCode,
+};
 
 const styles = stylex.create({
   root: {
@@ -86,8 +158,8 @@ const styles = stylex.create({
     cursor: "pointer",
     outlineColor: colorVars["--honk-color-accent"],
     outlineStyle: { default: "none", ":focus-visible": "solid" },
-    outlineWidth: FOCUS_RING_WIDTH,
-    outlineOffset: FOCUS_RING_OFFSET_INSET,
+    outlineWidth: controlVars["--honk-control-focus-ring-width"],
+    outlineOffset: "-1px",
   },
   stats: {
     marginInlineStart: "auto",
@@ -112,6 +184,10 @@ function fileBasename(path: string): string {
   const trimmed = path.replace(/[\\/]+$/, "");
   const [name = trimmed] = trimmed.split(/[\\/]/).slice(-1);
   return name.length > 0 ? name : path;
+}
+
+function fileIcon(path: string): Glyph {
+  return FILE_TYPE_ICONS[fileBasename(path).toLowerCase().split(".").at(-1) ?? ""] ?? IconFileBend;
 }
 
 function ChangeStats({
@@ -146,7 +222,7 @@ function ChangeRow({
 }): React.ReactElement {
   const content = (
     <>
-      <Icon icon={IconFileBend} size="sm" tone="muted" />
+      <Icon icon={fileIcon(file.path)} size="sm" tone="muted" />
       <Text size="sm" tone="primary" truncate style={forward.fileName}>
         {fileBasename(file.path)}
       </Text>
@@ -202,9 +278,13 @@ function ChangeReceipt({
   const title = `${String(files.length)} ${files.length === 1 ? "File" : "Files"} Changed`;
 
   return (
-    <section aria-label={title} data-change-receipt="" {...applyStyle(stylex.props(styles.root), style)}>
+    <section
+      aria-label={title}
+      data-change-receipt=""
+      {...applyStyle(stylex.props(styles.root), style)}
+    >
       <header {...stylex.props(styles.header)}>
-        <Text size="sm" tone="muted" weight="medium" truncate style={forward.title}>
+        <Text size="sm" tone="muted" weight="regular" truncate style={forward.title}>
           {title}
         </Text>
         {onReview !== undefined ? (

@@ -6,6 +6,7 @@ import {
   openCodeSessionRef,
   resolveOpenCodeProjectDirectories,
   type OpenCodeClient,
+  type OpenCodeEvent,
   type OpenCodeRegistry,
   type OpenCodeServerDescriptor,
   type OpenCodeServerKey,
@@ -34,6 +35,15 @@ const ATTENTION_CONCURRENCY = 6;
 const REFRESH_DEBOUNCE_MS = 80;
 const RECONNECT_MIN_MS = 750;
 const RECONNECT_MAX_MS = 15_000;
+const STREAMING_EVENT_TYPES = new Set([
+  "message.part.updated",
+  "message.part.delta",
+  "session.next.text.delta",
+  "session.next.reasoning.delta",
+  "session.next.tool.input.delta",
+  "session.next.tool.progress",
+  "session.next.compaction.delta",
+]);
 
 interface StoredServer {
   readonly origin: string;
@@ -200,8 +210,8 @@ function waitForReconnect(signal: AbortSignal, delay: number): Promise<void> {
 async function listAllSessions(client: OpenCodeClient): Promise<readonly OpenCodeSessionInfo[]> {
   const sessions: OpenCodeSessionInfo[] = [];
   const seenCursors = new Set<string>();
-  let cursor: string | undefined;
-  do {
+  let cursor: string | undefined | null;
+  while (cursor !== null) {
     const page = await client.sessions.list({
       limit: PAGE_SIZE,
       order: "desc",
@@ -209,10 +219,13 @@ async function listAllSessions(client: OpenCodeClient): Promise<readonly OpenCod
     });
     sessions.push(...page.data);
     const next = page.cursor?.next;
-    if (next === undefined || seenCursors.has(next)) break;
+    if (next === undefined || seenCursors.has(next)) {
+      cursor = null;
+      continue;
+    }
     seenCursors.add(next);
     cursor = next;
-  } while (true);
+  }
   return sessions;
 }
 
@@ -289,6 +302,7 @@ async function pumpManagedServerEvents(
     error: string | null,
   ) => void,
   scheduleRefresh: (server: OpenCodeServerKey) => void,
+  publishEvent: (server: OpenCodeServerKey, event: OpenCodeEvent) => void,
 ): Promise<void> {
   const signal = managed.controller.signal;
   let retryDelay = RECONNECT_MIN_MS;
@@ -298,8 +312,11 @@ async function pumpManagedServerEvents(
         if (signal.aborted) return;
         retryDelay = RECONNECT_MIN_MS;
         updateServer(descriptor, stored, "live", null);
+        publishEvent(descriptor.key, event);
         const eventType: string = event.type;
-        if (eventType !== "server.heartbeat") scheduleRefresh(descriptor.key);
+        if (eventType !== "server.heartbeat" && !STREAMING_EVENT_TYPES.has(eventType)) {
+          scheduleRefresh(descriptor.key);
+        }
       }
       if (signal.aborted) return;
     } catch (error) {
@@ -327,6 +344,9 @@ export function RemoteProvider({ children }: React.PropsWithChildren): React.Rea
   const serverStateRef = React.useRef(new Map<OpenCodeServerKey, RemoteServer>());
   const sessionsRef = React.useRef(new Map<OpenCodeServerKey, readonly RemoteSession[]>());
   const managedRef = React.useRef(new Map<OpenCodeServerKey, ManagedServer>());
+  const eventListenersRef = React.useRef(
+    new Map<OpenCodeServerKey, Set<(event: OpenCodeEvent) => void>>(),
+  );
   const activeServerKeyRef = React.useRef<OpenCodeServerKey | null>(null);
 
   const publish = React.useCallback((error: string | null = null): void => {
@@ -424,7 +444,16 @@ export function RemoteProvider({ children }: React.PropsWithChildren): React.Rea
       stored: StoredServer,
       managed: ManagedServer,
     ): Promise<void> =>
-      pumpManagedServerEvents(descriptor, stored, managed, updateServer, scheduleRefresh),
+      pumpManagedServerEvents(
+        descriptor,
+        stored,
+        managed,
+        updateServer,
+        scheduleRefresh,
+        (server, event) => {
+          for (const listener of eventListenersRef.current.get(server) ?? []) listener(event);
+        },
+      ),
     [scheduleRefresh, updateServer],
   );
 
@@ -532,6 +561,7 @@ export function RemoteProvider({ children }: React.PropsWithChildren): React.Rea
         if (managed.refreshTimer !== null) clearTimeout(managed.refreshTimer);
       }
       managedRef.current.clear();
+      eventListenersRef.current.clear();
       registry.close();
     };
   }, [connectManaged, publish, registry, stopManaged, updateServer]);
@@ -650,12 +680,26 @@ export function RemoteProvider({ children }: React.PropsWithChildren): React.Rea
     view.activeServerKey === null
       ? null
       : (view.servers.find((server) => server.descriptor.key === view.activeServerKey) ?? null);
+  const subscribeEvents = (
+    server: OpenCodeServerKey,
+    listener: (event: OpenCodeEvent) => void,
+  ): (() => void) => {
+    const listeners = eventListenersRef.current.get(server) ?? new Set();
+    listeners.add(listener);
+    eventListenersRef.current.set(server, listeners);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) eventListenersRef.current.delete(server);
+    };
+  };
+
   const value: RemoteContextValue = {
     ...view,
     activeServer,
     client: view.activeServerKey === null ? null : registry.get(view.activeServerKey),
     hasCredential: view.servers.length > 0,
     clientFor: (server) => registry.get(server),
+    subscribeEvents,
     selectServer,
     connect,
     retry,

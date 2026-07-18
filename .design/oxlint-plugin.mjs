@@ -1,8 +1,10 @@
 const STYLEX_CALLS = new Set(["create", "createTheme", "keyframes"]);
 const CROSS_ELEMENT_CALLS = new Set(["ancestor", "descendant", "sibling"]);
 const BANNED_UI_IMPORTS = ["zustand", "styled-components", "@emotion", "tailwindcss", "tailwind"];
-const RAW_COLOR = /#[0-9a-f]{3,8}\b/i;
-const RAW_UNIT = /\b(?!0(?:px|ms|rem)\b)\d*\.?\d+(?:px|ms|rem)\b/;
+const RAW_COLOR = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|oklch|oklab)\(/i;
+const RAW_LENGTH = /\b(?!0(?:px|rem|em)\b)\d*\.?\d+(?:px|rem|em)\b/;
+const RAW_DURATION = /\b(?!0m?s\b)\d*\.?\d+m?s\b/;
+const RAW_EASING = /\b(?:cubic-bezier|steps)\(/;
 
 function memberName(node) {
   if (node.type !== "MemberExpression") return undefined;
@@ -243,28 +245,308 @@ const noBorderShorthand = {
   },
 };
 
+// Token-owned CSS properties. Raw values on these must come from a *Vars group; every other
+// property (width, height, inset, transform, opacity, …) may carry inline literal intrinsics.
+// Genuine intrinsics on a token-owned property take an oxlint-disable-next-line with a reason.
+const TOKEN_OWNED_PROPERTIES = (() => {
+  const table = new Map();
+  const add = (properties, arm) => {
+    for (const property of properties) table.set(property, arm);
+  };
+  const length = (group) => ({
+    group,
+    test: (value) => (typeof value === "string" ? value.match(RAW_LENGTH)?.[0] : undefined),
+  });
+  add(
+    [
+      "padding",
+      "paddingTop",
+      "paddingRight",
+      "paddingBottom",
+      "paddingLeft",
+      "paddingInline",
+      "paddingInlineStart",
+      "paddingInlineEnd",
+      "paddingBlock",
+      "paddingBlockStart",
+      "paddingBlockEnd",
+      "margin",
+      "marginTop",
+      "marginRight",
+      "marginBottom",
+      "marginLeft",
+      "marginInline",
+      "marginInlineStart",
+      "marginInlineEnd",
+      "marginBlock",
+      "marginBlockStart",
+      "marginBlockEnd",
+      "gap",
+      "rowGap",
+      "columnGap",
+    ],
+    length("a spacing token (spaceVars, or the owning surface group: controlVars/sidebarVars/conversationVars/toastVars/proseVars)"),
+  );
+  add(
+    [
+      "borderRadius",
+      "borderTopLeftRadius",
+      "borderTopRightRadius",
+      "borderBottomLeftRadius",
+      "borderBottomRightRadius",
+      "borderStartStartRadius",
+      "borderStartEndRadius",
+      "borderEndStartRadius",
+      "borderEndEndRadius",
+    ],
+    length("radiusVars"),
+  );
+  add(
+    [
+      "borderWidth",
+      "borderTopWidth",
+      "borderRightWidth",
+      "borderBottomWidth",
+      "borderLeftWidth",
+      "borderInlineStartWidth",
+      "borderInlineEndWidth",
+      "borderBlockStartWidth",
+      "borderBlockEndWidth",
+      "outlineWidth",
+    ],
+    length("borderVars (hairline) or controlVars border width"),
+  );
+  add(["fontSize", "lineHeight"], length("fontVars sizes (or the owning surface group's size/leading pair)"));
+  add(["fontWeight"], {
+    group: "fontVars weights",
+    test: (value) => {
+      const numeric = typeof value === "string" ? Number(value) : value;
+      return typeof numeric === "number" && numeric >= 100 && numeric <= 900
+        ? String(value)
+        : undefined;
+    },
+  });
+  add(["fontFamily"], {
+    group: "fontVars families",
+    test: (value) => (typeof value === "string" && value.trim() !== "" ? value : undefined),
+  });
+  add(
+    [
+      "transition",
+      "transitionDuration",
+      "transitionDelay",
+      "animation",
+      "animationDuration",
+      "animationDelay",
+    ],
+    {
+      group: "motionVars durations",
+      test: (value) => (typeof value === "string" ? value.match(RAW_DURATION)?.[0] : undefined),
+    },
+  );
+  add(["transitionTimingFunction", "animationTimingFunction"], {
+    group: "motionVars eases",
+    test: (value) => (typeof value === "string" ? value.match(RAW_EASING)?.[0] : undefined),
+  });
+  add(["boxShadow"], {
+    group: "elevationVars",
+    test: (value) =>
+      typeof value === "string" && value !== "none" && /\d/.test(value) ? value : undefined,
+  });
+  add(["zIndex"], {
+    group: "zVars (the overlay ladder starts at 10; local stacking below 10 is free)",
+    test: (value) => {
+      const numeric = typeof value === "string" ? Number(value) : value;
+      return typeof numeric === "number" && Math.abs(numeric) >= 10 ? String(value) : undefined;
+    },
+  });
+  return table;
+})();
+
+// Values that are always fine on a token-owned property.
+const RAW_VALUE_ALLOWED = new Set([
+  "0",
+  "0px",
+  "auto",
+  "none",
+  "normal",
+  "inherit",
+  "initial",
+  "unset",
+  "fit-content",
+  "min-content",
+  "max-content",
+  "transparent",
+  "currentColor",
+]);
+
+function unwrapExpression(node) {
+  let current = node;
+  while (
+    current !== null &&
+    current !== undefined &&
+    (current.type === "TSAsExpression" ||
+      current.type === "TSSatisfiesExpression" ||
+      current.type === "ParenthesizedExpression")
+  ) {
+    current = current.expression;
+  }
+  return current;
+}
+
+// Resolves a module-level `const NAME = <literal>` initializer to its static value.
+function staticInitValue(node) {
+  const value = unwrapExpression(node);
+  if (value === null || value === undefined) return undefined;
+  if (value.type === "Literal" && (typeof value.value === "string" || typeof value.value === "number")) {
+    return value.value;
+  }
+  if (value.type === "TemplateLiteral" && value.expressions.length === 0) {
+    return value.quasis[0]?.value.raw;
+  }
+  if (
+    value.type === "UnaryExpression" &&
+    value.operator === "-" &&
+    value.argument.type === "Literal" &&
+    typeof value.argument.value === "number"
+  ) {
+    return -value.argument.value;
+  }
+  return undefined;
+}
+
+function collectModuleConstants(program) {
+  const constants = new Map();
+  for (const statement of program.body) {
+    const declaration =
+      statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
+    if (declaration?.type !== "VariableDeclaration" || declaration.kind !== "const") continue;
+    for (const declarator of declaration.declarations) {
+      if (declarator.id.type !== "Identifier") continue;
+      const value = staticInitValue(declarator.init);
+      if (value !== undefined) constants.set(declarator.id.name, value);
+    }
+  }
+  return constants;
+}
+
+function isConditionKey(property) {
+  const key =
+    property.key.type === "Identifier" && !property.computed
+      ? property.key.name
+      : staticString(property.key);
+  return key === "default" || (typeof key === "string" && /^[:@]/.test(key));
+}
+
+// Yields {value, constName?} for every statically-knowable value an expression can produce,
+// following ternaries, condition objects, fallback arrays, and module-const references.
+function collectStaticValues(node, constants, results, constName) {
+  const expression = unwrapExpression(node);
+  if (expression === null || expression === undefined) return;
+  switch (expression.type) {
+    case "Literal":
+      if (typeof expression.value === "string" || typeof expression.value === "number") {
+        results.push({ node, value: expression.value, constName });
+      }
+      return;
+    case "TemplateLiteral":
+      for (const quasi of expression.quasis) {
+        if (quasi.value.raw !== "") results.push({ node, value: quasi.value.raw, constName });
+      }
+      for (const inner of expression.expressions) {
+        collectStaticValues(inner, constants, results, constName);
+      }
+      return;
+    case "Identifier": {
+      const value = constants.get(expression.name);
+      if (value !== undefined) results.push({ node, value, constName: expression.name });
+      return;
+    }
+    case "UnaryExpression":
+      if (expression.operator === "-") {
+        const before = results.length;
+        collectStaticValues(expression.argument, constants, results, constName);
+        for (let index = before; index < results.length; index += 1) {
+          const entry = results[index];
+          if (typeof entry.value === "number") entry.value = -entry.value;
+        }
+      }
+      return;
+    case "ConditionalExpression":
+      collectStaticValues(expression.consequent, constants, results, constName);
+      collectStaticValues(expression.alternate, constants, results, constName);
+      return;
+    case "LogicalExpression":
+      collectStaticValues(expression.left, constants, results, constName);
+      collectStaticValues(expression.right, constants, results, constName);
+      return;
+    case "ArrayExpression":
+      for (const element of expression.elements) {
+        if (element !== null) collectStaticValues(element, constants, results, constName);
+      }
+      return;
+    case "ObjectExpression":
+      for (const property of expression.properties) {
+        if (property.type === "Property" && isConditionKey(property)) {
+          collectStaticValues(property.value, constants, results, constName);
+        }
+      }
+      return;
+    default:
+      return;
+  }
+}
+
 const noRawValues = {
   create(context) {
     if (isTokenBindingFile(context)) return {};
+    let constants = new Map();
 
-    function check(node, value) {
-      if (!isInsideStylexCall(node)) return;
-      const rawColor = value.match(RAW_COLOR)?.[0];
-      const rawUnit = value.match(RAW_UNIT)?.[0];
-      const raw = rawColor ?? rawUnit;
-      if (raw === undefined) return;
+    function report(entry, propertyName, arm, raw) {
+      const laundered =
+        entry.constName === undefined
+          ? ""
+          : ` (via const ${entry.constName} — hoisting a literal does not tokenize it)`;
       context.report({
-        node,
-        message: `Raw design value "${raw}" at a StyleX call site — reference a token or a justified named intrinsic.`,
+        node: entry.node,
+        message:
+          `Raw design value "${raw}" on token-owned property "${propertyName}"${laundered} — ` +
+          `use ${arm.group}, or justify a fixed intrinsic with an oxlint-disable directive and a reason.`,
       });
     }
 
     return {
-      Literal(node) {
-        if (typeof node.value === "string") check(node, node.value);
+      Program(node) {
+        constants = collectModuleConstants(node);
       },
-      TemplateElement(node) {
-        check(node, node.value.raw);
+      Property(node) {
+        if (!isInsideStylexCall(node)) return;
+        if (isConditionKey(node)) return;
+        const propertyName =
+          node.key.type === "Identifier" && !node.computed ? node.key.name : staticString(node.key);
+        if (typeof propertyName !== "string") return;
+        const arm = TOKEN_OWNED_PROPERTIES.get(propertyName);
+        const values = [];
+        collectStaticValues(node.value, constants, values, undefined);
+        for (const entry of values) {
+          const text = typeof entry.value === "string" ? entry.value.trim() : String(entry.value);
+          if (RAW_VALUE_ALLOWED.has(text)) continue;
+          if (typeof entry.value === "string") {
+            const rawColor = entry.value.match(RAW_COLOR)?.[0];
+            if (rawColor !== undefined) {
+              report(
+                entry,
+                propertyName,
+                { group: "colorVars (or elevationVars for shadow stacks)" },
+                rawColor,
+              );
+              continue;
+            }
+          }
+          if (arm === undefined) continue;
+          const raw = arm.test(entry.value);
+          if (raw !== undefined) report(entry, propertyName, arm, raw);
+        }
       },
     };
   },

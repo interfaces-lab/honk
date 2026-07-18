@@ -9,8 +9,6 @@ import { colorVars, iconVars, motionVars, radiusVars } from "./tokens.stylex";
 type SpinnerSize = "sm" | "md" | "lg";
 type SpinnerTone = "accent" | "muted";
 
-const RING_WIDTH = "2px";
-
 const spinKeyframes = stylex.keyframes({
   from: { transform: "rotate(0deg)" },
   to: { transform: "rotate(360deg)" },
@@ -29,7 +27,8 @@ const sx = stylex.create({
     display: "block",
     borderRadius: radiusVars["--honk-radius-pill"],
     borderStyle: "solid",
-    borderWidth: RING_WIDTH,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 2px spinner ring stroke is fixed intrinsic geometry, no border-width token owns it (hairline is 1px)
+    borderWidth: "2px",
     // Border longhands only. Tone overrides borderTopColor for the moving arc.
     borderTopColor: colorVars["--honk-color-border-muted"],
     borderRightColor: colorVars["--honk-color-border-muted"],

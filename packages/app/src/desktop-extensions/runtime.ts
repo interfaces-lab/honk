@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 
+import { canSetDesktopKeepAwake, setDesktopKeepAwake } from "../desktop-bridge";
 import {
   actions as tabActions,
   getSnapshot as getTabsSnapshot,
@@ -9,14 +10,19 @@ import { getBoundOpenCodeClient } from "../watch-registry";
 import {
   createHonkDesktopExtensionHost,
   type HonkDesktopCell,
+  type HonkDesktopNewSessionToggleContribution,
   type HonkDesktopPaneContribution,
   type HonkDesktopSettingsToggleContribution,
   type HonkDesktopTabs,
+  type HonkDesktopTitlebarToggleContribution,
 } from "./sdk";
-import { verticalSidebarExtension } from "./vertical-sidebar";
+import { keepAwakeExtension } from "./keep-awake/extension";
+import { verticalSidebarExtension } from "./vertical-sidebar/extension";
 
 const EMPTY_SETTINGS: readonly HonkDesktopSettingsToggleContribution[] = Object.freeze([]);
+const EMPTY_NEW_SESSION: readonly HonkDesktopNewSessionToggleContribution[] = Object.freeze([]);
 const EMPTY_PANES: readonly HonkDesktopPaneContribution[] = Object.freeze([]);
+const EMPTY_TITLEBAR_TOGGLES: readonly HonkDesktopTitlebarToggleContribution[] = Object.freeze([]);
 
 const tabs: HonkDesktopTabs = Object.freeze({
   getSnapshot: () => getTabsSnapshot(),
@@ -34,8 +40,8 @@ const tabs: HonkDesktopTabs = Object.freeze({
     }
     tabActions.openNewInWorkspace(relativeToKey);
   },
-  reorder: (from: number, to: number) => {
-    tabActions.reorder(from, to);
+  openDraft: (directory: string) => {
+    tabActions.openDraft({ directory });
   },
 });
 
@@ -43,6 +49,7 @@ const host = createHonkDesktopExtensionHost({
   storage: desktopExtensionStorage(),
   tabs,
   opencode: Object.freeze({ client: () => getBoundOpenCodeClient() }),
+  power: Object.freeze({ setKeepAwake: setDesktopKeepAwake }),
 });
 
 let isInstalled = false;
@@ -52,6 +59,9 @@ export function installHonkDesktopExtensions(): void {
     return;
   }
   host.register(verticalSidebarExtension);
+  if (canSetDesktopKeepAwake()) {
+    host.register(keepAwakeExtension);
+  }
   isInstalled = true;
 }
 
@@ -71,11 +81,27 @@ export function useHonkDesktopPanes(): readonly HonkDesktopPaneContribution[] {
   );
 }
 
+export function useHonkDesktopNewSession(): readonly HonkDesktopNewSessionToggleContribution[] {
+  return useSyncExternalStore(
+    (listener) => host.subscribeNewSession(listener),
+    () => host.getNewSessionSnapshot(),
+    () => EMPTY_NEW_SESSION,
+  );
+}
+
 export function useIsHonkDesktopTabStripHidden(): boolean {
   return useSyncExternalStore(
     (listener) => host.subscribeTitlebar(listener),
     () => host.getTitlebarTabStripHiddenSnapshot(),
     () => false,
+  );
+}
+
+export function useHonkDesktopTitlebarToggles(): readonly HonkDesktopTitlebarToggleContribution[] {
+  return useSyncExternalStore(
+    (listener) => host.subscribeTitlebar(listener),
+    () => host.getTitlebarTogglesSnapshot(),
+    () => EMPTY_TITLEBAR_TOGGLES,
   );
 }
 

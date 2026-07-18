@@ -92,7 +92,7 @@ function ToolMessage({
           ? {
               id: taskToolControlID(part.id),
               "aria-controls": taskToolRegionID(part.id),
-              "aria-label": `${displayVerb}${view.detail === undefined ? "" : ` ${view.detail}`}${displayState === "failed" ? ", failed" : ""}. ${taskSelected ? "Minimize" : "Open"} current subagent preview`,
+              "aria-label": `${displayVerb}${view.detail === undefined ? "" : ` ${view.detail}`}${displayState === "failed" ? ", failed" : ""}. ${taskSelected ? "Minimize" : "Open"} work details`,
             }
           : {})}
         verb={displayVerb}

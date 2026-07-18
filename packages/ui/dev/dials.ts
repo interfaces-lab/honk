@@ -339,9 +339,8 @@ const dsChromePanel: PanelSpec = {
     chromeDetail: [12, 9, 16, 0.5],
     chromeCaption: [11, 8, 15, 0.5],
     chromeMicro: [10, 8, 14, 0.5],
-    weightRegular: [400, 100, 900, 10],
-    weightMedium: [510, 100, 900, 10],
-    weightSemibold: [590, 100, 900, 10],
+    weightRegular: [418, 100, 900, 1],
+    weightSemibold: [600, 100, 900, 10],
   },
   bindings: {
     chromeBody: { cssVar: cssVarName(fontVars["--honk-font-size-body"]) },
@@ -349,7 +348,6 @@ const dsChromePanel: PanelSpec = {
     chromeCaption: { cssVar: cssVarName(fontVars["--honk-font-size-caption"]) },
     chromeMicro: { cssVar: cssVarName(fontVars["--honk-font-size-micro"]) },
     weightRegular: { cssVar: cssVarName(fontVars["--honk-font-weight-regular"]), format: unitless },
-    weightMedium: { cssVar: cssVarName(fontVars["--honk-font-weight-medium"]), format: unitless },
     weightSemibold: {
       cssVar: cssVarName(fontVars["--honk-font-weight-semibold"]),
       format: unitless,

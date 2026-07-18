@@ -24,7 +24,7 @@ export function SettingsArchived(): React.ReactElement {
     <SettingsSection title="Archived">
       <div {...stylex.props(styles.empty)}>
         <Icon icon={IconArchive1} size="lg" tone="faint" />
-        <Text as="p" size="base" weight="medium">
+        <Text as="p" size="base" weight="regular">
           Archived threads unavailable
         </Text>
         <Text as="p" size="sm" tone="muted">

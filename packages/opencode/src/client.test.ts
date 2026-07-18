@@ -375,14 +375,45 @@ describe("createOpenCodeClient sessions.list", () => {
     client.close();
   });
 
-  it("routes both event planes through the injected native event source", async () => {
+  it("normalizes global wire envelopes through the injected native event source", async () => {
     const requested: OpenCodeEventSourceInput[] = [];
     const eventSource = vi.fn(async (input: OpenCodeEventSourceInput) => {
       requested.push(input);
       return (async function* eventStream(): AsyncGenerator<unknown> {
-        yield input.url.includes("/api/session/")
-          ? { id: "evt_session", type: "session.next.prompted", data: {} }
-          : { id: "evt_global", type: "server.connected", data: {} };
+        if (input.url.includes("/api/session/")) {
+          yield { id: "evt_session", type: "session.next.prompted", data: {} };
+          return;
+        }
+        yield {
+          directory: "/Users/workgyver/Developer/honk",
+          project: "project-1",
+          payload: {
+            id: "evt_status",
+            type: "session.status",
+            properties: { sessionID: "ses_1", status: { type: "busy" } },
+          },
+        };
+        yield {
+          directory: "/Users/workgyver/Developer/honk",
+          payload: { type: "sync", sessions: [] },
+        };
+        yield {
+          directory: "/Users/workgyver/Developer/honk",
+          payload: { id: "evt_missing_type", properties: {} },
+        };
+        yield {
+          directory: "/Users/workgyver/Developer/honk",
+          payload: { id: "evt_bad_properties", type: "message.updated", properties: "invalid" },
+        };
+        yield {
+          payload: {
+            id: "evt_idle",
+            type: "session.idle",
+            properties: { sessionID: "ses_1" },
+          },
+        };
+        yield { payload: { type: "server.connected" } };
+        yield { payload: { id: "evt_heartbeat", type: "server.heartbeat" } };
       })();
     });
     sdk.createOpencodeClient.mockReturnValue({ v2: {} } as unknown as OpencodeClient);
@@ -395,15 +426,69 @@ describe("createOpenCodeClient sessions.list", () => {
     );
     client.close();
 
-    expect(globalEvents.map((event) => event.type)).toEqual(["server.connected"]);
+    expect(globalEvents).toEqual([
+      {
+        id: "evt_status",
+        type: "session.status",
+        data: { sessionID: "ses_1", status: { type: "busy" } },
+      },
+      { id: "evt_idle", type: "session.idle", data: { sessionID: "ses_1" } },
+      { type: "server.connected", data: {} },
+      { id: "evt_heartbeat", type: "server.heartbeat", data: {} },
+    ]);
     expect(sessionEvents.map((event) => event.type)).toEqual(["session.next.prompted"]);
     expect(requested.map((input) => input.url)).toEqual([
-      "http://opencode.test/api/event",
+      "http://opencode.test/global/event",
       "http://opencode.test/api/session/ses_1/event?after=12",
     ]);
     expect(requested.every((input) => input.headers.Authorization?.startsWith("Basic "))).toBe(
       true,
     );
+  });
+
+  it("subscribes through the generated global event API", async () => {
+    const event = vi.fn(async () => ({
+      stream: (async function* eventStream(): AsyncGenerator<unknown> {
+        yield {
+          directory: "/Users/workgyver/Developer/honk",
+          workspace: "workspace-1",
+          payload: {
+            id: "evt_delta",
+            type: "message.part.delta",
+            properties: {
+              sessionID: "ses_1",
+              messageID: "msg_1",
+              partID: "prt_1",
+              field: "text",
+              delta: "hello",
+            },
+          },
+        };
+      })(),
+    }));
+    sdk.createOpencodeClient.mockReturnValue({
+      global: { event },
+      v2: {},
+    } as unknown as OpencodeClient);
+
+    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }));
+    const events = await collect(client.events());
+    client.close();
+
+    expect(events).toEqual([
+      {
+        id: "evt_delta",
+        type: "message.part.delta",
+        data: {
+          sessionID: "ses_1",
+          messageID: "msg_1",
+          partID: "prt_1",
+          field: "text",
+          delta: "hello",
+        },
+      },
+    ]);
+    expect(event).toHaveBeenCalledWith({ signal: expect.any(AbortSignal) });
   });
 
   it("lists providers through the canonical generated namespace", async () => {

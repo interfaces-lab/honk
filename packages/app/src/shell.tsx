@@ -9,6 +9,7 @@ import { CommandMenuOverlay } from "./command-menu";
 import { shouldUseDesktopGlass } from "./desktop-bridge";
 import { HonkDesktopExtensionLayout } from "./desktop-extensions/layout";
 import { useIsHonkDesktopTabStripHidden } from "./desktop-extensions/runtime";
+import { HonkDesktopTitlebarControls } from "./desktop-extensions/titlebar-controls";
 import { DevChannelChip } from "./dev-channel-chip";
 import { useShellHotkeys } from "./hotkeys";
 import { DevelopmentPerformanceMonitor } from "./performance-monitor";
@@ -24,7 +25,6 @@ const schemeStyles: Record<string, React.CSSProperties> = {
   light: { colorScheme: "light" },
   dark: { colorScheme: "dark" },
 };
-const newYorkStageStyle: React.CSSProperties = { paddingLeft: 0 };
 
 function AppShell({
   isInteractive = true,
@@ -32,7 +32,10 @@ function AppShell({
   readonly isInteractive?: boolean;
 }): React.ReactElement {
   const trailing = (
-    <TitleBarTrailing>{import.meta.env.DEV ? <DevChannelChip /> : null}</TitleBarTrailing>
+    <TitleBarTrailing>
+      <HonkDesktopTitlebarControls />
+      {import.meta.env.DEV ? <DevChannelChip /> : null}
+    </TitleBarTrailing>
   );
 
   // Selectors limit strip re-renders to tab list and active key.
@@ -65,13 +68,16 @@ function AppShell({
                 onNew={() => {
                   actions.openNew();
                 }}
+                onRename={(key, title) => {
+                  actions.rename(key, title);
+                }}
                 renderContextMenu={(tab, children) => (
                   <OpenTabContextMenu tab={tab}>{children}</OpenTabContextMenu>
                 )}
               />
             </Shell.TitleBar>
           )}
-          <Shell.Stage style={isTabStripHidden ? newYorkStageStyle : undefined}>
+          <Shell.Stage>
             <Shell.Sheet>
               <Outlet />
             </Shell.Sheet>

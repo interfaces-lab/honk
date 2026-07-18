@@ -15,12 +15,7 @@ import { workbenchLayout } from "./workbench-layout.stylex";
 
 const HAIRLINE_WIDTH = "1px";
 const RAIL_LABELED_WIDTH = "260px";
-const RAIL_COMPACT_WIDTH = "40px";
-const RAIL_SECTION_GAP = "16px";
-const RAIL_SECTION_LINE_HEIGHT = "15px";
-const RAIL_SCROLL_TOP_PAD = "2px";
 const RAIL_INSET_SMALL = "4px";
-const RAIL_COMPACT_GAP = "1px";
 const COMPACT_STRIP_TOP_OFFSET = `calc(${workbenchLayout.headerHeight} + ${spaceVars["--honk-space-panel-pad"]})`;
 const COMPACT_STRIP_RING = `inset 0 0 0 ${HAIRLINE_WIDTH} ${colorVars["--honk-color-stroke-tertiary"]}`;
 
@@ -67,22 +62,28 @@ const styles = stylex.create({
     minHeight: 0,
     overflowY: "auto",
     marginInlineEnd: spaceVars["--honk-space-gutter"],
-    paddingBlockStart: RAIL_SCROLL_TOP_PAD,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 2px scroll nudge above rail rows is fixed geometry, no spacing token owns 2px
+    paddingBlockStart: "2px",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px rail inset is fixed geometry, no spacing token owns 4px
     paddingBlockEnd: RAIL_INSET_SMALL,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px rail inset is fixed geometry, no spacing token owns 4px
     paddingInline: RAIL_INSET_SMALL,
   },
   railSection: { display: "flex", flexDirection: "column", minWidth: 0 },
-  railSectionSpaced: { marginBlockStart: RAIL_SECTION_GAP },
+  // oxlint-disable-next-line honk/design-no-raw-values -- 16px section separation is fixed geometry, no spacing token owns 16px
+  railSectionSpaced: { marginBlockStart: "16px" },
   railSectionLabel: {
     flexGrow: 1,
     minWidth: 0,
     overflow: "hidden",
     paddingInline: spaceVars["--honk-space-gutter"],
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px rail inset is fixed geometry, no spacing token owns 4px
     paddingBlockEnd: RAIL_INSET_SMALL,
     color: colorVars["--honk-color-text-faint"],
     fontFamily: fontVars["--honk-font-family-ui"],
     fontSize: fontVars["--honk-font-size-detail"],
-    lineHeight: RAIL_SECTION_LINE_HEIGHT,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 15px section-label leading is fixed, no leading token owns 15px
+    lineHeight: "15px",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
@@ -108,12 +109,14 @@ const styles = stylex.create({
   railSectionHeading: { display: "flex", alignItems: "flex-start", minWidth: 0 },
   railSectionAction: {
     flexShrink: 0,
+    // oxlint-disable-next-line honk/design-no-raw-values -- -4px rail inset offset is fixed geometry, no spacing token owns 4px
     marginBlockStart: `calc(${RAIL_INSET_SMALL} * -1)`,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px rail inset is fixed geometry, no spacing token owns 4px
     marginInlineEnd: RAIL_INSET_SMALL,
   },
   compactRail: {
     flexShrink: 0,
-    width: RAIL_COMPACT_WIDTH,
+    width: "40px",
     height: "100%",
     display: "flex",
     flexDirection: "column",
@@ -127,7 +130,9 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: RAIL_COMPACT_GAP,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1px hairline gap between compact icon buttons is fixed, no spacing token owns 1px
+    gap: "1px",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px rail inset is fixed geometry, no spacing token owns 4px
     padding: RAIL_INSET_SMALL,
     marginInlineEnd: spaceVars["--honk-space-gutter"],
     overflowY: "auto",

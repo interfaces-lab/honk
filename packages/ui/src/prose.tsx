@@ -3,13 +3,17 @@ import * as React from "react";
 
 import { proseCodeBlockStyle } from "./prose-code-block";
 import { applyStyle, type HonkStyle, type StyleProp } from "./style";
-import { colorVars, fontVars, proseVars, radiusVars, spaceVars } from "./tokens.stylex";
+import {
+  borderVars,
+  colorVars,
+  fontVars,
+  proseVars,
+  radiusVars,
+  spaceVars,
+} from "./tokens.stylex";
 
-// Blockquote rule is private hairline geometry, not a theme token.
+// Link underline thickness and hr rule height are private hairline geometry, not a theme token.
 const PROSE_HAIRLINE = "1px";
-// Inline code inset and link underline offset are glyph anatomy, not layout tokens.
-const INLINE_CODE_INSET = "2px";
-const LINK_UNDERLINE_OFFSET = "2px";
 
 const styles = stylex.create({
   root: {
@@ -77,15 +81,17 @@ const styles = stylex.create({
     },
     textDecorationLine: "underline",
     textDecorationThickness: PROSE_HAIRLINE,
-    textUnderlineOffset: LINK_UNDERLINE_OFFSET,
+    textUnderlineOffset: "2px",
   },
   strong: {
     color: colorVars["--honk-color-fg"],
     fontWeight: fontVars["--honk-font-weight-semibold"],
   },
   inlineCode: {
-    paddingBlock: INLINE_CODE_INSET,
-    paddingInline: INLINE_CODE_INSET,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 2px inline-code inset is fixed glyph anatomy, no spacing token owns it
+    paddingBlock: "2px",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 2px inline-code inset is fixed glyph anatomy, no spacing token owns it
+    paddingInline: "2px",
     borderRadius: radiusVars["--honk-radius-control"],
     backgroundColor: colorVars["--honk-color-layer-01"],
     color: colorVars["--honk-color-fg"],
@@ -96,7 +102,7 @@ const styles = stylex.create({
   blockquote: {
     marginInline: 0,
     paddingInlineStart: spaceVars["--honk-space-panel-pad"],
-    borderInlineStartWidth: PROSE_HAIRLINE,
+    borderInlineStartWidth: borderVars["--honk-border-hairline"],
     borderInlineStartStyle: "solid",
     borderInlineStartColor: colorVars["--honk-color-border-strong"],
     color: colorVars["--honk-color-fg-secondary"],
@@ -123,7 +129,7 @@ const styles = stylex.create({
   tableCell: {
     paddingBlock: spaceVars["--honk-space-gutter"],
     paddingInline: spaceVars["--honk-space-panel-pad"],
-    borderBlockEndWidth: PROSE_HAIRLINE,
+    borderBlockEndWidth: borderVars["--honk-border-hairline"],
     borderBlockEndStyle: "solid",
     borderBlockEndColor: colorVars["--honk-color-border-muted"],
     textAlign: "start",

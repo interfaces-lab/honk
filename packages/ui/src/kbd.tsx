@@ -22,7 +22,7 @@ const styles = stylex.create({
     boxSizing: "border-box",
     borderRadius: radiusVars["--honk-radius-control"],
     fontFamily: fontVars["--honk-font-family-mono"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
     lineHeight: 1,
     whiteSpace: "nowrap",
     backgroundColor: colorVars["--honk-color-layer-01"],
@@ -32,12 +32,14 @@ const styles = stylex.create({
   sm: {
     height: KEY_H_SM,
     minWidth: KEY_H_SM,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px key chrome padding is fixed intrinsic; generic space scale is 8/10/12px, no token owns 4px inline padding
     paddingInline: KEY_PAD_X,
     fontSize: fontVars["--honk-font-size-micro"],
   },
   md: {
     height: KEY_H_MD,
     minWidth: KEY_H_MD,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px key chrome padding is fixed intrinsic; generic space scale is 8/10/12px, no token owns 4px inline padding
     paddingInline: KEY_PAD_X,
     fontSize: fontVars["--honk-font-size-caption"],
   },

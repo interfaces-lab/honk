@@ -3,12 +3,12 @@ import { Dialog, Icon, IconButton, ListRow, Text } from "@honk/ui";
 import {
   IconArchive1,
   IconBuildingBlocks,
-  IconCrossSmall,
+  IconCrossMedium,
   IconEyeOpen,
   IconServer,
   IconSettingsGear2,
 } from "@honk/ui/icons";
-import { colorVars, controlVars, spaceVars } from "@honk/ui/tokens.stylex";
+import { borderVars, colorVars, controlVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
 import { SettingsAppearance } from "./settings-appearance";
@@ -51,19 +51,14 @@ const SETTINGS_GROUPS = [
 }[];
 
 const SETTINGS_WIDE_MEDIA = "@media (min-width: 720px)";
-const SETTINGS_NAV_WIDTH = "200px";
 const SETTINGS_NAV_COMPACT_MAX_HEIGHT = "152px";
-const SETTINGS_PANEL_MAX_WIDTH = "640px";
-const SETTINGS_DIALOG_WIDTH = "calc(100% - 48px)";
-const SETTINGS_DIALOG_MAX_WIDTH = "920px";
 const SETTINGS_DIALOG_HEIGHT = "min(680px, calc(100dvh - 48px))";
-const SETTINGS_CLOSE_CLEARANCE = `calc(${spaceVars["--honk-space-panel-pad"]} + ${controlVars["--honk-control-h-sm"]} + ${spaceVars["--honk-space-gutter"]})`;
+const SETTINGS_CLOSE_CLEARANCE = `calc(${spaceVars["--honk-space-panel-pad"]} + ${controlVars["--honk-control-h-md"]} + ${spaceVars["--honk-space-gutter"]})`;
 const SETTINGS_SECTION_GAP = `calc(${spaceVars["--honk-space-panel-pad"]} * 2)`;
 const SETTINGS_NAV_ITEM_GAP = "1px";
-const HAIRLINE = "1px";
 const SETTINGS_DIALOG_STYLE: React.CSSProperties = {
-  width: SETTINGS_DIALOG_WIDTH,
-  maxWidth: SETTINGS_DIALOG_MAX_WIDTH,
+  width: "calc(100% - 48px)",
+  maxWidth: "920px",
   height: SETTINGS_DIALOG_HEIGHT,
   maxHeight: SETTINGS_DIALOG_HEIGHT,
   padding: 0,
@@ -87,7 +82,7 @@ const styles = stylex.create({
   nav: {
     width: {
       default: "100%",
-      [SETTINGS_WIDE_MEDIA]: SETTINGS_NAV_WIDTH,
+      [SETTINGS_WIDE_MEDIA]: "200px",
     },
     flexShrink: 0,
     display: "flex",
@@ -108,6 +103,7 @@ const styles = stylex.create({
       [SETTINGS_WIDE_MEDIA]: "column",
     },
     gap: {
+      // oxlint-disable-next-line honk/design-no-raw-values -- 1px nav-row separation is a fixed hairline gap; smallest spacing token is the 8px gutter
       default: SETTINGS_NAV_ITEM_GAP,
       [SETTINGS_WIDE_MEDIA]: spaceVars["--honk-space-panel-pad"],
     },
@@ -127,6 +123,7 @@ const styles = stylex.create({
       [SETTINGS_WIDE_MEDIA]: "flex",
     },
     flexDirection: "column",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1px nav-row separation is a fixed hairline gap; smallest spacing token is the 8px gutter
     gap: SETTINGS_NAV_ITEM_GAP,
   },
   navGroupLabel: {
@@ -144,6 +141,7 @@ const styles = stylex.create({
       [SETTINGS_WIDE_MEDIA]: "flex",
     },
     flexDirection: "column",
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1px nav-row separation is a fixed hairline gap; smallest spacing token is the 8px gutter
     gap: SETTINGS_NAV_ITEM_GAP,
   },
   navTitle: {
@@ -168,14 +166,14 @@ const styles = stylex.create({
     flexDirection: "column",
     overflowY: "auto",
     borderTopWidth: {
-      default: HAIRLINE,
+      default: borderVars["--honk-border-hairline"],
       [SETTINGS_WIDE_MEDIA]: 0,
     },
     borderTopStyle: "solid",
     borderTopColor: colorVars["--honk-color-border-muted"],
     borderLeftWidth: {
       default: 0,
-      [SETTINGS_WIDE_MEDIA]: HAIRLINE,
+      [SETTINGS_WIDE_MEDIA]: borderVars["--honk-border-hairline"],
     },
     borderLeftStyle: "solid",
     borderLeftColor: colorVars["--honk-color-border-muted"],
@@ -188,7 +186,7 @@ const styles = stylex.create({
   },
   panelColumn: {
     width: "100%",
-    maxWidth: SETTINGS_PANEL_MAX_WIDTH,
+    maxWidth: "640px",
     display: "flex",
     flexDirection: "column",
     gap: SETTINGS_SECTION_GAP,
@@ -211,8 +209,8 @@ export function SettingsOverlay(): React.ReactElement {
         <div {...stylex.props(styles.close)}>
           <Dialog.Close
             render={
-              <IconButton size="sm" variant="quiet" aria-label="Close settings">
-                <Icon icon={IconCrossSmall} size="sm" />
+              <IconButton size="md" variant="quiet" aria-label="Close settings">
+                <Icon icon={IconCrossMedium} size="md" />
               </IconButton>
             }
           />
@@ -227,7 +225,7 @@ export function SettingsOverlay(): React.ReactElement {
               {SETTINGS_GROUPS.map((group) => (
                 <div key={group.label} {...stylex.props(styles.navGroup)}>
                   <div {...stylex.props(styles.navGroupLabel)}>
-                    <Text size="xs" tone="faint" weight="medium">
+                    <Text size="xs" tone="faint" weight="regular">
                       {group.label}
                     </Text>
                   </div>

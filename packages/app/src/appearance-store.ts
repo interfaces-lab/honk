@@ -9,7 +9,7 @@ import { colorVars, fontVars, workbenchSurfaceVars } from "@honk/ui/tokens.style
 
 export type ThemePreference = "system" | "light" | "dark";
 
-// "antialiased" = grayscale AA (lighter, thins medium weight); "auto" = system rendering (heavier, crisper).
+// "antialiased" = Cursor Glass grayscale AA; "auto" = native/system rendering.
 export type FontSmoothing = "antialiased" | "auto";
 
 export type AppearanceSnapshot = {
@@ -234,15 +234,15 @@ function applyAppearance(next: AppearanceSnapshot): void {
       chromeCaption: body - 2,
       chromeMicro: body - 3,
       chromeBodyLarge: body + 1,
-      proseCaption: body - 3,
-      proseDetail: body - 2,
-      proseBody: body - 1,
-      proseTitle: body,
+      proseCaption: body - 2,
+      proseDetail: body - 1,
+      proseBody: body,
+      proseTitle: body + 1,
       proseHeading: body + 3,
-      leadingCaption: body - 1,
-      leadingDetail: body + 1,
-      leadingBody: body + 3,
-      leadingTitle: body + 5,
+      leadingCaption: body + 1,
+      leadingDetail: body + 3,
+      leadingBody: body + 5,
+      leadingTitle: body + 7,
       leadingHeading: body + 8,
     };
     for (const [name, property] of Object.entries(uiFontVars) as readonly [
@@ -261,8 +261,7 @@ function applyAppearance(next: AppearanceSnapshot): void {
     rootStyle.setProperty(CODE_LEADING_VAR, `${next.codeFontSize + 6}px`);
   }
 
-  // At default → unpin so the stylesheet token (antialiased/grayscale) paints; otherwise pin
-  // the inline var on <html>, which outranks :root and cascades to shell + rail text.
+  // Inline root vars cover the shell and every portaled overlay.
   if (next.fontSmoothing === DEFAULT_APPEARANCE.fontSmoothing) {
     rootStyle.removeProperty(FONT_SMOOTHING_VAR);
     rootStyle.removeProperty(FONT_SMOOTHING_MOZ_VAR);
@@ -325,27 +324,40 @@ function applyTint(rootStyle: CSSStyleDeclaration, hue: number, intensity: numbe
 }
 
 function tintHex(hex: string, hue: number, intensity: number, scale: number): string {
-  const source = hexToRgb(hex);
+  // Light controls/layers use 8-digit hex with alpha; tint RGB only and keep alpha so
+  // translucent buttons stay system-aware instead of becoming opaque near-black.
+  const source = hexToRgba(hex);
   const target = hslToRgb(hue, 1, rgbLightness(source));
   const amount = (intensity / 100) * scale;
-  return rgbToHex({
+  return rgbaToHex({
     red: source.red + (target.red - source.red) * amount,
     green: source.green + (target.green - source.green) * amount,
     blue: source.blue + (target.blue - source.blue) * amount,
+    alpha: source.alpha,
   });
 }
 
-type Rgb = { readonly red: number; readonly green: number; readonly blue: number };
+type Rgba = {
+  readonly red: number;
+  readonly green: number;
+  readonly blue: number;
+  readonly alpha: number | undefined;
+};
 
-function hexToRgb(hex: string): Rgb {
+function hexToRgba(hex: string): Rgba {
   return {
     red: Number.parseInt(hex.slice(1, 3), 16),
     green: Number.parseInt(hex.slice(3, 5), 16),
     blue: Number.parseInt(hex.slice(5, 7), 16),
+    alpha: hex.length >= 9 ? Number.parseInt(hex.slice(7, 9), 16) : undefined,
   };
 }
 
-function rgbLightness(rgb: Rgb): number {
+function rgbLightness(rgb: {
+  readonly red: number;
+  readonly green: number;
+  readonly blue: number;
+}): number {
   const red = rgb.red / 255;
   const green = rgb.green / 255;
   const blue = rgb.blue / 255;
@@ -354,7 +366,11 @@ function rgbLightness(rgb: Rgb): number {
   return (max + min) / 2;
 }
 
-function hslToRgb(hue: number, saturation: number, lightness: number): Rgb {
+function hslToRgb(
+  hue: number,
+  saturation: number,
+  lightness: number,
+): { readonly red: number; readonly green: number; readonly blue: number } {
   if (saturation === 0) {
     const channel = lightness * 255;
     return { red: channel, green: channel, blue: channel };
@@ -382,9 +398,11 @@ function hueToChannel(p: number, q: number, t: number): number {
   return p;
 }
 
-function rgbToHex(rgb: Rgb): string {
+function rgbaToHex(rgba: Rgba): string {
   const channel = (value: number): string => Math.round(value).toString(16).padStart(2, "0");
-  return `#${channel(rgb.red)}${channel(rgb.green)}${channel(rgb.blue)}`;
+  const rgb = `#${channel(rgba.red)}${channel(rgba.green)}${channel(rgba.blue)}`;
+  if (rgba.alpha === undefined) return rgb;
+  return `${rgb}${channel(rgba.alpha)}`;
 }
 
 function clamp(value: number, min: number, max: number): number {

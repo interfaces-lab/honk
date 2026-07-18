@@ -28,6 +28,8 @@ interface ThreadTabDescriptor {
   repository: ThreadRepository;
   // Full session location for the tab preview. Keep it optional while metadata is resolving.
   path?: string;
+  // Server home directory. The preview abbreviates path with ~ when it is known.
+  homePath?: string;
   // Optional server label disambiguates equal titles. The session key stays opaque here.
   server?: ThreadServer;
 }
@@ -53,6 +55,8 @@ interface TabStripProps {
   onClose: (key: string) => void;
   onReorder: (from: number, to: number) => void;
   onNew: () => void;
+  // Present enables double-click rename on thread tabs. The strip commits trimmed, changed titles only.
+  onRename?: (key: string, title: string) => void;
   renderContextMenu?: (tab: TabDescriptor, children: ReactElement) => ReactElement;
   style?: StyleProp<HonkStyle>;
 }

@@ -338,6 +338,8 @@ const spawnOpenCode = (
       OPENCODE_SERVER_PASSWORD: password,
       OPENCODE_CLIENT: "honk-cli",
       OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS: "true",
+      OPENCODE_EXPERIMENTAL_WEBSOCKETS:
+        process.env.OPENCODE_EXPERIMENTAL_WEBSOCKETS ?? "true",
       NO_PROXY: mergeNoProxy(process.env.NO_PROXY),
       no_proxy: mergeNoProxy(process.env.no_proxy),
     },

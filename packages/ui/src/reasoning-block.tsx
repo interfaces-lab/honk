@@ -8,10 +8,6 @@ import { applyStyle, type HonkStyle, type StyleProp } from "./style";
 import { Text } from "./text";
 import { colorVars, conversationVars, fontVars, motionVars } from "./tokens.stylex";
 
-const ROW_PAD_Y = "2px";
-const CARET_WIDTH = "1.5px";
-const CARET_MARGIN = "1px";
-
 const caretPulse = stylex.keyframes({
   "0%": { opacity: 1 },
   "50%": { opacity: 0.2 },
@@ -28,7 +24,8 @@ const styles = stylex.create({
     minWidth: 0,
     maxWidth: "100%",
     paddingInline: conversationVars["--honk-conversation-inset"],
-    paddingBlock: ROW_PAD_Y,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 2px row inset is fixed geometry, no spacing token owns it
+    paddingBlock: "2px",
     fontFamily: fontVars["--honk-font-family-ui"],
     fontSize: fontVars["--honk-text-title"],
     lineHeight: fontVars["--honk-leading-title"],
@@ -40,9 +37,10 @@ const styles = stylex.create({
   },
   caret: {
     display: "inline-block",
-    width: CARET_WIDTH,
+    width: "1.5px",
     height: fontVars["--honk-text-title"],
-    marginInlineStart: CARET_MARGIN,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1px caret nudge is fixed geometry, no spacing token owns it
+    marginInlineStart: "1px",
     verticalAlign: "middle",
     backgroundColor: "currentColor",
     animationName: {

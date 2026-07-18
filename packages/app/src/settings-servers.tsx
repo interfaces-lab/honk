@@ -28,7 +28,6 @@ import { SettingsSection } from "./settings-controls";
 
 // Pairing QR codes need fixed modules on a neutral white field to remain reliably scannable.
 const PAIRING_QR_SIZE = "180px";
-const PAIRING_QR_BACKGROUND = "#ffffff";
 
 const styles = stylex.create({
   form: {
@@ -103,7 +102,8 @@ const styles = stylex.create({
     padding: controlVars["--honk-control-pad-md"],
     boxSizing: "border-box",
     borderRadius: radiusVars["--honk-radius-control"],
-    backgroundColor: PAIRING_QR_BACKGROUND,
+    // oxlint-disable-next-line honk/design-no-raw-values -- QR field must stay pure white in every theme for scanner contrast, no themed color token fits
+    backgroundColor: "#ffffff",
   },
   pairingUrl: {
     width: "100%",
@@ -359,7 +359,7 @@ function RemoteAccessPanel(): React.ReactElement | null {
         <div {...stylex.props(styles.field)}>
           <div {...stylex.props(styles.serverLine)}>
             <div {...stylex.props(styles.serverChoice)}>
-              <Text as="p" size="base" weight="medium">
+              <Text as="p" size="base" weight="regular">
                 Tailscale HTTPS
               </Text>
               <Text as="p" size="sm" tone="muted">
@@ -388,7 +388,7 @@ function RemoteAccessPanel(): React.ReactElement | null {
 
         <div {...stylex.props(styles.field)}>
           <label htmlFor="remote-public-url">
-            <Text as="span" size="sm" weight="medium">
+            <Text as="span" size="sm" weight="regular">
               Custom HTTPS address
             </Text>
           </label>
@@ -468,12 +468,12 @@ function RemoteAccessPanel(): React.ReactElement | null {
 
       {ready ? (
         <form {...stylex.props(styles.form)} onSubmit={(event) => void issuePairing(event)}>
-          <Text as="p" size="base" weight="medium">
+          <Text as="p" size="base" weight="regular">
             Pair a mobile device
           </Text>
           <div {...stylex.props(styles.field)}>
             <label htmlFor="remote-device-label">
-              <Text as="span" size="sm" weight="medium">
+              <Text as="span" size="sm" weight="regular">
                 Device name (optional)
               </Text>
             </label>
@@ -519,7 +519,7 @@ function RemoteAccessPanel(): React.ReactElement | null {
 
       {ready ? (
         <div {...stylex.props(styles.deviceList)} aria-label="Paired mobile devices">
-          <Text as="p" size="base" weight="medium">
+          <Text as="p" size="base" weight="regular">
             Paired devices
           </Text>
           {host.devices.length === 0 ? (
@@ -530,7 +530,7 @@ function RemoteAccessPanel(): React.ReactElement | null {
             host.devices.map((device) => (
               <div key={device.id} {...stylex.props(styles.deviceRow)}>
                 <div {...stylex.props(styles.deviceCopy)}>
-                  <Text as="span" size="base" weight="medium">
+                  <Text as="span" size="base" weight="regular">
                     {device.label}
                   </Text>
                   <Text as="span" size="sm" tone="muted">
@@ -728,12 +728,12 @@ export function SettingsServers(): React.ReactElement {
         </div>
 
         <form {...stylex.props(styles.form)} onSubmit={connect}>
-          <Text as="p" size="base" weight="medium">
+          <Text as="p" size="base" weight="regular">
             Add server
           </Text>
           <div {...stylex.props(styles.field)}>
             <label htmlFor="server-origin">
-              <Text as="span" size="sm" weight="medium">
+              <Text as="span" size="sm" weight="regular">
                 Server address
               </Text>
             </label>
@@ -752,7 +752,7 @@ export function SettingsServers(): React.ReactElement {
 
           <div {...stylex.props(styles.field)}>
             <label htmlFor="server-credential">
-              <Text as="span" size="sm" weight="medium">
+              <Text as="span" size="sm" weight="regular">
                 Pairing link or device password
               </Text>
             </label>
@@ -772,7 +772,7 @@ export function SettingsServers(): React.ReactElement {
 
           <div {...stylex.props(styles.field)}>
             <label htmlFor="server-label">
-              <Text as="span" size="sm" weight="medium">
+              <Text as="span" size="sm" weight="regular">
                 Name (optional)
               </Text>
             </label>

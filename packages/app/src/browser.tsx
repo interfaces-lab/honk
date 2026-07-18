@@ -9,7 +9,7 @@ import {
   IconBrowserTabs,
   IconPictureInPicture,
 } from "@honk/ui/icons";
-import { colorVars, spaceVars } from "@honk/ui/tokens.stylex";
+import { borderVars, colorVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
 import { applyBrowserViewState, browserResourceFor, browserResourceID } from "./browser-store";
@@ -17,9 +17,6 @@ import { normalizeBrowserNavigationInput } from "./browser-url";
 import { readDesktopBrowserAvailability, type DesktopBrowserBridge } from "./desktop-bridge";
 import { errorMessage } from "./error-message";
 import { actions as toastActions } from "./toast-store";
-
-// The toolbar and native page are two regions of one browser surface.
-const HAIRLINE_WIDTH = "1px";
 
 const styles = stylex.create({
   root: {
@@ -38,7 +35,7 @@ const styles = stylex.create({
     alignItems: "center",
     gap: spaceVars["--honk-space-gutter"],
     padding: spaceVars["--honk-space-gutter"],
-    borderBlockEndWidth: HAIRLINE_WIDTH,
+    borderBlockEndWidth: borderVars["--honk-border-hairline"],
     borderBlockEndStyle: "solid",
     borderBlockEndColor: colorVars["--honk-color-border-muted"],
   },
@@ -296,7 +293,7 @@ function DesktopBrowserSurface({
         {!hasPage ? (
           <div {...stylex.props(styles.center)}>
             <Icon icon={IconBrowserTabs} size="xl" tone="faint" />
-            <Text as="p" size="sm" tone="muted" weight="medium">
+            <Text as="p" size="sm" tone="muted" weight="regular">
               Open a page
             </Text>
             <Text as="p" size="xs" tone="faint">
@@ -339,7 +336,7 @@ function BrowserSurface({
       <div {...stylex.props(styles.host)}>
         <div {...stylex.props(styles.center)}>
           <Icon icon={IconBrowserTabs} size="xl" tone="faint" />
-          <Text as="p" size="sm" tone="muted" weight="medium">
+          <Text as="p" size="sm" tone="muted" weight="regular">
             {requiresRestart
               ? "Restart Honk to finish the browser upgrade"
               : "Browser works only in the desktop app"}

@@ -58,9 +58,10 @@ for (const path of boundarySources) {
     hasProtocolRuntimeCall = true;
   }
   // OpenCode loads Honk's OPENCODE_CONFIG overlay only for these stable session
-  // operations. Keep this allowlist exact so no parallel client grows here.
+  // operations. The cross-project event plane lives at global.event. Keep this
+  // allowlist exact so no parallel client grows here.
   for (const match of source.matchAll(
-    /\bsdk\.(?!(?:v2|vcs|provider|auth)(?:\.|\b)|session\.(?:create|messages|promptAsync|abort|status|revert|unrevert)(?:\(|\b))/g,
+    /\bsdk\.(?!(?:v2|vcs|provider|auth|path)(?:\.|\b)|global\.event\s*\(|session\.(?:create|messages|promptAsync|abort|status|revert|unrevert|update)(?:\(|\b))/g,
   )) {
     violations.push(
       `${rel}:${String(match.index ?? 0)} accesses the SDK outside the current namespace`,

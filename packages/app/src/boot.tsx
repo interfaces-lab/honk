@@ -23,11 +23,8 @@ import { readDesktopOnboardingWindowContext, shouldUseDesktopGlass } from "./des
 import { DesktopOnboarding } from "./onboarding";
 import { AppShell } from "./shell";
 
-const GATE_CARD_WIDTH = "320px";
 // Wordmark is larger than the prose ramp's 16px cap, so its size stays a named intrinsic.
 const SPLASH_WORDMARK_SIZE = "24px";
-const SPLASH_GAP = "16px";
-const FIELD_MIN_HEIGHT = "36px";
 const HAIRLINE = "1px";
 const FIELD_RING = `inset 0 0 0 ${HAIRLINE} ${colorVars["--honk-color-border-base"]}`;
 
@@ -47,13 +44,14 @@ const styles = stylex.create({
   },
   splash: {
     display: "grid",
-    gap: SPLASH_GAP,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 16px splash stack gap exceeds the spacing ramp (panel-pad caps at 12px); fixed wordmark/matrix rhythm
+    gap: "16px",
     justifyItems: "center",
     textAlign: "center",
   },
   card: {
     width: "100%",
-    maxWidth: GATE_CARD_WIDTH,
+    maxWidth: "320px",
     display: "grid",
     gap: spaceVars["--honk-space-panel-pad"],
     padding: spaceVars["--honk-space-panel-pad"],
@@ -69,7 +67,7 @@ const styles = stylex.create({
   field: {
     boxSizing: "border-box",
     width: "100%",
-    minHeight: FIELD_MIN_HEIGHT,
+    minHeight: "36px",
     paddingBlock: controlVars["--honk-control-pad-sm"],
     paddingInline: controlVars["--honk-control-pad-md"],
     borderStyle: "none",
@@ -82,7 +80,7 @@ const styles = stylex.create({
     lineHeight: fontVars["--honk-leading-detail"],
     outlineColor: colorVars["--honk-color-accent"],
     outlineStyle: { default: "none", ":focus-visible": "solid" },
-    outlineWidth: HAIRLINE,
+    outlineWidth: controlVars["--honk-control-focus-ring-width"],
     outlineOffset: HAIRLINE,
     "::placeholder": {
       color: colorVars["--honk-color-text-muted"],

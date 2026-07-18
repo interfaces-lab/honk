@@ -11,7 +11,6 @@ import type { ToolTodo, ToolTodoStatus } from "./tool-part-projection";
 // "nope" nudge, not a jitter. Shake anatomy, not shared tokens.
 const WIGGLE_TRAVEL = "2px";
 const WIGGLE_SETTLE = "1px";
-const WIGGLE_DURATION = "360ms";
 const wiggleKeyframes = stylex.keyframes({
   "0%, 100%": { transform: "translateX(0)" },
   "20%": { transform: `translateX(-${WIGGLE_TRAVEL})` },
@@ -23,7 +22,8 @@ const wiggleKeyframes = stylex.keyframes({
 const sx = stylex.create({
   wiggle: {
     animationName: wiggleKeyframes,
-    animationDuration: WIGGLE_DURATION,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 360ms is the bespoke five-beat shake length; no motion duration token owns it
+    animationDuration: "360ms",
     animationTimingFunction: motionVars["--honk-motion-ease-out"],
     "@media (prefers-reduced-motion: reduce)": { animationName: "none" },
   },

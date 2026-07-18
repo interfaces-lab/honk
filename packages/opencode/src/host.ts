@@ -1,4 +1,5 @@
 import {
+  HONK_BASE_SYSTEM,
   HONK_DEFAULT_MODE,
   HONK_MODES,
   type HonkPermissionConfig,
@@ -63,7 +64,7 @@ export function buildHonkOpencodeConfig(honkPluginPath: string): HonkOpencodeCon
     agent[mode.agent] = {
       mode: "primary",
       description: mode.description,
-      ...(mode.prompt === null ? {} : { prompt: mode.prompt }),
+      prompt: HONK_BASE_SYSTEM,
       permission: mode.permission,
     };
   }
@@ -74,7 +75,8 @@ export function buildHonkOpencodeConfig(honkPluginPath: string): HonkOpencodeCon
       variant: pairing.sidekick.variant,
       mode: "subagent",
       description: sidekickDescription(pairing.stop),
-      permission: { task: "deny", todowrite: "deny" },
+      prompt: HONK_BASE_SYSTEM,
+      permission: { task: "deny", todowrite: "deny", plan_submit: "deny" },
       hidden: true,
     };
   }

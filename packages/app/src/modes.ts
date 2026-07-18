@@ -21,7 +21,7 @@ export const MODES: readonly ModeDefinition[] = Object.freeze([
   {
     id: "build",
     label: "Build",
-    description: "Owns intent and review while a paired sidekick executes the work.",
+    description: "Owns intent and review while implementation continues in the background.",
     tone: "neutral",
   },
   {

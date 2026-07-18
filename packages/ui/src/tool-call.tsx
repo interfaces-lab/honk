@@ -1,10 +1,13 @@
 // Locked law. No status icons on tool calls. The disclosure chevron is a control, not a status icon.
+// Exception: rows that stand for a live session (subagents) opt into the working Matrix via
+// workingGlyph — the same liveness glyph as tabs and the sidebar, not a per-call status icon.
 
 import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
 import { Icon } from "./icon";
 import { IconChevronRightMedium } from "./icons";
+import { Matrix } from "./matrix";
 import { applyStyle, type HonkStyle, type StyleProp } from "./style";
 import { colorVars, conversationVars, fontVars, iconVars, motionVars } from "./tokens.stylex";
 
@@ -14,10 +17,12 @@ interface ToolCallLineProps {
   id?: string | undefined;
   verb: string;
   detail?: string | undefined;
+  supportingText?: string | undefined;
   state?: ToolCallState | undefined;
   added?: number | undefined;
   removed?: number | undefined;
   isExpanded?: boolean | undefined;
+  workingGlyph?: boolean | undefined;
   onToggle?: (() => void) | undefined;
   "aria-controls"?: string | undefined;
   "aria-label"?: string | undefined;
@@ -127,6 +132,26 @@ const styles = stylex.create({
       "@media (prefers-reduced-motion: reduce)": "0s",
     },
   },
+  textStack: {
+    display: "flex",
+    flexDirection: "column",
+    minWidth: 0,
+    overflow: "hidden",
+  },
+  primaryLine: {
+    display: "flex",
+    alignItems: "baseline",
+    gap: conversationVars["--honk-conversation-row-gap"],
+    minWidth: 0,
+    overflow: "hidden",
+  },
+  supportingText: {
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    color: "var(--_detail-color)",
+  },
   stats: {
     display: "inline-flex",
     flexShrink: 0,
@@ -136,6 +161,15 @@ const styles = stylex.create({
   },
   added: { color: colorVars["--honk-color-diff-addition"] },
   removed: { color: colorVars["--honk-color-diff-deletion"] },
+  workingGlyph: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    color: "var(--_verb-color)",
+    // Together with the root row-gap this spaces the glyph from the text by the 8px gutter.
+    marginInlineEnd: conversationVars["--honk-conversation-row-gap"],
+  },
   chevron: {
     display: "inline-flex",
     alignItems: "center",
@@ -195,10 +229,12 @@ function ToolCallLine({
   id,
   verb,
   detail,
+  supportingText,
   state = "done",
   added,
   removed,
   isExpanded = false,
+  workingGlyph = false,
   onToggle,
   "aria-controls": ariaControls,
   "aria-label": ariaLabel,
@@ -207,11 +243,34 @@ function ToolCallLine({
   const isRunning = state === "running";
   const isFailed = state === "failed";
 
-  const content = (
+  const primaryContent = (
     <>
-      <span {...stylex.props(styles.verb, isRunning && toolCallShimmer)}>{verb}</span>
+      <span
+        {...stylex.props(styles.verb, isRunning && supportingText === undefined && toolCallShimmer)}
+      >
+        {verb}
+      </span>
       {detail !== undefined && <span {...stylex.props(styles.detail)}>{detail}</span>}
       <DiffStats added={added} removed={removed} />
+    </>
+  );
+  const content = (
+    <>
+      {workingGlyph && isRunning && (
+        <span {...stylex.props(styles.workingGlyph)}>
+          <Matrix grid={4} isActive />
+        </span>
+      )}
+      {supportingText === undefined ? (
+        primaryContent
+      ) : (
+        <span {...stylex.props(styles.textStack)}>
+          <span {...stylex.props(styles.primaryLine)}>{primaryContent}</span>
+          <span {...stylex.props(styles.supportingText, isRunning && toolCallShimmer)}>
+            {supportingText}
+          </span>
+        </span>
+      )}
       {onToggle !== undefined && <ToolCallLineChevron isExpanded={isExpanded} />}
     </>
   );

@@ -7,6 +7,7 @@ import * as React from "react";
 
 import { useAppSettings } from "./app-settings-store";
 import { HomeComposer } from "./composer/home-composer";
+import { HonkDesktopNewSessionControls } from "./desktop-extensions/new-session-controls";
 import { actions as tabActions, newSessionTabKey, useNewSessionDraft } from "./tab-store";
 import { useSessionInventoryWatchSelector } from "./use-sdk-watch";
 
@@ -31,6 +32,12 @@ const styles = stylex.create({
   composer: {
     width: "100%",
     maxWidth: NEW_SESSION_MAX_WIDTH,
+    // Cap the composer at the page height so a long draft scrolls inside the editor instead of
+    // growing the centered card past the window.
+    maxHeight: "100%",
+    minHeight: 0,
+    display: "flex",
+    flexDirection: "column",
   },
 });
 
@@ -73,6 +80,7 @@ function NewSessionPage(): React.ReactElement {
             tabActions.setRepository(draftKey, { state: "ready", label: basename(path) });
           }}
         />
+        <HonkDesktopNewSessionControls />
       </div>
     </main>
   );

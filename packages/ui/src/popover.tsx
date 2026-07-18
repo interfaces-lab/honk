@@ -62,7 +62,7 @@ const sx = stylex.create({
     margin: 0,
     fontSize: fontVars["--honk-font-size-body"],
     lineHeight: fontVars["--honk-leading-title"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
     color: colorVars["--honk-color-text-primary"],
   },
   description: {

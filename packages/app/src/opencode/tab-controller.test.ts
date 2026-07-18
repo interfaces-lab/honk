@@ -7,6 +7,7 @@ import {
   openCodeDraftHref,
   openCodeSideChatHref,
   openCodeSessionHref,
+  openCodeSessionRefFromRouteParams,
   openCodeWorkbenchClosedHref,
   openCodeWorkbenchTabHref,
   openCodeWorkbenchToolHref,
@@ -91,6 +92,15 @@ describe("OpenCode tab routes", () => {
       type: "session",
       ref,
     });
+  });
+
+  it("resolves decoded TanStack route params without reading the current location", () => {
+    const ref = openCodeSessionRef(local.key, "ses/route transition");
+    const serverSegment = openCodeSessionHref(ref).split("/")[2];
+
+    expect(openCodeSessionRefFromRouteParams(serverSegment, ref.sessionID)).toEqual(ref);
+    expect(openCodeSessionRefFromRouteParams("not+canonical", ref.sessionID)).toBeNull();
+    expect(openCodeSessionRefFromRouteParams(serverSegment, undefined)).toBeNull();
   });
 });
 

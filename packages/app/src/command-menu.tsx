@@ -11,7 +11,14 @@ import {
   StatusDot,
   Text,
 } from "@honk/ui";
-import { colorVars, controlVars, fontVars, radiusVars, spaceVars } from "@honk/ui/tokens.stylex";
+import {
+  borderVars,
+  colorVars,
+  controlVars,
+  fontVars,
+  radiusVars,
+  spaceVars,
+} from "@honk/ui/tokens.stylex";
 import {
   IconChevronLeftMedium,
   IconClipboard,
@@ -63,7 +70,6 @@ const MENU_TOP = "clamp(72px, 18dvh, 160px)";
 const MENU_MAX_HEIGHT = "calc(100dvh - 96px)";
 const MENU_DROP_MAX_HEIGHT = "min(420px, 50dvh)";
 const HAIRLINE = "1px";
-const SECTION_TRACKING = "0.06em";
 
 const MENU_DIALOG_STYLE: React.CSSProperties = {
   top: MENU_TOP,
@@ -81,7 +87,7 @@ const MENU_DIALOG_STYLE: React.CSSProperties = {
 const MENU_FIELD_STYLE: React.CSSProperties = {
   backgroundColor: "transparent",
   borderRadius: 0,
-  borderBottomWidth: HAIRLINE,
+  borderBottomWidth: borderVars["--honk-border-hairline"],
   borderBottomStyle: "solid",
   borderBottomColor: colorVars["--honk-color-border-muted"],
   boxShadow: "none",
@@ -127,7 +133,7 @@ const styles = stylex.create({
     backgroundColor: colorVars["--honk-color-layer-02"],
     color: colorVars["--honk-color-text-muted"],
     fontSize: fontVars["--honk-font-size-caption"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
     whiteSpace: "nowrap",
   },
   hints: {
@@ -140,7 +146,8 @@ const styles = stylex.create({
   drop: {
     display: "flex",
     flexDirection: "column",
-    gap: HAIRLINE,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1px inter-row hairline gutter; smallest spacing token is 8px, no 1px spacing step exists
+    gap: "1px",
     width: "100%",
     boxSizing: "border-box",
     padding: spaceVars["--honk-space-gutter"],
@@ -162,7 +169,7 @@ const styles = stylex.create({
     color: colorVars["--honk-color-text-faint"],
     fontSize: fontVars["--honk-font-size-micro"],
     fontWeight: fontVars["--honk-font-weight-semibold"],
-    letterSpacing: SECTION_TRACKING,
+    letterSpacing: "0.06em",
     textTransform: "uppercase",
   },
   verb: {
@@ -184,7 +191,7 @@ const styles = stylex.create({
     alignItems: "center",
     gap: spaceVars["--honk-space-gutter"],
     paddingInline: spaceVars["--honk-space-panel-pad"],
-    borderTopWidth: HAIRLINE,
+    borderTopWidth: borderVars["--honk-border-hairline"],
     borderTopStyle: "solid",
     borderTopColor: colorVars["--honk-color-border-muted"],
     backgroundColor: colorVars["--honk-color-layer-01"],

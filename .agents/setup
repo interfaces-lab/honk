@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Installing pinned Node and pnpm toolchains..."
+if command -v mise >/dev/null 2>&1; then
+  mise install
+  eval "$(mise activate bash)"
+fi
+
+if [[ "$(node --version)" != v24.* ]]; then
+  echo "Honk requires Node 24; found $(node --version). Install mise or Node 24." >&2
+  exit 1
+fi
+
+# The packageManager field is authoritative for pnpm; Corepack avoids relying on
+# a globally installed pnpm that may not match the lockfile.
+corepack enable
+corepack pnpm config set store-dir ~/.pnpm-store
+
+echo "Installing workspace dependencies..."
+corepack pnpm install --frozen-lockfile
+
+echo "Orb setup complete."

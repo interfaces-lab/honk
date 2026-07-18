@@ -6,6 +6,7 @@ import * as React from "react";
 import { applyStyle, type HonkStyle, type StyleProp } from "./style";
 import {
   colorVars,
+  controlVars,
   electronGlassWorkbenchTheme,
   elevationVars,
   fontVars,
@@ -14,9 +15,6 @@ import {
   spaceVars,
   workbenchSurfaceVars,
 } from "./tokens.stylex";
-
-const SHEET_GUTTER = "8px";
-const TITLEBAR_ITEM_GAP = "6px";
 
 const styles = stylex.create({
   frame: {
@@ -42,7 +40,7 @@ const styles = stylex.create({
     paddingTop: shellVars["--honk-shell-titlebar-seat"],
     paddingLeft: shellVars["--honk-shell-inset-left"],
     paddingRight: spaceVars["--honk-space-panel-pad"],
-    columnGap: TITLEBAR_ITEM_GAP,
+    columnGap: controlVars["--honk-control-gap"],
     // No own background: the titlebar is part of the single backdrop the frame paints
     // (root-background), so the titlebar / stage-gutter boundary can never seam.
   },
@@ -64,7 +62,7 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     overflowX: "hidden",
-    padding: SHEET_GUTTER,
+    padding: spaceVars["--honk-space-gutter"],
   },
   sheet: {
     flexGrow: 1,

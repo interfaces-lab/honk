@@ -9,9 +9,6 @@ type FieldSize = "md" | "lg";
 // Hairline is an inset shadow so the ring never shifts layout.
 const RING_BASE = `inset 0 0 0 1px ${colorVars["--honk-color-border-base"]}`;
 const RING_HOVER = `inset 0 0 0 1px ${colorVars["--honk-color-border-strong"]}`;
-// Outline focus ring sits outside the inset ring without colliding.
-const FOCUS_RING_WIDTH = "1px";
-const FOCUS_RING_OFFSET = "2px";
 
 const sx = stylex.create({
   root: {
@@ -28,8 +25,8 @@ const sx = stylex.create({
     },
     outlineColor: colorVars["--honk-color-accent"],
     outlineStyle: { default: "none", ":focus-within": "solid" },
-    outlineWidth: FOCUS_RING_WIDTH,
-    outlineOffset: FOCUS_RING_OFFSET,
+    outlineWidth: controlVars["--honk-control-focus-ring-width"],
+    outlineOffset: controlVars["--honk-control-focus-ring-offset"],
   },
   sizeMd: {
     minHeight: controlVars["--honk-control-h-md"],

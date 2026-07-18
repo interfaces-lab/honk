@@ -15,12 +15,6 @@ import {
   zVars,
 } from "./tokens.stylex";
 
-const DIALOG_MAX_WIDTH = "480px";
-// Height cap 640px with 24px viewport edge inset. Overflow scrolls inside the popup.
-const DIALOG_MAX_HEIGHT = "min(640px, calc(100dvh - 48px))";
-const DIALOG_PAD = "20px";
-const DIALOG_HEADER_GAP = "4px";
-
 const RING_MUTED = `inset 0 0 0 1px ${colorVars["--honk-color-border-muted"]}`;
 const FOOTER_HAIRLINE = `inset 0 1px 0 0 ${colorVars["--honk-color-border-muted"]}`;
 
@@ -56,16 +50,18 @@ const sx = stylex.create({
     // Popup must set the same z-index as the scrim. auto would paint under the scrim.
     zIndex: zVars["--honk-z-dialog"],
     width: "100%",
-    maxWidth: DIALOG_MAX_WIDTH,
-    maxHeight: DIALOG_MAX_HEIGHT,
+    maxWidth: "480px",
+    // Height cap 640px with 24px viewport edge inset. Overflow scrolls inside the popup.
+    maxHeight: "min(640px, calc(100dvh - 48px))",
     overflowY: "auto",
     display: "flex",
     flexDirection: "column",
     gap: spaceVars["--honk-space-panel-pad"],
-    padding: DIALOG_PAD,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 20px dialog padding is a fixed intrinsic; no spacing token owns 20px
+    padding: "20px",
     borderRadius: radiusVars["--honk-radius-window"],
     backgroundColor: colorVars["--honk-color-bg-base"],
-    boxShadow: `${RING_MUTED}, ${elevationVars["--honk-elevation-floating"]}`,
+    boxShadow: `${RING_MUTED}, ${elevationVars["--honk-elevation-overlay"]}`,
     color: colorVars["--honk-color-text-primary"],
     fontFamily: fontVars["--honk-font-family-ui"],
     fontSize: fontVars["--honk-font-size-body"],
@@ -98,7 +94,7 @@ const sx = stylex.create({
     margin: 0,
     fontSize: fontVars["--honk-font-size-body"],
     lineHeight: fontVars["--honk-leading-title"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
     color: colorVars["--honk-color-text-primary"],
   },
   description: {
@@ -110,7 +106,8 @@ const sx = stylex.create({
   header: {
     display: "flex",
     flexDirection: "column",
-    gap: DIALOG_HEADER_GAP,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px title/description header gap is a fixed intrinsic; no spacing token owns 4px
+    gap: "4px",
   },
   footer: {
     display: "flex",

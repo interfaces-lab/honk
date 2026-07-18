@@ -1,6 +1,6 @@
 // Stable web token facade. Shared values are authored in theme.ts and generated into
-// platform-tokens.stylex.ts; this file owns web-only elevation, motion, z-index, shell,
-// toast, and prose concerns.
+// platform-tokens.stylex.ts; this file owns web-only border, elevation, motion, z-index,
+// shell, toast, and prose concerns.
 
 import * as stylex from "@stylexjs/stylex";
 
@@ -35,6 +35,11 @@ export type {
   SpaceVarName,
 } from "./platform-tokens.stylex";
 
+const borderDefaults = {
+  // The app's one divider weight: region hairlines, separators, drop indicators' cousins.
+  "--honk-border-hairline": "1px",
+} as const;
+
 const elevationDefaults = {
   // Cursor keeps this for non-inset workbench surfaces; `.has-insets` explicitly disables it.
   "--honk-elevation-workbench":
@@ -43,12 +48,22 @@ const elevationDefaults = {
     " 0 1px 2px light-dark(transparent, rgba(0,0,0,.30))," +
     " 0 0 0 .5px light-dark(transparent, rgba(255,255,255,.16))," +
     " 0 -.5px 0 light-dark(transparent, rgba(255,255,255,.06))",
+  // OpenCode v2 tightens the light second shadow with -1px spread, while dark keeps 0.
+  // Separate color-switched layers preserve both geometries under Honk's light-dark() theming.
   "--honk-elevation-raised":
     "0 2px 4px light-dark(rgba(0,0,0,.04), rgba(0,0,0,.30))," +
-    " 0 1px 2px light-dark(rgba(0,0,0,.08), rgba(0,0,0,.30))," +
+    " 0 1px 2px -1px light-dark(rgba(0,0,0,.08), transparent)," +
+    " 0 1px 2px light-dark(transparent, rgba(0,0,0,.30))," +
     " 0 0 0 .5px light-dark(rgba(0,0,0,.12), rgba(255,255,255,.16))," +
     " 0 -.5px 0 light-dark(transparent, rgba(255,255,255,.06))",
+  // Floating follows OpenCode v2's floating tier (8/16 + 4/8); ring and bevel stay shared.
   "--honk-elevation-floating":
+    "0 8px 16px light-dark(rgba(0,0,0,.04), rgba(0,0,0,.30))," +
+    " 0 4px 8px light-dark(rgba(0,0,0,.08), rgba(0,0,0,.30))," +
+    " 0 0 0 .5px light-dark(rgba(0,0,0,.12), rgba(255,255,255,.16))," +
+    " 0 -.5px 0 light-dark(transparent, rgba(255,255,255,.06))",
+  // Overlay is OpenCode v2's heaviest tier (16/32 + 8/16), reserved for modal dialogs.
+  "--honk-elevation-overlay":
     "0 16px 32px light-dark(rgba(0,0,0,.04), rgba(0,0,0,.30))," +
     " 0 8px 16px light-dark(rgba(0,0,0,.08), rgba(0,0,0,.30))," +
     " 0 0 0 .5px light-dark(rgba(0,0,0,.12), rgba(255,255,255,.16))," +
@@ -162,6 +177,7 @@ const electronGlassWorkbenchTheme = stylex.createTheme(workbenchSurfaceVars, {
   "--honk-workbench-input-border-active": `light-dark(${colorVars["--honk-color-border-base"]}, color-mix(in srgb, ${colorVars["--honk-color-text-contrast"]} 12%, transparent))`,
 });
 
+const borderVars = stylex.defineVars(borderDefaults);
 const elevationVars = stylex.defineVars(elevationDefaults);
 const motionVars = stylex.defineVars(motionDefaults);
 const zVars = stylex.defineVars(zDefaults);
@@ -169,6 +185,7 @@ const toastVars = stylex.defineVars(toastDefaults);
 const proseVars = stylex.defineVars(proseDefaults);
 const shellVars = stylex.defineVars(shellDefaults);
 
+type BorderVarName = keyof typeof borderDefaults;
 type ElevationVarName = keyof typeof elevationDefaults;
 type MotionVarName = keyof typeof motionDefaults;
 type ZVarName = keyof typeof zDefaults;
@@ -178,6 +195,8 @@ type ShellVarName = keyof typeof shellDefaults;
 type WorkbenchSurfaceVarName = keyof typeof workbenchSurfaceDefaults;
 
 export {
+  borderDefaults,
+  borderVars,
   elevationDefaults,
   elevationVars,
   electronGlassWorkbenchTheme,
@@ -196,6 +215,7 @@ export {
 };
 
 export type {
+  BorderVarName,
   ElevationVarName,
   MotionVarName,
   ProseVarName,

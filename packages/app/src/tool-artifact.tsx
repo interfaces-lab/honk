@@ -1,4 +1,10 @@
-import { parsePatchFiles, trimPatchContext, type FileDiffMetadata } from "@pierre/diffs";
+import {
+  getFiletypeFromFileName,
+  parsePatchFiles,
+  preloadHighlighter,
+  trimPatchContext,
+  type FileDiffMetadata,
+} from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import * as stylex from "@stylexjs/stylex";
 import {
@@ -10,7 +16,7 @@ import {
 } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
-import { useAppearanceTheme } from "./appearance-store";
+import { useAppearanceTheme, type ThemePreference } from "./appearance-store";
 import type { ToolArtifact, ToolSourceArtifact } from "./tool-artifact-normalizer";
 import vendorStyles from "./tool-artifact.module.css";
 import { TOOL_DIFF_THEME_NAMES } from "./tool-artifact-theme";
@@ -18,6 +24,14 @@ import { TOOL_DIFF_THEME_NAMES } from "./tool-artifact-theme";
 type RenderableToolPatch =
   | { readonly kind: "files"; readonly files: readonly FileDiffMetadata[] }
   | { readonly kind: "raw"; readonly text: string; readonly reason: string };
+
+type ToolArtifactHighlighterStatus = "loading" | "ready" | "failed";
+
+type ToolArtifactHighlighterResource = {
+  status: ToolArtifactHighlighterStatus;
+  readonly subscribe: (listener: () => void) => () => void;
+  readonly getSnapshot: () => ToolArtifactHighlighterStatus;
+};
 
 // Cursor's collapsed edit card reveals roughly four code rows before disclosure.
 const COLLAPSED_ARTIFACT_MAX_HEIGHT = "80px";
@@ -27,6 +41,7 @@ const COLLAPSED_DIFF_CONTEXT_LINES = 1;
 const EXPANDED_DIFF_CONTEXT_LINES = 3;
 const ARTIFACT_RING_WIDTH = "1px";
 const ARTIFACT_RING = `inset 0 0 0 ${ARTIFACT_RING_WIDTH} ${colorVars["--honk-color-border-muted"]}`;
+const toolArtifactHighlighterResources = new Map<string, ToolArtifactHighlighterResource>();
 
 const PIERRE_UNSAFE_CSS = `
   :host {
@@ -147,12 +162,31 @@ function ToolDiff({
     );
   }
   return (
+    <HighlightedToolFiles artifact={artifact} appearance={appearance} files={renderable.files} />
+  );
+}
+
+function HighlightedToolFiles({
+  artifact,
+  appearance,
+  files,
+}: {
+  readonly artifact: ToolArtifact;
+  readonly appearance: ThemePreference;
+  readonly files: readonly FileDiffMetadata[];
+}): React.ReactElement | null {
+  // Pierre paints plaintext while a new Shiki grammar loads. Delay its mount so the first visible
+  // frame already has the grammar and both appearance themes attached.
+  const highlighterStatus = useToolArtifactHighlighter(files);
+  if (highlighterStatus === "loading") return null;
+
+  return (
     <div
       {...(artifact.kind === "source"
         ? { "data-pierre-tool-source": "" }
         : { "data-pierre-tool-diff": "" })}
     >
-      {renderable.files.map((file) => (
+      {files.map((file) => (
         <FileDiff
           key={fileDiffKey(file)}
           fileDiff={file}
@@ -176,6 +210,76 @@ function ToolDiff({
       ))}
     </div>
   );
+}
+
+function useToolArtifactHighlighter(
+  files: readonly FileDiffMetadata[],
+): ToolArtifactHighlighterStatus {
+  const languages = [
+    ...new Set(
+      files.flatMap((file) => [
+        getFiletypeFromFileName(file.name),
+        ...(file.prevName === undefined ? [] : [getFiletypeFromFileName(file.prevName)]),
+      ]),
+    ),
+  ].sort();
+  const key = languages.join(":");
+  const resource =
+    typeof window === "undefined"
+      ? serverHighlighterResource
+      : getToolArtifactHighlighterResource(key, languages);
+  return React.useSyncExternalStore(resource.subscribe, resource.getSnapshot, () => "ready");
+}
+
+const serverHighlighterResource: ToolArtifactHighlighterResource = {
+  status: "ready",
+  subscribe: () => () => undefined,
+  getSnapshot: () => "ready",
+};
+
+function getToolArtifactHighlighterResource(
+  key: string,
+  languages: readonly string[],
+): ToolArtifactHighlighterResource {
+  const cached = toolArtifactHighlighterResources.get(key);
+  if (cached !== undefined) return cached;
+  const resource = createHighlighterResource(languages);
+  toolArtifactHighlighterResources.set(key, resource);
+  return resource;
+}
+
+function createHighlighterResource(languages: readonly string[]): ToolArtifactHighlighterResource {
+  const listeners = new Set<() => void>();
+  const resource: ToolArtifactHighlighterResource = {
+    status: "loading",
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    getSnapshot: () => resource.status,
+  };
+  void preloadHighlighter({
+    themes: [TOOL_DIFF_THEME_NAMES.light, TOOL_DIFF_THEME_NAMES.dark],
+    langs: [...languages],
+    preferredHighlighter: "shiki-js",
+  }).then(
+    () => {
+      resource.status = "ready";
+      listeners.forEach((listener) => {
+        listener();
+      });
+    },
+    (error: unknown) => {
+      console.error(error);
+      resource.status = "failed";
+      listeners.forEach((listener) => {
+        listener();
+      });
+    },
+  );
+  return resource;
 }
 
 function ArtifactPlaceholder({ title }: { readonly title: string }): React.ReactElement {

@@ -1,6 +1,7 @@
-// Every thread pins one Main + Sidekick bundle at birth. The main model rides every prompt.
-// The Honk plugin keeps a persistent child session on the paired sidekick.
+// Every thread pins its selected model at birth. Honk's four effort presets also pin a
+// persistent sidekick; catalog-backed direct models can omit that pairing.
 
+import type { OpenCodeModelInfo } from "@honk/opencode";
 import {
   HONK_AGENT_PAIRINGS,
   type HonkModelArm,
@@ -8,7 +9,9 @@ import {
 } from "@honk/opencode/pairing";
 import { useSyncExternalStore } from "react";
 
-export type PresetId = HonkPresetStop;
+export const OPEN_CODE_GO_PRESET_ID = "kimi-k3" as const;
+
+export type PresetId = HonkPresetStop | typeof OPEN_CODE_GO_PRESET_ID;
 
 export type PresetModel = {
   readonly providerID: string;
@@ -20,15 +23,15 @@ export type PresetDefinition = {
   readonly label: string;
   // Hard-pinned on create and every prompt. The mode agent carries no model.
   readonly mainModel: PresetModel;
-  readonly mainVariant: string;
-  readonly sidekickModel: PresetModel;
+  readonly mainVariant?: string;
+  readonly sidekickModel?: PresetModel;
   readonly mainLabel: string;
-  readonly sidekickLabel: string;
+  readonly sidekickLabel?: string;
 };
 
-function modelLabel(model: HonkModelArm): string {
+export function modelLabel(model: HonkModelArm): string {
   const family = model.providerID === "anthropic" ? "Fable 5" : "Sol";
-  return `${family} ${model.variant}`;
+  return `${family} ${model.variant === "xhigh" ? "Extra high" : `${model.variant.slice(0, 1).toUpperCase()}${model.variant.slice(1)}`}`;
 }
 
 export const PRESETS: readonly PresetDefinition[] = Object.freeze(
@@ -43,8 +46,32 @@ export const PRESETS: readonly PresetDefinition[] = Object.freeze(
   })),
 );
 
-export function presetById(id: string): PresetDefinition {
-  return PRESETS.find((preset) => preset.id === id) ?? PRESETS[1]!;
+export function openCodeGoPreset(
+  models: readonly Pick<OpenCodeModelInfo, "enabled" | "id" | "name" | "providerID" | "variants">[],
+): PresetDefinition | null {
+  const model = models.find(
+    (candidate) =>
+      candidate.enabled &&
+      candidate.providerID === "opencode-go" &&
+      candidate.id === OPEN_CODE_GO_PRESET_ID,
+  );
+  if (model === undefined) return null;
+  const variant =
+    model.variants.find((candidate) => candidate.id === "max")?.id ?? model.variants[0]?.id;
+  return Object.freeze({
+    id: OPEN_CODE_GO_PRESET_ID,
+    label: model.name,
+    mainModel: { providerID: model.providerID, id: model.id },
+    ...(variant === undefined ? {} : { mainVariant: variant }),
+    mainLabel: model.name,
+  });
+}
+
+export function presetById(
+  id: string,
+  presets: readonly PresetDefinition[] = PRESETS,
+): PresetDefinition {
+  return presets.find((preset) => preset.id === id) ?? PRESETS[1]!;
 }
 
 const STORAGE_KEY = "honk:app:preset";
@@ -83,7 +110,13 @@ export const actions = {
 } as const;
 
 function isPresetId(value: unknown): value is PresetId {
-  return value === "low" || value === "medium" || value === "high" || value === "ultra";
+  return (
+    value === "low" ||
+    value === "medium" ||
+    value === "high" ||
+    value === "ultra" ||
+    value === OPEN_CODE_GO_PRESET_ID
+  );
 }
 
 function hydrate(): PresetId {

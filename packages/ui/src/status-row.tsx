@@ -2,10 +2,10 @@
 import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
+import { Matrix } from "./matrix";
 import { applyStyle, type HonkStyle, type StyleProp } from "./style";
-import { colorVars, conversationVars, fontVars, motionVars } from "./tokens.stylex";
+import { colorVars, conversationVars, fontVars, motionVars, spaceVars } from "./tokens.stylex";
 
-const ROW_PAD_Y = "2px";
 const LABEL_OPACITY = 0.8;
 // Mask uses black as alpha, not a theme color. Stop offsets are fixed animation geometry.
 const SHIMMER_MASK =
@@ -22,11 +22,13 @@ const styles = stylex.create({
     width: "100%",
     minWidth: 0,
     alignItems: "center",
-    paddingBlock: ROW_PAD_Y,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 2px hairline vertical inset is fixed geometry, no spacing token owns it
+    paddingBlock: "2px",
   },
   loader: {
     display: "inline-flex",
     alignItems: "center",
+    gap: spaceVars["--honk-space-gutter"],
     maxWidth: "100%",
     minHeight: conversationVars["--honk-conversation-row-min-h"],
     paddingInline: conversationVars["--honk-conversation-inset"],
@@ -65,6 +67,7 @@ function StatusRow({ children, style }: StatusRowProps): React.ReactElement {
   return (
     <div role="status" aria-label={children} {...applyStyle(stylex.props(styles.row), style)}>
       <span {...stylex.props(styles.loader)}>
+        <Matrix variant="compass" />
         <span aria-hidden={true} {...stylex.props(styles.label)}>
           {children}
         </span>

@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import type { ConversationDensity } from "@honk/shared/conversation-density";
-import { ChangeReceipt, ToolCallLine, type ToolCallState, UserMessage, WorkGroup } from "@honk/ui";
+import { ChangeReceipt, ToolCallLine, UserMessage, WorkGroup } from "@honk/ui";
 import { AssistantMessage } from "@honk/ui/assistant-message";
 import { CompactionDivider } from "@honk/ui/compaction-divider";
 import { NoticeRow } from "@honk/ui/notice-row";
@@ -29,6 +29,7 @@ import {
 } from "../tool-presentation";
 import {
   isPartActive,
+  isSyntheticOnlyUserMessage,
   segmentAssistantTurn,
   turnDiffs,
   type AssistantThreadMessage,
@@ -42,13 +43,13 @@ import {
   type TranscriptBlock,
   type WorkPart,
 } from "./transcript-model";
+import type { TaskChildLink } from "./subagent-session";
+import { TaskMessage } from "./task-message";
 
 const PREVIEW_SCROLLABLE_ROWS = 5;
 const EMPTY_PARTS: readonly ThreadPart[] = Object.freeze([]);
-const EMPTY_TASK_STATES: ReadonlyMap<string, ToolCallState> = new Map();
+const EMPTY_TASK_LINKS: ReadonlyMap<string, TaskChildLink> = new Map();
 const USER_ATTACHMENT_MAX_WIDTH = "240px";
-const USER_ATTACHMENT_IMAGE_MAX_HEIGHT = "160px";
-const USER_ATTACHMENT_CHIP_PADDING_BLOCK = "1px";
 
 const styles = stylex.create({
   turn: { display: "flex", flexDirection: "column", gap: spaceVars["--honk-space-panel-pad"] },
@@ -79,7 +80,8 @@ const styles = stylex.create({
     alignItems: "center",
     gap: controlVars["--honk-control-gap"],
     maxWidth: USER_ATTACHMENT_MAX_WIDTH,
-    paddingBlock: USER_ATTACHMENT_CHIP_PADDING_BLOCK,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1px chip vertical padding is a fixed micro-inset; no spacing token owns 1px
+    paddingBlock: "1px",
     paddingInline: controlVars["--honk-control-gap"],
     borderRadius: radiusVars["--honk-radius-pill"],
     backgroundColor: colorVars["--honk-color-layer-02"],
@@ -93,7 +95,7 @@ const styles = stylex.create({
   userAttachmentImage: {
     display: "block",
     maxWidth: USER_ATTACHMENT_MAX_WIDTH,
-    maxHeight: USER_ATTACHMENT_IMAGE_MAX_HEIGHT,
+    maxHeight: "160px",
     borderRadius: radiusVars["--honk-radius-control"],
     objectFit: "cover",
   },
@@ -145,7 +147,7 @@ export function ThreadTurnRow({
   editComposer = null,
   onOpenTask,
   openTaskPartID = null,
-  taskStateByPartID = EMPTY_TASK_STATES,
+  taskLinkByPartID = EMPTY_TASK_LINKS,
   showDiffSummary = true,
 }: {
   readonly rowRef?: React.Ref<HTMLDivElement>;
@@ -161,18 +163,20 @@ export function ThreadTurnRow({
   readonly editComposer?: React.ReactNode;
   readonly onOpenTask?: ((part: ToolPart) => void) | undefined;
   readonly openTaskPartID?: string | null | undefined;
-  readonly taskStateByPartID?: ReadonlyMap<string, ToolCallState> | undefined;
+  readonly taskLinkByPartID?: ReadonlyMap<string, TaskChildLink> | undefined;
   readonly showDiffSummary?: boolean | undefined;
 }): React.ReactElement {
   const diffs = turnDiffs(turn.user);
   const showDiffs = showDiffSummary && diffs.length > 0 && (!isLast || !isThreadRunning);
+  const userParts =
+    turn.user === null ? EMPTY_PARTS : (partsByMessageId.get(turn.user.id) ?? EMPTY_PARTS);
 
   return (
     <div ref={rowRef} {...stylex.props(styles.turn)}>
-      {turn.user !== null ? (
+      {turn.user !== null && !isSyntheticOnlyUserMessage(userParts) ? (
         <UserThreadMessageRow
           messageID={turn.user.id}
-          parts={partsByMessageId.get(turn.user.id) ?? EMPTY_PARTS}
+          parts={userParts}
           requiresRevertConfirmation={!isLast || diffs.length > 0}
           onEditMessage={onEditMessage}
           editDraft={editDraft}
@@ -187,7 +191,7 @@ export function ThreadTurnRow({
           onInterrupt={onInterrupt}
           onOpenTask={onOpenTask}
           openTaskPartID={openTaskPartID}
-          taskStateByPartID={taskStateByPartID}
+          taskLinkByPartID={taskLinkByPartID}
         />
       ) : null}
       {showDiffs ? <TurnDiffSummary diffs={diffs} onReview={onReviewChanges} /> : null}
@@ -281,7 +285,7 @@ function AssistantTurnRows({
   onInterrupt,
   onOpenTask,
   openTaskPartID,
-  taskStateByPartID,
+  taskLinkByPartID,
 }: {
   messages: readonly AssistantThreadMessage[];
   partsByMessageId: ReadonlyMap<string, readonly ThreadPart[]>;
@@ -289,7 +293,7 @@ function AssistantTurnRows({
   onInterrupt: (() => void) | undefined;
   onOpenTask: ((part: ToolPart) => void) | undefined;
   openTaskPartID: string | null;
-  taskStateByPartID: ReadonlyMap<string, ToolCallState>;
+  taskLinkByPartID: ReadonlyMap<string, TaskChildLink>;
 }): React.ReactElement {
   const blocks = segmentAssistantTurn(messages, partsByMessageId);
 
@@ -303,7 +307,7 @@ function AssistantTurnRows({
           onInterrupt={onInterrupt}
           onOpenTask={onOpenTask}
           openTaskPartID={openTaskPartID}
-          taskStateByPartID={taskStateByPartID}
+          taskLinkByPartID={taskLinkByPartID}
         />
       ))}
     </div>
@@ -335,14 +339,14 @@ function BlockRow({
   onInterrupt,
   onOpenTask,
   openTaskPartID,
-  taskStateByPartID,
+  taskLinkByPartID,
 }: {
   block: TranscriptBlock;
   conversationDensity: ConversationDensity;
   onInterrupt: (() => void) | undefined;
   onOpenTask: ((part: ToolPart) => void) | undefined;
   openTaskPartID: string | null;
-  taskStateByPartID: ReadonlyMap<string, ToolCallState>;
+  taskLinkByPartID: ReadonlyMap<string, TaskChildLink>;
 }): React.ReactElement | null {
   switch (block.kind) {
     case "prose":
@@ -350,17 +354,12 @@ function BlockRow({
     case "reasoning":
       return <ReasoningPartRow part={block.part} />;
     case "task": {
-      const taskState = taskStateByPartID.get(block.part.id);
       return (
-        <ToolMessage
+        <TaskMessage
           part={block.part}
-          {...(taskState === undefined
-            ? {}
-            : {
-                stateOverride: taskState,
-                onOpenTask,
-                taskSelected: block.part.id === openTaskPartID,
-              })}
+          link={taskLinkByPartID.get(block.part.id) ?? null}
+          isOpen={block.part.id === openTaskPartID}
+          onOpen={onOpenTask}
         />
       );
     }
@@ -518,7 +517,7 @@ const CATEGORY_VERB: Record<ToolCategory, string> = {
   edit: "Edited",
   run: "Ran",
   explore: "Explored",
-  delegate: "Delegated",
+  delegate: "Worked",
   plan: "Planned",
   other: "Worked",
 };
@@ -594,7 +593,7 @@ function WorkPartRow({
     case "file":
       return <ToolCallLine verb="Attached" detail={part.filename ?? part.url} />;
     case "subtask":
-      return <ToolCallLine verb="Delegated" detail={`${part.agent} · ${part.description}`} />;
+      return <ToolCallLine verb="Worked" detail={part.description} />;
     case "agent":
       return <ToolCallLine verb="Agent" detail={part.name} />;
     case "patch":

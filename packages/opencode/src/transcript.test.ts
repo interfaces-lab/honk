@@ -7,7 +7,11 @@ import type {
 } from "@opencode-ai/sdk/v2/client";
 import { describe, expect, it } from "vitest";
 
-import { projectOpenCodeTranscript, type OpenCodePersistedMessage } from "./transcript";
+import {
+  projectOpenCodeTranscript,
+  projectOpenCodeTranscriptMessage,
+  type OpenCodePersistedMessage,
+} from "./transcript";
 
 const session: SessionV2Info = {
   id: "ses_transcript",
@@ -73,6 +77,34 @@ function toolPart(parts: readonly Part[]): ToolPart {
 }
 
 describe("projectOpenCodeTranscript reconciliation", () => {
+  it("projects one canonical session message against the current parent", () => {
+    const projection = projectOpenCodeTranscriptMessage(
+      session,
+      projectedAssistant([
+        {
+          id: "part_reasoning",
+          type: "reasoning",
+          text: "",
+          time: { created: 110 },
+        },
+      ]),
+      "msg_current_user",
+    );
+
+    expect(projection.messages).toEqual([
+      expect.objectContaining({ id: "msg_assistant", parentID: "msg_current_user" }),
+    ]);
+    expect(projection.parts).toEqual([
+      expect.objectContaining({
+        id: "part_reasoning",
+        messageID: "msg_assistant",
+        type: "reasoning",
+        text: "",
+        time: { start: 110 },
+      }),
+    ]);
+  });
+
   it("promotes a persisted running tool to its richer projected completion", () => {
     const running: ToolPart = {
       id: "part_tool",

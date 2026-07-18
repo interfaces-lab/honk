@@ -419,6 +419,8 @@ const makeOpencodeSidecar = Effect.fn("desktop.opencodeSidecar.make")(function* 
         OPENCODE_SERVER_PASSWORD: password,
         OPENCODE_CLIENT: "honk-desktop",
         OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS: "true",
+        OPENCODE_EXPERIMENTAL_WEBSOCKETS:
+          process.env.OPENCODE_EXPERIMENTAL_WEBSOCKETS ?? "true",
         NO_PROXY: mergeLoopbackNoProxy(process.env.NO_PROXY),
         no_proxy: mergeLoopbackNoProxy(process.env.no_proxy),
       },

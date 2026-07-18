@@ -27,6 +27,23 @@ type OpenCodeSessionTranscript = {
   readonly sources: OpenCodeSessionTranscriptSources;
 };
 
+type OpenCodeTranscriptMessageProjection = {
+  readonly messages: readonly Message[];
+  readonly parts: readonly Part[];
+};
+
+function projectOpenCodeTranscriptMessage(
+  info: OpenCodeSessionInfo,
+  message: OpenCodeSessionMessage,
+  parentID: string,
+): OpenCodeTranscriptMessageProjection {
+  const projected = projectMessages(info, [message], parentID);
+  return Object.freeze({
+    messages: Object.freeze(projected.messages),
+    parts: Object.freeze(projected.parts),
+  });
+}
+
 function projectOpenCodeTranscript(
   info: OpenCodeSessionInfo,
   persisted: readonly OpenCodePersistedMessage[],
@@ -580,9 +597,10 @@ function emptyTokens(): {
   };
 }
 
-export { projectOpenCodeTranscript };
+export { projectOpenCodeTranscript, projectOpenCodeTranscriptMessage };
 export type {
   OpenCodePersistedMessage,
   OpenCodeSessionTranscript,
   OpenCodeSessionTranscriptSources,
+  OpenCodeTranscriptMessageProjection,
 };

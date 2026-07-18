@@ -33,6 +33,11 @@ export type OpenAiFlow =
   | { readonly kind: "apiKey" }
   | { readonly kind: "disconnecting" };
 
+export type OpenCodeGoFlow =
+  | { readonly kind: "idle" }
+  | { readonly kind: "apiKey" }
+  | { readonly kind: "saving" };
+
 export type AnthropicState =
   | { readonly kind: "checking" }
   | { readonly kind: "importing" }
@@ -45,6 +50,8 @@ export type ProviderAuthSnapshot = {
   readonly inventory: OpenCodeProviderInventory;
   readonly openAiConnected: boolean;
   readonly openAi: OpenAiFlow;
+  readonly openCodeGoConnected: boolean;
+  readonly openCodeGo: OpenCodeGoFlow;
   readonly anthropic: AnthropicState;
   readonly errorMessage: string | null;
 };
@@ -53,7 +60,7 @@ export type ProviderAuthCoordinator = {
   readonly getSnapshot: () => ProviderAuthSnapshot;
   readonly subscribe: (listener: () => void) => () => void;
   readonly start: () => Promise<void>;
-  readonly refresh: () => Promise<void>;
+  readonly refresh: (options?: { readonly force?: boolean }) => Promise<void>;
   readonly startOpenAi: () => Promise<void>;
   readonly chooseOpenAiMethod: (methodIndex: number) => Promise<void>;
   readonly submitOpenAiPrompt: (value: string) => Promise<void>;
@@ -61,22 +68,28 @@ export type ProviderAuthCoordinator = {
   readonly submitOpenAiApiKey: (value: string) => Promise<void>;
   readonly cancelOpenAi: () => void;
   readonly disconnectOpenAi: () => Promise<void>;
+  readonly startOpenCodeGo: () => Promise<void>;
+  readonly submitOpenCodeGoApiKey: (value: string) => Promise<void>;
+  readonly cancelOpenCodeGo: () => void;
   readonly dispose: () => void;
 };
 
 const EMPTY_INVENTORY: OpenCodeProviderInventory = Object.freeze({ providers: Object.freeze([]) });
 const IDLE_FLOW: OpenAiFlow = Object.freeze({ kind: "idle" });
+const IDLE_OPEN_CODE_GO_FLOW: OpenCodeGoFlow = Object.freeze({ kind: "idle" });
 const UNAVAILABLE_SNAPSHOT: ProviderAuthSnapshot = Object.freeze({
   phase: "unavailable",
   inventory: EMPTY_INVENTORY,
   openAiConnected: false,
   openAi: IDLE_FLOW,
+  openCodeGoConnected: false,
+  openCodeGo: IDLE_OPEN_CODE_GO_FLOW,
   anthropic: Object.freeze({ kind: "checking" }),
   errorMessage: null,
 });
 
-function openAiConnected(inventory: OpenCodeProviderInventory): boolean {
-  return inventory.providers.some((provider) => provider.id === "openai" && provider.connected);
+function providerConnected(inventory: OpenCodeProviderInventory, providerID: string): boolean {
+  return inventory.providers.some((provider) => provider.id === providerID && provider.connected);
 }
 
 async function openProviderAuthUrl(url: string): Promise<void> {
@@ -131,25 +144,43 @@ export function createProviderAuthCoordinator(
       publish({ ...snapshot, openAi: IDLE_FLOW, errorMessage: errorMessage(cause) });
     }
   };
-  const verifyOpenAi = async (sequence: number): Promise<void> => {
+  const reportOpenCodeGoError = (sequence: number, cause: unknown): void => {
+    if (current(sequence)) {
+      publish({
+        ...snapshot,
+        openCodeGo: IDLE_OPEN_CODE_GO_FLOW,
+        errorMessage: errorMessage(cause),
+      });
+    }
+  };
+  const verifyProviders = async (
+    sequence: number,
+    completed: "openai" | "opencode-go",
+  ): Promise<void> => {
     const inventory = await client.providers.list();
     if (!current(sequence)) return;
     publish({
       ...snapshot,
       phase: "ready",
       inventory,
-      openAiConnected: openAiConnected(inventory),
-      openAi: IDLE_FLOW,
+      openAiConnected: providerConnected(inventory, "openai"),
+      openCodeGoConnected: providerConnected(inventory, "opencode-go"),
+      ...(completed === "openai" ? { openAi: IDLE_FLOW } : { openCodeGo: IDLE_OPEN_CODE_GO_FLOW }),
       errorMessage: null,
     });
   };
 
-  const refresh = (): Promise<void> => {
+  const refresh = (options?: { readonly force?: boolean }): Promise<void> => {
     if (refreshFlight !== null) return refreshFlight;
     const sequence = ++operationSequence;
-    publish({ ...snapshot, phase: "loading", anthropic: { kind: "importing" }, errorMessage: null });
+    publish({
+      ...snapshot,
+      phase: "loading",
+      anthropic: { kind: "importing" },
+      errorMessage: null,
+    });
     const flight = client.providers
-      .ensureManagedAnthropicImport()
+      .ensureManagedAnthropicImport(options)
       .then((result) => {
         if (!current(sequence)) return;
         const anthropic: AnthropicState =
@@ -161,8 +192,10 @@ export function createProviderAuthCoordinator(
         publish({
           phase: "ready",
           inventory: result.inventory,
-          openAiConnected: openAiConnected(result.inventory),
+          openAiConnected: providerConnected(result.inventory, "openai"),
           openAi: snapshot.openAi,
+          openCodeGoConnected: providerConnected(result.inventory, "opencode-go"),
+          openCodeGo: snapshot.openCodeGo,
           anthropic,
           errorMessage: result.kind === "failed" ? result.message : null,
         });
@@ -211,9 +244,12 @@ export function createProviderAuthCoordinator(
         });
         return;
       }
-      publish({ ...snapshot, openAi: { kind: "waiting", instructions: authorization.instructions } });
+      publish({
+        ...snapshot,
+        openAi: { kind: "waiting", instructions: authorization.instructions },
+      });
       await client.providers.completeOauth("openai", method.index);
-      await verifyOpenAi(sequence);
+      await verifyProviders(sequence, "openai");
     } catch (cause) {
       reportOpenAiError(sequence, cause);
     }
@@ -280,7 +316,7 @@ export function createProviderAuthCoordinator(
     publish({ ...snapshot, openAi: { kind: "waiting", instructions: flow.instructions } });
     try {
       await client.providers.completeOauth("openai", flow.methodIndex, code.trim());
-      await verifyOpenAi(sequence);
+      await verifyProviders(sequence, "openai");
     } catch (cause) {
       reportOpenAiError(sequence, cause);
     }
@@ -297,7 +333,7 @@ export function createProviderAuthCoordinator(
     });
     try {
       await client.providers.setApiKey("openai", key);
-      await verifyOpenAi(sequence);
+      await verifyProviders(sequence, "openai");
     } catch (cause) {
       reportOpenAiError(sequence, cause);
     }
@@ -309,9 +345,29 @@ export function createProviderAuthCoordinator(
     publish({ ...snapshot, openAi: { kind: "disconnecting" }, errorMessage: null });
     try {
       await client.providers.removeAuth("openai");
-      await verifyOpenAi(sequence);
+      await verifyProviders(sequence, "openai");
     } catch (cause) {
       reportOpenAiError(sequence, cause);
+    }
+  };
+
+  const startOpenCodeGo = async (): Promise<void> => {
+    await refresh();
+    if (!active) return;
+    operationSequence += 1;
+    publish({ ...snapshot, openCodeGo: { kind: "apiKey" }, errorMessage: null });
+  };
+
+  const submitOpenCodeGoApiKey = async (value: string): Promise<void> => {
+    const key = value.trim();
+    if (snapshot.openCodeGo.kind !== "apiKey" || key.length === 0) return;
+    const sequence = ++operationSequence;
+    publish({ ...snapshot, openCodeGo: { kind: "saving" }, errorMessage: null });
+    try {
+      await client.providers.setApiKey("opencode-go", key);
+      await verifyProviders(sequence, "opencode-go");
+    } catch (cause) {
+      reportOpenCodeGoError(sequence, cause);
     }
   };
 
@@ -321,7 +377,7 @@ export function createProviderAuthCoordinator(
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    start: refresh,
+    start: () => refresh(),
     refresh,
     startOpenAi,
     chooseOpenAiMethod,
@@ -333,6 +389,12 @@ export function createProviderAuthCoordinator(
       publish({ ...snapshot, openAi: IDLE_FLOW, errorMessage: null });
     },
     disconnectOpenAi,
+    startOpenCodeGo,
+    submitOpenCodeGoApiKey,
+    cancelOpenCodeGo() {
+      operationSequence += 1;
+      publish({ ...snapshot, openCodeGo: IDLE_OPEN_CODE_GO_FLOW, errorMessage: null });
+    },
     dispose() {
       active = false;
       operationSequence += 1;
@@ -378,6 +440,7 @@ function run(action: (coordinator: ProviderAuthCoordinator) => Promise<void>): P
 
 export const providerAuthActions = Object.freeze({
   refresh: () => run((coordinator) => coordinator.refresh()),
+  retryAnthropic: () => run((coordinator) => coordinator.refresh({ force: true })),
   startOpenAi: () => run((coordinator) => coordinator.startOpenAi()),
   chooseOpenAiMethod: (methodIndex: number) =>
     run((coordinator) => coordinator.chooseOpenAiMethod(methodIndex)),
@@ -388,4 +451,8 @@ export const providerAuthActions = Object.freeze({
     run((coordinator) => coordinator.submitOpenAiApiKey(value)),
   cancelOpenAi: () => boundCoordinator?.cancelOpenAi(),
   disconnectOpenAi: () => run((coordinator) => coordinator.disconnectOpenAi()),
+  startOpenCodeGo: () => run((coordinator) => coordinator.startOpenCodeGo()),
+  submitOpenCodeGoApiKey: (value: string) =>
+    run((coordinator) => coordinator.submitOpenCodeGoApiKey(value)),
+  cancelOpenCodeGo: () => boundCoordinator?.cancelOpenCodeGo(),
 });

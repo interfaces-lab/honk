@@ -97,7 +97,7 @@ function PreviewPicker<Value extends string>(input: PreviewPickerProps<Value>): 
           <Text
             size="sm"
             tone="inherit"
-            weight={option.value === input.value ? "medium" : "regular"}
+            weight={option.value === input.value ? "semibold" : "regular"}
           >
             {option.label}
           </Text>

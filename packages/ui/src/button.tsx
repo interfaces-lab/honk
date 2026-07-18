@@ -30,7 +30,7 @@ const sx = stylex.create({
     borderStyle: "none",
     borderRadius: radiusVars["--honk-radius-control"],
     fontFamily: fontVars["--honk-font-family-ui"],
-    fontWeight: fontVars["--honk-font-weight-medium"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
     lineHeight: 1,
     whiteSpace: "nowrap",
     userSelect: "none",
