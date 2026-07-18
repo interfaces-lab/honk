@@ -15,7 +15,7 @@ Writes:
 To refresh desktop icons after editing `assets/brand/honk-app-icon-source.png` or
 `assets/brand/honk-app-icon-dev-source.png`:
 
-  python3 scripts/sync-brand-icons-from-source.py
+  pnpm assets:brand:sync
 """
 
 from __future__ import annotations
@@ -153,7 +153,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    repo = Path(__file__).resolve().parents[1]
+    repo = Path(__file__).resolve().parents[3]
     default_source = repo / "assets" / "brand" / "honk-app-icon-source.png"
     default_dev_source = repo / "assets" / "brand" / "honk-app-icon-dev-source.png"
     source = Path(args.source).expanduser() if args.source else default_source

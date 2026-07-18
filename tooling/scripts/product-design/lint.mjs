@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const targets = [
   "packages/ui/src",
   "packages/ui/dev",
@@ -13,7 +13,7 @@ const targets = [
   "packages/mobile",
 ].filter((target) => existsSync(join(repoRoot, target)));
 const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-const stalePathRoots = ["packages/app", "packages/ui", "packages/mobile", ".design", "docs"];
+const stalePathRoots = ["packages/app", "packages/ui", "packages/mobile", ".agents/skills/product-design", "docs"];
 const stalePathMarker = "app" + "-next";
 const textExtensions = new Set([".css", ".html", ".js", ".json", ".md", ".mjs", ".ts", ".tsx"]);
 
@@ -53,7 +53,7 @@ function checkStalePaths() {
 run("Oxlint", [
   "exec",
   "oxlint",
-  "--config=.design/oxlintrc.json",
+  "--config=tooling/scripts/product-design/oxlintrc.json",
   "--report-unused-disable-directives",
   ...targets,
 ]);

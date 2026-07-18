@@ -31,4 +31,39 @@ Pi runs with full project access by default. Access is not exposed as a user-sel
 
 ## Developing
 
-[AGENTS.md](./AGENTS.md)
+Honk is a pnpm monorepo. [mise](https://mise.jdx.dev/) installs the exact Node and pnpm versions used by the repository; pnpm is the single command surface for development tasks.
+
+```sh
+mise install
+pnpm install
+pnpm typecheck
+pnpm test
+```
+
+Run the desktop app with `pnpm dev`. Other useful commands are discoverable with `pnpm run`:
+
+| Command                  | Purpose                                                          |
+| ------------------------ | ---------------------------------------------------------------- |
+| `pnpm lint`              | Run product-design, TypeScript, architecture, and CSS lint rules |
+| `pnpm fmt`               | Format the repository                                            |
+| `pnpm fmt:check`         | Check formatting without changing files                          |
+| `pnpm build`             | Build every package through Turbo                                |
+| `pnpm knip`              | Find unused files, exports, and dependencies                     |
+| `pnpm assets:brand:sync` | Regenerate app icons from the brand sources                      |
+
+### Repository map
+
+| Path        | What belongs there                                                       |
+| ----------- | ------------------------------------------------------------------------ |
+| `packages/` | Product packages: app, desktop, mobile, UI, CLI, and shared runtime code |
+| `scripts/`  | Typed repository automation with its own pnpm workspace dependencies     |
+| `tooling/`  | Custom lint rules, policy checks, and their fixtures                     |
+| `assets/`   | Brand sources, generated application artwork, and marketing assets       |
+| `docs/`     | Architecture notes and historical engineering audits                     |
+| `patches/`  | Dependency patches managed by pnpm                                       |
+| `.agents/`  | Repository setup and first-party coding-agent guidance                   |
+| `.github/`  | CI and release automation                                                |
+
+Root configuration files stay at the root when their tools discover them by convention. Shared TypeScript policy lives in `tsconfig.base.json`, dependency policy in `pnpm-workspace.yaml`, and task orchestration in `turbo.json`.
+
+Read [AGENTS.md](./AGENTS.md) before making changes. It contains the repository's coding conventions, architecture boundaries, and verification guidance.

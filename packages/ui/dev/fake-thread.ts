@@ -65,10 +65,10 @@ const STEP_SCRIPT: readonly StepSeed[] = [
   { tool: "search", runningVerb: "Grepping", settledVerb: "Grepped", detail: "useSyncExternalStore · 14 hits", settledState: "done" },
   { tool: "edit", runningVerb: "Editing", settledVerb: "Edited", detail: "src/shell.tsx", settledState: "done", added: 12, removed: 4 },
   { tool: "run", runningVerb: "Running", settledVerb: "Ran", detail: "pnpm typecheck · clean", settledState: "done" },
-  { tool: "run", runningVerb: "Running", settledVerb: "Command", detail: "node .design/lint.mjs · exit 1", settledState: "failed" },
+  { tool: "run", runningVerb: "Running", settledVerb: "Command", detail: "pnpm run lint:design · exit 1", settledState: "failed" },
   { tool: "read", runningVerb: "Reading", settledVerb: "Read", detail: "docs/adr/0025-react-doctrine.md", settledState: "done" },
   { tool: "edit", runningVerb: "Editing", settledVerb: "Edited", detail: "src/matrix.tsx", settledState: "done", added: 3, removed: 1 },
-  { tool: "run", runningVerb: "Running", settledVerb: "Ran", detail: "node .design/lint.mjs · 0 violations", settledState: "done" },
+  { tool: "run", runningVerb: "Running", settledVerb: "Ran", detail: "pnpm run lint:design · 0 violations", settledState: "done" },
 ];
 
 function seedFor(id: number): StepSeed | undefined {

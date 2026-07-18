@@ -3,7 +3,7 @@
   "jsPlugins": [
     {
       "name": "honk",
-      "specifier": "./.design/oxlint-plugin.mjs"
+      "specifier": "./tooling/scripts/product-design/oxlint-plugin.mjs"
     },
     {
       "name": "react-doctor",

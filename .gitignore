@@ -5,8 +5,6 @@ node_modules
 .DS_Store
 *.log
 *.tsbuildinfo
-apps/*/dist
-apps/*/out
 .astro
 packages/*/dist
 packages/*/dev/dist
@@ -22,9 +20,6 @@ release-mock/
 .honk
 .amp/
 .idea/
-apps/web/.playwright
-apps/web/playwright-report
-apps/web/src/components/__screenshots__
 .vitest-*
 __screenshots__/
 .tanstack

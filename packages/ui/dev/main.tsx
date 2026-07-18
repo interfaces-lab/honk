@@ -1235,7 +1235,7 @@ function ConversationStory(): React.ReactElement {
               toast("Subagent rows open the work details tray");
             }}
           />
-          <ToolCallLine verb="Command" detail="node .design/lint.mjs · exit 1" state="failed" />
+          <ToolCallLine verb="Command" detail="pnpm run lint:design · exit 1" state="failed" />
           <ToolCallLine verb="Edited" detail="composer/tokens.ts" added={118} removed={12} />
           <ExpandableToolCall />
         </div>

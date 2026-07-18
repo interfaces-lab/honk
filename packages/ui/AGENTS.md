@@ -12,7 +12,7 @@ dependencies.
 
 ## Required reading
 
-- Read the repository `AGENTS.md`, `.agents/skills/design/SKILL.md`, and `.design/README.md` first.
+- Read the repository `AGENTS.md` and `.agents/skills/product-design/SKILL.md` first.
 - For web implementation, also read the StyleX and styling-token skills completely.
 - For native implementation, use the installed Expo/native-UI skills and verify APIs against the
   consumer's installed Expo and React Native versions.
@@ -135,7 +135,7 @@ the product contract, then keep renderer escape hatches narrow and platform-spec
 
 ## Verification
 
-- Run `pnpm --filter @honk/ui typecheck` for web changes and `node .design/lint.mjs`.
+- Run `pnpm --filter @honk/ui typecheck` for web changes and `pnpm run lint:design`.
 - Run `pnpm run check:mobile` whenever shared theme values, platform exports, the shared OpenCode
   client, or the Expo consumer changes.
 - Once a mobile consumer exists, every shared/native change must typecheck through that consumer and

@@ -1,4 +1,4 @@
-# Thermo-Nuclear Code-Quality Audit — `big-refactor` branch
+# Code-quality audit — `big-refactor` branch
 
 Scope: 166 changed source files vs `main`, grouped into 25 subsystem clusters. Each cluster got a deep structural reviewer; every blocker/major finding was then handed to an adversarial verifier instructed to refute it. **63 agents, 3.2M tokens.**
 
@@ -559,4 +559,3 @@ _Impact: Removes thirteen duplicated store forks, five-plus nested/parallel tern
 **other** — The sole file in this cluster, packages/release-scripts/src/release-smoke.ts, is a clean 150-line smoke test: small fixture builders, two tiny assertion helpers, and a single linear try/finally that scans top-to-bottom. No giant-file sprawl, no ad-hoc branching, no boundary/cast problems, and no logic leaking into shared layers. The two inline YAML fixture blocks are deliberately explicit test data rather than exploitable duplication. Nothing rises to a structural finding; the biggest (theoretical) opportunity would be templating the two YAML blocks, but doing so would trade readable fixtures for indirection and is not worth it.
 
 **app-misc** — Both cluster files are small and the branch's changes are a clear net simplification, not a regression. vite-env.d.ts shrank to a single reference line by relocating the Window/HTMLWebViewElement globals into desktop-bridge.ts (correct owning module), and vite.config.ts dropped from 122 to 51 lines by deleting env-URL inference, the dev proxy, HMR config, and sourcemap-mode branching. The only structural nit is that the load-bearing lightningcss browser-targets pin is now copy-pasted between packages/app and packages/ui with no shared source, so silent drift breaks token colors.
-

@@ -25,5 +25,5 @@ application in `packages/app`.
 
 - Run `pnpm --filter @honk/app typecheck`.
 - Run affected tests with `pnpm --filter @honk/app exec vitest run <test-files>`; run the full app suite when a shared store, session, transcript, or workbench contract changes.
-- Run `pnpm run check:app-architecture` for structural changes and `node .design/lint.mjs` for user-facing changes.
+- Run `pnpm run check:app-architecture` for structural changes and `pnpm run lint:design` for user-facing changes.
 - Build with `pnpm --filter @honk/app build` when changing startup, bundling, lazy loading, or production performance.

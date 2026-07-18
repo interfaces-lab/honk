@@ -9,7 +9,7 @@ Quick Look.
 Requires: Python 3.11+, Pillow (`python3 -m pip install pillow`).
 
 Usage:
-  python3 scripts/normalize-macos-app-icons.py [files...]
+  pnpm assets:brand:normalize [files...]
 
 Default input: ~/Downloads/Icon*.png (Paper artboard exports). Files are
 normalized in place, and variants are mirrored into:
@@ -33,7 +33,7 @@ except ImportError as e:  # pragma: no cover
     raise SystemExit("Install Pillow: python3 -m pip install pillow") from e
 
 MASTER_SIZE = 1024
-# Keep in sync with scripts/sync-brand-icons-from-source.py macos_dock_icon().
+# Keep in sync with sync-icons.py macos_dock_icon().
 DOCK_ICON_SIZE = 256
 DOCK_ICON_CONTENT_SIZE = 210
 # The brand tile's corner radius measured from the classic master is ~223px at
@@ -86,7 +86,7 @@ def main() -> int:
         print("No input PNGs found.", file=sys.stderr)
         return 1
 
-    repo = Path(__file__).resolve().parents[1]
+    repo = Path(__file__).resolve().parents[3]
     generated = repo / "assets" / "brand" / "variants" / "generated"
     dock_icons = repo / "packages" / "desktop" / "resources" / "app-icons"
     previews = repo / "packages" / "app" / "public" / "app-icons"

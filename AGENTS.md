@@ -118,13 +118,19 @@ function requireConfig(input: unknown) {
 - Use `central-icons`; do not add Lucide.
 - Import icons from `central-icons`.
 
-## Design reference (`.design/`)
+## Product design
 
-- Any design or UI work starts with `.agents/skills/design/SKILL.md`, then `.design/README.md`
-  (principles, exemplars, and the deterministic check: `node .design/lint.mjs`).
-- Decision hierarchy: `.agents/skills/design` (product judgment and platform routing) → `.agents/skills/stylex` + `.agents/skills/styling-tokens` (web authoring mechanics) → `packages/ui/src/theme.ts` for shared values and the generated `platform-tokens.stylex.ts` web binding, with `tokens.stylex.ts` retaining web-only values → `.design/principles.md` + `.design/exemplars.md` (Honk-specific judgment).
+- Load `.agents/skills/product-design/SKILL.md` before any user-visible work: shaping or changing UI,
+  interaction, copy, accessibility, responsive behavior, or loading/empty/error/permission/destructive
+  states, and when reviewing screenshots or user-facing diffs.
+- Skip it for backend-only, build/tooling-only, generated-file-only, and behavior-preserving internal
+  refactors with no user-visible consequence. If scope becomes user-visible, load it then.
+- The skill routes product judgment and focused surface references. Route web authoring mechanics to
+  `.agents/skills/stylex` and `.agents/skills/styling-tokens`; shared values remain owned by
+  `packages/ui/src/theme.ts`, generated `platform-tokens.stylex.ts`, and web-only `tokens.stylex.ts`.
+- Run `pnpm run lint:design` for the deterministic design floor. Rules and coverage gaps live under
+  `.agents/skills/product-design/references/`; shipped evidence lives under its `exemplars/` directory.
 - Skills are first-party in `.agents/skills/` (`.claude/skills/*` are symlinks into it).
-- All client UI follows `.design/`, the local skills, and the shared `packages/ui` component system.
 
 ## Releases
 
@@ -132,23 +138,11 @@ function requireConfig(input: unknown) {
 - Release automation lives in `.github/workflows/release.yml`.
 - Inspect or prune GitHub releases/tags with `pnpm run release:manage list` and `pnpm run release:manage prune` (add `--apply` to delete; use `--keep-stable 1` to retain the newest stable tag).
 
-## Composer command menu (`/` and `@`)
+## Command menus
 
-Both menus share `ComposerCommandMenuPositioned` in `packages/app/src/components/chat/composer/command-menu/menu.tsx` (anchor helper in `command-menu/anchor.ts`). Read that file before changing placement or sizing.
-
-**Anchor (caret tracking)**
-
-- The 1×1 span lives in `prompt-editor/index.tsx` (`data-composer-menu-anchor`), positioned from the live DOM selection caret rect inside the Lexical editor (not ProseMirror `coordsAtPos`).
-- `input.tsx` passes a live virtual anchor via `composerMenuPopoverAnchorFromElement(() => composerMenuAnchorRef.current)` — do not cache anchor rects in React state.
-- Bump `composerMenuAnchorRevision` when the anchor span's `style` changes (MutationObserver) or when async menu results change item count.
-
-**Popover placement**
-
-- Use `side="top"`, `align="start"`, `positionMethod="fixed"`, `instant`, and `COMPOSER_MENU_COLLISION_AVOIDANCE` (`shift` + `fallbackAxisSide: "none"`). Do not use default Base UI popover collision (`fallbackAxisSide: "end"`) — tall menus flip to a side axis and land off-screen.
-- Do not remount the popover on anchor updates (`key={anchorRevision}` causes jitter). Parent re-renders from `anchorRevision` are enough.
-
-**Path preview side panel**
-
-- `command-menu/path-preview.tsx` renders a pierre-tree staircase for the active `@` path item as an absolutely positioned sibling of the menu shell inside the popup (the popup className includes `relative`). It must stay inside the `[data-composer-command-menu-root]` subtree (outside-pointer dismissal exemption) and carry `data-variant="surface"` (glass-mode CSS).
-- The panel root keeps pointer-events auto with `onMouseDown` preventDefault (clicks must not blur the Lexical editor or fall through to UI behind it); the tree content is `pointer-events-none`. It must never take focus — keyboard stays in Lexical.
-- Placement flips from `left-full` to `right-full` (class-set swap) when the viewport right edge lacks room, and hides when neither side fits; re-measure is driven by a MutationObserver on the positioner's `style` attribute.
+- The global search-and-act engine lives in `packages/app/src/command-menu.tsx`, with ranking in
+  `command-menu-model.ts` and durable state in `command-menu-store.ts`. Home, Command-K, and Command-O
+  are doors into that engine; do not create a parallel global picker.
+- Composer `/` commands and `@` file suggestions are a separate focused composite implemented together
+  in `packages/app/src/composer/prompt-editor.tsx`. Keep keyboard focus in Lexical, preserve the shared
+  trigger/selection path, and do not split the two suggestions into independent menu implementations.

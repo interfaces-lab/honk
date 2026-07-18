@@ -1,0 +1,17 @@
+{
+  "fixtures": [
+    {
+      "id": "shared-control-chrome",
+      "prompt": "Replace the raw product action with the shared control without changing behavior.",
+      "path": "shared-control-chrome",
+      "targetPath": "packages/app/src/example/action.tsx",
+      "mode": "implement",
+      "expectedReferences": [
+        ".agents/skills/product-design/SKILL.md",
+        ".agents/skills/product-design/references/rules.md"
+      ],
+      "expectedRuleIds": ["rule/shared-control-chrome", "honk/design-no-raw-button"],
+      "review": "human"
+    }
+  ]
+}

@@ -1,4 +1,8 @@
-const STYLEX_CALLS = new Set(["create", "createTheme", "keyframes"]);
+const STYLEX_CALLS = new Set([
+  "create",
+  "createTheme",
+  "keyframes",
+]);
 const CROSS_ELEMENT_CALLS = new Set(["ancestor", "descendant", "sibling"]);
 const BANNED_UI_IMPORTS = ["zustand", "styled-components", "@emotion", "tailwindcss", "tailwind"];
 const RAW_COLOR = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|oklch|oklab)\(/i;
