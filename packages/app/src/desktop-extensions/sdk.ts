@@ -78,6 +78,7 @@ export interface HonkDesktopNewSessionToggleOptions {
   readonly title: string;
   readonly description?: string;
   readonly value: HonkDesktopCell<boolean>;
+  readonly icon: (active: boolean) => ReactNode;
   readonly order?: number;
 }
 

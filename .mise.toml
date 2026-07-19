@@ -1,6 +1,6 @@
 [tools]
 node = "24"
-pnpm = "11.13.0"
+pnpm = "latest"
 
 [settings]
 node.corepack = true

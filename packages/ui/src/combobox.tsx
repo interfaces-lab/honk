@@ -70,7 +70,15 @@ const COMBOBOX_POPUP_MAX_HEIGHT = "min(360px, var(--available-height))";
 const POPUP_RING = `inset 0 0 0 1px ${colorVars["--honk-color-border-muted"]}`;
 const SECTION_DIVIDER = `inset 0 -1px 0 ${colorVars["--honk-color-border-muted"]}`;
 const SECTION_DIVIDER_TOP = `inset 0 1px 0 ${colorVars["--honk-color-border-muted"]}`;
-const SECTION_DIVIDER_FOCUS = `inset 0 -1px 0 ${colorVars["--honk-color-accent"]}`;
+// Full-bleed sections (search, dividers) keep the popup edge, while rows inset by the
+// gutter so their rounded highlight never touches the popup wall; this pad lines the
+// search magnifier up with the inset option leading icons.
+const SECTION_INLINE_PAD = `calc(${spaceVars["--honk-space-gutter"]} + ${controlVars["--honk-control-pad-md"]})`;
+// Entry slides the popup from the trigger side into place; module consts keep the px
+// out of create() for the property-scoped no-raw-values lint.
+const SLIDE_FROM_TRIGGER_BELOW = "0 -4px";
+const SLIDE_FROM_TRIGGER_ABOVE = "0 4px";
+const SETTLED = "0 0";
 
 const sx = stylex.create({
   trigger: {
@@ -170,12 +178,29 @@ const sx = stylex.create({
       "[data-ending-style]": motionVars["--honk-motion-scale-overlay"],
       "@media (prefers-reduced-motion: reduce)": 1,
     },
-    transitionProperty: "opacity, scale",
-    transitionTimingFunction: motionVars["--honk-motion-ease-out"],
+    transitionProperty: "opacity, scale, translate",
+    transitionTimingFunction: {
+      default: motionVars["--honk-motion-ease-float"],
+      "[data-ending-style]": motionVars["--honk-motion-ease-in"],
+    },
     transitionDuration: {
-      default: motionVars["--honk-motion-duration-fast"],
+      default: motionVars["--honk-motion-duration-base"],
       "[data-ending-style]": motionVars["--honk-motion-duration-instant"],
       "@media (prefers-reduced-motion: reduce)": "0s",
+    },
+  },
+  popupFromBelow: {
+    translate: {
+      default: SETTLED,
+      "[data-starting-style]": SLIDE_FROM_TRIGGER_BELOW,
+      "@media (prefers-reduced-motion: reduce)": SETTLED,
+    },
+  },
+  popupFromAbove: {
+    translate: {
+      default: SETTLED,
+      "[data-starting-style]": SLIDE_FROM_TRIGGER_ABOVE,
+      "@media (prefers-reduced-motion: reduce)": SETTLED,
     },
   },
   popupTriggerWidth: { width: "var(--anchor-width)" },
@@ -185,13 +210,12 @@ const sx = stylex.create({
     alignItems: "center",
     flexShrink: 0,
     gap: controlVars["--honk-control-gap"],
-    height: controlVars["--honk-control-h-md"],
-    paddingInline: controlVars["--honk-control-pad-md"],
+    height: controlVars["--honk-control-h-lg"],
+    paddingInline: SECTION_INLINE_PAD,
     color: colorVars["--honk-color-text-muted"],
-    boxShadow: {
-      default: SECTION_DIVIDER,
-      ":focus-within": SECTION_DIVIDER_FOCUS,
-    },
+    // No focus treatment: the input autofocuses on open, so any :focus-within accent
+    // reads as a permanent hard bar. The caret and open popup already signal activity.
+    boxShadow: SECTION_DIVIDER,
   },
   input: {
     boxSizing: "border-box",
@@ -216,7 +240,9 @@ const sx = stylex.create({
   },
   pinned: {
     flexShrink: 0,
-    paddingBlock: spaceVars["--honk-space-gutter"],
+    // Equal inline + block gutter so each row's rounded highlight is inset from the
+    // popup edge on both axes (not full-bleed horizontally) — same as the menu popup.
+    padding: spaceVars["--honk-space-gutter"],
     boxShadow: SECTION_DIVIDER,
   },
   scroller: {
@@ -224,7 +250,7 @@ const sx = stylex.create({
     flexGrow: 1,
     overflowY: "auto",
     overscrollBehavior: "contain",
-    paddingBlock: spaceVars["--honk-space-gutter"],
+    padding: spaceVars["--honk-space-gutter"],
     scrollbarWidth: "thin",
   },
   option: {
@@ -249,6 +275,12 @@ const sx = stylex.create({
       default: 1,
       "[data-disabled]": controlVars["--honk-control-disabled-opacity"],
     },
+    transitionProperty: "background-color",
+    transitionDuration: {
+      default: motionVars["--honk-motion-duration-hover"],
+      "@media (prefers-reduced-motion: reduce)": "0s",
+    },
+    transitionTimingFunction: motionVars["--honk-motion-ease-out"],
   },
   optionRich: { minHeight: controlVars["--honk-control-picker-rich-min-h"] },
   optionLeading: {
@@ -485,7 +517,11 @@ function Combobox({
           <Base.Popup
             aria-label={accessibilityLabel}
             data-slot="combobox-popup"
-            {...stylex.props(sx.popup, width === "wide" ? sx.popupWide : sx.popupTriggerWidth)}
+            {...stylex.props(
+              sx.popup,
+              width === "wide" ? sx.popupWide : sx.popupTriggerWidth,
+              side === "bottom" ? sx.popupFromBelow : sx.popupFromAbove,
+            )}
           >
             <div {...stylex.props(sx.search)}>
               <Icon icon={IconMagnifyingGlass} size="sm" tone="muted" />

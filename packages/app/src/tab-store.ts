@@ -72,6 +72,12 @@ export type OpenNewThreadInput = {
   readonly files?: readonly OpenCodePromptFileAttachment[];
 };
 
+export type OpenNewThreadOptions = {
+  readonly replaceDraftKey?: string;
+  // Close this tab once the new session opens; an empty session tab reads as a draft.
+  readonly replaceSessionKey?: string;
+};
+
 type ThreadSummary = AppSessionSummary;
 
 export type Snapshot = {
@@ -335,7 +341,7 @@ export const actions = {
     void openNewDraft(client, input?.directory);
   },
 
-  openNew(input?: OpenNewThreadInput, options?: { readonly replaceDraftKey?: string }): void {
+  openNew(input?: OpenNewThreadInput, options?: OpenNewThreadOptions): void {
     const client =
       input?.server === undefined ? getBoundOpenCodeClient() : getOpenCodeClient(input.server);
     if (client === null) {
@@ -756,7 +762,7 @@ async function createAndOpenThread(
   client: OpenCodeClient,
   prompt: string,
   input: OpenNewThreadInput,
-  options?: { readonly replaceDraftKey?: string },
+  options?: OpenNewThreadOptions,
 ): Promise<void> {
   const trimmedPrompt = prompt.trim();
   let summary: OpenCodeSessionInfo;
@@ -808,6 +814,9 @@ async function createAndOpenThread(
     windowTabStore.actions.promoteDraft(draftID, ref, summary);
   } else {
     controller.actions.promoteDraft(draftID, ref, summary);
+  }
+  if (options?.replaceSessionKey !== undefined && options.replaceSessionKey !== key) {
+    actions.close(options.replaceSessionKey);
   }
 
   if (input.mode !== undefined && input.mode !== "build") {

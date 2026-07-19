@@ -42,18 +42,16 @@ describe("keepAwakeExtension", () => {
 
     const setting = host.getSettingsSnapshot().at(0);
     const newSession = host.getNewSessionSnapshot().at(0);
-    const titlebar = host.getTitlebarTogglesSnapshot().at(0);
     expect(setting).toBeDefined();
     expect(newSession).toBeDefined();
-    expect(titlebar).toBeDefined();
-    if (setting === undefined || newSession === undefined || titlebar === undefined) {
+    if (setting === undefined || newSession === undefined) {
       throw new Error("Keep Awake contributions were not registered.");
     }
 
+    expect(host.getTitlebarTogglesSnapshot()).toHaveLength(0);
     expect(newSession.value).toBe(setting.value);
-    expect(titlebar.value).toBe(setting.value);
 
-    titlebar.value.set(true);
+    newSession.value.set(true);
 
     await vi.waitFor(() => {
       expect(setKeepAwake).toHaveBeenCalledWith(true);

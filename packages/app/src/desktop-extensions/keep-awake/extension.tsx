@@ -1,5 +1,5 @@
 import { Icon } from "@honk/ui";
-import { IconSleep, IconSun } from "@honk/ui/icons";
+import { IconSendLater, IconSleep } from "@honk/ui/icons";
 
 import { defineHonkDesktopExtension } from "../sdk";
 
@@ -28,12 +28,6 @@ export const keepAwakeExtension = defineHonkDesktopExtension({
     synchronize(enabled.get());
     context.lifecycle.own(enabled.subscribe(synchronize));
 
-    context.desktop.titlebar.toggle({
-      id: "toggle",
-      label: "Keep display awake",
-      value: enabled,
-      icon: (active) => <Icon icon={active ? IconSun : IconSleep} size="sm" />,
-    });
     context.desktop.settings.toggle({
       id: "enabled",
       title: "Keep display awake",
@@ -45,6 +39,7 @@ export const keepAwakeExtension = defineHonkDesktopExtension({
       title: "Keep display awake",
       description: "Prevent the display from sleeping while Honk is open.",
       value: enabled,
+      icon: (active) => <Icon icon={active ? IconSendLater : IconSleep} size="sm" />,
     });
   },
 });

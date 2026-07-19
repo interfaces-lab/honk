@@ -1,6 +1,6 @@
 import { create, props } from "@stylexjs/stylex";
-import { Switch, Text } from "@honk/ui";
-import { controlVars, spaceVars } from "@honk/ui/tokens.stylex";
+import { IconButton, Tooltip } from "@honk/ui";
+import { spaceVars } from "@honk/ui/tokens.stylex";
 import type { ReactElement } from "react";
 
 import { useHonkDesktopCell, useHonkDesktopNewSession } from "./runtime";
@@ -14,14 +14,6 @@ const styles = create({
     justifyContent: "flex-end",
     flexWrap: "wrap",
     gap: spaceVars["--honk-space-gutter"],
-  },
-  toggle: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: controlVars["--honk-control-gap"],
-  },
-  label: {
-    cursor: "pointer",
   },
 });
 
@@ -43,24 +35,20 @@ function NewSessionToggle(input: {
   readonly toggle: HonkDesktopNewSessionToggleContribution;
 }): ReactElement {
   const isEnabled = useHonkDesktopCell(input.toggle.value);
-  const id = `desktop-extension-new-session-${input.toggle.key}`;
   return (
-    <div {...props(styles.toggle)}>
-      <label htmlFor={id} title={input.toggle.description} {...props(styles.label)}>
-        <Text size="sm" tone="muted">
-          {input.toggle.title}
-        </Text>
-      </label>
-      <Switch
-        id={id}
+    <Tooltip label={input.toggle.title}>
+      <IconButton
         size="sm"
-        checked={isEnabled}
+        variant={isEnabled ? "neutral" : "quiet"}
         aria-label={input.toggle.title}
-        onCheckedChange={(checked) => {
-          input.toggle.value.set(checked);
+        aria-pressed={isEnabled}
+        onClick={() => {
+          input.toggle.value.set(!isEnabled);
         }}
-      />
-    </div>
+      >
+        {input.toggle.icon(isEnabled)}
+      </IconButton>
+    </Tooltip>
   );
 }
 

@@ -49,6 +49,24 @@ const LEADING_SLOT_STYLE = {
 // Thread status badge: corner nudge past the avatar edge, and the base-surface ring around the dot.
 const AVATAR_BADGE_OFFSET = "-3px";
 const AVATAR_BADGE_RING = "1.5px";
+// Progressive edge blur over scrollable sections: a gradient-masked backdrop blur at each edge,
+// faded by scroll-driven animations so the top blur appears only once content has scrolled under
+// it and the bottom blur clears at the end. A non-scrollable section leaves the scroll timeline
+// inactive, which keeps both overlays at their base opacity of 0.
+const EDGE_SCROLL_TIMELINE = "--edge-scroll";
+const EDGE_BLUR_EXTENT = "48px";
+const EDGE_BLUR_FILTER = "blur(8px)";
+// Scroll distance over which an edge blur fades in/out.
+const EDGE_FADE_DISTANCE = "24px";
+
+const edgeFadeIn = stylex.keyframes({
+  from: { opacity: 0 },
+  to: { opacity: 1 },
+});
+const edgeFadeOut = stylex.keyframes({
+  from: { opacity: 1 },
+  to: { opacity: 0 },
+});
 
 const styles = stylex.create({
   grid: {
@@ -189,6 +207,7 @@ const styles = stylex.create({
     overflowY: "auto",
     scrollbarWidth: "none",
     paddingRight: spaceVars["--honk-space-panel-pad"],
+    scrollTimelineName: EDGE_SCROLL_TIMELINE,
   },
   navSpacer: {
     flexGrow: 1,
@@ -226,6 +245,46 @@ const styles = stylex.create({
     flexDirection: "column",
     overflowY: "auto",
     overflowAnchor: "none",
+    scrollTimelineName: EDGE_SCROLL_TIMELINE,
+  },
+  // Positioning context + timeline scope so the edge-blur overlays can track their
+  // sibling scroller's scroll timeline.
+  scrollEdgeWrap: {
+    position: "relative",
+    minHeight: 0,
+    display: "flex",
+    flexDirection: "column",
+    timelineScope: EDGE_SCROLL_TIMELINE,
+  },
+  scrollEdgeWrapGrow: {
+    flexGrow: 1,
+  },
+  edgeBlur: {
+    position: "absolute",
+    insetInline: 0,
+    height: EDGE_BLUR_EXTENT,
+    zIndex: 1,
+    pointerEvents: "none",
+    opacity: 0,
+    backdropFilter: EDGE_BLUR_FILTER,
+    animationDuration: "auto",
+    animationTimingFunction: "linear",
+    animationFillMode: "both",
+    animationTimeline: EDGE_SCROLL_TIMELINE,
+  },
+  edgeBlurTop: {
+    top: 0,
+    maskImage: "linear-gradient(to bottom, black, transparent)",
+    animationName: edgeFadeIn,
+    animationRangeStart: "0px",
+    animationRangeEnd: EDGE_FADE_DISTANCE,
+  },
+  edgeBlurBottom: {
+    bottom: 0,
+    maskImage: "linear-gradient(to top, black, transparent)",
+    animationName: edgeFadeOut,
+    animationRangeStart: `calc(100% - ${EDGE_FADE_DISTANCE})`,
+    animationRangeEnd: "100%",
   },
   scrollContent: {
     display: "flex",
@@ -237,6 +296,9 @@ const styles = stylex.create({
   groupHead: {
     position: "sticky",
     top: 0,
+    // Above rows' positioned avatarWrap (which would otherwise paint over the stuck header)
+    // and above the z-1 edge-blur overlays so the stuck label stays crisp.
+    zIndex: 2,
     display: "flex",
     alignItems: "center",
     gap: controlVars["--honk-control-gap"],
@@ -348,7 +410,6 @@ function HomePage(): React.ReactElement {
           {...(selectedProject?.directory === null || selectedProject?.directory === undefined
             ? {}
             : { projectDirectory: selectedProject.directory })}
-          resolveLocationOnMount={pickedDirectory !== null}
           {...(selectedProject?.server === null || selectedProject?.server === undefined
             ? {}
             : { server: selectedProject.server })}
@@ -398,17 +459,31 @@ function HomePage(): React.ReactElement {
               </Text>
             </div>
           ) : (
-            <div {...stylex.props(styles.scroll)}>
-              <div {...stylex.props(styles.scrollContent)}>
-                <ThreadGroup label="Needs you" threads={groupedThreads.needsYou} />
-                <ThreadGroup label="Working" threads={groupedThreads.working} />
-                <ThreadGroup label="Recent" threads={groupedThreads.recent} />
+            <div {...stylex.props(styles.scrollEdgeWrap, styles.scrollEdgeWrapGrow)}>
+              <div {...stylex.props(styles.scroll)}>
+                <div {...stylex.props(styles.scrollContent)}>
+                  <ThreadGroup label="Needs you" threads={groupedThreads.needsYou} />
+                  <ThreadGroup label="Working" threads={groupedThreads.working} />
+                  <ThreadGroup label="Recent" threads={groupedThreads.recent} />
+                </div>
               </div>
+              <ScrollEdgeBlur />
             </div>
           )}
         </section>
       </div>
     </div>
+  );
+}
+
+// Progressive blur overlays for a sibling scroller inside a scrollEdgeWrap; visibility is
+// driven entirely by the scroller's scroll timeline (see EDGE_SCROLL_TIMELINE).
+function ScrollEdgeBlur(): React.ReactElement {
+  return (
+    <>
+      <div {...stylex.props(styles.edgeBlur, styles.edgeBlurTop)} aria-hidden />
+      <div {...stylex.props(styles.edgeBlur, styles.edgeBlurBottom)} aria-hidden />
+    </>
   );
 }
 
@@ -499,34 +574,37 @@ function ProjectNav({
   return (
     <aside {...stylex.props(styles.nav)} aria-label="Projects">
       <div {...stylex.props(styles.navHead)}>Projects</div>
-      <div {...stylex.props(styles.navRows)}>
-        {projects.map((project) => (
-          <ListRow
-            key={project.key}
-            isSelected={project.key === selectedKey}
-            aria-current={project.key === selectedKey ? "page" : undefined}
-            onClick={() => {
-              onSelect(project.key);
-            }}
-          >
-            <ProjectAvatar label={project.label} colorKey={project.key} />
-            <ListRow.Content>
-              <ListRow.Title>{project.label}</ListRow.Title>
-            </ListRow.Content>
-            <ListRow.Meta>
-              {project.statuses[0] !== undefined && (
-                <HomeStatusGlyph status={project.statuses[0]} />
-              )}
-              {project.count}
-            </ListRow.Meta>
+      <div {...stylex.props(styles.scrollEdgeWrap)}>
+        <div {...stylex.props(styles.navRows)}>
+          {projects.map((project) => (
+            <ListRow
+              key={project.key}
+              isSelected={project.key === selectedKey}
+              aria-current={project.key === selectedKey ? "page" : undefined}
+              onClick={() => {
+                onSelect(project.key);
+              }}
+            >
+              <ProjectAvatar label={project.label} colorKey={project.key} />
+              <ListRow.Content>
+                <ListRow.Title>{project.label}</ListRow.Title>
+              </ListRow.Content>
+              <ListRow.Meta>
+                {project.statuses[0] !== undefined && (
+                  <HomeStatusGlyph status={project.statuses[0]} />
+                )}
+                {project.count}
+              </ListRow.Meta>
+            </ListRow>
+          ))}
+          <ListRow onClick={onAddProject}>
+            <ListRow.Slot style={LEADING_SLOT_STYLE}>
+              <Icon icon={IconFolderAddRight} size="sm" tone="muted" />
+            </ListRow.Slot>
+            <ListRow.Title>Add project</ListRow.Title>
           </ListRow>
-        ))}
-        <ListRow onClick={onAddProject}>
-          <ListRow.Slot style={LEADING_SLOT_STYLE}>
-            <Icon icon={IconFolderAddRight} size="sm" tone="muted" />
-          </ListRow.Slot>
-          <ListRow.Title>Add project</ListRow.Title>
-        </ListRow>
+        </div>
+        <ScrollEdgeBlur />
       </div>
       <div {...stylex.props(styles.navSpacer)} />
       <div {...stylex.props(styles.navFooter)}>

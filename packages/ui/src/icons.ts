@@ -55,6 +55,7 @@ import {
   IconPin,
   IconPictureInPicture,
   IconPlusSmall,
+  IconSendLater,
   IconSettingsGear2,
   IconServer,
   IconSidebarSimpleRightWide,
@@ -122,7 +123,14 @@ export { IconPin, IconUnpin, IconArchive1 };
 export { IconCrossSmall, IconCrossMedium, IconCrossMediumDefault };
 
 // Status
-export { IconCircleCheck, IconExclamationCircle, IconBubbleQuestion, IconSleep, IconSun };
+export {
+  IconCircleCheck,
+  IconExclamationCircle,
+  IconBubbleQuestion,
+  IconSendLater,
+  IconSleep,
+  IconSun,
+};
 
 // Model providers
 export { IconClawd, IconOpenaiCodex };
@@ -225,6 +233,7 @@ const ICON_CATALOG: readonly IconCatalogSection[] = [
       ["IconCircleCheck", IconCircleCheck],
       ["IconExclamationCircle", IconExclamationCircle],
       ["IconBubbleQuestion", IconBubbleQuestion],
+      ["IconSendLater", IconSendLater],
       ["IconSleep", IconSleep],
       ["IconSun", IconSun],
     ],

@@ -1,6 +1,7 @@
 // Shell mounts the one hotkey registry. Leaf routes do not bind shell chords.
 
-import { Shell, TabStrip, TooltipProvider } from "@honk/ui";
+import { Icon, IconButton, Shell, TabStrip, Tooltip, TooltipProvider } from "@honk/ui";
+import { IconSettingsGear2 } from "@honk/ui/icons";
 import { Outlet } from "@tanstack/react-router";
 import * as React from "react";
 
@@ -14,6 +15,7 @@ import { DevChannelChip } from "./dev-channel-chip";
 import { useShellHotkeys } from "./hotkeys";
 import { DevelopmentPerformanceMonitor } from "./performance-monitor";
 import { SettingsOverlay } from "./settings";
+import { actions as settingsActions } from "./settings-store";
 import { OpenTabContextMenu } from "./tab-context-menu";
 import { actions, useTabsSelector } from "./tab-store";
 import { ToastViewport } from "./toast";
@@ -26,6 +28,24 @@ const schemeStyles: Record<string, React.CSSProperties> = {
   dark: { colorScheme: "dark" },
 };
 
+function SettingsTriggerButton(): React.ReactElement {
+  return (
+    <Tooltip label="Settings">
+      <IconButton
+        data-shell-no-drag=""
+        size="sm"
+        variant="quiet"
+        aria-label="Open settings"
+        onClick={() => {
+          settingsActions.open();
+        }}
+      >
+        <Icon icon={IconSettingsGear2} size="sm" />
+      </IconButton>
+    </Tooltip>
+  );
+}
+
 function AppShell({
   isInteractive = true,
 }: {
@@ -34,6 +54,7 @@ function AppShell({
   const trailing = (
     <TitleBarTrailing>
       <HonkDesktopTitlebarControls />
+      <SettingsTriggerButton />
       {import.meta.env.DEV ? <DevChannelChip /> : null}
     </TitleBarTrailing>
   );

@@ -8,6 +8,8 @@ import { Kbd, Text } from "@honk/ui";
 import { colorVars, controlVars, motionVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
+import { onboardingLayout } from "./onboarding-layout.stylex";
+
 export type OnboardingStep = "welcome" | "location" | "provider" | "basics";
 export const ONBOARDING_STEP_ORDER: readonly OnboardingStep[] = [
   "welcome",
@@ -16,10 +18,6 @@ export const ONBOARDING_STEP_ORDER: readonly OnboardingStep[] = [
   "basics",
 ];
 
-// Fixed modal proportions shared with the window chrome in onboarding.tsx.
-export const ONBOARDING_COMPACT_MEDIA = "@media (max-width: 760px)";
-export const ONBOARDING_CONTENT_PAD = "40px";
-export const ONBOARDING_CONTENT_PAD_COMPACT = "20px";
 const CONTENT_GAP = "24px";
 const HEADING_SIZE = "28px";
 const HEADING_LEADING = "34px";
@@ -57,7 +55,7 @@ export const onboardingStepStyles = stylex.create({
     display: "grid",
     gridTemplateColumns: {
       default: "minmax(0, 1fr) minmax(0, 1fr)",
-      [ONBOARDING_COMPACT_MEDIA]: "minmax(0, 1fr)",
+      [onboardingLayout.compactMedia]: "minmax(0, 1fr)",
     },
     overflowY: "auto",
   },
@@ -69,9 +67,8 @@ export const onboardingStepStyles = stylex.create({
     // oxlint-disable-next-line honk/design-no-raw-values -- 24px content column gap is fixed modal layout, no spacing token owns 24px
     gap: CONTENT_GAP,
     padding: {
-      // oxlint-disable-next-line honk/design-no-raw-values -- 40px content inset is fixed modal chrome, no spacing token owns 40px
-      default: ONBOARDING_CONTENT_PAD,
-      [ONBOARDING_COMPACT_MEDIA]: ONBOARDING_CONTENT_PAD_COMPACT,
+      default: onboardingLayout.contentPad,
+      [onboardingLayout.compactMedia]: onboardingLayout.contentPadCompact,
     },
   },
   copyInner: {
@@ -84,15 +81,14 @@ export const onboardingStepStyles = stylex.create({
     minWidth: 0,
     minHeight: {
       default: 0,
-      [ONBOARDING_COMPACT_MEDIA]: "220px",
+      [onboardingLayout.compactMedia]: "220px",
     },
     display: "flex",
     flexDirection: "column",
     justifyContent: "center",
     padding: {
-      // oxlint-disable-next-line honk/design-no-raw-values -- 40px content inset is fixed modal chrome, no spacing token owns 40px
-      default: ONBOARDING_CONTENT_PAD,
-      [ONBOARDING_COMPACT_MEDIA]: ONBOARDING_CONTENT_PAD_COMPACT,
+      default: onboardingLayout.contentPad,
+      [onboardingLayout.compactMedia]: onboardingLayout.contentPadCompact,
     },
     backgroundColor: colorVars["--honk-color-layer-01"],
   },
@@ -101,12 +97,10 @@ export const onboardingStepStyles = stylex.create({
     display: "flex",
     alignItems: "center",
     gap: spaceVars["--honk-space-gutter"],
-    // oxlint-disable-next-line honk/design-no-raw-values -- 20px compact footer inset is fixed modal chrome, no spacing token owns 20px
-    paddingBlock: ONBOARDING_CONTENT_PAD_COMPACT,
+    paddingBlock: onboardingLayout.contentPadCompact,
     paddingInline: {
-      // oxlint-disable-next-line honk/design-no-raw-values -- 40px content inset is fixed modal chrome, no spacing token owns 40px
-      default: ONBOARDING_CONTENT_PAD,
-      [ONBOARDING_COMPACT_MEDIA]: ONBOARDING_CONTENT_PAD_COMPACT,
+      default: onboardingLayout.contentPad,
+      [onboardingLayout.compactMedia]: onboardingLayout.contentPadCompact,
     },
   },
   footerSpacer: {
@@ -175,8 +169,7 @@ const FACT_KEYS_WIDTH = "64px";
 const factStyles = stylex.create({
   list: {
     display: "grid",
-    // oxlint-disable-next-line honk/design-no-raw-values -- 20px fact-row rhythm matches the compact content pad, no spacing token owns 20px
-    gap: ONBOARDING_CONTENT_PAD_COMPACT,
+    gap: onboardingLayout.contentPadCompact,
   },
   row: {
     display: "flex",

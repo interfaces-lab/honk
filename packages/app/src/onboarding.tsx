@@ -35,12 +35,10 @@ import {
   useReducedMotion,
   WelcomeDemo,
 } from "./onboarding-demo";
+import { onboardingLayout } from "./onboarding-layout.stylex";
 import { OnboardingMist } from "./onboarding-mist";
 import { OnboardingProviderStep } from "./onboarding-provider";
 import {
-  ONBOARDING_COMPACT_MEDIA,
-  ONBOARDING_CONTENT_PAD,
-  ONBOARDING_CONTENT_PAD_COMPACT,
   ONBOARDING_STEP_ORDER,
   OnboardingFact,
   OnboardingFactList,
@@ -171,16 +169,16 @@ const styles = stylex.create({
     zIndex: 1,
     width: {
       default: "calc(100% - 48px)",
-      [ONBOARDING_COMPACT_MEDIA]: "calc(100% - 24px)",
+      [onboardingLayout.compactMedia]: "calc(100% - 24px)",
     },
     maxWidth: "1040px",
     height: {
       default: CARD_HEIGHT,
-      [ONBOARDING_COMPACT_MEDIA]: CARD_HEIGHT_COMPACT,
+      [onboardingLayout.compactMedia]: CARD_HEIGHT_COMPACT,
     },
     maxHeight: {
       default: CARD_HEIGHT,
-      [ONBOARDING_COMPACT_MEDIA]: CARD_HEIGHT_COMPACT,
+      [onboardingLayout.compactMedia]: CARD_HEIGHT_COMPACT,
     },
     minHeight: 0,
     padding: 0,
@@ -229,8 +227,8 @@ const styles = stylex.create({
     // oxlint-disable-next-line honk/design-no-raw-values -- 24px progress top inset is fixed modal chrome, no spacing token owns 24px
     paddingTop: PROGRESS_PAD_TOP,
     paddingInline: {
-      default: ONBOARDING_CONTENT_PAD,
-      [ONBOARDING_COMPACT_MEDIA]: ONBOARDING_CONTENT_PAD_COMPACT,
+      default: onboardingLayout.contentPad,
+      [onboardingLayout.compactMedia]: onboardingLayout.contentPadCompact,
     },
   },
   progress: {

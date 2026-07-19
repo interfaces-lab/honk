@@ -25,6 +25,7 @@ import {
   Button,
   ChangeReceipt,
   Checkbox,
+  Combobox,
   Dialog,
   Icon,
   IconButton,
@@ -58,6 +59,8 @@ import {
   IconConsole,
   IconCrossSmall,
   IconEyeOpen,
+  IconFolder1,
+  IconFolderOpen,
   IconMagnifyingGlass,
 } from "../src/icons";
 import {
@@ -1912,6 +1915,104 @@ function MenuStory(): React.ReactElement {
   );
 }
 
+function ComboboxStory(): React.ReactElement {
+  const [project, setProject] = React.useState<string | null>("/Users/goose/Developer/honk");
+
+  return (
+    <Section
+      title="Combobox — a searchable picker (Base UI)"
+      note="The project/worktree picker: a fixed search header, an optional pinned group, a scrolling list, and a fixed action footer, each separated by hairline dividers. Rows sit inside an 8px gutter so their 6px-radius highlight is inset from the popup wall (never full-bleed), the search magnifier column-aligns with row leading icons, and the popup enters with the float ease — a 150ms scale-fade plus a 4px slide from the trigger side. Open it, type to filter, roam with ↑/↓."
+    >
+      <div {...stylex.props(styles.specRow)}>
+        <Combobox
+          value={project}
+          onValueChange={setProject}
+          accessibilityLabel="Project"
+          searchPlaceholder="Search projects…"
+          emptyLabel="No recent projects."
+          noMatchesLabel="No matching projects."
+          width="wide"
+          groups={[
+            {
+              label: "Current project",
+              pinned: true,
+              options: [
+                {
+                  value: "/Users/goose/Developer/honk",
+                  label: "honk",
+                  description: "/Users/goose/Developer/honk",
+                  leading: <Icon icon={IconFolder1} size="sm" tone="muted" />,
+                },
+              ],
+            },
+            {
+              label: "Recent projects",
+              options: [
+                {
+                  value: "/Users/goose/Developer/v7",
+                  label: "v7",
+                  description: "/Users/goose/Developer/v7",
+                  leading: <Icon icon={IconFolder1} size="sm" tone="muted" />,
+                },
+                {
+                  value: "/Users/goose/Documents",
+                  label: "Documents",
+                  description: "/Users/goose/Documents",
+                  leading: <Icon icon={IconFolder1} size="sm" tone="muted" />,
+                },
+                {
+                  value: "/Users/goose/Developer/bloom",
+                  label: "bloom",
+                  description: "/Users/goose/Developer/bloom",
+                  leading: <Icon icon={IconFolder1} size="sm" tone="muted" />,
+                },
+                {
+                  value: "/Users/goose/Developer/gestures",
+                  label: "gestures",
+                  description: "/Users/goose/Developer/gestures",
+                  leading: <Icon icon={IconFolder1} size="sm" tone="muted" />,
+                },
+              ],
+            },
+          ]}
+          actions={[
+            {
+              label: "Open Folder…",
+              leading: <Icon icon={IconFolderOpen} size="sm" tone="muted" />,
+              onSelect: () => {
+                toast("Open Folder…");
+              },
+            },
+          ]}
+        >
+          <Icon icon={IconFolder1} size="sm" />
+          <span>{project === null ? "Choose project" : project.split("/").at(-1)}</span>
+        </Combobox>
+
+        <Combobox
+          value={null}
+          onValueChange={() => {}}
+          accessibilityLabel="Worktree"
+          searchPlaceholder="Search worktrees…"
+          emptyLabel="No existing worktrees."
+          noMatchesLabel="No matching worktrees."
+          size="sm"
+          tone="quiet"
+          side="top"
+          groups={[
+            {
+              label: "Existing worktrees",
+              options: [],
+            },
+          ]}
+        >
+          <span>Opens above (empty)</span>
+        </Combobox>
+      </div>
+    </Section>
+  );
+}
+
 function DialogStory(): React.ReactElement {
   return (
     <Section
@@ -2327,6 +2428,7 @@ const STORIES = [
   { path: "/tooltip", label: "Tooltip" },
   { path: "/popover", label: "Popover" },
   { path: "/menu", label: "Menu" },
+  { path: "/combobox", label: "Combobox" },
   { path: "/dialog", label: "Dialog" },
   { path: "/alert-dialog", label: "AlertDialog" },
   { path: "/matrix", label: "Matrix" },
@@ -2470,6 +2572,12 @@ const menuRoute = createRoute({
   component: MenuStory,
 });
 
+const comboboxRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/combobox",
+  component: ComboboxStory,
+});
+
 const dialogRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/dialog",
@@ -2566,6 +2674,7 @@ const routeTree = rootRoute.addChildren([
   tooltipRoute,
   popoverRoute,
   menuRoute,
+  comboboxRoute,
   dialogRoute,
   alertDialogRoute,
   matrixRoute,

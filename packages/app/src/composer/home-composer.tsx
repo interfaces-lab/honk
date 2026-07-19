@@ -215,21 +215,19 @@ export function HomeComposer({
   directoryLabel,
   projectID,
   projectDirectory,
-  resolveLocationOnMount = true,
   recentDirectories = EMPTY_DIRECTORY_PATHS,
   server,
   target,
   onDirectoryPicked,
   onTargetChange,
   draftKey,
+  replaceSessionKey,
   autoFocus = false,
 }: {
   readonly location?: OpenCodeLocationRef;
   readonly directoryLabel?: string;
   readonly projectID?: string;
   readonly projectDirectory?: string;
-  /** Resolve newly picked locations eagerly so their worktree controls become available. */
-  readonly resolveLocationOnMount?: boolean;
   readonly recentDirectories?: readonly string[];
   readonly server?: OpenCodeServerKey;
   readonly target?: OpenCodeSessionTarget;
@@ -237,6 +235,8 @@ export function HomeComposer({
   readonly onTargetChange?: (target: OpenCodeSessionTarget) => void;
   // Replace this draft tab after OpenCode accepts the first prompt.
   readonly draftKey?: string;
+  // Close this empty session tab once the new session opens in its place.
+  readonly replaceSessionKey?: string;
   readonly autoFocus?: boolean;
 }): React.ReactElement {
   const presetId = useSelectedPreset();
@@ -308,7 +308,6 @@ export function HomeComposer({
     if (
       client === null ||
       sourceDirectory === undefined ||
-      !resolveLocationOnMount ||
       (projectID !== undefined && projectDirectory !== undefined)
     ) {
       return;
@@ -329,15 +328,7 @@ export function HomeComposer({
     return () => {
       active = false;
     };
-  }, [
-    client,
-    projectDirectory,
-    projectID,
-    resolveLocationOnMount,
-    sourceDirectory,
-    sourceKey,
-    sourceWorkspaceID,
-  ]);
+  }, [client, projectDirectory, projectID, sourceDirectory, sourceKey, sourceWorkspaceID]);
 
   const resolvedLocation = loadedLocation?.key === sourceKey ? loadedLocation.info : null;
   const resolvedProjectID =
@@ -497,7 +488,11 @@ export function HomeComposer({
         ...(payload.files.length > 0 ? { files: promptFilesFromPaths(payload.files) } : {}),
         ...(payload.command !== null ? { command: payload.command } : {}),
       },
-      draftKey === undefined ? undefined : { replaceDraftKey: draftKey },
+      draftKey !== undefined
+        ? { replaceDraftKey: draftKey }
+        : replaceSessionKey !== undefined
+          ? { replaceSessionKey }
+          : undefined,
     );
     // Use this directory as the default for later tabs.
     if (location !== undefined) {
