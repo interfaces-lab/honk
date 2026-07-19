@@ -10,16 +10,18 @@ import { errorMessage } from "../error-message";
 import { interruptSession, type ThreadViewState } from "../open-code-view";
 import { actions as toastActions } from "../toast-store";
 import {
+  buildTranscriptRows,
   groupMessagesIntoTurns,
   groupPartsByMessage,
   isSyntheticOnlyUserMessage,
   turnHasVisibleActivity,
   type ToolPart,
+  type TranscriptRow,
 } from "./transcript-model";
 import { useThreadRuntime } from "./runtime";
 import { SessionRequests } from "./session-requests";
 import type { TaskChildLink } from "./subagent-session";
-import { ThreadTurnRow, turnTimelineItem } from "./transcript-turn";
+import { ThreadTranscriptRow, turnTimelineItem } from "./transcript-turn";
 import { VirtualConversation, type VirtualConversationController } from "./virtual-conversation";
 import {
   activeTurnStartedAtMs,
@@ -32,8 +34,15 @@ import {
 const EMPTY_TASK_LINKS: ReadonlyMap<string, TaskChildLink> = new Map();
 const TRANSCRIPT_EMPTY_MIN_HEIGHT = "120px";
 const TRANSCRIPT_MAX_WIDTH = "840px";
-const TRANSCRIPT_TURN_ESTIMATE_PX = 180;
+const ROW_ESTIMATE_PX: Record<TranscriptRow["kind"], number> = {
+  human: 72,
+  block: 120,
+  diff: 56,
+};
+// Between-turn and turn-internal section gap (matches --honk-space-panel-pad).
 const TRANSCRIPT_ROW_GAP_PX = 12;
+// Gap between consecutive assistant blocks within a turn (matches --honk-space-gutter).
+const TRANSCRIPT_BLOCK_GAP_PX = 8;
 const TRANSCRIPT_INITIAL_VIEWPORT_HEIGHT_PX = 720;
 const PREVIEW_INITIAL_VIEWPORT_HEIGHT_PX = 360;
 const TRANSCRIPT_NEAR_END_PX = 48;
@@ -43,7 +52,13 @@ const TIMELINE_BLOCK_GAP_PX = 32;
 const TIMELINE_PANEL_GAP_PX = 12;
 const TIMELINE_VIEWPORT_GAP_PX = 8;
 const styles = stylex.create({
-  center: { minHeight: TRANSCRIPT_EMPTY_MIN_HEIGHT, display: "grid", placeItems: "center" },
+  center: {
+    minHeight: TRANSCRIPT_EMPTY_MIN_HEIGHT,
+    height: "100%",
+    display: "grid",
+    alignContent: "center",
+    justifyItems: "center",
+  },
   streamFrame: {
     position: "relative",
     flexGrow: 1,
@@ -81,6 +96,24 @@ const dynamic = stylex.create({
 });
 
 const getWaitingServerSnapshot = (): null => null;
+
+// Consecutive assistant blocks sit close together; every other boundary
+// (after a human message, before a diff receipt, between turns) gets the
+// wider section gap, matching the old whole-turn flex spacing.
+function transcriptRowGapPx(rows: readonly TranscriptRow[], index: number): number {
+  const row = rows[index];
+  const next = rows[index + 1];
+  if (
+    row !== undefined &&
+    next !== undefined &&
+    row.kind === "block" &&
+    next.kind === "block" &&
+    row.turnKey === next.turnKey
+  ) {
+    return TRANSCRIPT_BLOCK_GAP_PX;
+  }
+  return TRANSCRIPT_ROW_GAP_PX;
+}
 
 function useWaitingStatus(input: {
   readonly isRunning: boolean;
@@ -144,6 +177,11 @@ export function ThreadStream({
   const conversationDensity = useConversationDensity();
   const partsByMessageId = groupPartsByMessage(state.parts);
   const turns = groupMessagesIntoTurns(state.messages);
+  const isThreadRunning = state.summary.status === "running";
+  const rows = buildTranscriptRows(turns, partsByMessageId, {
+    isThreadRunning,
+    showDiffSummary: true,
+  });
   const timelineItems: readonly TimelineNavigatorItem[] = turns.flatMap((turn) =>
     turn.user === null || isSyntheticOnlyUserMessage(partsByMessageId.get(turn.user.id) ?? [])
       ? []
@@ -275,7 +313,7 @@ export function ThreadStream({
   };
 
   const navigateToTurn = (id: string): void => {
-    const index = turns.findIndex((turn) => turn.key === id);
+    const index = rows.findIndex((row) => row.kind === "human" && row.turnKey === id);
     if (index < 0) return;
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     setTimelineState((current) => ({ ...current, activeId: id }));
@@ -311,20 +349,13 @@ export function ThreadStream({
           {...stylex.props(styles.stream, dynamic.streamBottomClearance(bottomClearancePx))}
         >
           <div ref={attachContent} {...stylex.props(styles.center)}>
-            {state.summary.status === "running" ? (
-              <Matrix
-                variant="compass"
-                color={colorVars["--honk-color-text-muted"]}
-                style={{ marginBlockEnd: spaceVars["--honk-space-gutter"] }}
-              />
-            ) : null}
+            <Matrix
+              variant="compass"
+              color={colorVars["--honk-color-text-muted"]}
+              style={{ marginBlockEnd: spaceVars["--honk-space-gutter"] }}
+            />
             <Text as="p" size="sm" tone="muted" weight="regular">
-              {state.summary.status === "running" ? WAITING_PLANNING_LABEL : "Empty thread"}
-            </Text>
-            <Text as="p" size="xs" tone="faint">
-              {state.summary.status === "running"
-                ? "Your message was accepted. Waiting for agent activity."
-                : "Send a message below to start the conversation."}
+              {WAITING_PLANNING_LABEL}
             </Text>
           </div>
         </div>
@@ -360,38 +391,30 @@ export function ThreadStream({
       >
         <div ref={attachContent} {...stylex.props(styles.streamContent)}>
           <VirtualConversation
-            rows={turns}
+            rows={rows}
             scrollElementRef={scrollportRef}
             controllerRef={virtualControllerRef}
-            getRowId={(turn) => turn.key}
-            estimateRowSize={() => TRANSCRIPT_TURN_ESTIMATE_PX}
-            rowGapPx={TRANSCRIPT_ROW_GAP_PX}
+            getRowId={(row) => row.key}
+            isStickyRow={(row) => row.kind === "human"}
+            estimateRowSize={(row) => ROW_ESTIMATE_PX[row.kind]}
+            getRowGapPx={(_row, index) => transcriptRowGapPx(rows, index)}
             bottomClearancePx={bottomClearancePx}
             initialViewportHeightPx={TRANSCRIPT_INITIAL_VIEWPORT_HEIGHT_PX}
             nearEndThresholdPx={TRANSCRIPT_NEAR_END_PX}
-            isStreaming={state.summary.status === "running"}
+            isStreaming={isThreadRunning}
             restorationKey={runtime.tabKey}
-            onRowElement={(turn, _index, element) => {
-              if (
-                turn.user === null ||
-                isSyntheticOnlyUserMessage(partsByMessageId.get(turn.user.id) ?? [])
-              ) {
-                turnElementsRef.current.delete(turn.key);
-                return;
-              }
+            onRowElement={(row, _index, element) => {
+              if (row.kind !== "human") return;
               if (element === null) {
-                turnElementsRef.current.delete(turn.key);
+                turnElementsRef.current.delete(row.turnKey);
               } else {
-                turnElementsRef.current.set(turn.key, element);
+                turnElementsRef.current.set(row.turnKey, element);
               }
               scheduleTimelineMeasure();
             }}
-            renderRow={(turn, index) => (
-              <ThreadTurnRow
-                turn={turn}
-                partsByMessageId={partsByMessageId}
-                isLast={index === turns.length - 1}
-                isThreadRunning={state.summary.status === "running"}
+            renderRow={(row) => (
+              <ThreadTranscriptRow
+                row={row}
                 conversationDensity={conversationDensity}
                 onInterrupt={interrupt}
                 onEditMessage={editDraft === null ? onEditMessage : undefined}
@@ -436,6 +459,10 @@ export function ThreadTranscriptPreview({
   const conversationDensity = useConversationDensity();
   const partsByMessageId = groupPartsByMessage(state.parts);
   const turns = groupMessagesIntoTurns(state.messages);
+  const rows = buildTranscriptRows(turns, partsByMessageId, {
+    isThreadRunning: state.summary.status === "running",
+    showDiffSummary: false,
+  });
   const hasVisibleActivity = turnHasVisibleActivity(turns[turns.length - 1], partsByMessageId);
   const waitingLabel = useWaitingStatus({
     isRunning: state.summary.status === "running",
@@ -456,25 +483,19 @@ export function ThreadTranscriptPreview({
   return (
     <div aria-label="Work details" {...stylex.props(styles.previewContent)}>
       <VirtualConversation
-        rows={turns}
+        rows={rows}
         scrollElementRef={scrollElementRef}
-        getRowId={(turn) => turn.key}
-        estimateRowSize={() => TRANSCRIPT_TURN_ESTIMATE_PX}
-        rowGapPx={TRANSCRIPT_ROW_GAP_PX}
+        getRowId={(row) => row.key}
+        isStickyRow={(row) => row.kind === "human"}
+        estimateRowSize={(row) => ROW_ESTIMATE_PX[row.kind]}
+        getRowGapPx={(_row, index) => transcriptRowGapPx(rows, index)}
         bottomClearancePx={0}
         initialViewportHeightPx={PREVIEW_INITIAL_VIEWPORT_HEIGHT_PX}
         nearEndThresholdPx={TRANSCRIPT_NEAR_END_PX}
         isStreaming={state.summary.status === "running"}
         {...(restorationKey === undefined ? {} : { restorationKey })}
-        renderRow={(turn, index) => (
-          <ThreadTurnRow
-            turn={turn}
-            partsByMessageId={partsByMessageId}
-            isLast={index === turns.length - 1}
-            isThreadRunning={state.summary.status === "running"}
-            conversationDensity={conversationDensity}
-            showDiffSummary={false}
-          />
+        renderRow={(row) => (
+          <ThreadTranscriptRow row={row} conversationDensity={conversationDensity} />
         )}
         footer={waitingLabel === null ? null : <StatusRow>{waitingLabel}</StatusRow>}
       />

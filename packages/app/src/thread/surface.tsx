@@ -1,10 +1,16 @@
 import * as stylex from "@stylexjs/stylex";
-import { openCodeSessionKey, openCodeSessionRef, type OpenCodeSessionRef } from "@honk/opencode";
+import {
+  openCodeLocationRef,
+  openCodeSessionKey,
+  openCodeSessionRef,
+  type OpenCodeSessionRef,
+} from "@honk/opencode";
 import { Icon, IconButton, Text } from "@honk/ui";
 import { IconClipboard } from "@honk/ui/icons";
 import { controlVars, conversationVars, motionVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
+import { HomeComposer } from "../composer/home-composer";
 import type { ThreadMessageEdit } from "../composer/types";
 import type { AppChildSessionSummary, ThreadViewState } from "../open-code-view";
 import { copySessionDebugInfo } from "../session-debug-info";
@@ -23,7 +29,11 @@ import { DebugTray, PlanTray } from "./trays";
 const THREAD_MAX_WIDTH = "840px";
 const COMPOSER_COLLAPSED_MIN_HEIGHT_PX = 44;
 const COMPOSER_STREAM_CLEARANCE_PX = 52;
+// Match the new-session page's centered composer measure and bottom bias.
+const EMPTY_COMPOSER_MAX_WIDTH = "720px";
+const EMPTY_COMPOSER_BOTTOM_BIAS = "12vh";
 const EMPTY_CHILD_SESSIONS: readonly AppChildSessionSummary[] = Object.freeze([]);
+const EMPTY_DIRECTORIES: readonly string[] = Object.freeze([]);
 
 const styles = stylex.create({
   root: {
@@ -77,6 +87,25 @@ const styles = stylex.create({
   connectionStatus: {
     flexShrink: 0,
     paddingInline: conversationVars["--honk-conversation-inset"],
+  },
+  emptyArea: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: "0%",
+    minHeight: 0,
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingBlockEnd: EMPTY_COMPOSER_BOTTOM_BIAS,
+  },
+  emptyComposer: {
+    width: "100%",
+    maxWidth: EMPTY_COMPOSER_MAX_WIDTH,
+    maxHeight: "100%",
+    minHeight: 0,
+    display: "flex",
+    flexDirection: "column",
   },
 });
 
@@ -160,6 +189,14 @@ export function ThreadSurface({
     };
   };
 
+  // A thread with no messages reads as a fresh draft: show the home composer centered like the
+  // new-session page. Submitting opens the configured session and closes this stale tab.
+  const isEmptyThread = state.messages.length === 0 && state.summary.status !== "running";
+  const [pickedDirectory, setPickedDirectory] = React.useState<string | null>(null);
+  const recentDirectories = useWorkspaceWatchSelector(
+    (snapshot) => snapshot.state?.recentDirectories ?? EMPTY_DIRECTORIES,
+  );
+
   const inlineEditComposer =
     editDraft === null ? null : (
       <InlineMessageEditComposer
@@ -186,7 +223,7 @@ export function ThreadSurface({
             selectedTaskLink !== null && styles.conversationDimmed,
           )}
         >
-          {showHeader ? (
+          {showHeader && !isEmptyThread ? (
             <header {...stylex.props(styles.header)}>
               <div {...stylex.props(styles.headerRow)}>
                 <Text
@@ -224,46 +261,63 @@ export function ThreadSurface({
               </Text>
             </div>
           ) : null}
-          <ThreadStream
-            threadId={threadId}
-            state={state}
-            bottomClearancePx={composerHeight + COMPOSER_STREAM_CLEARANCE_PX}
-            editDraft={editDraft}
-            editComposer={inlineEditComposer}
-            {...(onReviewChanges === undefined ? {} : { onReviewChanges })}
-            openTaskPartID={selectedTaskLink?.partID ?? null}
-            taskLinkByPartID={taskLinkByPartID}
-            hasActiveSubagent={taskLinks.some(
-              (link) => link.ownsLiveState && link.state === "running",
-            )}
-            onOpenTask={(part) => {
-              if (part.id === selectedTaskLink?.partID) {
-                minimizeTaskPreview();
-              } else {
-                setSelectedTaskPartID(part.id);
-              }
-            }}
-            onEditMessage={setEditDraft}
-          />
+          {isEmptyThread ? (
+            <div {...stylex.props(styles.emptyArea)}>
+              <div {...stylex.props(styles.emptyComposer)}>
+                <HomeComposer
+                  autoFocus
+                  server={server}
+                  location={openCodeLocationRef({ directory: pickedDirectory ?? state.cwd })}
+                  recentDirectories={recentDirectories}
+                  replaceSessionKey={runtime.tabKey}
+                  onDirectoryPicked={setPickedDirectory}
+                />
+              </div>
+            </div>
+          ) : (
+            <ThreadStream
+              threadId={threadId}
+              state={state}
+              bottomClearancePx={composerHeight + COMPOSER_STREAM_CLEARANCE_PX}
+              editDraft={editDraft}
+              editComposer={inlineEditComposer}
+              {...(onReviewChanges === undefined ? {} : { onReviewChanges })}
+              openTaskPartID={selectedTaskLink?.partID ?? null}
+              taskLinkByPartID={taskLinkByPartID}
+              hasActiveSubagent={taskLinks.some(
+                (link) => link.ownsLiveState && link.state === "running",
+              )}
+              onOpenTask={(part) => {
+                if (part.id === selectedTaskLink?.partID) {
+                  minimizeTaskPreview();
+                } else {
+                  setSelectedTaskPartID(part.id);
+                }
+              }}
+              onEditMessage={setEditDraft}
+            />
+          )}
         </div>
-        <ThreadComposer
-          formRef={attachComposer}
-          threadId={threadId}
-          isRunning={state.summary.status === "running"}
-          cwd={state.cwd}
-          attachedDirectories={state.attachedDirectories}
-        >
-          {selectedTaskLink === null && editDraft === null ? (
-            <>
-              <PlanTray
-                threadId={threadId}
-                state={state}
-                {...(onViewPlan === undefined ? {} : { onViewPlan })}
-              />
-              <DebugTray threadId={threadId} state={state} />
-            </>
-          ) : null}
-        </ThreadComposer>
+        {isEmptyThread ? null : (
+          <ThreadComposer
+            formRef={attachComposer}
+            threadId={threadId}
+            isRunning={state.summary.status === "running"}
+            cwd={state.cwd}
+            attachedDirectories={state.attachedDirectories}
+          >
+            {selectedTaskLink === null && editDraft === null ? (
+              <>
+                <PlanTray
+                  threadId={threadId}
+                  state={state}
+                  {...(onViewPlan === undefined ? {} : { onViewPlan })}
+                />
+                <DebugTray threadId={threadId} state={state} />
+              </>
+            ) : null}
+          </ThreadComposer>
+        )}
         {selectedTaskLink !== null ? (
           <SubagentTray
             partID={selectedTaskLink.partID}

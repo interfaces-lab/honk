@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildTranscriptRows,
   groupMessagesIntoTurns,
   groupPartsByMessage,
   isSyntheticOnlyUserMessage,
@@ -205,5 +206,130 @@ describe("transcript projection", () => {
       { file: "b.ts", additions: 0, deletions: 1 },
       { file: "a.ts", additions: 3, deletions: 2 },
     ]);
+  });
+});
+
+describe("buildTranscriptRows", () => {
+  const userWithDiffs = (id: string): UserThreadMessage =>
+    ({
+      id,
+      role: "user",
+      summary: { diffs: [{ file: "a.ts", additions: 1, deletions: 0, status: "modified" }] },
+    }) as unknown as UserThreadMessage;
+
+  it("flattens turns into human, block, and diff rows with turn-scoped keys", () => {
+    const turns = groupMessagesIntoTurns([userWithDiffs("u1"), assistant("a1"), user("u2")]);
+    const grouped = groupPartsByMessage([
+      part({ id: "up1", messageID: "u1", type: "text", text: "hello" }),
+      part({ id: "t1", messageID: "a1", type: "text", text: "Starting" }),
+      part({
+        id: "w1",
+        messageID: "a1",
+        type: "tool",
+        tool: "read",
+        state: { status: "completed" },
+      }),
+      part({ id: "up2", messageID: "u2", type: "text", text: "next" }),
+    ]);
+
+    const rows = buildTranscriptRows(turns, grouped, {
+      isThreadRunning: false,
+      showDiffSummary: true,
+    });
+    expect(rows.map((row) => [row.kind, row.turnKey])).toEqual([
+      ["human", "u1"],
+      ["block", "u1"],
+      ["block", "u1"],
+      ["diff", "u1"],
+      ["human", "u2"],
+    ]);
+    expect(new Set(rows.map((row) => row.key)).size).toBe(rows.length);
+  });
+
+  it("keeps row keys stable while the assistant turn streams and grows", () => {
+    const turns = groupMessagesIntoTurns([user("u1"), assistant("a1")]);
+    const before = buildTranscriptRows(
+      turns,
+      groupPartsByMessage([
+        part({ id: "up1", messageID: "u1", type: "text", text: "hello" }),
+        part({ id: "t1", messageID: "a1", type: "text", text: "Star" }),
+        part({
+          id: "w1",
+          messageID: "a1",
+          type: "tool",
+          tool: "read",
+          state: { status: "running" },
+        }),
+      ]),
+      { isThreadRunning: true, showDiffSummary: true },
+    );
+    const after = buildTranscriptRows(
+      turns,
+      groupPartsByMessage([
+        part({ id: "up1", messageID: "u1", type: "text", text: "hello" }),
+        part({ id: "t1", messageID: "a1", type: "text", text: "Starting the work" }),
+        part({
+          id: "w1",
+          messageID: "a1",
+          type: "tool",
+          tool: "read",
+          state: { status: "completed" },
+        }),
+        part({
+          id: "w2",
+          messageID: "a1",
+          type: "tool",
+          tool: "bash",
+          state: { status: "running" },
+        }),
+      ]),
+      { isThreadRunning: true, showDiffSummary: true },
+    );
+
+    // Existing rows keep their keys; streaming only appends within blocks.
+    expect(after.map((row) => row.key).slice(0, before.length)).toEqual(
+      before.map((row) => row.key),
+    );
+  });
+
+  it("skips synthetic-only human rows and hides the running last turn's diff row", () => {
+    const turns = groupMessagesIntoTurns([userWithDiffs("u1"), assistant("a1")]);
+    const grouped = groupPartsByMessage([
+      part({ id: "up1", messageID: "u1", type: "text", text: "<done>", synthetic: true }),
+      part({ id: "t1", messageID: "a1", type: "text", text: "Working" }),
+    ]);
+
+    const running = buildTranscriptRows(turns, grouped, {
+      isThreadRunning: true,
+      showDiffSummary: true,
+    });
+    expect(running.map((row) => row.kind)).toEqual(["block"]);
+
+    const settled = buildTranscriptRows(turns, grouped, {
+      isThreadRunning: false,
+      showDiffSummary: true,
+    });
+    expect(settled.map((row) => row.kind)).toEqual(["block", "diff"]);
+
+    const preview = buildTranscriptRows(turns, grouped, {
+      isThreadRunning: false,
+      showDiffSummary: false,
+    });
+    expect(preview.map((row) => row.kind)).toEqual(["block"]);
+  });
+
+  it("marks only the diff-free final human row as not requiring revert confirmation", () => {
+    const turns = groupMessagesIntoTurns([userWithDiffs("u1"), assistant("a1"), user("u2")]);
+    const grouped = groupPartsByMessage([
+      part({ id: "up1", messageID: "u1", type: "text", text: "hello" }),
+      part({ id: "up2", messageID: "u2", type: "text", text: "next" }),
+    ]);
+
+    const rows = buildTranscriptRows(turns, grouped, {
+      isThreadRunning: false,
+      showDiffSummary: true,
+    });
+    const humans = rows.filter((row) => row.kind === "human");
+    expect(humans.map((row) => row.requiresRevertConfirmation)).toEqual([true, false]);
   });
 });

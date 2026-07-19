@@ -12,8 +12,6 @@ import {
   conversationVars,
   fontVars,
   radiusVars,
-  spaceVars,
-  zVars,
 } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
@@ -29,10 +27,6 @@ import {
 } from "../tool-presentation";
 import {
   isPartActive,
-  isSyntheticOnlyUserMessage,
-  segmentAssistantTurn,
-  turnDiffs,
-  type AssistantThreadMessage,
   type FilePart,
   type ReasoningPart,
   type RenderableThreadDiff,
@@ -41,6 +35,7 @@ import {
   type ThreadTurn,
   type ToolPart,
   type TranscriptBlock,
+  type TranscriptRow,
   type WorkPart,
 } from "./transcript-model";
 import type { TaskChildLink } from "./subagent-session";
@@ -52,17 +47,6 @@ const EMPTY_TASK_LINKS: ReadonlyMap<string, TaskChildLink> = new Map();
 const USER_ATTACHMENT_MAX_WIDTH = "240px";
 
 const styles = stylex.create({
-  turn: { display: "flex", flexDirection: "column", gap: spaceVars["--honk-space-panel-pad"] },
-  pinnedUserMessage: {
-    position: "sticky",
-    top: 0,
-    zIndex: zVars["--honk-z-thread-sticky-message"],
-  },
-  assistantStack: {
-    display: "flex",
-    flexDirection: "column",
-    gap: spaceVars["--honk-space-gutter"],
-  },
   reasoningGroup: {
     display: "flex",
     flexDirection: "column",
@@ -133,12 +117,8 @@ function timelineMessageText(
     .trim();
 }
 
-export function ThreadTurnRow({
-  rowRef,
-  turn,
-  partsByMessageId,
-  isLast,
-  isThreadRunning,
+export function ThreadTranscriptRow({
+  row,
   conversationDensity,
   onInterrupt,
   onEditMessage,
@@ -148,13 +128,8 @@ export function ThreadTurnRow({
   onOpenTask,
   openTaskPartID = null,
   taskLinkByPartID = EMPTY_TASK_LINKS,
-  showDiffSummary = true,
 }: {
-  readonly rowRef?: React.Ref<HTMLDivElement>;
-  readonly turn: ThreadTurn;
-  readonly partsByMessageId: ReadonlyMap<string, readonly ThreadPart[]>;
-  readonly isLast: boolean;
-  readonly isThreadRunning: boolean;
+  readonly row: TranscriptRow;
   readonly conversationDensity: ConversationDensity;
   readonly onInterrupt?: (() => void) | undefined;
   readonly onEditMessage?: ((draft: ThreadMessageEdit) => void) | undefined;
@@ -164,39 +139,35 @@ export function ThreadTurnRow({
   readonly onOpenTask?: ((part: ToolPart) => void) | undefined;
   readonly openTaskPartID?: string | null | undefined;
   readonly taskLinkByPartID?: ReadonlyMap<string, TaskChildLink> | undefined;
-  readonly showDiffSummary?: boolean | undefined;
-}): React.ReactElement {
-  const diffs = turnDiffs(turn.user);
-  const showDiffs = showDiffSummary && diffs.length > 0 && (!isLast || !isThreadRunning);
-  const userParts =
-    turn.user === null ? EMPTY_PARTS : (partsByMessageId.get(turn.user.id) ?? EMPTY_PARTS);
-
-  return (
-    <div ref={rowRef} {...stylex.props(styles.turn)}>
-      {turn.user !== null && !isSyntheticOnlyUserMessage(userParts) ? (
+}): React.ReactElement | null {
+  switch (row.kind) {
+    case "human":
+      return (
         <UserThreadMessageRow
-          messageID={turn.user.id}
-          parts={userParts}
-          requiresRevertConfirmation={!isLast || diffs.length > 0}
+          messageID={row.message.id}
+          parts={row.parts}
+          requiresRevertConfirmation={row.requiresRevertConfirmation}
           onEditMessage={onEditMessage}
           editDraft={editDraft}
           editComposer={editComposer}
         />
-      ) : null}
-      {turn.assistants.length > 0 ? (
-        <AssistantTurnRows
-          messages={turn.assistants}
-          partsByMessageId={partsByMessageId}
+      );
+    case "block":
+      return (
+        <BlockRow
+          // Density remounts the block so disclosure state resets with the mode.
+          key={`${conversationDensity}:${row.block.key}`}
+          block={row.block}
           conversationDensity={conversationDensity}
           onInterrupt={onInterrupt}
           onOpenTask={onOpenTask}
           openTaskPartID={openTaskPartID}
           taskLinkByPartID={taskLinkByPartID}
         />
-      ) : null}
-      {showDiffs ? <TurnDiffSummary diffs={diffs} onReview={onReviewChanges} /> : null}
-    </div>
-  );
+      );
+    case "diff":
+      return <TurnDiffSummary diffs={row.diffs} onReview={onReviewChanges} />;
+  }
 }
 
 function TurnDiffSummary({
@@ -241,7 +212,7 @@ function UserThreadMessageRow({
   const files = parts.filter((part): part is FilePart => part.type === "file");
 
   if (editDraft?.messageID === messageID && editComposer !== null) {
-    return <div {...stylex.props(styles.pinnedUserMessage)}>{editComposer}</div>;
+    return <>{editComposer}</>;
   }
 
   const onEdit =
@@ -261,56 +232,18 @@ function UserThreadMessageRow({
         };
 
   return (
-    <div {...stylex.props(styles.pinnedUserMessage)}>
-      <UserMessage onEdit={onEdit}>
-        <UserMessage.Preview>
-          <PlainText text={text} fallback={files.length > 0 ? "" : "(empty message)"} />
-        </UserMessage.Preview>
-        {files.length > 0 && (
-          <span {...stylex.props(styles.userAttachments)}>
-            {files.map((file) => (
-              <UserAttachment key={file.id} file={file} />
-            ))}
-          </span>
-        )}
-      </UserMessage>
-    </div>
-  );
-}
-
-function AssistantTurnRows({
-  messages,
-  partsByMessageId,
-  conversationDensity,
-  onInterrupt,
-  onOpenTask,
-  openTaskPartID,
-  taskLinkByPartID,
-}: {
-  messages: readonly AssistantThreadMessage[];
-  partsByMessageId: ReadonlyMap<string, readonly ThreadPart[]>;
-  conversationDensity: ConversationDensity;
-  onInterrupt: (() => void) | undefined;
-  onOpenTask: ((part: ToolPart) => void) | undefined;
-  openTaskPartID: string | null;
-  taskLinkByPartID: ReadonlyMap<string, TaskChildLink>;
-}): React.ReactElement {
-  const blocks = segmentAssistantTurn(messages, partsByMessageId);
-
-  return (
-    <div {...stylex.props(styles.assistantStack)}>
-      {blocks.map((block) => (
-        <BlockRow
-          key={`${conversationDensity}:${block.key}`}
-          block={block}
-          conversationDensity={conversationDensity}
-          onInterrupt={onInterrupt}
-          onOpenTask={onOpenTask}
-          openTaskPartID={openTaskPartID}
-          taskLinkByPartID={taskLinkByPartID}
-        />
-      ))}
-    </div>
+    <UserMessage onEdit={onEdit}>
+      <UserMessage.Preview>
+        <PlainText text={text} fallback={files.length > 0 ? "" : "(empty message)"} />
+      </UserMessage.Preview>
+      {files.length > 0 && (
+        <span {...stylex.props(styles.userAttachments)}>
+          {files.map((file) => (
+            <UserAttachment key={file.id} file={file} />
+          ))}
+        </span>
+      )}
+    </UserMessage>
   );
 }
 

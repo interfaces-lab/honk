@@ -29,6 +29,63 @@ export type TranscriptBlock =
   | { readonly kind: "notice"; readonly key: string; readonly part: ThreadPart }
   | { readonly kind: "error"; readonly key: string; readonly message: string };
 
+export type TranscriptRow =
+  | {
+      readonly kind: "human";
+      readonly key: string;
+      readonly turnKey: string;
+      readonly message: UserThreadMessage;
+      readonly parts: readonly ThreadPart[];
+      readonly requiresRevertConfirmation: boolean;
+    }
+  | {
+      readonly kind: "block";
+      readonly key: string;
+      readonly turnKey: string;
+      readonly block: TranscriptBlock;
+    }
+  | {
+      readonly kind: "diff";
+      readonly key: string;
+      readonly turnKey: string;
+      readonly diffs: readonly RenderableThreadDiff[];
+    };
+
+// Flattens turns into stable per-message/per-block virtual rows. Row keys must
+// survive streaming updates: human rows key off the turn's user message id and
+// block rows key off their first part id, so virtualizer measurements stay
+// attached while parts grow in place.
+export function buildTranscriptRows(
+  turns: readonly ThreadTurn[],
+  partsByMessageId: ReadonlyMap<string, readonly ThreadPart[]>,
+  options: { readonly isThreadRunning: boolean; readonly showDiffSummary: boolean },
+): readonly TranscriptRow[] {
+  return turns.flatMap((turn, index) => {
+    const isLastTurn = index === turns.length - 1;
+    const diffs = turnDiffs(turn.user);
+    const userParts =
+      turn.user === null ? EMPTY_PARTS : (partsByMessageId.get(turn.user.id) ?? EMPTY_PARTS);
+    const rows: TranscriptRow[] = [];
+    if (turn.user !== null && !isSyntheticOnlyUserMessage(userParts)) {
+      rows.push({
+        kind: "human",
+        key: `human:${turn.key}`,
+        turnKey: turn.key,
+        message: turn.user,
+        parts: userParts,
+        requiresRevertConfirmation: !isLastTurn || diffs.length > 0,
+      });
+    }
+    for (const block of segmentAssistantTurn(turn.assistants, partsByMessageId)) {
+      rows.push({ kind: "block", key: `block:${block.key}`, turnKey: turn.key, block });
+    }
+    if (options.showDiffSummary && diffs.length > 0 && (!isLastTurn || !options.isThreadRunning)) {
+      rows.push({ kind: "diff", key: `diff:${turn.key}`, turnKey: turn.key, diffs });
+    }
+    return rows;
+  });
+}
+
 const EMPTY_PARTS: readonly ThreadPart[] = Object.freeze([]);
 
 export function groupMessagesIntoTurns(messages: readonly ThreadMessage[]): readonly ThreadTurn[] {
