@@ -1,0 +1,247 @@
+/* Substrate for the rebuilt client: Tailwind core + the @honk/ui token bridge, then the
+ * Electron window-drag contract. Order matches packages/ui/dev/index.css — Tailwind first,
+ * generated first-paint tokens before the bridge so utilities and substrate CSS
+ * resolve even before the StyleX runtime mounts. */
+
+@import "tailwindcss";
+@import "@honk/ui/platform-tokens.css";
+@import "@honk/ui/tailwind.css";
+@import "streamdown/styles.css";
+
+/* Streamdown ships compiled Tailwind class strings; include them in this package's scan. */
+@source "../node_modules/streamdown/dist/*.js";
+
+/* Streamdown's word fade-in has no reduced-motion guard of its own. */
+@media (prefers-reduced-motion: reduce) {
+  [data-sd-animate] {
+    animation: none;
+  }
+}
+
+/* Full-viewport mount so Shell's 100dvh frame fills the window with no stray gap. */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+/* One inherited typesetting contract covers the shell, transcript, workbench, and Base UI
+ * portals. Components only opt into semantic differences such as mono, tabular, or display type. */
+html {
+  -webkit-font-smoothing: var(--honk-font-smoothing);
+  -moz-osx-font-smoothing: var(--honk-font-smoothing-moz);
+  font-kerning: normal;
+  font-optical-sizing: auto;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--honk-font-family-ui);
+  font-size: var(--honk-font-size-body);
+  font-weight: var(--honk-font-weight-regular);
+}
+
+/* Interactive cursor, declared once (rule/pointer-cursor-setting-owns-affordance).
+ * `--honk-cursor-interactive` resolves the Settings → General "Pointer cursor on buttons"
+ * preference here and nowhere else; every interactive control reads the same value, and
+ * because `cursor` inherits, a composite control (icon + label + badge + a nested action +
+ * the flex gaps between them) resolves one cursor across its whole box instead of flashing
+ * per child. The value cannot be a build-time token in theme.ts because it depends on this
+ * root attribute, so it lives beside the contract it resolves.
+ *
+ * `inherit` is the preference-off value, not `default`: a control inside a task-cursor
+ * region (the composer's text area, a draggable queue row) keeps that region's cursor
+ * exactly as it does today. Only the preference introduces a distinct button affordance. */
+:root {
+  --honk-cursor-interactive: inherit;
+}
+
+html[data-cursor-pointer-on-buttons] {
+  --honk-cursor-interactive: pointer;
+}
+
+button,
+summary,
+input[type="range"],
+[role="button"],
+[role="checkbox"],
+[role="menuitem"],
+[role="menuitemcheckbox"],
+[role="menuitemradio"],
+[role="option"],
+[role="radio"],
+[role="switch"],
+[role="tab"],
+[role="treeitem"],
+/* Opt-in for a clickable surface that legitimately carries no interactive role — the
+ * click-to-edit user bubble, whose text stays selectable — and for a composite whose row is
+ * the control but whose children must stay siblings for accessibility. */
+[data-cursor-pointer-control] {
+  cursor: var(--honk-cursor-interactive);
+}
+
+/* A disabled control must not inherit the affordance of the composite it sits in — a
+ * greyed-out revert button inside a clickable changes row reads as clickable otherwise. */
+button:disabled,
+input[type="range"]:disabled,
+[aria-disabled="true"],
+[data-disabled] {
+  cursor: default;
+}
+
+/* Hue and intensity use native range geometry so pointer, keyboard, and assistive interactions
+ * stay platform-correct. The rest of the settings surface remains on shared controls. */
+.honk-appearance-tint-slider {
+  --_appearance-slider-thumb-size: calc(var(--honk-control-h-sm) / 2);
+  --_appearance-slider-track-size: calc(var(--honk-control-h-sm) / 5);
+
+  width: 100%;
+  height: var(--honk-control-h-sm);
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  outline: none;
+}
+
+.honk-appearance-tint-slider:focus-visible {
+  outline: var(--honk-control-focus-ring-width) solid var(--honk-color-accent);
+  outline-offset: var(--honk-control-focus-ring-offset);
+}
+
+.honk-appearance-tint-slider::-webkit-slider-runnable-track {
+  height: var(--_appearance-slider-track-size);
+  border-radius: var(--honk-radius-control);
+  background: var(--_appearance-slider-track);
+}
+
+.honk-appearance-tint-slider::-webkit-slider-thumb {
+  width: var(--_appearance-slider-thumb-size);
+  height: var(--_appearance-slider-thumb-size);
+  margin-top: calc(
+    (var(--_appearance-slider-track-size) - var(--_appearance-slider-thumb-size)) / 2
+  );
+  appearance: none;
+  border: var(--honk-control-focus-ring-width) solid var(--honk-color-bg-base);
+  border-radius: var(--honk-radius-pill);
+  background: hsl(var(--honk-settings-tint-hue) var(--honk-settings-tint-intensity) 50%);
+  box-shadow: 0 0 0 var(--honk-control-focus-ring-width) var(--honk-color-border-muted);
+}
+
+.honk-appearance-tint-slider::-moz-range-track {
+  height: var(--_appearance-slider-track-size);
+  border-radius: var(--honk-radius-control);
+  background: var(--_appearance-slider-track);
+}
+
+.honk-appearance-tint-slider::-moz-range-thumb {
+  width: var(--_appearance-slider-thumb-size);
+  height: var(--_appearance-slider-thumb-size);
+  border: var(--honk-control-focus-ring-width) solid var(--honk-color-bg-base);
+  border-radius: var(--honk-radius-pill);
+  background: hsl(var(--honk-settings-tint-hue) var(--honk-settings-tint-intensity) 50%);
+  box-shadow: 0 0 0 var(--honk-control-focus-ring-width) var(--honk-color-border-muted);
+}
+
+.honk-appearance-tint-slider[data-variant="hue"] {
+  --honk-settings-tint-hue: 210;
+  --honk-settings-tint-intensity: 100%;
+  --_appearance-slider-track: linear-gradient(
+    to right,
+    hsl(0 100% 50%),
+    hsl(60 100% 50%),
+    hsl(120 100% 50%),
+    hsl(180 100% 50%),
+    hsl(240 100% 50%),
+    hsl(300 100% 50%),
+    hsl(360 100% 50%)
+  );
+}
+
+.honk-appearance-tint-slider[data-variant="intensity"] {
+  --honk-settings-tint-intensity: 100%;
+  --_appearance-slider-track: linear-gradient(
+    to right,
+    hsl(var(--honk-settings-tint-hue) 0% 50%),
+    hsl(var(--honk-settings-tint-hue) 100% 50%)
+  );
+}
+
+.honk-appearance-tint-swatch {
+  background: hsl(var(--honk-settings-tint-hue) var(--honk-settings-tint-intensity) 50%);
+}
+
+.honk-appearance-tint-swatch[data-muted] {
+  background: var(--honk-color-border-base);
+}
+
+/* Reading and workbench scrollports use a stable lane so content never changes width when it
+ * starts overflowing. The platform scrollbar keeps native wheel, trackpad, keyboard, and assistive
+ * behavior, while its visual treatment follows OpenCode's useful proportion: a narrow thumb inside
+ * a wider transparent hit lane, hidden until the user is interacting with that surface. */
+[data-honk-scrollport] {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  overscroll-behavior: contain;
+}
+
+[data-honk-scrollport="balanced"] {
+  scrollbar-gutter: stable both-edges;
+}
+
+[data-honk-scrollport]:hover {
+  scrollbar-color: var(--honk-color-border-base) transparent;
+}
+
+[data-honk-scrollport]::-webkit-scrollbar {
+  width: var(--honk-space-panel-pad);
+  height: var(--honk-space-panel-pad);
+}
+
+[data-honk-scrollport]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-honk-scrollport]::-webkit-scrollbar-thumb {
+  border: calc(var(--honk-space-panel-pad) / 3) solid transparent;
+  border-radius: var(--honk-radius-pill);
+  background-color: transparent;
+  background-clip: padding-box;
+  transition: background-color var(--honk-motion-duration-hover) var(--honk-motion-ease-out);
+}
+
+[data-honk-scrollport]:hover::-webkit-scrollbar-thumb {
+  background-color: var(--honk-color-border-base);
+}
+
+[data-honk-scrollport]::-webkit-scrollbar-thumb:hover,
+[data-honk-scrollport]::-webkit-scrollbar-thumb:active {
+  background-color: var(--honk-color-border-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-honk-scrollport]::-webkit-scrollbar-thumb {
+    transition-duration: 0s;
+  }
+}
+
+/* Window-drag contract (ADR 0025 §5): Shell.TitleBar / TabStrip mark themselves with
+ * data-shell-drag-region; interactive children opt out with data-shell-no-drag. StyleX
+ * cannot express this cross-element cascade, so the mapping lives here as plain CSS.
+ * Inert in the browser; the Electron host makes the bar drag the window. */
+[data-shell-drag-region] {
+  -webkit-app-region: drag;
+}
+
+[data-shell-no-drag],
+[data-shell-drag-region] button,
+[data-shell-drag-region] input,
+[data-shell-drag-region] textarea,
+[data-shell-drag-region] select,
+[data-shell-drag-region] a,
+[data-shell-drag-region] [role="button"],
+[data-shell-drag-region] [role="tab"],
+[data-shell-drag-region] [data-shell-no-drag] {
+  -webkit-app-region: no-drag;
+}

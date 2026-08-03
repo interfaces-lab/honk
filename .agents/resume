@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# This repository has no persistent backing services. Repair Corepack's pnpm
+# shim in case the orb's Node toolchain changed while it was paused.
+if command -v mise >/dev/null 2>&1; then
+  eval "$(mise activate bash)"
+fi
+
+corepack enable
+
+if [[ ! -d node_modules ]]; then
+  echo "node_modules is missing; recreate the orb so .agents/setup runs." >&2
+  exit 1
+fi
+
+echo "Orb resume complete; no services need reconnecting."

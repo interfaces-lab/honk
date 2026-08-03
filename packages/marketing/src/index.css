@@ -1,0 +1,229 @@
+@import "../../app/src/index.css";
+
+@source "./**/*.{ts,tsx}";
+
+/* Geist (self-hosted from the geist package). */
+@font-face {
+  font-family: "Geist Sans";
+  src: url("../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Newsreader (self-hosted from @fontsource-variable). Editorial serif for long-form prose. */
+@font-face {
+  font-family: Newsreader;
+  src: url("../node_modules/@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2")
+    format("woff2-variations");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Newsreader;
+  src: url("../node_modules/@fontsource-variable/newsreader/files/newsreader-latin-opsz-italic.woff2")
+    format("woff2-variations");
+  font-weight: 200 800;
+  font-style: italic;
+  font-display: swap;
+}
+
+@theme inline {
+  --font-geist-sans: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-geist-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  --font-serif: "Newsreader", ui-serif, Georgia, serif;
+  --font-heading: var(--font-geist-sans);
+  --font-body: var(--font-serif);
+
+  --color-marketing-background: var(--marketing-background);
+  --color-marketing-primary: var(--marketing-primary);
+  --color-marketing-secondary: var(--marketing-secondary);
+  --color-marketing-accent: var(--marketing-accent);
+  --color-marketing-border: var(--marketing-border);
+  --color-marketing-panel: var(--marketing-panel);
+  --color-marketing-surface: var(--marketing-surface);
+}
+
+:root {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Reference-locked public-site palette and grid insets. These stay at the marketing boundary;
+   * the product preview restores Honk's application tokens below. */
+  --marketing-background: #f7f6f5;
+  --marketing-primary: #000;
+  --marketing-secondary: rgb(25 25 25 / 56%);
+  --marketing-accent: #20f;
+  --marketing-border: rgb(0 0 0 / 6%);
+  --marketing-border-strong: rgb(0 0 0 / 10%);
+  --marketing-panel: rgb(32 32 32 / 2%);
+  --marketing-layer-01: rgb(0 0 0 / 3%);
+  --marketing-layer-02: rgb(0 0 0 / 6%);
+  --marketing-faint: rgb(25 25 25 / 38%);
+  --marketing-hover: rgb(0 0 0 / 4%);
+  --marketing-press: rgb(0 0 0 / 8%);
+  --marketing-selected: rgb(34 0 255 / 8%);
+  --marketing-surface: #fff;
+  --marketing-container-padding: 20px;
+  --marketing-section-space: 88px;
+}
+
+/* The workspace preview keeps the app's own font tokens so the frame renders exactly like the
+ * desktop app. @honk/ui primitives pin the family themselves; this restores the Tailwind
+ * aliases too, so a font-sans/font-mono utility inside the frame resolves the app token
+ * rather than Geist. */
+.honk-marketing-preview {
+  --font-sans: var(--honk-font-family-ui);
+  --font-mono: var(--honk-font-family-mono);
+
+  font-family: var(--honk-font-family-ui);
+}
+
+.marketing-component-demo {
+  --honk-color-bg-base: var(--marketing-background);
+  --honk-color-layer-01: var(--marketing-layer-01);
+  --honk-color-layer-02: var(--marketing-layer-02);
+  --honk-color-text-primary: var(--marketing-primary);
+  --honk-color-text-muted: var(--marketing-secondary);
+  --honk-color-text-faint: var(--marketing-faint);
+  --honk-color-border-muted: var(--marketing-border);
+  --honk-color-border-base: var(--marketing-border-strong);
+  --honk-color-accent: var(--marketing-accent);
+  --honk-color-accent-fill: var(--marketing-accent);
+  --honk-color-on-accent: var(--marketing-surface);
+  --honk-color-state-hover: var(--marketing-hover);
+  --honk-color-state-press: var(--marketing-press);
+  --honk-color-control-selected: var(--marketing-selected);
+
+  color-scheme: light;
+}
+
+.marketing-shell {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-inline: var(--marketing-container-padding);
+}
+
+.marketing-content-grid,
+.marketing-grid-guides {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.marketing-content-grid {
+  display: grid;
+  padding-top: var(--marketing-section-space);
+}
+
+.marketing-grid-line {
+  position: relative;
+  height: 100%;
+}
+
+.marketing-mobile-menu {
+  display: none;
+  inset: 0;
+}
+
+.marketing-mobile-menu:popover-open {
+  display: flex;
+  flex-direction: column;
+}
+
+body:has(.marketing-mobile-menu:popover-open) {
+  overflow: hidden;
+}
+
+/* Marketing is a scrollable landing page; undo the app shell scroll lock from index.css.
+ * The public site uses a fixed light editorial canvas. */
+html {
+  color-scheme: light;
+  scroll-behavior: auto;
+  color: var(--marketing-primary);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body {
+  height: auto;
+  min-height: 100%;
+  min-width: 320px;
+  max-width: none;
+  overflow: visible;
+  overscroll-behavior-y: auto;
+  background-color: var(--marketing-background);
+  font-family: var(--font-body);
+}
+
+body::after {
+  content: none;
+}
+
+#root,
+#root > * {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-width: none;
+  overflow: visible;
+}
+
+@media (width >= 768px) {
+  :root {
+    --marketing-container-padding: 64px;
+    --marketing-section-space: 180px;
+  }
+
+  .marketing-content-grid,
+  .marketing-grid-guides {
+    grid-template-columns: repeat(15, minmax(0, 1fr));
+  }
+
+  .marketing-grid-line::before {
+    position: sticky;
+    top: 8px;
+    display: block;
+    width: 2px;
+    height: 8px;
+    background-color: var(--marketing-secondary);
+    content: "";
+    opacity: 0.5;
+    transform: translateX(-1px);
+  }
+}
+
+@layer components {
+  @keyframes marketing-demo-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .marketing-demo-enter {
+    animation: marketing-demo-enter 0.38s ease-out both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marketing-demo-enter {
+      animation: none;
+    }
+  }
+}

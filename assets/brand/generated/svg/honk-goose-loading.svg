@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Honk goose loading">
+  <style>
+    @keyframes orbit-spin {
+      to { transform: rotate(360deg); }
+    }
+    @keyframes beak-peck {
+      0%, 100% { transform: translate(0, 0) rotate(-2deg); }
+      34% { transform: translate(8px, -3px) rotate(4deg); }
+      58% { transform: translate(-3px, 4px) rotate(-7deg); }
+    }
+    @keyframes neck-squiggle {
+      0% { stroke-dashoffset: 190; opacity: 0.35; }
+      42% { stroke-dashoffset: 0; opacity: 1; }
+      100% { stroke-dashoffset: -190; opacity: 0.35; }
+    }
+    @keyframes eye-pop {
+      0%, 72%, 100% { transform: scale(1); }
+      82% { transform: scale(1.28); }
+      90% { transform: scale(0.78); }
+    }
+    @keyframes bubble {
+      0% { transform: translateY(12px) scale(0.4); opacity: 0; }
+      35% { opacity: 0.9; }
+      100% { transform: translateY(-24px) scale(1); opacity: 0; }
+    }
+    .orbit { animation: orbit-spin 1.05s linear infinite; transform-origin: 128px 128px; }
+    .beak { animation: beak-peck 900ms ease-in-out infinite; transform-origin: 90px 126px; }
+    .neck { animation: neck-squiggle 1.5s cubic-bezier(0.16, 1, 0.3, 1) infinite; stroke-dasharray: 190; }
+    .eye { animation: eye-pop 1.45s ease-in-out infinite; transform-origin: 108px 98px; }
+    .bubble-a { animation: bubble 1.6s ease-in-out infinite; }
+    .bubble-b { animation: bubble 1.6s 280ms ease-in-out infinite; }
+    .bubble-c { animation: bubble 1.6s 560ms ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .orbit, .beak, .neck, .eye, .bubble-a, .bubble-b, .bubble-c { animation: none; }
+    }
+  </style>
+  <defs>
+    <linearGradient id="beakFill" x1="54" y1="106" x2="119" y2="142" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffba39"/>
+      <stop offset="0.55" stop-color="#ff9212"/>
+      <stop offset="1" stop-color="#ef6505"/>
+    </linearGradient>
+    <linearGradient id="neckFill" x1="92" y1="80" x2="150" y2="188" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dfeefa"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="170%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#063d8f" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <g class="orbit">
+    <path d="M194 80a76 76 0 0 1 5 88" fill="none" stroke="#0b7ff2" stroke-width="13" stroke-linecap="round"/>
+    <path d="M62 174a76 76 0 0 1-3-89" fill="none" stroke="#7bd2ff" stroke-width="13" stroke-linecap="round"/>
+    <path d="M174 55a76 76 0 0 0-40-10" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" opacity="0.8"/>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <path
+      d="M141 196C112 180 105 154 119 127c10-20 7-37-11-49"
+      fill="none"
+      stroke="#ffffff"
+      stroke-width="31"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      class="neck"
+      data-goose-draw="true"
+      d="M141 196C112 180 105 154 119 127c10-20 7-37-11-49"
+      fill="none"
+      stroke="#ffffff"
+      stroke-width="31"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M141 196C112 180 105 154 119 127c10-20 7-37-11-49"
+      fill="none"
+      stroke="#cfe2f5"
+      stroke-width="9"
+      stroke-linecap="round"
+      opacity="0.5"
+      transform="translate(-10 5)"
+    />
+    <g class="beak">
+      <path d="M55 122c20-19 43-30 69-34 13 1 21 12 26 31 4 17-2 28-18 33H82c-22 0-36-5-42-16-3-6 2-11 15-14Z" fill="url(#beakFill)"/>
+      <path d="M42 137c16 13 37 19 64 19h42c-8 12-22 18-42 18H76c-23 0-39-6-48-18-5-8 0-14 14-19Z" fill="#f06b05"/>
+      <path d="M61 121c22-4 42-14 60-29 11-5 21 2 30 20H62c-3 4-3 7-1 9Z" fill="#ffd06a" opacity="0.58"/>
+    </g>
+    <g class="eye">
+      <circle cx="108" cy="98" r="13" fill="#111827"/>
+      <circle cx="104" cy="94" r="3.6" fill="#ffffff" opacity="0.9"/>
+    </g>
+  </g>
+
+  <circle class="bubble-a" cx="174" cy="89" r="5" fill="#0b7ff2" opacity="0.8"/>
+  <circle class="bubble-b" cx="190" cy="104" r="3.8" fill="#7bd2ff" opacity="0.85"/>
+  <circle class="bubble-c" cx="180" cy="121" r="4.4" fill="#ffffff" opacity="0.9"/>
+</svg>

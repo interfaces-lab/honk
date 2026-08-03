@@ -1,0 +1,434 @@
+// Dot geometry and sweep timings are fixed product anatomy. Do not drift.
+
+import * as stylex from "@stylexjs/stylex";
+import * as React from "react";
+
+import { applyStyle, type HonkStyle, type StyleProp } from "./style";
+import { radiusVars } from "./tokens.stylex";
+
+// Glyph intrinsics are fixed forever. They are not design tokens.
+const GRID_DEFAULT = 5;
+const CELL_SIZE = "4px";
+const DOT_SIZE = "2px";
+const SWEEP_DURATION = "1.2s";
+const SWEEP_EASING = "ease-in-out";
+// Negative delay pre-seeks each dot into the shared loop by its diagonal path.
+const SWEEP_DELAY_SPAN = "-0.72s";
+// Idle rest is a product choice rather than a theme value.
+const INACTIVE_OPACITY = 0.35;
+const REDUCED_OPACITY = 0.55;
+const ATTENTION_DURATION = "1.4s";
+const ATTENTION_MASK_RADIUS = 1.125;
+const ATTENTION_CORE_RADIUS = 0.275;
+const ATTENTION_RING_RADIUS = 0.825;
+const ATTENTION_CORE_REST = 0.35;
+const ATTENTION_RING_REST = 0.16;
+const ATTENTION_OUTER_REST = 0.08;
+
+const sweep = stylex.keyframes({
+  "0%": { opacity: 0.2, transform: "scale(0.78)" },
+  "45%": { opacity: 0.88, transform: "scale(1)" },
+  "72%": { opacity: 0.42, transform: "scale(0.9)" },
+  "100%": { opacity: 0.2, transform: "scale(0.78)" },
+});
+
+// Compass sweep: a steady center anchor plus eight two-dot rays flashed clockwise from north.
+const COMPASS_DURATION = "1550ms";
+// Negative delay slots each ray into its 1/8 window of the shared loop.
+const COMPASS_STEP_DELAY = "-193.75ms";
+const COMPASS_BASE_OPACITY = 0.08;
+const COMPASS_CENTER_OPACITY = 0.56;
+
+// Near-vertical edges keep the flash stepped rather than crossfaded.
+const compassFlash = stylex.keyframes({
+  "0%": { opacity: 1 },
+  "12.4%": { opacity: 1 },
+  "12.5%": { opacity: COMPASS_BASE_OPACITY },
+  "100%": { opacity: COMPASS_BASE_OPACITY },
+});
+
+// Drive sweep: a chevron wavefront crossing left to right over square cells.
+// The cycle is deliberately shorter than the time the front takes to clear the
+// grid, so a second front enters before the first leaves and the row never
+// reads as empty. Positive delays stagger the front in on mount rather than
+// pre-seeking it mid-loop like the sweep and compass variants.
+const DRIVE_DURATION = "650ms";
+const DRIVE_STEP_DELAY = "90ms";
+const DRIVE_CELL_SIZE = "4px";
+const DRIVE_GAP = "1.5px";
+const DRIVE_CELL_RADIUS = "1px";
+const DRIVE_REST_OPACITY = 0.15;
+
+const driveFlash = stylex.keyframes({
+  "0%": { opacity: DRIVE_REST_OPACITY },
+  "16%": { opacity: 1 },
+  "44%": { opacity: DRIVE_REST_OPACITY },
+  "100%": { opacity: DRIVE_REST_OPACITY },
+});
+
+// Keyframe samples of the attention pulse. Avoids a requestAnimationFrame render loop.
+const attentionCorePulse = stylex.keyframes({
+  "0%": { opacity: ATTENTION_CORE_REST },
+  "6.25%": { opacity: 1 },
+  "12.5%": { opacity: 1 },
+  "18.75%": { opacity: 1 },
+  "25%": { opacity: 1 },
+  "31.25%": { opacity: 1 },
+  "37.5%": { opacity: 1 },
+  "43.75%": { opacity: 0.7135 },
+  "50%": { opacity: ATTENTION_CORE_REST },
+  "56.25%": { opacity: 0.7195 },
+  "62.5%": { opacity: 0.8725 },
+  "68.75%": { opacity: 0.7195 },
+  "75%": { opacity: ATTENTION_CORE_REST },
+  "100%": { opacity: ATTENTION_CORE_REST },
+});
+
+const attentionRingPulse = stylex.keyframes({
+  "0%": { opacity: ATTENTION_RING_REST },
+  "6.25%": { opacity: 0.4995 },
+  "12.5%": { opacity: 0.7131 },
+  "18.75%": { opacity: 0.7376 },
+  "25%": { opacity: 0.6 },
+  "31.25%": { opacity: 0.5665 },
+  "37.5%": { opacity: 0.4711 },
+  "43.75%": { opacity: 0.3284 },
+  "50%": { opacity: ATTENTION_RING_REST },
+  "56.25%": { opacity: 0.3311 },
+  "62.5%": { opacity: 0.402 },
+  "68.75%": { opacity: 0.3311 },
+  "75%": { opacity: ATTENTION_RING_REST },
+  "100%": { opacity: ATTENTION_RING_REST },
+});
+
+const attentionOuterPulse = stylex.keyframes({
+  "0%": { opacity: ATTENTION_OUTER_REST },
+  "6.25%": { opacity: 0.1417 },
+  "12.5%": { opacity: 0.1806 },
+  "18.75%": { opacity: 0.185 },
+  "25%": { opacity: 0.16 },
+  "31.25%": { opacity: 0.1539 },
+  "37.5%": { opacity: 0.1366 },
+  "43.75%": { opacity: 0.1106 },
+  "50%": { opacity: ATTENTION_OUTER_REST },
+  "56.25%": { opacity: 0.1111 },
+  "62.5%": { opacity: 0.124 },
+  "68.75%": { opacity: 0.1111 },
+  "75%": { opacity: ATTENTION_OUTER_REST },
+  "100%": { opacity: ATTENTION_OUTER_REST },
+});
+
+const styles = stylex.create({
+  root: {
+    display: "inline-grid",
+    flexShrink: 0,
+  },
+  dot: {
+    width: DOT_SIZE,
+    height: DOT_SIZE,
+    borderRadius: radiusVars["--honk-radius-pill"],
+    backgroundColor: "currentColor",
+    placeSelf: "center",
+    transformOrigin: "center",
+  },
+  // reduce-motion sibling covers the SSR frame before the matchMedia store hydrates.
+  animated: {
+    animationName: { default: sweep, "@media (prefers-reduced-motion: reduce)": "none" },
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1.2s sweep cadence is fixed product anatomy, no motion token owns it
+    animationDuration: { default: SWEEP_DURATION, "@media (prefers-reduced-motion: reduce)": "0s" },
+    animationTimingFunction: SWEEP_EASING,
+    animationIterationCount: "infinite",
+    opacity: { default: null, "@media (prefers-reduced-motion: reduce)": REDUCED_OPACITY },
+  },
+  idle: { opacity: INACTIVE_OPACITY },
+  reduced: { opacity: REDUCED_OPACITY },
+  attentionCore: { opacity: ATTENTION_CORE_REST },
+  attentionRing: { opacity: ATTENTION_RING_REST },
+  attentionOuter: { opacity: ATTENTION_OUTER_REST },
+  attentionAnimated: {
+    animationDuration: {
+      // oxlint-disable-next-line honk/design-no-raw-values -- 1.4s attention pulse cadence is fixed product anatomy, no motion token owns it
+      default: ATTENTION_DURATION,
+      "@media (prefers-reduced-motion: reduce)": "0s",
+    },
+    animationTimingFunction: "linear",
+    animationIterationCount: "infinite",
+  },
+  attentionCoreAnimated: {
+    animationName: {
+      default: attentionCorePulse,
+      "@media (prefers-reduced-motion: reduce)": "none",
+    },
+  },
+  attentionRingAnimated: {
+    animationName: {
+      default: attentionRingPulse,
+      "@media (prefers-reduced-motion: reduce)": "none",
+    },
+  },
+  attentionOuterAnimated: {
+    animationName: {
+      default: attentionOuterPulse,
+      "@media (prefers-reduced-motion: reduce)": "none",
+    },
+  },
+  compassCenter: { opacity: COMPASS_CENTER_OPACITY },
+  compassRest: { opacity: COMPASS_BASE_OPACITY },
+  compassRayAnimated: {
+    animationName: { default: compassFlash, "@media (prefers-reduced-motion: reduce)": "none" },
+    animationDuration: {
+      // oxlint-disable-next-line honk/design-no-raw-values -- 1550ms compass cadence is fixed product anatomy, no motion token owns it
+      default: COMPASS_DURATION,
+      "@media (prefers-reduced-motion: reduce)": "0s",
+    },
+    animationTimingFunction: "linear",
+    animationIterationCount: "infinite",
+    opacity: { default: null, "@media (prefers-reduced-motion: reduce)": COMPASS_BASE_OPACITY },
+  },
+  // Drive is the only variant whose cells fill their track, so it owns the gap
+  // the round-dot variants get for free from dot-inside-cell centering.
+  // oxlint-disable-next-line honk/design-no-raw-values -- 1.5px inter-cell gap is fixed glyph anatomy, no spacing token owns it
+  driveGrid: { gap: DRIVE_GAP },
+  driveCell: {
+    width: DRIVE_CELL_SIZE,
+    height: DRIVE_CELL_SIZE,
+    // oxlint-disable-next-line honk/design-no-raw-values -- 1px corner softens a 4px cell without rounding it into a dot; fixed glyph anatomy, no radius token is that small
+    borderRadius: DRIVE_CELL_RADIUS,
+    backgroundColor: "currentColor",
+    placeSelf: "center",
+    opacity: DRIVE_REST_OPACITY,
+  },
+  driveAnimated: {
+    animationName: { default: driveFlash, "@media (prefers-reduced-motion: reduce)": "none" },
+    animationDuration: {
+      // oxlint-disable-next-line honk/design-no-raw-values -- 650ms drive cadence is fixed product anatomy, no motion token owns it
+      default: DRIVE_DURATION,
+      "@media (prefers-reduced-motion: reduce)": "0s",
+    },
+    animationTimingFunction: "ease-in-out",
+    animationIterationCount: "infinite",
+  },
+});
+
+const dynamic = stylex.create({
+  grid: (n: number) => ({
+    gridTemplateColumns: `repeat(${n}, ${CELL_SIZE})`,
+    gridTemplateRows: `repeat(${n}, ${CELL_SIZE})`,
+  }),
+  delay: (path: number) => ({
+    // oxlint-disable-next-line honk/design-no-raw-values -- -0.72s per-dot diagonal pre-seek offset is fixed product anatomy, no motion token owns it
+    animationDelay: `calc(${path} * ${SWEEP_DELAY_SPAN})`,
+  }),
+  compassDelay: (direction: number) => ({
+    // oxlint-disable-next-line honk/design-no-raw-values -- -193.75ms per-ray window offset is fixed product anatomy, no motion token owns it
+    animationDelay: `calc(${direction} * ${COMPASS_STEP_DELAY})`,
+  }),
+  driveDelay: (step: number) => ({
+    // oxlint-disable-next-line honk/design-no-raw-values -- 90ms per-column wavefront offset is fixed product anatomy, no motion token owns it
+    animationDelay: `calc(${step} * ${DRIVE_STEP_DELAY})`,
+  }),
+});
+
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function subscribeReducedMotion(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return () => {};
+  }
+  const query = window.matchMedia(REDUCED_MOTION_QUERY);
+  query.addEventListener("change", onStoreChange);
+  return () => query.removeEventListener("change", onStoreChange);
+}
+
+function getReducedMotionSnapshot(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+  return window.matchMedia(REDUCED_MOTION_QUERY).matches;
+}
+
+// SSR defaults to motion on. The client snapshot corrects on hydrate.
+function getReducedMotionServerSnapshot(): boolean {
+  return false;
+}
+
+function useReducedMotion(): boolean {
+  return React.useSyncExternalStore(
+    subscribeReducedMotion,
+    getReducedMotionSnapshot,
+    getReducedMotionServerSnapshot,
+  );
+}
+
+// Chevron front: a cell lights later the further right it sits and the further
+// it sits from the middle row, so the lit edge reads as a ">" travelling right.
+function chevronStep(index: number, n: number): number {
+  const center = (n - 1) / 2;
+  return (index % n) + Math.abs(Math.floor(index / n) - center);
+}
+
+function diagonalPath(index: number, n: number): number {
+  const row = Math.floor(index / n);
+  const col = index % n;
+  const maxPath = Math.max(1, (n - 1) * 2);
+  return (row + (n - 1 - col)) / maxPath;
+}
+
+// Clockwise from north; index order is the flash order of the compass sweep.
+const COMPASS_DIRECTIONS: readonly (readonly [number, number])[] = [
+  [-1, 0],
+  [-1, 1],
+  [0, 1],
+  [1, 1],
+  [1, 0],
+  [1, -1],
+  [0, -1],
+  [-1, -1],
+];
+
+type CompassRole =
+  | { readonly kind: "center" }
+  | { readonly kind: "rest" }
+  | { readonly kind: "ray"; readonly direction: number };
+
+function compassRole(index: number, n: number): CompassRole {
+  const center = (n - 1) / 2;
+  const dRow = Math.floor(index / n) - center;
+  const dCol = (index % n) - center;
+  if (dRow === 0 && dCol === 0) {
+    return { kind: "center" };
+  }
+  // Ray cells sit on the horizontal, vertical, or exact diagonal through the center.
+  if (dRow !== 0 && dCol !== 0 && Math.abs(dRow) !== Math.abs(dCol)) {
+    return { kind: "rest" };
+  }
+  const direction = COMPASS_DIRECTIONS.findIndex(
+    ([row, col]) => row === Math.sign(dRow) && col === Math.sign(dCol),
+  );
+  return direction === -1 ? { kind: "rest" } : { kind: "ray", direction };
+}
+
+type AttentionBand = "core" | "ring" | "outer";
+
+function attentionBand(index: number, n: number): AttentionBand | null {
+  const center = (n - 1) / 2;
+  const scale = Math.max(1, center);
+  const row = Math.floor(index / n);
+  const col = index % n;
+  const radius = Math.hypot(col - center, row - center) / scale;
+  if (radius > ATTENTION_MASK_RADIUS) {
+    return null;
+  }
+  if (radius < ATTENTION_CORE_RADIUS) {
+    return "core";
+  }
+  return radius < ATTENTION_RING_RADIUS ? "ring" : "outer";
+}
+
+const attentionRestStyles: Record<AttentionBand, stylex.StyleXStyles> = {
+  core: styles.attentionCore,
+  ring: styles.attentionRing,
+  outer: styles.attentionOuter,
+};
+
+const attentionAnimatedStyles: Record<AttentionBand, stylex.StyleXStyles> = {
+  core: styles.attentionCoreAnimated,
+  ring: styles.attentionRingAnimated,
+  outer: styles.attentionOuterAnimated,
+};
+
+type MatrixVariant = "working" | "attention" | "compass" | "drive";
+
+interface MatrixProps {
+  grid?: number;
+  variant?: MatrixVariant;
+  isActive?: boolean;
+  color?: string;
+  style?: StyleProp<HonkStyle>;
+}
+
+const Matrix = React.memo(function Matrix({
+  grid = GRID_DEFAULT,
+  variant = "working",
+  isActive = true,
+  color,
+  style,
+}: MatrixProps) {
+  const reducedMotion = useReducedMotion();
+  // Reduce-motion wins over isActive.
+  const isAnimating = isActive && !reducedMotion;
+  const restingState = reducedMotion ? styles.reduced : styles.idle;
+
+  return (
+    // Decorative only. Callers that need a loading announcement wrap with role="status".
+    <span
+      aria-hidden={true}
+      {...applyStyle(
+        stylex.props(styles.root, dynamic.grid(grid), variant === "drive" && styles.driveGrid),
+        [color === undefined ? null : { color }, style],
+      )}
+    >
+      {Array.from({ length: grid * grid }, (_, index) => {
+        if (variant === "drive") {
+          return (
+            <span
+              key={index}
+              {...stylex.props(
+                styles.driveCell,
+                isAnimating && styles.driveAnimated,
+                isAnimating && dynamic.driveDelay(chevronStep(index, grid)),
+              )}
+            />
+          );
+        }
+        if (variant === "compass") {
+          const role = compassRole(index, grid);
+          if (role.kind === "center") {
+            return <span key={index} {...stylex.props(styles.dot, styles.compassCenter)} />;
+          }
+          if (role.kind === "rest" || !isAnimating) {
+            return <span key={index} {...stylex.props(styles.dot, styles.compassRest)} />;
+          }
+          return (
+            <span
+              key={index}
+              {...stylex.props(
+                styles.dot,
+                styles.compassRayAnimated,
+                dynamic.compassDelay(role.direction),
+              )}
+            />
+          );
+        }
+        if (variant === "attention") {
+          const band = attentionBand(index, grid);
+          if (band === null) {
+            return <span key={index} />;
+          }
+          return (
+            <span
+              key={index}
+              {...stylex.props(
+                styles.dot,
+                attentionRestStyles[band],
+                isAnimating && styles.attentionAnimated,
+                isAnimating && attentionAnimatedStyles[band],
+              )}
+            />
+          );
+        }
+        return isAnimating ? (
+          <span
+            key={index}
+            {...stylex.props(styles.dot, styles.animated, dynamic.delay(diagonalPath(index, grid)))}
+          />
+        ) : (
+          <span key={index} {...stylex.props(styles.dot, restingState)} />
+        );
+      })}
+    </span>
+  );
+});
+
+export { Matrix };
+export type { MatrixProps, MatrixVariant };

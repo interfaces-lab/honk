@@ -1,0 +1,71 @@
+{
+  "expo": {
+    "name": "Honk",
+    "slug": "honk-mobile",
+    "scheme": "honk",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.interfacesco.honk.mobile",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": true
+        },
+        "NSLocalNetworkUsageDescription": "Honk connects to your computer over your Wi-Fi network.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.interfacesco.honk.mobile",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Honk to scan a connection QR code.",
+          "barcodeScannerEnabled": true,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Honk to attach images to your task messages."
+        }
+      ],
+      "expo-image",
+      "react-native-enriched-markdown",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "reactCompiler": true,
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1a08ff9c-772d-4349-95a0-ed3124fe2b06"
+      }
+    },
+    "owner": "nameisdaniel"
+  }
+}

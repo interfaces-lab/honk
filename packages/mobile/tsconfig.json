@@ -1,0 +1,18 @@
+{
+  "$schema": "../../node_modules/@effect/tsgo/schema.json",
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "customConditions": ["react-native"],
+    "moduleSuffixes": [".ios", ".android", ".native", ""],
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "ignoreEffectWarningsInTscExitCode": true
+      }
+    ]
+  },
+  "include": ["app", "src", ".expo/types/**/*.ts", "expo-env.d.ts"]
+}

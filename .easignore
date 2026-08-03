@@ -1,0 +1,49 @@
+node_modules/
+.turbo/
+packages/mobile/.expo/
+packages/mobile/dist/
+packages/mobile/web-build/
+packages/mobile/expo-env.d.ts
+
+# Excluded so EAS Build runs prebuild from app.json instead of consuming the checked-in
+# project. Without this, ios.infoPlist never reaches the built binary.
+/packages/mobile/ios
+/packages/mobile/android
+
+.metro-health-check*
+*.orig.*
+*.p8
+*.p12
+*.mobileprovision
+*.log
+.DS_Store
+*.tsbuildinfo
+
+# Nothing outside the mobile app is build input.
+#
+# EAS installs the whole pnpm workspace at the repo root. pnpm skips a workspace
+# project whose directory is absent (the lockfile is still accepted as up to date
+# under --frozen-lockfile), so dropping the packages the mobile app does not depend
+# on keeps electron, bun, sharp, sqlite3 and ~900 other packages out of the install.
+# Keep in sync with @honk/mobile's workspace deps: @honk/ui and @honk/opencode.
+/packages/app
+/packages/cli
+/packages/desktop
+/packages/honkkit
+/packages/marketing
+/packages/release-scripts
+/packages/shared
+
+# The @honk/scripts workspace project is not a build input, but the root package.json
+# `prepare` script needs this permission fix for the packaged Effect diagnostics binary.
+/scripts/*
+!/scripts/prepare-effect-tsgo.mjs
+
+# patches/ must stay: pnpm applies patchedDependencies (metro) during install.
+
+.env
+.env.*
+!.env.example
+.agents/
+.claude/
+.cursor/

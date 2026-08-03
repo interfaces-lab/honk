@@ -1,0 +1,8 @@
+{
+  "rule/shared-control-chrome": [
+    "Uses the shared Button component for the product action",
+    "Preserves the action label and handler",
+    "Does not add call-site visual chrome"
+  ],
+  "honk/design-no-raw-button": ["Contains no unexcepted raw button element"]
+}

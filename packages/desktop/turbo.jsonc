@@ -1,0 +1,35 @@
+{
+  "$schema": "https://v2-10-3.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["out/**"],
+    },
+    "dev": {
+      "persistent": true,
+    },
+    "package": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**"],
+    },
+    "package:mac": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**"],
+    },
+    "package:linux": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**"],
+    },
+    "start": {
+      "dependsOn": ["build", "@honk/app#build"],
+      "cache": false,
+      "persistent": true,
+    },
+    "smoke-test": {
+      "dependsOn": ["build", "@honk/app#build"],
+      "cache": false,
+      "outputs": [],
+    },
+  },
+}

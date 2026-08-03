@@ -1,0 +1,17 @@
+/* Ghostty owns the canvas and textarea descendants, so this adapter only sizes its host. */
+.host {
+  position: relative;
+  /* FitAddon hardcodes a 15px scrollbar reservation. Giving it that hidden extra width makes its
+     proposed grid use the full visible container while the rendered canvas still fits inside it. */
+  width: calc(100% + 15px);
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--honk-color-text-primary);
+  background-color: var(--honk-color-bg-deep);
+  /* Ghostty sets contenteditable="true" on this host, so Chromium paints its own collapsed-selection
+     caret at the host origin next to the canvas caret the renderer already draws. */
+  caret-color: transparent;
+  font-family: var(--honk-font-family-mono);
+}

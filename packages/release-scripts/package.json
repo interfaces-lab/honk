@@ -1,0 +1,24 @@
+{
+  "name": "@honk/release-scripts",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./lib/brand-assets": "./src/lib/brand-assets.ts",
+    "./lib/resolve-catalog": "./src/lib/resolve-catalog.ts",
+    "./lib/workspace-catalog": "./src/lib/workspace-catalog.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node src/release-smoke.ts"
+  },
+  "dependencies": {
+    "@effect/platform-node": "catalog:",
+    "@honk/shared": "workspace:*",
+    "effect": "catalog:",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,132 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CENTRAL_LICENSE_KEY: ${{ secrets.CENTRAL_LICENSE_KEY }}
+
+# Blacksmith runners need the Blacksmith GitHub App installed on this repo.
+jobs:
+  quality:
+    name: Quality
+    runs-on: blacksmith-6vcpu-macos-15
+    timeout-minutes: 20
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Configure pnpm store
+        run: pnpm config set store-dir ~/.pnpm-store
+
+      - name: Cache pnpm and Turbo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.pnpm-store
+            .turbo
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('turbo.json') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}-
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/.playwright-browsers
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}-chromium
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-${{ runner.arch }}-playwright-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format
+        run: pnpm run fmt:check
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Test
+        run: pnpm run test
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: |
+          cd packages/app
+          pnpx playwright install chromium
+
+      - name: Browser test
+        run: pnpm --dir packages/app run test:browser
+
+      - name: Build desktop pipeline
+        run: pnpm run build:desktop
+
+      - name: Verify desktop bundle output
+        run: |
+          test -f packages/desktop/out/preload/index.js
+          test -f packages/desktop/out/renderer/index.html
+          test -f packages/desktop/out/server/bin.mjs
+          grep -nE "desktopBridge|getLocalEnvironmentBootstrap|PICK_FOLDER_CHANNEL|wsUrl" packages/desktop/out/preload/index.js
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-macos-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            packages/app/e2e/test-results
+            packages/app/e2e/playwright-report
+
+  release_smoke:
+    name: Release Smoke
+    runs-on: blacksmith-6vcpu-macos-15
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Exercise release-only workflow steps
+        run: pnpm --filter=@honk/release-scripts run test

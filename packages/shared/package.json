@@ -1,0 +1,177 @@
+{
+  "name": "@honk/shared",
+  "version": "0.0.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./model": {
+      "types": "./src/model.ts",
+      "import": "./src/model.ts"
+    },
+    "./base-schemas": {
+      "types": "./src/base-schemas.ts",
+      "import": "./src/base-schemas.ts"
+    },
+    "./auth": {
+      "types": "./src/auth.ts",
+      "import": "./src/auth.ts"
+    },
+    "./orchestration": {
+      "types": "./src/orchestration.ts",
+      "import": "./src/orchestration.ts"
+    },
+    "./runtime": {
+      "types": "./src/runtime.ts",
+      "import": "./src/runtime.ts"
+    },
+    "./runtime-events": {
+      "types": "./src/runtime-events.ts",
+      "import": "./src/runtime-events.ts"
+    },
+    "./thread-tree": {
+      "types": "./src/thread-tree.ts",
+      "import": "./src/thread-tree.ts"
+    },
+    "./server-config": {
+      "types": "./src/server-config.ts",
+      "import": "./src/server-config.ts"
+    },
+    "./managed-remote-access": {
+      "types": "./src/managed-remote-access.ts",
+      "import": "./src/managed-remote-access.ts"
+    },
+    "./managed-relay": {
+      "types": "./src/managed-relay.ts",
+      "import": "./src/managed-relay.ts"
+    },
+    "./interaction-mode": {
+      "types": "./src/interaction-mode.ts",
+      "import": "./src/interaction-mode.ts"
+    },
+    "./agent-model-policy": {
+      "types": "./src/agent-model-policy.ts",
+      "import": "./src/agent-model-policy.ts"
+    },
+    "./cursor-composer": {
+      "types": "./src/cursor-composer.ts",
+      "import": "./src/cursor-composer.ts"
+    },
+    "./conversation-density": {
+      "types": "./src/conversation-density.ts",
+      "import": "./src/conversation-density.ts"
+    },
+    "./editor": {
+      "types": "./src/editor.ts",
+      "import": "./src/editor.ts"
+    },
+    "./browser-automation": {
+      "types": "./src/browser-automation.ts",
+      "import": "./src/browser-automation.ts"
+    },
+    "./client-settings": {
+      "types": "./src/client-settings.ts",
+      "import": "./src/client-settings.ts"
+    },
+    "./environment": {
+      "types": "./src/environment.ts",
+      "import": "./src/environment.ts"
+    },
+    "./terminal": {
+      "types": "./src/terminal.ts",
+      "import": "./src/terminal.ts"
+    },
+    "./desktop-api": {
+      "types": "./src/desktop-api.ts",
+      "import": "./src/desktop-api.ts"
+    },
+    "./filesystem": {
+      "types": "./src/filesystem.ts",
+      "import": "./src/filesystem.ts"
+    },
+    "./git": {
+      "types": "./src/git.ts",
+      "import": "./src/git.ts"
+    },
+    "./keybindings": {
+      "types": "./src/keybindings.ts",
+      "import": "./src/keybindings.ts"
+    },
+    "./logging": {
+      "types": "./src/logging.ts",
+      "import": "./src/logging.ts"
+    },
+    "./effect-logger": {
+      "types": "./src/effect-logger.ts",
+      "import": "./src/effect-logger.ts"
+    },
+    "./shell": {
+      "types": "./src/shell.ts",
+      "import": "./src/shell.ts"
+    },
+    "./Net": {
+      "types": "./src/Net.ts",
+      "import": "./src/Net.ts"
+    },
+    "./DrainableWorker": {
+      "types": "./src/DrainableWorker.ts",
+      "import": "./src/DrainableWorker.ts"
+    },
+    "./schema-json": {
+      "types": "./src/schema-json.ts",
+      "import": "./src/schema-json.ts"
+    },
+    "./Struct": {
+      "types": "./src/Struct.ts",
+      "import": "./src/Struct.ts"
+    },
+    "./server-settings": {
+      "types": "./src/server-settings.ts",
+      "import": "./src/server-settings.ts"
+    },
+    "./observability": {
+      "types": "./src/observability.ts",
+      "import": "./src/observability.ts"
+    },
+    "./project-scripts": {
+      "types": "./src/project-scripts.ts",
+      "import": "./src/project-scripts.ts"
+    },
+    "./project": {
+      "types": "./src/project.ts",
+      "import": "./src/project.ts"
+    },
+    "./search-ranking": {
+      "types": "./src/search-ranking.ts",
+      "import": "./src/search-ranking.ts"
+    },
+    "./cli-args": {
+      "types": "./src/cli-args.ts",
+      "import": "./src/cli-args.ts"
+    },
+    "./path": {
+      "types": "./src/path.ts",
+      "import": "./src/path.ts"
+    },
+    "./paths": {
+      "types": "./src/paths.ts",
+      "import": "./src/paths.ts"
+    },
+    "./thread-segments": {
+      "types": "./src/thread-segments.ts",
+      "import": "./src/thread-segments.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

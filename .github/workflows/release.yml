@@ -1,0 +1,397 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (for example 1.2.3 or v1.2.3)"
+        required: false
+        type: string
+      force:
+        description: "Skip preflight lint, typecheck, and tests for a manual release"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  CENTRAL_LICENSE_KEY: ${{ secrets.CENTRAL_LICENSE_KEY }}
+
+jobs:
+  preflight:
+    name: Preflight
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.release_meta.outputs.version }}
+      tag: ${{ steps.release_meta.outputs.tag }}
+      release_name: ${{ steps.release_meta.outputs.name }}
+      short_sha: ${{ steps.release_meta.outputs.short_sha }}
+      is_prerelease: ${{ steps.release_meta.outputs.is_prerelease }}
+      make_latest: ${{ steps.release_meta.outputs.make_latest }}
+      ref: ${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - id: release_meta
+        name: Resolve release version
+        shell: bash
+        env:
+          DISPATCH_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            raw="${DISPATCH_VERSION}"
+            if [[ -z "$raw" ]]; then
+              echo "workflow_dispatch releases require the version input." >&2
+              exit 1
+            fi
+          else
+            raw="${GITHUB_REF_NAME}"
+          fi
+
+          version="${raw#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release version: $raw" >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "name=Honk v$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "make_latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "make_latest=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Lint
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.force != 'true'
+        run: pnpm run lint
+
+      - name: Typecheck
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.force != 'true'
+        run: pnpm run typecheck
+
+      - name: Test
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.force != 'true'
+        run: pnpm run test
+
+  build:
+    name: Build ${{ matrix.label }}
+    needs: preflight
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS arm64
+            runner: macos-15
+            platform: mac
+            target: dmg
+            arch: arm64
+          - label: macOS x64
+            runner: blacksmith-6vcpu-macos-15
+            platform: mac
+            target: dmg
+            arch: x64
+          - label: Linux x64
+            runner: ubuntu-24.04
+            platform: linux
+            target: AppImage
+            arch: x64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.preflight.outputs.ref }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Align package versions to release version
+        run: pnpm release:bump --release "${{ needs.preflight.outputs.version }}" --yes
+
+      - name: Build desktop bundle
+        run: pnpm run build:desktop
+
+      - name: Build desktop artifact
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          has_all() {
+            for value in "$@"; do
+              if [[ -z "$value" ]]; then
+                return 1
+              fi
+            done
+            return 0
+          }
+
+          if [[ "${{ matrix.platform }}" == "mac" ]]; then
+            if has_all "$CSC_LINK" "$CSC_KEY_PASSWORD" "$APPLE_API_KEY" "$APPLE_API_KEY_ID" "$APPLE_API_ISSUER"; then
+              key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+              printf '%s' "$APPLE_API_KEY" > "$key_path"
+              export APPLE_API_KEY="$key_path"
+              echo "macOS signing enabled."
+            else
+              echo "macOS signing/notarization requires CSC_LINK, CSC_KEY_PASSWORD, APPLE_API_KEY, APPLE_API_KEY_ID, and APPLE_API_ISSUER." >&2
+              exit 1
+            fi
+          else
+            echo "Signing disabled for ${{ matrix.platform }}."
+          fi
+
+          if [[ "${{ matrix.platform }}" == "mac" ]]; then
+            pnpm --dir packages/desktop exec electron-builder --mac --${{ matrix.arch }} --publish never --config electron-builder.config.ts
+          else
+            pnpm --dir packages/desktop exec electron-builder --linux --publish never --config electron-builder.config.ts
+          fi
+
+      - name: Verify macOS update artifact signature
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          zips=(packages/desktop/dist/Honk-*-${{ matrix.arch }}.zip)
+          if [[ ${#zips[@]} -ne 1 ]]; then
+            echo "Expected exactly one macOS update zip for ${{ matrix.arch }}, found ${#zips[@]}." >&2
+            printf '%s\n' "${zips[@]}" >&2
+            exit 1
+          fi
+
+          verify_dir="$RUNNER_TEMP/honk-mac-signature-${{ matrix.arch }}"
+          rm -rf "$verify_dir"
+          mkdir -p "$verify_dir"
+          ditto -x -k "${zips[0]}" "$verify_dir"
+
+          apps=("$verify_dir"/*.app)
+          if [[ ${#apps[@]} -ne 1 ]]; then
+            echo "Expected exactly one app bundle in ${zips[0]}, found ${#apps[@]}." >&2
+            find "$verify_dir" -maxdepth 2 -print >&2
+            exit 1
+          fi
+
+          app="${apps[0]}"
+          bundle_id="$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Contents/Info.plist")"
+          if [[ "$bundle_id" != "com.interfacesco.honk" ]]; then
+            echo "Unexpected macOS bundle id: $bundle_id" >&2
+            exit 1
+          fi
+
+          if [[ ! -d "$app/Contents/_CodeSignature" ]]; then
+            echo "Missing app bundle _CodeSignature directory." >&2
+            exit 1
+          fi
+
+          codesign --verify --deep --strict --verbose=4 "$app"
+          signature="$(codesign -dv --verbose=4 "$app" 2>&1)"
+          printf '%s\n' "$signature"
+
+          if ! grep -q '^Identifier=com.interfacesco.honk$' <<<"$signature"; then
+            echo "The signed app identifier is not com.interfacesco.honk." >&2
+            exit 1
+          fi
+
+          if grep -q '^TeamIdentifier=not set$' <<<"$signature" || ! grep -q '^TeamIdentifier=' <<<"$signature"; then
+            echo "The macOS update app is not signed with a Developer ID team." >&2
+            exit 1
+          fi
+
+          spctl -a -vv "$app"
+
+      - name: Collect release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-publish
+
+          shopt -s nullglob
+          for pattern in \
+            "packages/desktop/dist/*.dmg" \
+            "packages/desktop/dist/*.zip" \
+            "packages/desktop/dist/*.AppImage" \
+            "packages/desktop/dist/*.blockmap" \
+            "packages/desktop/dist/*.yml"; do
+            for file in $pattern; do
+              cp "$file" release-publish/
+            done
+          done
+
+          if [[ "${{ matrix.platform }}" == "mac" && "${{ matrix.arch }}" != "arm64" ]]; then
+            shopt -s nullglob
+            for manifest in release-publish/*-mac.yml; do
+              mv "$manifest" "${manifest%.yml}-${{ matrix.arch }}.yml"
+            done
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          path: release-publish/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [preflight, build]
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.preflight.outputs.ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+
+      - name: Download all desktop artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: release-assets
+
+      - name: Merge macOS updater manifests
+        run: |
+          shopt -s nullglob
+          for x64_manifest in release-assets/*-mac-x64.yml; do
+            arm64_manifest="${x64_manifest%-x64.yml}.yml"
+            if [[ -f "$arm64_manifest" ]]; then
+              node packages/release-scripts/src/merge-mac-update-manifests.ts "$arm64_manifest" "$x64_manifest"
+              rm -f "$x64_manifest"
+            fi
+          done
+
+      - name: Add stable macOS download aliases
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          arm64_assets=(release-assets/Honk-*-arm64.dmg)
+          x64_assets=(release-assets/Honk-*-x64.dmg)
+
+          if [[ ${#arm64_assets[@]} -gt 0 ]]; then
+            cp "${arm64_assets[0]}" release-assets/Honk-arm64.dmg
+          fi
+
+          if [[ ${#x64_assets[@]} -gt 0 ]]; then
+            cp "${x64_assets[0]}" release-assets/Honk-x64.dmg
+          fi
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.preflight.outputs.tag }}
+          target_commitish: ${{ needs.preflight.outputs.ref }}
+          name: ${{ needs.preflight.outputs.release_name }}
+          generate_release_notes: true
+          prerelease: ${{ needs.preflight.outputs.is_prerelease }}
+          make_latest: ${{ needs.preflight.outputs.make_latest }}
+          files: |
+            release-assets/*.dmg
+            release-assets/*.zip
+            release-assets/*.AppImage
+            release-assets/*.blockmap
+            release-assets/*.yml
+          fail_on_unmatched_files: true
+
+  finalize:
+    name: Finalize release
+    needs: [preflight, release]
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - id: update_versions
+        name: Update version strings
+        env:
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          pnpm release:bump --release "$RELEASE_VERSION" --yes
+          if git diff --quiet -- packages/desktop/package.json packages/app/package.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Format package.json files
+        if: steps.update_versions.outputs.changed == 'true'
+        run: pnpx oxfmt packages/desktop/package.json packages/app/package.json
+
+      - name: Refresh lockfile
+        if: steps.update_versions.outputs.changed == 'true'
+        run: pnpm install --lockfile-only --ignore-scripts
+
+      - name: Commit and push version bump
+        if: steps.update_versions.outputs.changed == 'true'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
+        run: |
+          if git diff --quiet -- packages/desktop/package.json packages/app/package.json pnpm-lock.yaml; then
+            echo "No version changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add packages/desktop/package.json packages/app/package.json pnpm-lock.yaml
+          git commit -m "chore(release): prepare $RELEASE_TAG"
+          git push origin HEAD:main

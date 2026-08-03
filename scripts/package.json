@@ -1,0 +1,21 @@
+{
+  "name": "@honk/scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@effect/platform-node": "catalog:",
+    "@honk/shared": "workspace:*",
+    "effect": "catalog:",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@types/bun": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

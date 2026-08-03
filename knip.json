@@ -1,0 +1,72 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "include": [
+    "files",
+    "dependencies",
+    "devDependencies",
+    "optionalPeerDependencies",
+    "unlisted",
+    "binaries",
+    "unresolved",
+    "exports",
+    "types",
+    "nsExports",
+    "nsTypes",
+    "duplicates",
+    "enumMembers",
+    "namespaceMembers",
+    "catalog"
+  ],
+  "includeEntryExports": true,
+  "treatConfigHintsAsErrors": true,
+  "rules": {
+    "binaries": "error",
+    "catalog": "error",
+    "dependencies": "error",
+    "devDependencies": "error",
+    "duplicates": "error",
+    "enumMembers": "error",
+    "exports": "error",
+    "files": "error",
+    "namespaceMembers": "error",
+    "nsExports": "error",
+    "nsTypes": "error",
+    "optionalPeerDependencies": "error",
+    "types": "error",
+    "unlisted": "error",
+    "unresolved": "error"
+  },
+  "ignoreDependencies": ["bun"],
+  "ignoreIssues": {},
+  "workspaces": {
+    "packages/desktop": {
+      "entry": [
+        "src/main.ts",
+        "src/preload.ts",
+        "scripts/**/*.mjs",
+        "test/**/*.{ts,tsx}",
+        "tsdown.config.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx}", "scripts/**/*.mjs", "test/**/*.{ts,tsx}", "*.config.ts"]
+    },
+    "packages/shared": {
+      "entry": ["src/**/*.ts", "test/**/*.{ts,tsx}"],
+      "project": ["src/**/*.ts", "test/**/*.{ts,tsx}"]
+    },
+    "packages/app": {
+      "entry": [
+        "src/main.tsx",
+        "src/**/*.test.{ts,tsx}",
+        "src/**/*.browser.{ts,tsx}",
+        "test/**/*.ts",
+        "vite.config.ts",
+        "vitest.browser.config.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx}", "test/**/*.ts", "*.config.ts"]
+    },
+    "scripts": {
+      "entry": ["*.ts", "**/*.ts", "*.mjs", "**/*.mjs"],
+      "project": ["**/*.ts", "**/*.mjs"]
+    }
+  }
+}

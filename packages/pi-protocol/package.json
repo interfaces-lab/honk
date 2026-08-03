@@ -1,0 +1,27 @@
+{
+  "name": "@honk/pi-protocol",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pi's remote-session protocol schemas (@earendil-works/pi-protocol), vendored verbatim at a pinned upstream ref until Pi publishes the package to npm.",
+  "exports": {
+    "./schema": {
+      "types": "./src/schema.ts",
+      "import": "./src/schema.ts"
+    }
+  },
+  "scripts": {
+    "generate": "node scripts/generate.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "typebox": "1.3.7"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

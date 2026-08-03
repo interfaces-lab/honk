@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Honk transparent goose icon">
+  <defs>
+    <filter id="softDrop" x="-20%" y="-20%" width="140%" height="150%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="28" stdDeviation="24" flood-color="#0b2448" flood-opacity="0.22"/>
+    </filter>
+    <linearGradient id="body" x1="420" y1="180" x2="650" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.7" stop-color="#fbfdff"/>
+      <stop offset="1" stop-color="#e8f2fb"/>
+    </linearGradient>
+    <linearGradient id="beak" x1="140" y1="350" x2="385" y2="520" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffb22a"/>
+      <stop offset="0.62" stop-color="#ff8d0d"/>
+      <stop offset="1" stop-color="#ee6104"/>
+    </linearGradient>
+  </defs>
+  <g filter="url(#softDrop)">
+    <path d="M326 1024C315 928 342 843 386 764C431 683 473 626 471 586C469 546 438 517 375 503C382 491 386 478 382 463C376 443 358 426 344 403C330 382 320 363 306 357C299 354 293 356 289 349C293 287 335 238 404 207C442 196 489 191 524 199C572 209 615 235 658 274C683 297 701 315 716 321C728 325 746 326 751 331C761 339 751 355 733 362C725 366 715 368 706 370C729 403 747 451 756 502C766 565 747 638 715 732C697 783 692 825 704 865C721 924 780 982 869 1012L821 1024H326Z" fill="#d8e8f8" opacity="0.55" transform="translate(-14 12)"/>
+    <path d="M326 1024C315 928 342 843 386 764C431 683 473 626 471 586C469 546 438 517 375 503C382 491 386 478 382 463C376 443 358 426 344 403C330 382 320 363 306 357C299 354 293 356 289 349C293 287 335 238 404 207C442 196 489 191 524 199C572 209 615 235 658 274C683 297 701 315 716 321C728 325 746 326 751 331C761 339 751 355 733 362C725 366 715 368 706 370C729 403 747 451 756 502C766 565 747 638 715 732C697 783 692 825 704 865C721 924 780 982 869 1012L821 1024H326Z" fill="url(#body)"/>
+    <path d="M144 451C153 440 167 431 185 423C214 410 247 395 267 378C276 371 284 360 294 357C305 354 316 362 326 378L382 465C390 477 386 491 374 503H260C200 503 158 494 145 471C141 464 141 457 144 451Z" fill="url(#beak)"/>
+    <path d="M146 466C166 488 213 500 260 502H374C361 516 335 522 298 522H238C190 522 153 512 135 494C123 482 127 472 146 466Z" fill="#f06b05" opacity="0.9"/>
+    <path d="M158 438C201 425 242 401 282 370C299 357 316 367 331 391L360 438H158Z" fill="#ffbd45" opacity="0.65"/>
+    <circle cx="468" cy="356" r="39" fill="#111827"/>
+    <circle cx="457" cy="345" r="10" fill="#ffffff" opacity="0.88"/>
+  </g>
+</svg>
