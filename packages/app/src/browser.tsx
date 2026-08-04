@@ -9,61 +9,17 @@ import {
   IconBrowserTabs,
   IconPictureInPicture,
 } from "@honk/ui/icons";
-import { borderVars, colorVars, spaceVars } from "@honk/ui/tokens.stylex";
+import { colorVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
 import { applyBrowserViewState, browserResourceFor, browserResourceID } from "./browser-store";
+import { browserLayout } from "./browser-layout.stylex";
 import { normalizeBrowserNavigationInput } from "./browser-url";
 import { readDesktopBrowserAvailability, type DesktopBrowserBridge } from "./desktop-bridge";
 import { errorMessage } from "./error-message";
 import { actions as toastActions } from "./toast-store";
 
 const styles = stylex.create({
-  root: {
-    width: "100%",
-    height: "100%",
-    flexGrow: 1,
-    minWidth: 0,
-    minHeight: 0,
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-  },
-  toolbar: {
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    gap: spaceVars["--honk-space-gutter"],
-    padding: spaceVars["--honk-space-gutter"],
-    borderBlockEndWidth: borderVars["--honk-border-hairline"],
-    borderBlockEndStyle: "solid",
-    borderBlockEndColor: colorVars["--honk-color-border-muted"],
-  },
-  location: {
-    flexGrow: 1,
-    minWidth: 0,
-  },
-  host: {
-    position: "relative",
-    flexGrow: 1,
-    minWidth: 0,
-    minHeight: 0,
-    display: "flex",
-    overflow: "hidden",
-    backgroundColor: colorVars["--honk-color-bg-base"],
-  },
-  center: {
-    position: "absolute",
-    inset: 0,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spaceVars["--honk-space-gutter"],
-    padding: spaceVars["--honk-space-panel-pad"],
-    textAlign: "center",
-    backgroundColor: colorVars["--honk-color-bg-base"],
-  },
   notice: {
     flexShrink: 0,
     paddingInline: spaceVars["--honk-space-panel-pad"],
@@ -224,8 +180,8 @@ function DesktopBrowserSurface({
   };
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <form {...stylex.props(styles.toolbar)} onSubmit={submit}>
+    <div {...stylex.props(browserLayout.root)}>
+      <form {...stylex.props(browserLayout.toolbar)} onSubmit={submit}>
         <Tooltip label="Back">
           <IconButton
             aria-label="Back"
@@ -256,7 +212,7 @@ function DesktopBrowserSurface({
             <Icon icon={IconArrowRotateClockwise} size="sm" />
           </IconButton>
         </Tooltip>
-        <div {...stylex.props(styles.location)}>
+        <div {...stylex.props(browserLayout.location)}>
           <Field size="md">
             <Field.Input
               aria-label="Browser location"
@@ -289,9 +245,9 @@ function DesktopBrowserSurface({
           </Text>
         </div>
       )}
-      <div ref={hostRef} aria-label="Browser page" {...stylex.props(styles.host)}>
+      <div ref={hostRef} aria-label="Browser page" {...stylex.props(browserLayout.host)}>
         {!hasPage ? (
-          <div {...stylex.props(styles.center)}>
+          <div {...stylex.props(browserLayout.center)}>
             <Icon icon={IconBrowserTabs} size="xl" tone="faint" />
             <Text as="p" size="sm" tone="muted" weight="regular">
               Open a page
@@ -332,9 +288,9 @@ function BrowserSurface({
 
   const requiresRestart = availability.status === "restart-required";
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.host)}>
-        <div {...stylex.props(styles.center)}>
+    <div {...stylex.props(browserLayout.root)}>
+      <div {...stylex.props(browserLayout.host)}>
+        <div {...stylex.props(browserLayout.center)}>
           <Icon icon={IconBrowserTabs} size="xl" tone="faint" />
           <Text as="p" size="sm" tone="muted" weight="regular">
             {requiresRestart

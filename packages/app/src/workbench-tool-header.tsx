@@ -1,11 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
-import { Combobox, FileTypeIcon, Icon, IconButton, Tooltip, type Glyph } from "@honk/ui";
-import {
-  IconCrossSmall,
-  IconExpand45,
-  IconMinimize45,
-  IconPlusSmall,
-} from "@honk/ui/icons";
+import { Combobox, FileTypeIcon, Icon, IconButton, Tooltip } from "@honk/ui";
+import { IconCrossSmall, IconExpand45, IconMinimize45, IconPlusSmall } from "@honk/ui/icons";
 import { basename } from "@honk/shared/paths";
 import {
   colorVars,
@@ -17,10 +12,12 @@ import {
 } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
-import { workbenchLayout } from "./workbench-layout.stylex";
+import { workbenchToolHeaderLayout } from "./workbench-layout.stylex";
+import type {
+  WorkbenchToolHeaderMenuItem,
+  WorkbenchToolHeaderTab,
+} from "./workbench-tool-header-types";
 
-const HAIRLINE = "1px";
-const HEADER_SEPARATOR_SHADOW = `inset 0 -${HAIRLINE} 0 ${colorVars["--honk-color-border-muted"]}`;
 const FOCUS_RING_OFFSET_INSET = "-1px";
 // Cursor clamps composer tab labels to 200px; honk has no width token at that size.
 const TAB_MAX_WIDTH = "200px";
@@ -46,15 +43,6 @@ const TAB_LABEL_MASK_REVEALED =
   "linear-gradient(90deg, #000 max(40px, calc(100% - 28px)), transparent calc(100% - 20px))";
 
 const styles = stylex.create({
-  root: {
-    flexShrink: 0,
-    height: workbenchLayout.headerHeight,
-    minWidth: 0,
-    display: "flex",
-    alignItems: "center",
-    boxSizing: "border-box",
-    boxShadow: HEADER_SEPARATOR_SHADOW,
-  },
   scroll: {
     flexGrow: 1,
     flexShrink: 1,
@@ -231,24 +219,6 @@ const styles = stylex.create({
   },
 });
 
-type WorkbenchToolHeaderTab = {
-  readonly id: string;
-  readonly label: string;
-  readonly icon: Glyph;
-  readonly closable: boolean;
-  readonly showLabel: boolean;
-  readonly filePath?: string;
-  /** Hover text when the label alone cannot identify the tab, such as two files sharing a basename. */
-  readonly title?: string;
-};
-
-type WorkbenchToolHeaderMenuItem = {
-  readonly id: string;
-  readonly label: string;
-  readonly icon: Glyph;
-  readonly disabled?: boolean;
-};
-
 function WorkbenchToolHeader({
   tabs,
   activeTabID,
@@ -327,7 +297,7 @@ function WorkbenchToolHeader({
   const fullScreenLabel = isMaximized ? "Exit full screen" : "Enter full screen";
 
   return (
-    <div {...stylex.props(styles.root)}>
+    <div {...stylex.props(workbenchToolHeaderLayout.root)}>
       <div {...stylex.props(styles.scroll)}>
         <div {...stylex.props(styles.tabStrip)}>
           <div role="tablist" aria-label="Workbench tabs" {...stylex.props(styles.tabs)}>
@@ -481,4 +451,3 @@ function WorkbenchToolHeader({
 }
 
 export { WorkbenchToolHeader };
-export type { WorkbenchToolHeaderMenuItem, WorkbenchToolHeaderTab };
