@@ -5,30 +5,19 @@ import { create, props } from "@stylexjs/stylex";
 import type { TerminalSessionSnapshot } from "@honk/shared/terminal";
 import type { FitAddon, Ghostty, ITheme, Terminal } from "ghostty-web";
 import { Button, Text } from "@honk/ui";
-import { colorVars, controlVars, fontVars, spaceVars } from "@honk/ui/tokens.stylex";
+import { colorVars, controlVars, spaceVars } from "@honk/ui/tokens.stylex";
 import { type ReactElement, useEffect, useRef, useState } from "react";
 
 import { getSnapshot, subscribe } from "./appearance-store";
 import { getPtyBridge, type DesktopPtyBridge } from "./desktop-bridge";
 import { errorMessage } from "./error-message";
 import { readResolvedTheme, useResolvedTheme } from "./lib/use-resolved-theme";
+import { workbenchTerminalLayout } from "./workbench-terminal-layout.stylex";
 import terminalStyles from "./workbench-terminal.module.css";
 
 const TERMINAL_SCROLLBACK = 10_000;
 
 const styles = create({
-  root: {
-    position: "relative",
-    flexGrow: 1,
-    minHeight: 0,
-    display: "flex",
-    flexDirection: "column",
-    boxSizing: "border-box",
-    padding: spaceVars["--honk-space-gutter"],
-    color: colorVars["--honk-color-text-primary"],
-    backgroundColor: colorVars["--honk-color-bg-deep"],
-    fontFamily: fontVars["--honk-font-family-mono"],
-  },
   recovery: {
     flexShrink: 0,
     display: "flex",
@@ -36,11 +25,6 @@ const styles = create({
     justifyContent: "flex-end",
     gap: controlVars["--honk-control-gap"],
     paddingBlockEnd: spaceVars["--honk-space-gutter"],
-  },
-  terminalArea: {
-    position: "relative",
-    flexGrow: 1,
-    minHeight: 0,
   },
   hostContainer: {
     position: "absolute",
@@ -57,16 +41,6 @@ const styles = create({
   },
   scrollSpacer: {
     width: "100%",
-  },
-  center: {
-    flexGrow: 1,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: controlVars["--honk-control-gap"],
-    padding: spaceVars["--honk-space-panel-pad"],
-    textAlign: "center",
   },
 });
 
@@ -622,7 +596,7 @@ function WorkbenchTerminal({
 
   if (bridge === null) {
     return (
-      <div {...props(styles.center)}>
+      <div {...props(workbenchTerminalLayout.center)}>
         <Text as="p" size="sm" tone="muted" weight="regular">
           Terminal needs the desktop shell
         </Text>
@@ -634,7 +608,7 @@ function WorkbenchTerminal({
   }
 
   return (
-    <div aria-hidden={!isVisible} {...props(styles.root)}>
+    <div aria-hidden={!isVisible} {...props(workbenchTerminalLayout.root)}>
       {recovery !== null ? (
         <div aria-live="polite" {...props(styles.recovery)}>
           <Text as="span" size="xs" tone="faint" tabularNums>
@@ -649,7 +623,7 @@ function WorkbenchTerminal({
           </Button>
         </div>
       ) : null}
-      <div {...props(styles.terminalArea)}>
+      <div {...props(workbenchTerminalLayout.terminalArea)}>
         <div ref={attachHost} {...props(styles.hostContainer)} />
         <div ref={attachScroller} data-honk-scrollport {...props(styles.scroller)}>
           <div ref={attachSpacer} {...props(styles.scrollSpacer)} />

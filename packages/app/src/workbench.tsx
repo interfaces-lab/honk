@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { openCodeSessionRef, type OpenCodeSessionRef } from "@honk/opencode";
 import { normalizePathSeparators } from "@honk/shared/paths";
-import { Icon, IconButton, Tooltip } from "@honk/ui";
+import { Icon, IconButton, Spinner, Tooltip } from "@honk/ui";
 import { IconSidebarSimpleRightWide, IconWindowSquare } from "@honk/ui/icons";
 import { controlVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
@@ -23,8 +23,8 @@ import { useWorkspaceWatchSelector } from "./use-sdk-watch";
 import { getOpenCodeClient } from "./watch-registry";
 import { useWorkbenchChangesSnapshot } from "./workbench-changes-resource";
 import { useWorkbench, workbenchActions, type WorkbenchTab } from "./workbench-controller";
-import { workbenchLayout } from "./workbench-layout.stylex";
-import { WorkbenchPanelColumn } from "./workbench-panel-column";
+import { workbenchLayout, workbenchToolHeaderLayout } from "./workbench-layout.stylex";
+import { workbenchPanelLayout, workbenchPanelSize } from "./workbench-panel-layout.stylex";
 import { workbenchPresentation } from "./workbench-presentation";
 import { WorkbenchRail, type ChangeBadge } from "./workbench-rail";
 import { useWorkbenchSideChatCreation } from "./workbench-side-chat-creation";
@@ -35,7 +35,6 @@ import {
   type WorkbenchSideChatTab,
   type WorkbenchTab as ManagedWorkbenchTab,
 } from "./workbench-tab-store";
-import { disposeWorkbenchTerminal } from "./workbench-terminal";
 import type { ToolTodo } from "./tool-part-projection";
 
 const checkedPlanAutoOpenKeys = new Set<string>();
@@ -43,6 +42,20 @@ const checkedPlanAutoOpenKeys = new Set<string>();
 const setWorkbenchRailMinimized = (isMinimized: boolean): void => {
   workbenchActions.setRailMinimized(isMinimized);
 };
+
+const disposeWorkbenchTerminal = (terminalID: string): void => {
+  void import("./workbench-terminal")
+    .then((module) => {
+      module.disposeWorkbenchTerminal(terminalID);
+    })
+    .catch(() => undefined);
+};
+
+const DeferredWorkbenchPanelColumn = React.lazy(() =>
+  import("./workbench-panel-column").then((module) => ({
+    default: module.WorkbenchPanelColumn,
+  })),
+);
 
 const styles = stylex.create({
   column: {
@@ -65,7 +78,37 @@ const styles = stylex.create({
     insetBlockStart: `calc((${workbenchLayout.headerHeight} - ${controlVars["--honk-control-h-sm"]}) / 2)`,
     zIndex: 2,
   },
+  panelLoadingCenter: {
+    flexGrow: 1,
+    minHeight: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
+
+function WorkbenchPanelLoading(props: {
+  readonly isMaximized: boolean;
+  readonly panelWidth: number;
+}): React.ReactElement {
+  return (
+    <div
+      {...stylex.props(
+        workbenchPanelLayout.panel,
+        props.isMaximized
+          ? workbenchPanelLayout.panelMaximized
+          : workbenchPanelSize.width(props.panelWidth),
+      )}
+    >
+      <div aria-hidden="true" {...stylex.props(workbenchToolHeaderLayout.root)} />
+      <div {...stylex.props(workbenchPanelLayout.body)}>
+        <div {...stylex.props(styles.panelLoadingCenter)}>
+          <Spinner label="Loading workbench" tone="muted" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type WorkbenchProps = {
   readonly workspaceKey: string;
@@ -331,6 +374,7 @@ function Workbench({
       reopenSideChat(tab);
     },
   }));
+  const shouldMountPanel = isOpen || managedTabs.length > 0;
 
   return (
     <aside
@@ -340,56 +384,62 @@ function Workbench({
       inert={!isRouteReady}
       {...stylex.props(styles.column, isMaximized && styles.columnMaximized)}
     >
-      <WorkbenchPanelColumn
-        activeTabID={activeTab?.id ?? null}
-        availablePanelWidth={availablePanelWidth}
-        directory={directory}
-        headerMenuItems={headerMenuItems}
-        headerTabs={headerTabs}
-        isMaximized={isMaximized}
-        isOpen={isOpen}
-        isResizing={isResizing}
-        isThreadRunning={isThreadRunning}
-        managedTabs={managedTabs}
-        panelWidth={panelWidth}
-        buildAgent={buildAgent}
-        plan={plan}
-        planExecution={planExecution}
-        tasks={tasks}
-        onActivateTab={(id) => {
-          const tab = managedTabs.find((candidate) => candidate.id === id);
-          if (tab !== undefined) activateTab(tab);
-        }}
-        onCloseTab={(id) => {
-          const tab = managedTabs.find((candidate) => candidate.id === id);
-          if (tab !== undefined) closeTab(tab);
-        }}
-        onCreateItem={(id) => {
-          if (id === "side-chat:new") {
-            void createSideChat();
-            return;
-          }
-          const entry = toolTabs.find((candidate) => `tool:${candidate.id}` === id);
-          if (entry !== undefined) {
-            openTool(entry.id, entry.id === "terminal" || entry.id === "browser");
-          }
-        }}
-        onOpenFile={openFile}
-        onSearchFiles={searchFiles}
-        onOpenChanges={() => {
-          openTool("changes");
-        }}
-        onOpenTasks={() => {
-          openTool("tasks");
-        }}
-        onToggleMaximized={() => {
-          workbenchActions.toggleMaximized();
-        }}
-        onSashKeyDown={handleSashKeyDown}
-        onSashPointerDown={handleSashPointerDown}
-        onSashPointerEnd={handleSashPointerEnd}
-        onSashPointerMove={handleSashPointerMove}
-      />
+      {shouldMountPanel ? (
+        <React.Suspense
+          fallback={<WorkbenchPanelLoading isMaximized={isMaximized} panelWidth={panelWidth} />}
+        >
+          <DeferredWorkbenchPanelColumn
+            activeTabID={activeTab?.id ?? null}
+            availablePanelWidth={availablePanelWidth}
+            directory={directory}
+            headerMenuItems={headerMenuItems}
+            headerTabs={headerTabs}
+            isMaximized={isMaximized}
+            isOpen={isOpen}
+            isResizing={isResizing}
+            isThreadRunning={isThreadRunning}
+            managedTabs={managedTabs}
+            panelWidth={panelWidth}
+            buildAgent={buildAgent}
+            plan={plan}
+            planExecution={planExecution}
+            tasks={tasks}
+            onActivateTab={(id) => {
+              const tab = managedTabs.find((candidate) => candidate.id === id);
+              if (tab !== undefined) activateTab(tab);
+            }}
+            onCloseTab={(id) => {
+              const tab = managedTabs.find((candidate) => candidate.id === id);
+              if (tab !== undefined) closeTab(tab);
+            }}
+            onCreateItem={(id) => {
+              if (id === "side-chat:new") {
+                void createSideChat();
+                return;
+              }
+              const entry = toolTabs.find((candidate) => `tool:${candidate.id}` === id);
+              if (entry !== undefined) {
+                openTool(entry.id, entry.id === "terminal" || entry.id === "browser");
+              }
+            }}
+            onOpenFile={openFile}
+            onSearchFiles={searchFiles}
+            onOpenChanges={() => {
+              openTool("changes");
+            }}
+            onOpenTasks={() => {
+              openTool("tasks");
+            }}
+            onToggleMaximized={() => {
+              workbenchActions.toggleMaximized();
+            }}
+            onSashKeyDown={handleSashKeyDown}
+            onSashPointerDown={handleSashPointerDown}
+            onSashPointerEnd={handleSashPointerEnd}
+            onSashPointerMove={handleSashPointerMove}
+          />
+        </React.Suspense>
+      ) : null}
       <div {...stylex.props(styles.chromeToggle)}>
         <Tooltip label={isOpen ? "Collapse workbench" : "Open workbench"}>
           <IconButton
