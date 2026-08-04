@@ -5,7 +5,7 @@ import { HomePage } from "./home";
 import { NewSessionPage } from "./new-session";
 import { ONBOARDING_PATH, OnboardingPage } from "./onboarding";
 import { SessionWorkbenchLayout } from "./session-workbench-layout";
-import { ThreadPage } from "./thread/page";
+import { loadThreadPage, ThreadPageRoute } from "./thread/page-route";
 import { V2_PATH, V2RouteSurface } from "./v2-route";
 
 const rootRoute = createRootRoute({
@@ -48,7 +48,10 @@ const sessionRoute = createRoute({
 const threadRoute = createRoute({
   getParentRoute: () => sessionRoute,
   path: "$sessionId",
-  component: ThreadPage,
+  beforeLoad: () => {
+    void loadThreadPage();
+  },
+  component: ThreadPageRoute,
 });
 
 const workbenchRoute = createRoute({
