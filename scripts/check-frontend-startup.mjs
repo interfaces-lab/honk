@@ -29,6 +29,14 @@ const deferredWorkbenchChangesModules = [
   "workbench-changes-card.tsx",
   "workbench-changes-file-tree.tsx",
 ].map((file) => `${applicationRoot}/src/${file}`);
+const deferredWorkbenchRuntimePaneModules = ["browser.tsx", "workbench-terminal.tsx"].map(
+  (file) => `${applicationRoot}/src/${file}`,
+);
+const deferredClosedWorkbenchPanelModules = [
+  "workbench-panel-column.tsx",
+  "workbench-panel-surface.tsx",
+  "workbench-tool-header.tsx",
+].map((file) => `${applicationRoot}/src/${file}`);
 
 const sourceExtensions = [".ts", ".tsx", ".mts", ".js", ".jsx", ".mjs"];
 
@@ -106,6 +114,12 @@ const eagerWorkbenchFileModules = deferredWorkbenchFileModules.filter((file) => 
 const eagerWorkbenchChangesModules = deferredWorkbenchChangesModules.filter((file) =>
   graph.has(file),
 );
+const eagerWorkbenchRuntimePaneModules = deferredWorkbenchRuntimePaneModules.filter((file) =>
+  graph.has(file),
+);
+const eagerClosedWorkbenchPanelModules = deferredClosedWorkbenchPanelModules.filter((file) =>
+  graph.has(file),
+);
 
 console.log(
   `[frontend startup review] ${graph.size} eager app modules, ${kibibytes(eagerBytes)} source`,
@@ -121,6 +135,12 @@ console.log(
 );
 console.log(
   `[frontend startup review] ${eagerWorkbenchChangesModules.length}/${deferredWorkbenchChangesModules.length} inactive workbench Changes modules eager`,
+);
+console.log(
+  `[frontend startup review] ${eagerWorkbenchRuntimePaneModules.length}/${deferredWorkbenchRuntimePaneModules.length} inactive workbench runtime panes eager`,
+);
+console.log(
+  `[frontend startup review] ${eagerClosedWorkbenchPanelModules.length}/${deferredClosedWorkbenchPanelModules.length} closed workbench panel modules eager`,
 );
 
 if (eagerPanels.length > 0) {
@@ -154,6 +174,24 @@ if (eagerWorkbenchChangesModules.length > 0) {
   for (const file of eagerWorkbenchChangesModules) {
     console.error(
       `[frontend startup review] eager inactive workbench Changes module: ${file.slice(repositoryRoot.length)}`,
+    );
+  }
+  process.exitCode = 1;
+}
+
+if (eagerWorkbenchRuntimePaneModules.length > 0) {
+  for (const file of eagerWorkbenchRuntimePaneModules) {
+    console.error(
+      `[frontend startup review] eager inactive workbench runtime pane: ${file.slice(repositoryRoot.length)}`,
+    );
+  }
+  process.exitCode = 1;
+}
+
+if (eagerClosedWorkbenchPanelModules.length > 0) {
+  for (const file of eagerClosedWorkbenchPanelModules) {
+    console.error(
+      `[frontend startup review] eager closed workbench panel module: ${file.slice(repositoryRoot.length)}`,
     );
   }
   process.exitCode = 1;

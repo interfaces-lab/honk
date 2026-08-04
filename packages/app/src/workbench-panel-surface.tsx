@@ -12,7 +12,7 @@ import {
 } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
-import { BrowserSurface } from "./browser";
+import { browserLayout } from "./browser-layout.stylex";
 import type { SubmittedPlanRecord } from "./thread/follow-up";
 import type { PlanExecutionProjection } from "./thread/plan-execution";
 import { workbenchChangesLayout } from "./workbench-changes-layout.stylex";
@@ -20,7 +20,7 @@ import { WorkbenchPlan } from "./workbench-plan";
 import { WorkbenchSideChatSurface } from "./workbench-side-chat-surface";
 import type { WorkbenchTab } from "./workbench-tab-store";
 import { WorkbenchTasks } from "./workbench-tasks";
-import { WorkbenchTerminal } from "./workbench-terminal";
+import { workbenchTerminalLayout } from "./workbench-terminal-layout.stylex";
 import type { ToolTodo } from "./tool-part-projection";
 
 const DeferredWorkbenchFiles = React.lazy(() =>
@@ -28,6 +28,12 @@ const DeferredWorkbenchFiles = React.lazy(() =>
 );
 const DeferredWorkbenchChanges = React.lazy(() =>
   import("./workbench-changes").then((module) => ({ default: module.WorkbenchChanges })),
+);
+const DeferredBrowserSurface = React.lazy(() =>
+  import("./browser").then((module) => ({ default: module.BrowserSurface })),
+);
+const DeferredWorkbenchTerminal = React.lazy(() =>
+  import("./workbench-terminal").then((module) => ({ default: module.WorkbenchTerminal })),
 );
 
 // Permanent Files split geometry. These match workbench-files.tsx while keeping its data/UI module
@@ -103,7 +109,84 @@ const styles = stylex.create({
     fontSize: fontVars["--honk-font-size-detail"],
     fontWeight: fontVars["--honk-font-weight-regular"],
   },
+  browserControlLoading: {
+    width: controlVars["--honk-control-h-sm"],
+    height: controlVars["--honk-control-h-sm"],
+    flexShrink: 0,
+    borderRadius: radiusVars["--honk-radius-control"],
+    backgroundColor: colorVars["--honk-color-layer-02"],
+  },
+  browserLocationLoading: {
+    height: controlVars["--honk-control-h-md"],
+    minWidth: 0,
+    flexGrow: 1,
+    borderRadius: radiusVars["--honk-radius-control"],
+    backgroundColor: colorVars["--honk-color-layer-02"],
+  },
+  terminalLoading: {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
+
+function BrowserLoading(): React.ReactElement {
+  return (
+    <div {...stylex.props(browserLayout.root)}>
+      <div aria-hidden="true" {...stylex.props(browserLayout.toolbar)}>
+        <span {...stylex.props(styles.browserControlLoading)} />
+        <span {...stylex.props(styles.browserControlLoading)} />
+        <span {...stylex.props(styles.browserControlLoading)} />
+        <span {...stylex.props(styles.browserLocationLoading)} />
+        <span {...stylex.props(styles.browserControlLoading)} />
+      </div>
+      <div {...stylex.props(browserLayout.host)}>
+        <div {...stylex.props(browserLayout.center)}>
+          <Spinner label="Loading browser" tone="muted" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BrowserSurface(props: {
+  readonly sessionRef: Extract<WorkbenchTab, { readonly kind: "browser" }>["owner"];
+  readonly directory: string;
+  readonly resourceID: string;
+  readonly isVisible: boolean;
+}): React.ReactElement {
+  return (
+    <React.Suspense fallback={<BrowserLoading />}>
+      <DeferredBrowserSurface {...props} />
+    </React.Suspense>
+  );
+}
+
+function WorkbenchTerminalLoading(): React.ReactElement {
+  return (
+    <div {...stylex.props(workbenchTerminalLayout.root)}>
+      <div {...stylex.props(workbenchTerminalLayout.terminalArea)}>
+        <div {...stylex.props(styles.terminalLoading)}>
+          <Spinner label="Loading terminal" tone="muted" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WorkbenchTerminalSurface(props: {
+  readonly cwd: string;
+  readonly isVisible: boolean;
+  readonly terminalID: string;
+}): React.ReactElement {
+  return (
+    <React.Suspense fallback={<WorkbenchTerminalLoading />}>
+      <DeferredWorkbenchTerminal {...props} />
+    </React.Suspense>
+  );
+}
 
 function WorkbenchChangesLoading(): React.ReactElement {
   return (
@@ -262,7 +345,9 @@ function WorkbenchPanelSurface({
     );
   }
   if (tab.kind === "terminal") {
-    return <WorkbenchTerminal cwd={directory} isVisible={isVisible} terminalID={tab.terminalID} />;
+    return (
+      <WorkbenchTerminalSurface cwd={directory} isVisible={isVisible} terminalID={tab.terminalID} />
+    );
   }
   if (tab.kind === "browser") {
     return (

@@ -8,7 +8,10 @@ import type {
   WorkbenchSideChatTab,
   WorkbenchTab as ManagedWorkbenchTab,
 } from "./workbench-tab-store";
-import type { WorkbenchToolHeaderMenuItem, WorkbenchToolHeaderTab } from "./workbench-tool-header";
+import type {
+  WorkbenchToolHeaderMenuItem,
+  WorkbenchToolHeaderTab,
+} from "./workbench-tool-header-types";
 import {
   visibleWorkbenchToolTabs,
   workbenchToolTabs,

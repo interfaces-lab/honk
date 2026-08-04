@@ -8,29 +8,17 @@ import type { SubmittedPlanRecord } from "./thread/follow-up";
 import type { PlanExecutionProjection } from "./thread/plan-execution";
 import type { ToolTodo } from "./tool-part-projection";
 import { WORKBENCH_WIDTH_MIN } from "./workbench-controller";
+import { workbenchPanelLayout, workbenchPanelSize } from "./workbench-panel-layout.stylex";
 import { WorkbenchPanelSurface } from "./workbench-panel-surface";
 import type { WorkbenchTab as ManagedWorkbenchTab } from "./workbench-tab-store";
-import {
-  WorkbenchToolHeader,
-  type WorkbenchToolHeaderMenuItem,
-  type WorkbenchToolHeaderTab,
-} from "./workbench-tool-header";
+import { WorkbenchToolHeader } from "./workbench-tool-header";
+import type {
+  WorkbenchToolHeaderMenuItem,
+  WorkbenchToolHeaderTab,
+} from "./workbench-tool-header-types";
 
 const SASH_WIDTH = "5px";
-const HAIRLINE_WIDTH = "1px";
-const PANEL_SEPARATOR_SHADOW = `inset ${HAIRLINE_WIDTH} 0 0 ${colorVars["--honk-color-border-base"]}`;
-
 const styles = stylex.create({
-  panel: {
-    position: "relative",
-    flexShrink: 0,
-    height: "100%",
-    minHeight: 0,
-    display: "flex",
-    flexDirection: "column",
-    boxSizing: "border-box",
-    boxShadow: PANEL_SEPARATOR_SHADOW,
-  },
   sash: {
     position: "absolute",
     insetBlock: 0,
@@ -41,11 +29,7 @@ const styles = stylex.create({
     backgroundColor: "transparent",
     touchAction: "none",
   },
-  // Replaces the stored width rather than clamping it. The stored width is never rewritten while
-  // maximized, which is what makes restoring return the exact prior column.
-  panelMaximized: { width: "100%", flexGrow: 1, minWidth: 0 },
   sashActive: { backgroundColor: colorVars["--honk-color-accent"], opacity: 0.4 },
-  body: { flexGrow: 1, minHeight: 0, display: "flex", flexDirection: "column" },
   // Keep visited panels mounted so terminals and browser surfaces survive tab switches.
   panelHost: { flexGrow: 1, minHeight: 0, display: "flex", flexDirection: "column" },
   emptyState: {
@@ -59,10 +43,6 @@ const styles = stylex.create({
     padding: spaceVars["--honk-space-panel-pad"],
   },
   hidden: { display: "none" },
-});
-
-const dynamic = stylex.create({
-  width: (px: number) => ({ width: `${px}px` }),
 });
 
 type WorkbenchPanelColumnProps = {
@@ -127,8 +107,8 @@ function WorkbenchPanelColumn({
   return (
     <div
       {...stylex.props(
-        styles.panel,
-        isMaximized ? styles.panelMaximized : dynamic.width(panelWidth),
+        workbenchPanelLayout.panel,
+        isMaximized ? workbenchPanelLayout.panelMaximized : workbenchPanelSize.width(panelWidth),
         !isOpen && styles.hidden,
       )}
     >
@@ -163,7 +143,7 @@ function WorkbenchPanelColumn({
         onSearchFiles={onSearchFiles}
         onOpenFile={onOpenFile}
       />
-      <div {...stylex.props(styles.body)}>
+      <div {...stylex.props(workbenchPanelLayout.body)}>
         {activeTabID === null ? (
           <div role="group" aria-label="Open a workbench tool" {...stylex.props(styles.emptyState)}>
             <Button size="lg" onClick={() => onCreateItem("tool:browser")}>
