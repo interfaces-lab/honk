@@ -6,7 +6,7 @@ import { NewSessionPage } from "./new-session";
 import { ONBOARDING_PATH, OnboardingPage } from "./onboarding";
 import { SessionWorkbenchLayout } from "./session-workbench-layout";
 import { ThreadPage } from "./thread/page";
-import { V2_PATH, V2Page } from "./v2";
+import { V2_PATH, V2RouteSurface } from "./v2-route";
 
 const rootRoute = createRootRoute({
   component: RootGate,
@@ -36,7 +36,7 @@ const onboardingRoute = createRoute({
 const v2Route = createRoute({
   getParentRoute: () => rootRoute,
   path: V2_PATH,
-  component: V2Page,
+  component: V2RouteSurface,
 });
 
 const sessionRoute = createRoute({
