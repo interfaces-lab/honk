@@ -18,7 +18,7 @@ import { Outlet } from "@tanstack/react-router";
 import * as React from "react";
 
 import { useAppearanceTheme } from "./appearance-store";
-import { connectDeviceController } from "./connect-device-controller";
+import { connectDeviceRequest } from "./connect-device-request-store";
 import { canManageDesktopRemoteHost, shouldUseDesktopGlass } from "./desktop-bridge";
 import { HonkDesktopExtensionLayout } from "./desktop-extensions/layout";
 import { useIsHonkDesktopTabStripHidden } from "./desktop-extensions/runtime";
@@ -132,9 +132,7 @@ function ServerControl(): React.ReactElement {
         </Menu.Group>
         <Menu.Separator />
         {canManageDesktopRemoteHost() ? (
-          <Menu.Item onClick={() => connectDeviceController.actions.open()}>
-            Connect device…
-          </Menu.Item>
+          <Menu.Item onClick={() => connectDeviceRequest.actions.open()}>Connect device…</Menu.Item>
         ) : null}
         <Menu.Item onClick={() => settingsActions.open("servers")}>Manage servers…</Menu.Item>
         {canManageDesktopRemoteHost() ? (
