@@ -44,6 +44,9 @@ const deferredClosedShellToolModules = ["connect-device-controller.ts"].map(
   (file) => `${applicationRoot}/src/${file}`,
 );
 const deferredDormantRouteModules = ["v2.tsx"].map((file) => `${applicationRoot}/src/${file}`);
+const deferredHomeInactiveRouteModules = ["thread/page.tsx"].map(
+  (file) => `${applicationRoot}/src/${file}`,
+);
 
 const sourceExtensions = [".ts", ".tsx", ".mts", ".js", ".jsx", ".mjs"];
 
@@ -134,6 +137,9 @@ const eagerClosedShellToolModules = deferredClosedShellToolModules.filter((file)
   graph.has(file),
 );
 const eagerDormantRouteModules = deferredDormantRouteModules.filter((file) => graph.has(file));
+const eagerHomeInactiveRouteModules = deferredHomeInactiveRouteModules.filter((file) =>
+  graph.has(file),
+);
 
 console.log(
   `[frontend startup review] ${graph.size} eager app modules, ${kibibytes(eagerBytes)} source`,
@@ -164,6 +170,9 @@ console.log(
 );
 console.log(
   `[frontend startup review] ${eagerDormantRouteModules.length}/${deferredDormantRouteModules.length} dormant route modules eager`,
+);
+console.log(
+  `[frontend startup review] ${eagerHomeInactiveRouteModules.length}/${deferredHomeInactiveRouteModules.length} Home-inactive route modules eager`,
 );
 
 if (eagerPanels.length > 0) {
@@ -242,6 +251,15 @@ if (eagerDormantRouteModules.length > 0) {
   for (const file of eagerDormantRouteModules) {
     console.error(
       `[frontend startup review] eager dormant route module: ${file.slice(repositoryRoot.length)}`,
+    );
+  }
+  process.exitCode = 1;
+}
+
+if (eagerHomeInactiveRouteModules.length > 0) {
+  for (const file of eagerHomeInactiveRouteModules) {
+    console.error(
+      `[frontend startup review] eager Home-inactive route module: ${file.slice(repositoryRoot.length)}`,
     );
   }
   process.exitCode = 1;
