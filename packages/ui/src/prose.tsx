@@ -114,7 +114,7 @@ const styles = stylex.create({
     // oxlint-disable-next-line honk/design-no-raw-values -- 2px inline-code inset is fixed glyph anatomy, no spacing token owns it
     paddingInline: "2px",
     borderRadius: radiusVars["--honk-radius-control"],
-    backgroundColor: colorVars["--honk-color-layer-01"],
+    backgroundColor: proseVars["--honk-prose-code-paint"],
     color: colorVars["--honk-color-fg"],
     fontFamily: fontVars["--honk-font-family-mono"],
     fontSize: proseVars["--honk-prose-inline-code-size"],
