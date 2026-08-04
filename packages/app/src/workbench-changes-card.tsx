@@ -1,4 +1,4 @@
-import type { OpenCodeVcsFileStatus } from "@honk/opencode";
+import type { OpenCodeServerKey, OpenCodeVcsFileStatus } from "@honk/opencode";
 import { basename, normalizePathSeparators } from "@honk/shared/paths";
 import { Checkbox, Icon, IconButton, Spinner, Text } from "@honk/ui";
 import {
@@ -22,6 +22,8 @@ import * as React from "react";
 
 import { buildDiffOptions } from "./lib/diff-rendering";
 import { useTruncatedPath } from "./lib/truncate-text";
+import { WorkbenchChangesImage } from "./workbench-changes-image";
+import { isImagePreviewPath } from "./workbench-changes-image-resource";
 
 // Font-relative width keeps the status glyph slot aligned with surrounding text.
 const STATUS_GLYPH_SLOT_WIDTH = "1em";
@@ -272,6 +274,8 @@ function splitPath(file: string): { readonly dir: string; readonly name: string 
 
 function WorkbenchChangesCard({
   file,
+  server,
+  directory,
   patch,
   patchPending,
   diffStyle,
@@ -289,6 +293,8 @@ function WorkbenchChangesCard({
   actionsDisabled,
 }: {
   readonly file: OpenCodeVcsFileStatus;
+  readonly server: OpenCodeServerKey;
+  readonly directory: string;
   readonly patch: string | undefined;
   // While the diff stream is still resolving, an absent patch means "loading", not "no diff".
   readonly patchPending: boolean;
@@ -435,6 +441,8 @@ function WorkbenchChangesCard({
             <div {...stylex.props(styles.loading)}>
               <Spinner size="sm" tone="muted" />
             </div>
+          ) : file.status !== "deleted" && isImagePreviewPath(file.file) ? (
+            <WorkbenchChangesImage server={server} directory={directory} path={file.file} />
           ) : (
             <div {...stylex.props(styles.placeholder)}>
               <Text as="p" size="sm" tone="muted" weight="regular">

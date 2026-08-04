@@ -876,6 +876,8 @@ function WorkbenchChanges({
     >
       <WorkbenchChangesCard
         file={file}
+        server={server}
+        directory={directory}
         patch={snapshot.diffs.get(file.file)?.patch}
         patchPending={diffsPending}
         diffStyle={diffStyle}
