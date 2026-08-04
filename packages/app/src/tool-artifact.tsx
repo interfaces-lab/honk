@@ -11,6 +11,7 @@ import {
   colorVars,
   conversationVars,
   fontVars,
+  proseVars,
   radiusVars,
   spaceVars,
 } from "@honk/ui/tokens.stylex";
@@ -69,6 +70,20 @@ const PIERRE_UNSAFE_CSS = `
   }
 `;
 
+const PIERRE_SOURCE_UNSAFE_CSS = `${PIERRE_UNSAFE_CSS}
+  :host {
+    --diffs-bg: transparent;
+  }
+
+  [data-file][data-disable-line-numbers] [data-code] {
+    padding-block: var(--honk-space-panel-pad);
+  }
+
+  [data-file][data-disable-line-numbers] [data-line] {
+    padding-inline: var(--honk-space-panel-pad);
+  }
+`;
+
 const styles = stylex.create({
   inset: {
     minWidth: 0,
@@ -87,6 +102,10 @@ const styles = stylex.create({
     fontFamily: fontVars["--honk-font-family-mono"],
     fontSize: fontVars["--honk-font-size-code"],
     lineHeight: fontVars["--honk-leading-code"],
+  },
+  sourceFrame: {
+    borderRadius: radiusVars["--honk-radius-field"],
+    backgroundColor: proseVars["--honk-prose-code-paint"],
   },
   collapsed: {
     maxHeight: COLLAPSED_ARTIFACT_MAX_HEIGHT,
@@ -122,7 +141,13 @@ function ToolArtifactPreview({
       data-tool-artifact-expanded={isExpanded ? "true" : "false"}
       {...stylex.props(styles.inset)}
     >
-      <div {...stylex.props(styles.frame, !isExpanded && styles.collapsed)}>
+      <div
+        {...stylex.props(
+          styles.frame,
+          artifact.kind === "source" && styles.sourceFrame,
+          !isExpanded && styles.collapsed,
+        )}
+      >
         <ToolDiff artifact={artifact} isExpanded={isExpanded} />
       </div>
     </div>
@@ -196,7 +221,7 @@ function HighlightedToolSource({
         options={{
           theme: TOOL_DIFF_THEME_NAMES,
           themeType: appearance,
-          unsafeCSS: PIERRE_UNSAFE_CSS,
+          unsafeCSS: PIERRE_SOURCE_UNSAFE_CSS,
           overflow: wordWrap ? "wrap" : "scroll",
           disableFileHeader: true,
           disableLineNumbers: true,
@@ -334,8 +359,7 @@ function getRenderableToolPatch(
 
   try {
     const files = normalized.flatMap((patch) => {
-      const prepared =
-        contextLines === undefined ? patch : trimPatchContext(patch, contextLines);
+      const prepared = contextLines === undefined ? patch : trimPatchContext(patch, contextLines);
       return parsePatchFiles(prepared, patchCacheKey(prepared), true).flatMap(
         (parsed) => parsed.files,
       );

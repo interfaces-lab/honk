@@ -16,6 +16,8 @@ vi.mock("@stylexjs/stylex", () => ({
       "data-block-start": attribute("marginBlockStart") ?? attribute("marginBlock"),
       "data-block-end": attribute("marginBlockEnd") ?? attribute("marginBlock"),
       "data-gap": attribute("gap"),
+      "data-padding": attribute("padding"),
+      "data-border-radius": attribute("borderRadius"),
       "data-font-size": attribute("fontSize"),
       "data-line-height": attribute("lineHeight"),
       "data-background-color": attribute("backgroundColor"),
@@ -83,5 +85,14 @@ describe("Prose", () => {
     expect(treatments).toHaveLength(2);
     expect(treatments[0]?.slice(1)).toEqual(treatments[1]?.slice(1));
     expect(treatments[0]?.[1]).not.toBe("transparent");
+  });
+
+  it("uses the former ChatView code-frame geometry", () => {
+    const html = renderToStaticMarkup(<Prose.CodeBlock>fenced</Prose.CodeBlock>);
+
+    expect(html).toContain('data-padding="12px"');
+    expect(html).toContain('data-border-radius="8px"');
+    expect(html).toContain('data-font-size="12px"');
+    expect(html).toContain('data-line-height="18px"');
   });
 });
