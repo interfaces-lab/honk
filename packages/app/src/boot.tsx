@@ -28,7 +28,7 @@ import {
 } from "./connection-store";
 import { shouldUseDesktopGlass } from "./desktop-bridge";
 import { ONBOARDING_PATH } from "./onboarding";
-import { V2_PATH } from "./v2";
+import { V2_PATH } from "./v2-route";
 import { AppShell } from "./shell";
 
 // Wordmark is larger than the prose ramp's 16px cap, so its size stays a named intrinsic.

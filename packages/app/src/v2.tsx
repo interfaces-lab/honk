@@ -6,8 +6,13 @@ import { FetchHttpClient } from "effect/unstable/http";
 import { RpcClient, RpcSerialization } from "effect/unstable/rpc";
 
 import { getHonkCoreEndpoint } from "./desktop-bridge";
-
-export const V2_PATH = "/v2";
+import {
+  V2ActionButton,
+  V2_DEFAULT_DIRECTORY,
+  V2_INPUT_STYLE,
+  V2_LOG_ENTRY_STYLE,
+  V2PageLayout,
+} from "./v2-layout";
 
 // One scoped client per call: the page exercises the wire contract end to end
 // (fetch -> RPC serialization -> schema decode -> typed errors), so per-call
@@ -61,14 +66,16 @@ let nextLogId = 1;
 
 export function V2Page(): React.ReactElement {
   const [endpoint, setEndpoint] = React.useState<Endpoint>({ status: "loading" });
-  const [directory, setDirectory] = React.useState("/tmp/honk-core-demo");
+  const [directory, setDirectory] = React.useState(V2_DEFAULT_DIRECTORY);
   const [log, setLog] = React.useState<readonly LogEntry[]>([]);
 
   React.useEffect(() => {
     let cancelled = false;
     void getHonkCoreEndpoint().then((found) => {
       if (cancelled) return;
-      setEndpoint(found === null ? { status: "missing" } : { status: "ready", baseUrl: found.baseUrl });
+      setEndpoint(
+        found === null ? { status: "missing" } : { status: "ready", baseUrl: found.baseUrl },
+      );
     });
     return () => {
       cancelled = true;
@@ -101,38 +108,26 @@ export function V2Page(): React.ReactElement {
   };
 
   return (
-    <div style={pageStyle}>
-      <header>
-        <h1 style={{ margin: 0, fontSize: 18 }}>Honk Core v2</h1>
-        <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13 }}>
-          Manual harness for the workspace RPC group served by the desktop main process.
-        </p>
-      </header>
-
-      <section style={cardStyle}>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>Endpoint</div>
-        <div style={{ fontFamily: "monospace", fontSize: 13 }}>
+    <V2PageLayout
+      endpoint={
+        <>
           {endpoint.status === "loading" && "Resolving…"}
           {endpoint.status === "missing" &&
             "Unavailable. Run inside the desktop app with a preload that exposes getHonkCoreEndpoint."}
           {endpoint.status === "ready" && `${endpoint.baseUrl}/rpc`}
-        </div>
-      </section>
-
-      <section style={cardStyle}>
-        <label style={{ display: "block", fontSize: 12, opacity: 0.7, marginBottom: 4 }}>
-          Workspace directory (absolute; relative input reproduces the typed OpenError)
-        </label>
+        </>
+      }
+      directoryControl={
         <input
           value={directory}
           onChange={(event) => setDirectory(event.target.value)}
-          style={inputStyle}
+          style={V2_INPUT_STYLE}
           spellCheck={false}
         />
-        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-          <button
-            type="button"
-            style={buttonStyle}
+      }
+      actions={
+        <>
+          <V2ActionButton
             disabled={endpoint.status !== "ready"}
             onClick={() => {
               if (endpoint.status !== "ready") return;
@@ -140,10 +135,8 @@ export function V2Page(): React.ReactElement {
             }}
           >
             Open
-          </button>
-          <button
-            type="button"
-            style={buttonStyle}
+          </V2ActionButton>
+          <V2ActionButton
             disabled={endpoint.status !== "ready"}
             onClick={() => {
               if (endpoint.status !== "ready") return;
@@ -151,72 +144,25 @@ export function V2Page(): React.ReactElement {
             }}
           >
             Trust
-          </button>
-        </div>
-      </section>
-
-      <section style={{ ...cardStyle, flex: 1, overflow: "auto" }}>
-        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Log (newest first)</div>
-        {log.length === 0 && <div style={{ opacity: 0.5, fontSize: 13 }}>No calls yet.</div>}
-        {log.map((entry) => (
-          <div key={entry.id} style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 12, fontFamily: "monospace" }}>
-              <span style={{ opacity: 0.5 }}>{entry.at}</span>{" "}
-              <span style={{ color: entry.kind === "ok" ? "#3fb950" : "#f85149" }}>
-                {entry.label}
-              </span>
+          </V2ActionButton>
+        </>
+      }
+      log={
+        <>
+          {log.length === 0 && <div style={{ opacity: 0.5, fontSize: 13 }}>No calls yet.</div>}
+          {log.map((entry) => (
+            <div key={entry.id} style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 12, fontFamily: "monospace" }}>
+                <span style={{ opacity: 0.5 }}>{entry.at}</span>{" "}
+                <span style={{ color: entry.kind === "ok" ? "#3fb950" : "#f85149" }}>
+                  {entry.label}
+                </span>
+              </div>
+              <pre style={V2_LOG_ENTRY_STYLE}>{entry.detail}</pre>
             </div>
-            <pre style={preStyle}>{entry.detail}</pre>
-          </div>
-        ))}
-      </section>
-    </div>
+          ))}
+        </>
+      }
+    />
   );
 }
-
-const pageStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 12,
-  padding: 20,
-  height: "100%",
-  boxSizing: "border-box",
-  overflow: "auto",
-};
-
-const cardStyle: React.CSSProperties = {
-  border: "1px solid color-mix(in srgb, currentColor 15%, transparent)",
-  borderRadius: 8,
-  padding: 12,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  fontFamily: "monospace",
-  fontSize: 13,
-  padding: "6px 8px",
-  borderRadius: 6,
-  border: "1px solid color-mix(in srgb, currentColor 25%, transparent)",
-  background: "transparent",
-  color: "inherit",
-};
-
-const buttonStyle: React.CSSProperties = {
-  fontSize: 13,
-  padding: "6px 14px",
-  borderRadius: 6,
-  border: "1px solid color-mix(in srgb, currentColor 25%, transparent)",
-  background: "color-mix(in srgb, currentColor 8%, transparent)",
-  color: "inherit",
-  cursor: "pointer",
-};
-
-const preStyle: React.CSSProperties = {
-  margin: "2px 0 0",
-  fontSize: 12,
-  fontFamily: "monospace",
-  whiteSpace: "pre-wrap",
-  wordBreak: "break-word",
-  opacity: 0.9,
-};

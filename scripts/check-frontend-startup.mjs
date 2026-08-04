@@ -43,6 +43,7 @@ const deferredDisabledDesktopExtensionModules = [
 const deferredClosedShellToolModules = ["connect-device-controller.ts"].map(
   (file) => `${applicationRoot}/src/${file}`,
 );
+const deferredDormantRouteModules = ["v2.tsx"].map((file) => `${applicationRoot}/src/${file}`);
 
 const sourceExtensions = [".ts", ".tsx", ".mts", ".js", ".jsx", ".mjs"];
 
@@ -132,6 +133,7 @@ const eagerDisabledDesktopExtensionModules = deferredDisabledDesktopExtensionMod
 const eagerClosedShellToolModules = deferredClosedShellToolModules.filter((file) =>
   graph.has(file),
 );
+const eagerDormantRouteModules = deferredDormantRouteModules.filter((file) => graph.has(file));
 
 console.log(
   `[frontend startup review] ${graph.size} eager app modules, ${kibibytes(eagerBytes)} source`,
@@ -159,6 +161,9 @@ console.log(
 );
 console.log(
   `[frontend startup review] ${eagerClosedShellToolModules.length}/${deferredClosedShellToolModules.length} closed shell tool modules eager`,
+);
+console.log(
+  `[frontend startup review] ${eagerDormantRouteModules.length}/${deferredDormantRouteModules.length} dormant route modules eager`,
 );
 
 if (eagerPanels.length > 0) {
@@ -228,6 +233,15 @@ if (eagerClosedShellToolModules.length > 0) {
   for (const file of eagerClosedShellToolModules) {
     console.error(
       `[frontend startup review] eager closed shell tool module: ${file.slice(repositoryRoot.length)}`,
+    );
+  }
+  process.exitCode = 1;
+}
+
+if (eagerDormantRouteModules.length > 0) {
+  for (const file of eagerDormantRouteModules) {
+    console.error(
+      `[frontend startup review] eager dormant route module: ${file.slice(repositoryRoot.length)}`,
     );
   }
   process.exitCode = 1;

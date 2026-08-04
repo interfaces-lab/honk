@@ -25,10 +25,12 @@ import {
 import { installTabSummarySync } from "./tab-summary-sync";
 import { installThreadNotifications } from "./thread-notifications";
 import { installUpdatePill } from "./update-pill";
+import { preloadV2Page } from "./v2-route";
 
 // Bind before first paint so the initial pathname seeds activeKey / opens unknown
 // thread routes without a component effect (ADR 0025 §1).
 bindRouter(router);
+preloadV2Page(window.location.pathname);
 installBrowserAutomationOpenBridge();
 installTerminalOpenBridge();
 installHonkDesktopExtensions();
