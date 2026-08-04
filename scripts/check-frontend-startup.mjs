@@ -21,6 +21,9 @@ const deferredOverlayFiles = [
   "settings.tsx",
   "toast.tsx",
 ].map((file) => `${applicationRoot}/src/${file}`);
+const deferredWorkbenchFileModules = ["workbench-files.tsx", "workbench-file-viewer.tsx"].map(
+  (file) => `${applicationRoot}/src/${file}`,
+);
 
 const sourceExtensions = [".ts", ".tsx", ".mts", ".js", ".jsx", ".mjs"];
 
@@ -94,6 +97,7 @@ const graph = await collectStaticGraph(entryFile);
 const eagerBytes = [...graph.values()].reduce((total, bytes) => total + bytes, 0);
 const eagerPanels = settingsPanelFiles.filter((file) => graph.has(file));
 const eagerOverlays = deferredOverlayFiles.filter((file) => graph.has(file));
+const eagerWorkbenchFileModules = deferredWorkbenchFileModules.filter((file) => graph.has(file));
 
 console.log(
   `[frontend startup review] ${graph.size} eager app modules, ${kibibytes(eagerBytes)} source`,
@@ -103,6 +107,9 @@ console.log(
 );
 console.log(
   `[frontend startup review] ${eagerOverlays.length}/${deferredOverlayFiles.length} closed overlays eager`,
+);
+console.log(
+  `[frontend startup review] ${eagerWorkbenchFileModules.length}/${deferredWorkbenchFileModules.length} inactive workbench Files modules eager`,
 );
 
 if (eagerPanels.length > 0) {
@@ -118,6 +125,15 @@ if (eagerOverlays.length > 0) {
   for (const file of eagerOverlays) {
     console.error(
       `[frontend startup review] eager closed overlay: ${file.slice(repositoryRoot.length)}`,
+    );
+  }
+  process.exitCode = 1;
+}
+
+if (eagerWorkbenchFileModules.length > 0) {
+  for (const file of eagerWorkbenchFileModules) {
+    console.error(
+      `[frontend startup review] eager inactive workbench Files module: ${file.slice(repositoryRoot.length)}`,
     );
   }
   process.exitCode = 1;
