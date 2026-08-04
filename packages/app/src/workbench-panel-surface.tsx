@@ -1,13 +1,21 @@
 import * as stylex from "@stylexjs/stylex";
 import { basename } from "@honk/shared/paths";
-import { Spinner, Text } from "@honk/ui";
-import { borderVars, colorVars, controlVars, radiusVars, spaceVars } from "@honk/ui/tokens.stylex";
+import { Icon, Spinner, Text } from "@honk/ui";
+import { IconChanges, IconChevronDownMedium } from "@honk/ui/icons";
+import {
+  borderVars,
+  colorVars,
+  controlVars,
+  fontVars,
+  radiusVars,
+  spaceVars,
+} from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
 import { BrowserSurface } from "./browser";
 import type { SubmittedPlanRecord } from "./thread/follow-up";
 import type { PlanExecutionProjection } from "./thread/plan-execution";
-import { WorkbenchChanges } from "./workbench-changes";
+import { workbenchChangesLayout } from "./workbench-changes-layout.stylex";
 import { WorkbenchPlan } from "./workbench-plan";
 import { WorkbenchSideChatSurface } from "./workbench-side-chat-surface";
 import type { WorkbenchTab } from "./workbench-tab-store";
@@ -17,6 +25,9 @@ import type { ToolTodo } from "./tool-part-projection";
 
 const DeferredWorkbenchFiles = React.lazy(() =>
   import("./workbench-files").then((module) => ({ default: module.WorkbenchFiles })),
+);
+const DeferredWorkbenchChanges = React.lazy(() =>
+  import("./workbench-changes").then((module) => ({ default: module.WorkbenchChanges })),
 );
 
 // Permanent Files split geometry. These match workbench-files.tsx while keeping its data/UI module
@@ -82,7 +93,47 @@ const styles = stylex.create({
     padding: spaceVars["--honk-space-panel-pad"],
     textAlign: "center",
   },
+  changesScopeLoading: {
+    minWidth: 0,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: controlVars["--honk-control-gap"],
+    color: colorVars["--honk-color-text-muted"],
+    fontFamily: fontVars["--honk-font-family-ui"],
+    fontSize: fontVars["--honk-font-size-detail"],
+    fontWeight: fontVars["--honk-font-weight-regular"],
+  },
 });
+
+function WorkbenchChangesLoading(): React.ReactElement {
+  return (
+    <div {...stylex.props(workbenchChangesLayout.root)}>
+      <div {...stylex.props(workbenchChangesLayout.toolbar)}>
+        <span aria-hidden="true" {...stylex.props(styles.changesScopeLoading)}>
+          <Icon icon={IconChanges} size="sm" />
+          <span>Uncommitted</span>
+          <Icon icon={IconChevronDownMedium} size="xs" />
+        </span>
+        <span {...stylex.props(workbenchChangesLayout.spacer)} />
+      </div>
+      <div {...stylex.props(workbenchChangesLayout.center)}>
+        <Spinner label="Loading changes" tone="muted" />
+      </div>
+    </div>
+  );
+}
+
+function WorkbenchChangesSurface(props: {
+  readonly sessionRef: Extract<WorkbenchTab, { readonly kind: "changes" }>["owner"];
+  readonly directory: string;
+  readonly isThreadRunning: boolean;
+}): React.ReactElement {
+  return (
+    <React.Suspense fallback={<WorkbenchChangesLoading />}>
+      <DeferredWorkbenchChanges {...props} />
+    </React.Suspense>
+  );
+}
 
 function WorkbenchFilesLoading(props: {
   readonly directory: string;
@@ -181,7 +232,7 @@ function WorkbenchPanelSurface({
   }
   if (tab.kind === "changes") {
     return (
-      <WorkbenchChanges
+      <WorkbenchChangesSurface
         sessionRef={tab.owner}
         directory={directory}
         isThreadRunning={isThreadRunning}

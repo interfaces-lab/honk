@@ -24,6 +24,11 @@ const deferredOverlayFiles = [
 const deferredWorkbenchFileModules = ["workbench-files.tsx", "workbench-file-viewer.tsx"].map(
   (file) => `${applicationRoot}/src/${file}`,
 );
+const deferredWorkbenchChangesModules = [
+  "workbench-changes.tsx",
+  "workbench-changes-card.tsx",
+  "workbench-changes-file-tree.tsx",
+].map((file) => `${applicationRoot}/src/${file}`);
 
 const sourceExtensions = [".ts", ".tsx", ".mts", ".js", ".jsx", ".mjs"];
 
@@ -98,6 +103,9 @@ const eagerBytes = [...graph.values()].reduce((total, bytes) => total + bytes, 0
 const eagerPanels = settingsPanelFiles.filter((file) => graph.has(file));
 const eagerOverlays = deferredOverlayFiles.filter((file) => graph.has(file));
 const eagerWorkbenchFileModules = deferredWorkbenchFileModules.filter((file) => graph.has(file));
+const eagerWorkbenchChangesModules = deferredWorkbenchChangesModules.filter((file) =>
+  graph.has(file),
+);
 
 console.log(
   `[frontend startup review] ${graph.size} eager app modules, ${kibibytes(eagerBytes)} source`,
@@ -110,6 +118,9 @@ console.log(
 );
 console.log(
   `[frontend startup review] ${eagerWorkbenchFileModules.length}/${deferredWorkbenchFileModules.length} inactive workbench Files modules eager`,
+);
+console.log(
+  `[frontend startup review] ${eagerWorkbenchChangesModules.length}/${deferredWorkbenchChangesModules.length} inactive workbench Changes modules eager`,
 );
 
 if (eagerPanels.length > 0) {
@@ -134,6 +145,15 @@ if (eagerWorkbenchFileModules.length > 0) {
   for (const file of eagerWorkbenchFileModules) {
     console.error(
       `[frontend startup review] eager inactive workbench Files module: ${file.slice(repositoryRoot.length)}`,
+    );
+  }
+  process.exitCode = 1;
+}
+
+if (eagerWorkbenchChangesModules.length > 0) {
+  for (const file of eagerWorkbenchChangesModules) {
+    console.error(
+      `[frontend startup review] eager inactive workbench Changes module: ${file.slice(repositoryRoot.length)}`,
     );
   }
   process.exitCode = 1;
