@@ -15,16 +15,8 @@ import {
 import { borderVars, colorVars, controlVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
-import { SettingsAppearance } from "./settings-appearance";
-import { SettingsGeneral } from "./settings-general";
-import { SettingsHooks } from "./settings-hooks";
-import { SettingsPlugins } from "./settings-plugins";
-import { SettingsProviders } from "./settings-providers";
-import { SettingsRules } from "./settings-rules";
-import { SettingsServers } from "./settings-servers";
-import { SettingsConnections } from "./settings-connections";
-import { SettingsMcp } from "./settings-mcp";
 import { canManageDesktopRemoteHost } from "./desktop-bridge";
+import { SettingsPanelSkeleton } from "./settings-controls";
 import {
   actions as settingsActions,
   useSettingsSelector,
@@ -76,17 +68,35 @@ function sectionLabelFor(id: SettingsSectionId): string {
   return sections.find((item) => item.id === id)?.label ?? "Settings";
 }
 
-const PANELS: Record<SettingsSectionId, React.ComponentType> = {
-  general: SettingsGeneral,
-  servers: SettingsServers,
-  connections: SettingsConnections,
-  providers: SettingsProviders,
-  plugins: SettingsPlugins,
-  rules: SettingsRules,
-  tools: SettingsMcp,
-  hooks: SettingsHooks,
-  appearance: SettingsAppearance,
-};
+const PANELS = {
+  general: React.lazy(() =>
+    import("./settings-general").then((module) => ({ default: module.SettingsGeneral })),
+  ),
+  servers: React.lazy(() =>
+    import("./settings-servers").then((module) => ({ default: module.SettingsServers })),
+  ),
+  connections: React.lazy(() =>
+    import("./settings-connections").then((module) => ({ default: module.SettingsConnections })),
+  ),
+  providers: React.lazy(() =>
+    import("./settings-providers").then((module) => ({ default: module.SettingsProviders })),
+  ),
+  plugins: React.lazy(() =>
+    import("./settings-plugins").then((module) => ({ default: module.SettingsPlugins })),
+  ),
+  rules: React.lazy(() =>
+    import("./settings-rules").then((module) => ({ default: module.SettingsRules })),
+  ),
+  tools: React.lazy(() =>
+    import("./settings-mcp").then((module) => ({ default: module.SettingsMcp })),
+  ),
+  hooks: React.lazy(() =>
+    import("./settings-hooks").then((module) => ({ default: module.SettingsHooks })),
+  ),
+  appearance: React.lazy(() =>
+    import("./settings-appearance").then((module) => ({ default: module.SettingsAppearance })),
+  ),
+} satisfies Record<SettingsSectionId, React.LazyExoticComponent<React.ComponentType>>;
 
 const SETTINGS_WIDE_MEDIA = "@media (min-width: 720px)";
 const SETTINGS_NAV_COMPACT_MAX_HEIGHT = "152px";
@@ -344,7 +354,11 @@ export function SettingsOverlay(): React.ReactElement {
             </header>
             <div key={section} {...stylex.props(styles.panelScroll)}>
               <div {...stylex.props(styles.panelColumn)}>
-                <Panel />
+                <React.Suspense
+                  fallback={<SettingsPanelSkeleton label={sectionLabelFor(section)} />}
+                >
+                  <Panel />
+                </React.Suspense>
               </div>
             </div>
           </div>
