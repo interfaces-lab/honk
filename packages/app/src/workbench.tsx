@@ -21,7 +21,7 @@ import type { SubmittedPlanRecord } from "./thread/follow-up";
 import type { PlanExecutionProjection } from "./thread/plan-execution";
 import { useWorkspaceWatchSelector } from "./use-sdk-watch";
 import { getOpenCodeClient } from "./watch-registry";
-import { useWorkbenchChangesSnapshot } from "./workbench-changes";
+import { useWorkbenchChangesSnapshot } from "./workbench-changes-resource";
 import { useWorkbench, workbenchActions, type WorkbenchTab } from "./workbench-controller";
 import { workbenchLayout } from "./workbench-layout.stylex";
 import { WorkbenchPanelColumn } from "./workbench-panel-column";
@@ -39,6 +39,10 @@ import { disposeWorkbenchTerminal } from "./workbench-terminal";
 import type { ToolTodo } from "./tool-part-projection";
 
 const checkedPlanAutoOpenKeys = new Set<string>();
+
+const setWorkbenchRailMinimized = (isMinimized: boolean): void => {
+  workbenchActions.setRailMinimized(isMinimized);
+};
 
 const styles = stylex.create({
   column: {
@@ -413,7 +417,7 @@ function Workbench({
           onCreateSideChat={() => {
             void createSideChat();
           }}
-          onMinimizedChange={workbenchActions.setRailMinimized}
+          onMinimizedChange={setWorkbenchRailMinimized}
         />
       ) : null}
     </aside>
