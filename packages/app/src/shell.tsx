@@ -18,8 +18,6 @@ import { Outlet } from "@tanstack/react-router";
 import * as React from "react";
 
 import { useAppearanceTheme } from "./appearance-store";
-import { CommandMenuOverlay } from "./command-menu";
-import { ConnectDeviceDialog } from "./connect-device";
 import { connectDeviceController } from "./connect-device-controller";
 import { canManageDesktopRemoteHost, shouldUseDesktopGlass } from "./desktop-bridge";
 import { HonkDesktopExtensionLayout } from "./desktop-extensions/layout";
@@ -28,13 +26,17 @@ import { HonkDesktopTitlebarControls } from "./desktop-extensions/titlebar-contr
 import { DevChannelChip } from "./dev-channel-chip";
 import { useShellHotkeys } from "./hotkeys";
 import { DevelopmentPerformanceMonitor } from "./performance-monitor";
-import { SettingsOverlay } from "./settings";
 import { actions as settingsActions } from "./settings-store";
+import {
+  CommandMenuOverlayHost,
+  ConnectDeviceDialogHost,
+  SettingsOverlayHost,
+} from "./shell-overlays";
 import { serverStatus } from "./server-status";
 import { actions as serverActions, useOpenCodeServerConnections } from "./server-store";
 import { OpenTabContextMenu } from "./tab-context-menu";
 import { actions, useTabsSelector } from "./tab-store";
-import { ToastViewport } from "./toast";
+import { ToastViewportHost } from "./toast-host";
 import { TitleBarTrailing } from "./update-pill";
 
 // Shell colorScheme beats html. Plain-object style hatch matches packages/ui/dev Theme dial.
@@ -207,10 +209,10 @@ function AppShell({
         </HonkDesktopExtensionLayout>
         {import.meta.env.DEV ? <DevelopmentPerformanceMonitor /> : null}
         {/* Shell overlays leave the Home/thread route mounted. */}
-        <SettingsOverlay />
-        <ConnectDeviceDialog />
-        <CommandMenuOverlay />
-        <ToastViewport />
+        <SettingsOverlayHost />
+        <ConnectDeviceDialogHost />
+        <CommandMenuOverlayHost />
+        <ToastViewportHost />
       </Shell>
     </TooltipProvider>
   );
