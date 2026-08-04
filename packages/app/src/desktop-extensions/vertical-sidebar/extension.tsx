@@ -1,6 +1,7 @@
 import { defineHonkDesktopExtension } from "../sdk";
 import { decodeStatusFilters, decodeStringList, type StatusFilter } from "./model";
-import { VerticalSidebar } from "./view";
+import { loadVerticalSidebarView } from "./resource";
+import { VerticalSidebarSurface } from "./surface";
 
 const SIDEBAR_DEFAULT_SIZE = 232;
 const SIDEBAR_MIN_SIZE = 184;
@@ -30,6 +31,10 @@ export const verticalSidebarExtension = defineHonkDesktopExtension({
       decode: decodeStatusFilters,
     });
 
+    if (enabled.get()) {
+      void loadVerticalSidebarView().catch(() => undefined);
+    }
+
     honk.desktop.titlebar.tabStrip({ id: "default-tabs", hidden: enabled });
     honk.desktop.panes.add({
       id: "tabs",
@@ -39,7 +44,7 @@ export const verticalSidebarExtension = defineHonkDesktopExtension({
       minSize: SIDEBAR_MIN_SIZE,
       maxSize: SIDEBAR_MAX_SIZE,
       render: () => (
-        <VerticalSidebar
+        <VerticalSidebarSurface
           tabs={honk.desktop.tabs}
           collapsedGroups={collapsedGroups}
           workspaceOrder={workspaceOrder}

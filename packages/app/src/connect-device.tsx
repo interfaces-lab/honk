@@ -28,7 +28,14 @@ import {
   radiusVars,
   spaceVars,
 } from "@honk/ui/tokens.stylex";
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { toQR } from "toqr";
 
 import {
@@ -36,6 +43,7 @@ import {
   type ConnectDeviceSnapshot,
   useConnectDeviceSnapshot,
 } from "./connect-device-controller";
+import { useConnectDeviceRequest } from "./connect-device-request-store";
 import { canManageDesktopRemoteHost, openDesktopExternal } from "./desktop-bridge";
 import { actions as settingsActions } from "./settings-store";
 import { actions as toastActions } from "./toast-store";
@@ -789,15 +797,22 @@ export function ConnectDeviceBody(props: {
 export function ConnectDeviceDialog(): ReactElement | null {
   const available = canManageDesktopRemoteHost();
   const snapshot = useConnectDeviceSnapshot();
+  const isRequested = useConnectDeviceRequest();
 
   useEffect(() => {
     if (available) connectDeviceController.actions.resume();
   }, [available]);
 
+  useLayoutEffect(() => {
+    if (available && isRequested && snapshot.status === "closed") {
+      connectDeviceController.actions.open();
+    }
+  }, [available, isRequested, snapshot.status]);
+
   if (!available) return null;
   return (
     <Dialog.Root
-      open={snapshot.status !== "closed"}
+      open={isRequested}
       onOpenChange={(open) => {
         if (!open) connectDeviceController.actions.close();
       }}

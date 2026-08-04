@@ -16,8 +16,8 @@ import {
   issueDesktopRemotePairing,
   restartDesktopRemoteHost,
 } from "./desktop-bridge";
+import { connectDeviceRequest } from "./connect-device-request-store";
 
-const PAIRING_RESUME_KEY = "honk.desktop.resume-device-pairing";
 const RELAUNCH_TIMEOUT_MS = 15_000;
 
 type PairingContext = {
@@ -624,11 +624,13 @@ export const connectDeviceController = createConnectDeviceController({
     const timer = window.setInterval(listener, 1_000);
     return () => window.clearInterval(timer);
   },
-  resume: {
-    get: () => window.localStorage.getItem(PAIRING_RESUME_KEY) === "1",
-    set: () => window.localStorage.setItem(PAIRING_RESUME_KEY, "1"),
-    clear: () => window.localStorage.removeItem(PAIRING_RESUME_KEY),
-  },
+  resume: connectDeviceRequest.resume,
+});
+
+connectDeviceController.subscribe(() => {
+  if (connectDeviceController.getSnapshot().status === "closed") {
+    connectDeviceRequest.actions.close();
+  }
 });
 
 export function useConnectDeviceSnapshot(): ConnectDeviceSnapshot {

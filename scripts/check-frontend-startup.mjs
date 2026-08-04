@@ -37,6 +37,12 @@ const deferredClosedWorkbenchPanelModules = [
   "workbench-panel-surface.tsx",
   "workbench-tool-header.tsx",
 ].map((file) => `${applicationRoot}/src/${file}`);
+const deferredDisabledDesktopExtensionModules = [
+  "desktop-extensions/vertical-sidebar/view.tsx",
+].map((file) => `${applicationRoot}/src/${file}`);
+const deferredClosedShellToolModules = ["connect-device-controller.ts"].map(
+  (file) => `${applicationRoot}/src/${file}`,
+);
 
 const sourceExtensions = [".ts", ".tsx", ".mts", ".js", ".jsx", ".mjs"];
 
@@ -120,6 +126,12 @@ const eagerWorkbenchRuntimePaneModules = deferredWorkbenchRuntimePaneModules.fil
 const eagerClosedWorkbenchPanelModules = deferredClosedWorkbenchPanelModules.filter((file) =>
   graph.has(file),
 );
+const eagerDisabledDesktopExtensionModules = deferredDisabledDesktopExtensionModules.filter(
+  (file) => graph.has(file),
+);
+const eagerClosedShellToolModules = deferredClosedShellToolModules.filter((file) =>
+  graph.has(file),
+);
 
 console.log(
   `[frontend startup review] ${graph.size} eager app modules, ${kibibytes(eagerBytes)} source`,
@@ -141,6 +153,12 @@ console.log(
 );
 console.log(
   `[frontend startup review] ${eagerClosedWorkbenchPanelModules.length}/${deferredClosedWorkbenchPanelModules.length} closed workbench panel modules eager`,
+);
+console.log(
+  `[frontend startup review] ${eagerDisabledDesktopExtensionModules.length}/${deferredDisabledDesktopExtensionModules.length} disabled desktop extension modules eager`,
+);
+console.log(
+  `[frontend startup review] ${eagerClosedShellToolModules.length}/${deferredClosedShellToolModules.length} closed shell tool modules eager`,
 );
 
 if (eagerPanels.length > 0) {
@@ -192,6 +210,24 @@ if (eagerClosedWorkbenchPanelModules.length > 0) {
   for (const file of eagerClosedWorkbenchPanelModules) {
     console.error(
       `[frontend startup review] eager closed workbench panel module: ${file.slice(repositoryRoot.length)}`,
+    );
+  }
+  process.exitCode = 1;
+}
+
+if (eagerDisabledDesktopExtensionModules.length > 0) {
+  for (const file of eagerDisabledDesktopExtensionModules) {
+    console.error(
+      `[frontend startup review] eager disabled desktop extension module: ${file.slice(repositoryRoot.length)}`,
+    );
+  }
+  process.exitCode = 1;
+}
+
+if (eagerClosedShellToolModules.length > 0) {
+  for (const file of eagerClosedShellToolModules) {
+    console.error(
+      `[frontend startup review] eager closed shell tool module: ${file.slice(repositoryRoot.length)}`,
     );
   }
   process.exitCode = 1;

@@ -11,7 +11,7 @@ import { borderVars, colorVars, controlVars, radiusVars, spaceVars } from "@honk
 import { useState, type ReactElement } from "react";
 
 import { CONNECTION_METHODS, connectionMethodFrom, type ConnectionMethod } from "./connect-device";
-import { connectDeviceController } from "./connect-device-controller";
+import { connectDeviceRequest } from "./connect-device-request-store";
 import { useConnectionsSettingsState } from "./settings-connections-state";
 import { SettingsSection } from "./settings-controls";
 import { actions as settingsActions } from "./settings-store";
@@ -264,7 +264,7 @@ const styles = stylex.create({
 
 function openConnectDevice(): void {
   settingsActions.close();
-  connectDeviceController.actions.open();
+  connectDeviceRequest.actions.open();
 }
 
 function DeviceRow(props: {
