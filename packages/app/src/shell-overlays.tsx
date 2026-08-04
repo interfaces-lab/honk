@@ -19,7 +19,7 @@ import {
   MENU_FIELD_STYLE,
 } from "./command-menu-layout";
 import { actions as commandMenuActions, useCommandMenuSelector } from "./command-menu-store";
-import { connectDeviceController, useConnectDeviceSnapshot } from "./connect-device-controller";
+import { connectDeviceRequest, useConnectDeviceRequest } from "./connect-device-request-store";
 import { canManageDesktopRemoteHost } from "./desktop-bridge";
 import { SETTINGS_DIALOG_STYLE, SETTINGS_DIALOG_TITLE_STYLE } from "./settings-layout";
 import {
@@ -408,13 +408,9 @@ function CommandMenuLoadingOverlay(): React.ReactElement {
 
 function ConnectDeviceDialogHost(): React.ReactElement | null {
   const available = canManageDesktopRemoteHost();
-  const snapshot = useConnectDeviceSnapshot();
+  const isRequested = useConnectDeviceRequest();
 
-  React.useEffect(() => {
-    if (available) connectDeviceController.actions.resume();
-  }, [available]);
-
-  if (!available || snapshot.status === "closed") return null;
+  if (!available || !isRequested) return null;
   return (
     <React.Suspense fallback={<ConnectDeviceLoadingDialog />}>
       <DeferredConnectDeviceDialog />
@@ -427,7 +423,7 @@ function ConnectDeviceLoadingDialog(): React.ReactElement {
     <Dialog.Root
       open
       onOpenChange={(next) => {
-        if (!next) connectDeviceController.actions.close();
+        if (!next) connectDeviceRequest.actions.close();
       }}
     >
       <Dialog.Popup>
@@ -436,7 +432,7 @@ function ConnectDeviceLoadingDialog(): React.ReactElement {
             size="sm"
             variant="quiet"
             aria-label="Close device connection"
-            onClick={connectDeviceController.actions.close}
+            onClick={connectDeviceRequest.actions.close}
           >
             <Icon icon={IconCrossMedium} size="sm" />
           </IconButton>
