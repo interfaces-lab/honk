@@ -4,15 +4,7 @@
 
 import * as stylex from "@stylexjs/stylex";
 
-import {
-  borderVars,
-  colorVars,
-  controlVars,
-  fontVars,
-  proseVars,
-  radiusVars,
-  spaceVars,
-} from "./tokens.stylex";
+import { borderVars, colorVars, fontVars, proseVars, radiusVars, spaceVars } from "./tokens.stylex";
 
 const styles = stylex.create({
   codeBlock: {
@@ -26,20 +18,18 @@ const styles = stylex.create({
       ":last-child": 0,
     },
     boxSizing: "border-box",
-    paddingBlock: controlVars["--honk-control-gap"],
-    paddingInlineStart: controlVars["--honk-control-gap"],
-    paddingInlineEnd: spaceVars["--honk-space-gutter"],
+    padding: spaceVars["--honk-space-panel-pad"],
     overflowX: "auto",
     overscrollBehaviorX: "contain",
     borderWidth: borderVars["--honk-border-hairline"],
     borderStyle: "solid",
-    borderColor: colorVars["--honk-color-border-muted"],
+    borderColor: proseVars["--honk-prose-code-paint"],
     borderRadius: radiusVars["--honk-radius-field"],
-    backgroundColor: colorVars["--honk-color-layer-01"],
+    backgroundColor: proseVars["--honk-prose-code-paint"],
     color: colorVars["--honk-color-fg"],
     fontFamily: fontVars["--honk-font-family-mono"],
-    fontSize: fontVars["--honk-text-detail"],
-    lineHeight: fontVars["--honk-leading-title"],
+    fontSize: fontVars["--honk-font-size-code"],
+    lineHeight: fontVars["--honk-leading-code"],
     whiteSpace: "pre",
   },
 });

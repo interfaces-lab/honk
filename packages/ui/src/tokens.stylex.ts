@@ -134,6 +134,8 @@ const proseDefaults = {
   // hierarchy follow that user-selected size instead of freezing a second typography scale.
   "--honk-prose-size": fontVars["--honk-text-title"],
   "--honk-prose-inline-code-size": "0.9em",
+  // Former ChatView used the same quiet foreground wash for inline and fenced code.
+  "--honk-prose-code-paint": colorVars["--honk-color-border-muted"],
   "--honk-prose-leading": "1.6",
   "--honk-prose-heading-leading": "1.42",
   "--honk-prose-heading-1-size": "1.571em",
@@ -150,8 +152,6 @@ const proseDefaults = {
   "--honk-prose-table-cell-block": "5px",
   "--honk-prose-table-cell-inline": "9px",
   "--honk-prose-media-gap": "0.5em",
-  // Cursor 3.14.7's optional editor gutter keeps short line numbers aligned in a 28px column.
-  "--honk-prose-code-line-number-min-width": "28px",
 } as const;
 
 const shellDefaults = {

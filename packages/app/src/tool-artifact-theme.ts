@@ -19,7 +19,7 @@ function createToolDiffTheme(mode: ThemeMode): ToolDiffTheme {
       "diffEditor.insertedTextBackground": colors.okBg,
       "diffEditor.removedLineBackground": colors.errBg,
       "diffEditor.removedTextBackground": colors.errBg,
-      // Read previews use the same container paint as prose code while token spans keep syntax color.
+      // The source-preview wrapper owns the visible code-frame paint; this is Pierre's fallback.
       "editor.background": colors.layer01,
       "editor.foreground": colors.fg,
       "editorLineNumber.foreground": colors.fgTertiary,

@@ -28,7 +28,7 @@ describe("Markdown", () => {
     );
   });
 
-  it("renders fenced code with selectable editor rows and hidden line numbers", () => {
+  it("renders fenced code without rebuilding an editor gutter", () => {
     const html = renderToStaticMarkup(
       <Markdown
         isStreaming
@@ -39,11 +39,21 @@ const second = 2;
       />,
     );
 
-    expect(html).toContain('data-line-number="1"');
-    expect(html).toContain('data-line-number="2"');
-    expect(html).toContain('aria-hidden="true" data-slot="code-line-number"');
+    expect(html).not.toContain("data-line-number");
+    expect(html).not.toContain('data-slot="code-line-number"');
     expect(html).toContain("const first = 1;");
     expect(html).toContain("const second = 2;");
+  });
+
+  it("keeps a large streaming fence free of per-line wrapper nodes", () => {
+    const code = Array.from({ length: 100 }, (_, index) => `const value${index} = ${index};`).join(
+      "\n",
+    );
+    const html = renderToStaticMarkup(<Markdown isStreaming text={`\`\`\`ts\n${code}\n\`\`\``} />);
+
+    expect(html).not.toContain("<span");
+    expect(html).not.toContain("data-line-number");
+    expect(html).toContain("const value99 = 99;");
   });
 
   it("renders workspace links as file references when the workbench can open them", () => {

@@ -6,7 +6,7 @@ import * as stylex from "@stylexjs/stylex";
 import { Prose } from "@honk/ui";
 import { proseCodeBlockStyle } from "@honk/ui/prose-code-block";
 import { honkTheme, type ThemeMode } from "@honk/ui/theme";
-import { colorVars, fontVars, proseVars, spaceVars } from "@honk/ui/tokens.stylex";
+import { colorVars, fontVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 import { codeToHtml, type ShikiTransformer, type ThemeRegistrationRaw } from "shiki";
 import { type Components, defaultRemarkPlugins, Streamdown } from "streamdown";
@@ -18,20 +18,6 @@ const styles = stylex.create({
     width: "100%",
     minWidth: 0,
     maxWidth: "100%",
-  },
-  codeLine: {
-    display: "inline-block",
-    minWidth: "100%",
-  },
-  codeLineNumber: {
-    display: "inline-block",
-    minWidth: proseVars["--honk-prose-code-line-number-min-width"],
-    paddingInlineEnd: spaceVars["--honk-space-panel-pad"],
-    color: colorVars["--honk-color-fg-tertiary"],
-    fontSize: fontVars["--honk-text-caption"],
-    fontVariantNumeric: "tabular-nums",
-    textAlign: "end",
-    userSelect: "none",
   },
   // Wide diagrams scroll horizontally instead of widening the transcript column.
   diagram: {
@@ -113,41 +99,14 @@ const highlightCache = new Map<string, string>();
 // the <pre> with honk's token styling so highlighted and plain-fallback blocks look identical;
 // only the per-token foreground colors survive from Shiki.
 const HIGHLIGHT_PRE_CLASS = stylex.props(proseCodeBlockStyle).className ?? "";
-const CODE_LINE_PROPS = stylex.props(styles.codeLine);
-const CODE_LINE_CLASS = CODE_LINE_PROPS.className ?? "";
-const CODE_LINE_NUMBER_PROPS = stylex.props(styles.codeLineNumber);
-const CODE_LINE_NUMBER_CLASS = CODE_LINE_NUMBER_PROPS.className ?? "";
 const SHIKI_TRANSFORMERS: ShikiTransformer[] = [
   {
     pre(node) {
       this.addClassToHast(node, HIGHLIGHT_PRE_CLASS);
       node.properties.style = undefined;
     },
-    line(node, line) {
-      this.addClassToHast(node, CODE_LINE_CLASS);
-      node.properties["data-line-number"] = line;
-      node.children.unshift({
-        type: "element",
-        tagName: "span",
-        properties: {
-          "aria-hidden": "true",
-          "data-slot": "code-line-number",
-          className: [CODE_LINE_NUMBER_CLASS],
-        },
-        children: [
-          {
-            type: "text",
-            value: formatLineNumber(line, this.lines.length),
-          },
-        ],
-      });
-    },
   },
 ];
-
-function formatLineNumber(line: number, total: number): string {
-  return String(line).padStart(String(total).length, "\u00a0");
-}
 
 function extractFenceLanguage(className: string | undefined): string {
   const raw = className?.match(HIGHLIGHT_FENCE_LANGUAGE_REGEX)?.[1]?.toLowerCase();
@@ -346,22 +305,9 @@ function Strong(props: MarkdownProps<"strong">): React.ReactElement {
 }
 
 function PlainCodeBlock({ code }: { readonly code: string }): React.ReactElement {
-  const lines = code.split("\n");
   return (
     <Prose.CodeBlock tabIndex={0}>
-      <code>
-        {lines.map((line, index) => (
-          <React.Fragment key={index}>
-            <span data-line-number={index + 1} {...CODE_LINE_PROPS}>
-              <span aria-hidden data-slot="code-line-number" {...CODE_LINE_NUMBER_PROPS}>
-                {formatLineNumber(index + 1, lines.length)}
-              </span>
-              {line}
-            </span>
-            {index < lines.length - 1 ? "\n" : null}
-          </React.Fragment>
-        ))}
-      </code>
+      <code>{code}</code>
     </Prose.CodeBlock>
   );
 }
