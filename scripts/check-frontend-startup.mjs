@@ -15,6 +15,12 @@ const settingsPanelFiles = [
   "settings-rules.tsx",
   "settings-servers.tsx",
 ].map((file) => `${applicationRoot}/src/${file}`);
+const deferredOverlayFiles = [
+  "command-menu.tsx",
+  "connect-device.tsx",
+  "settings.tsx",
+  "toast.tsx",
+].map((file) => `${applicationRoot}/src/${file}`);
 
 const sourceExtensions = [".ts", ".tsx", ".mts", ".js", ".jsx", ".mjs"];
 
@@ -87,6 +93,7 @@ function kibibytes(bytes) {
 const graph = await collectStaticGraph(entryFile);
 const eagerBytes = [...graph.values()].reduce((total, bytes) => total + bytes, 0);
 const eagerPanels = settingsPanelFiles.filter((file) => graph.has(file));
+const eagerOverlays = deferredOverlayFiles.filter((file) => graph.has(file));
 
 console.log(
   `[frontend startup review] ${graph.size} eager app modules, ${kibibytes(eagerBytes)} source`,
@@ -94,11 +101,23 @@ console.log(
 console.log(
   `[frontend startup review] ${eagerPanels.length}/${settingsPanelFiles.length} settings panels eager`,
 );
+console.log(
+  `[frontend startup review] ${eagerOverlays.length}/${deferredOverlayFiles.length} closed overlays eager`,
+);
 
 if (eagerPanels.length > 0) {
   for (const file of eagerPanels) {
     console.error(
       `[frontend startup review] eager settings panel: ${file.slice(repositoryRoot.length)}`,
+    );
+  }
+  process.exitCode = 1;
+}
+
+if (eagerOverlays.length > 0) {
+  for (const file of eagerOverlays) {
+    console.error(
+      `[frontend startup review] eager closed overlay: ${file.slice(repositoryRoot.length)}`,
     );
   }
   process.exitCode = 1;

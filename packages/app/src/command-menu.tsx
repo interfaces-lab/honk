@@ -54,6 +54,11 @@ import {
 } from "./performance-monitor";
 import { copySessionDebugInfo } from "./session-debug-info";
 import { ONBOARDING_PATH } from "./onboarding";
+import {
+  MENU_DIALOG_STYLE,
+  MENU_DIALOG_TITLE_STYLE,
+  MENU_FIELD_STYLE,
+} from "./command-menu-layout";
 import { actions as settingsActions } from "./settings-store";
 import {
   actions as tabActions,
@@ -64,37 +69,7 @@ import { actions as toastActions } from "./toast-store";
 import { useSessionInventoryWatchSelector } from "./use-sdk-watch";
 import { getSessionWatchSnapshot } from "./watch-registry";
 
-// Tokens do not name a command-menu width yet (same precedent as dialog DIALOG_MAX_WIDTH).
-const MENU_MAX_WIDTH = "620px";
-const MENU_VIEWPORT_WIDTH = "calc(100% - 24px)";
-// Pin the search line while result height changes.
-const MENU_TOP = "clamp(72px, 18dvh, 160px)";
-const MENU_MAX_HEIGHT = "calc(100dvh - 96px)";
 const MENU_DROP_MAX_HEIGHT = "min(420px, 50dvh)";
-const HAIRLINE = "1px";
-
-const MENU_DIALOG_STYLE: React.CSSProperties = {
-  top: MENU_TOP,
-  transform: "translateX(-50%)",
-  maxWidth: MENU_MAX_WIDTH,
-  width: MENU_VIEWPORT_WIDTH,
-  maxHeight: MENU_MAX_HEIGHT,
-  padding: 0,
-  gap: 0,
-  overflow: "hidden",
-};
-
-// Flush search header: quiet hairline only. Field's :focus-within accent ring would
-// frame just this strip and read like a trapped menu outline.
-const MENU_FIELD_STYLE: React.CSSProperties = {
-  backgroundColor: "transparent",
-  borderRadius: 0,
-  borderBottomWidth: borderVars["--honk-border-hairline"],
-  borderBottomStyle: "solid",
-  borderBottomColor: colorVars["--honk-color-border-muted"],
-  boxShadow: "none",
-  outline: "none",
-};
 
 function availableCommands(monitorVisible: boolean): typeof SHIPPING_COMMANDS {
   if (!import.meta.env.DEV) return SHIPPING_COMMANDS;
@@ -656,20 +631,7 @@ function CommandMenuOverlay(): React.ReactElement {
     >
       <Dialog.Popup style={MENU_DIALOG_STYLE}>
         {/* Omnibox is the visible label. Title stays for a11y. */}
-        <Dialog.Title
-          style={{
-            position: "absolute",
-            width: HAIRLINE,
-            height: HAIRLINE,
-            padding: 0,
-            // oxlint-disable-next-line honk/design-no-raw-values -- negative 1px margin removes the visually-hidden title from layout; no spacing token owns accessibility clipping
-            margin: `calc(${HAIRLINE} * -1)`,
-            overflow: "hidden",
-            clipPath: "inset(50%)",
-            whiteSpace: "nowrap",
-            borderWidth: 0,
-          }}
-        >
+        <Dialog.Title style={MENU_DIALOG_TITLE_STYLE}>
           {door === "threads" ? "Open thread" : "Command menu"}
         </Dialog.Title>
         <CommandMenuBody

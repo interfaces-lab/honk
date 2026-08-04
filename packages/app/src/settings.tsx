@@ -17,6 +17,7 @@ import * as React from "react";
 
 import { canManageDesktopRemoteHost } from "./desktop-bridge";
 import { SettingsPanelSkeleton } from "./settings-controls";
+import { SETTINGS_DIALOG_STYLE, SETTINGS_DIALOG_TITLE_STYLE } from "./settings-layout";
 import {
   actions as settingsActions,
   useSettingsSelector,
@@ -100,16 +101,6 @@ const PANELS = {
 
 const SETTINGS_WIDE_MEDIA = "@media (min-width: 720px)";
 const SETTINGS_NAV_COMPACT_MAX_HEIGHT = "152px";
-// Dialog.Popup takes overrides as an inline style object, so these stay React.CSSProperties.
-// Every value is named here rather than written inline so the sheet geometry stays tracked.
-//
-// `.cursor-settings-layout-main{padding:0 0 0 48px}` plus the 48px right gutter: Cursor's settings
-// shell keeps a 48px minimum edge on both sides, which is what the sheet leaves to the viewport.
-const SETTINGS_DIALOG_VIEWPORT_GUTTER = "48px";
-// Honk's sheet cap. Cursor's own editor tab is fluid; the sheet keeps a reading-width bound.
-const SETTINGS_DIALOG_MAX_WIDTH = "920px";
-// Reference sheet height with the same 48px total viewport clearance as the width.
-const SETTINGS_DIALOG_HEIGHT = `min(744px, calc(100dvh - ${SETTINGS_DIALOG_VIEWPORT_GUTTER}))`;
 const SETTINGS_CLOSE_CLEARANCE = `calc(${spaceVars["--honk-space-panel-pad"]} + ${controlVars["--honk-control-h-md"]} + ${spaceVars["--honk-space-gutter"]})`;
 // `.cursor-settings-tab-content{gap:28px}` (`--cursor-spacing-7`): section-to-section rhythm.
 const SETTINGS_SECTION_GAP = "28px";
@@ -118,25 +109,6 @@ const SETTINGS_SECTION_GAP = "28px";
 const SETTINGS_CONTENT_MAX_WIDTH = "680px";
 // `.cursor-settings-sidebar-cells{gap:1px}`.
 const SETTINGS_NAV_ITEM_GAP = "1px";
-const VISUALLY_HIDDEN_TITLE_SIZE = "1px";
-const SETTINGS_DIALOG_STYLE: React.CSSProperties = {
-  width: `calc(100% - ${SETTINGS_DIALOG_VIEWPORT_GUTTER})`,
-  maxWidth: SETTINGS_DIALOG_MAX_WIDTH,
-  height: SETTINGS_DIALOG_HEIGHT,
-  maxHeight: SETTINGS_DIALOG_HEIGHT,
-  padding: 0,
-  gap: 0,
-  overflow: "hidden",
-};
-const SETTINGS_DIALOG_TITLE_STYLE: React.CSSProperties = {
-  position: "absolute",
-  width: VISUALLY_HIDDEN_TITLE_SIZE,
-  height: VISUALLY_HIDDEN_TITLE_SIZE,
-  overflow: "hidden",
-  clipPath: "inset(50%)",
-  whiteSpace: "nowrap",
-};
-
 const styles = stylex.create({
   root: {
     flexGrow: 1,
