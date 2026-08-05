@@ -657,6 +657,15 @@ interface reloads or reconnects
 Modes, prompts, tools, and resources configure the harness. They do not fork
 the loop.
 
+Run control preserves the user's words: `abort` returns the queued messages
+Pi cleared (`AbortResult`), so a composer can restore them to the editor —
+stopping never destroys typed text. The session is a tree; once tree
+navigation is exposed, authoritative reads follow the **active branch**
+(Pi's `getBranch()`), never the whole tree, and every linear walk — turn
+grammar, workspace trail, model record, per-turn change pairing — walks that
+path. Checkpoints are entry-id-keyed and branch-agnostic. The composer
+contract lives in spec/conversation.md section 7.
+
 ## 9. Reload and live events
 
 The Pi session is the durable truth. Events are temporary notifications that

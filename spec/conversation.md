@@ -116,7 +116,70 @@ One surface with two states. It never unmounts:
 - Under `prefers-reduced-motion`, swaps become instant and the shimmer
   becomes static muted text.
 
-## 7. What this deletes
+## 7. The composer contract
+
+How text leaves the composer, verbatim from Pi's own TUI (the reference
+implementation of chatting with this harness), translated to Honk surfaces.
+
+### Sending
+
+| User intent            | Verb       | Delivery                                        |
+| ---------------------- | ---------- | ----------------------------------------------- |
+| Send while idle        | `prompt`   | starts the turn                                 |
+| Send while running     | `steer`    | at the loop boundary — after the current batch of tool calls |
+| Queue for after the run | `followUp` | only after the agent finishes all work          |
+
+Queue delivery is a mode, `one-at-a-time` (default) or `all`, mirroring Pi's
+`steeringMode`/`followUpMode` settings.
+
+### The queue is harness truth, not client state
+
+Pi's `queue_update` event carries the full queue contents (steer, follow-up,
+next-turn). The composer renders queue rows from that event and keeps no
+shadow queue — a renderer reload cannot lose or duplicate queued messages,
+and the queued count in the preview window reads the same truth.
+
+### Editing a queued message is recall, not in-place edit
+
+Pi's rule, adopted whole: queued text is pulled **back into the composer** to
+change it — there is no in-queue editor. Two paths:
+
+- **Abort restores**: `abort()` returns the cleared steer and follow-up
+  messages (`AbortResult`), and the composer puts that text back in the
+  editor. Stopping never destroys something the user typed.
+- **Recall while running** (Pi TUI's Alt+Up): needs a harness dequeue API we
+  have not confirmed at the pinned revision — *unknown; verify against Pi
+  source before building*. Until then, recall rides the abort path.
+
+"Stop and send" is therefore a composition, not a verb: abort → text
+restored → prompt.
+
+### Editing a sent message opens a branch
+
+Pi's session is a tree, and both edit shapes are native:
+
+- **In-place branch** (TUI `/tree`): navigate to the point before the edited
+  message and prompt the new text — a sibling branch in the same session.
+  This is the chat surface's "edit sent message".
+- **Fork** (TUI `/fork`): a new session file from a prior user message with
+  the prompt modified. A session-list operation, not a transcript one.
+
+### The active-path rule (core invariant)
+
+The moment branching exists, every linear read must follow the **active
+branch**, not the whole tree: authoritative reloads read Pi's `getBranch()`,
+and the turn grammar, workspace trail, model record, and per-turn change
+pairing all walk that path. Checkpoints are keyed by entry id and are
+branch-agnostic by construction — a revert target stays valid across branch
+switches. Today's core reads `getEntries()` (the whole tree); that is
+correct only while no branching command is exposed, and switching to
+active-path reads is a prerequisite of `session.navigateTree`.
+
+Core commands this contract still owes: `session.abort` returning the
+cleared queue, queue-mode settings, `session.navigateTree`, and active-path
+reloads. `queue_update` already flows to clients through `session.events`.
+
+## 8. What this deletes
 
 Permission and question trays (core has no mid-run asks), the subagent tray
 (Pi has no child sessions), and composer modes (Pi's knobs are model and
