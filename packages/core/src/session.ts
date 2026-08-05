@@ -39,6 +39,7 @@
 
 import type {
   AgentHarnessErrorCode,
+  AgentMessage,
   AgentHarnessEvent,
   AgentHarnessOptions,
   Session as PiSession,
@@ -288,13 +289,33 @@ export const Prompt = Rpc.make("session.prompt", {
   error: LookupError,
 });
 
+// Same section 13 boundary as PiEntry/PiEvent below: Pi's TypeScript type
+// under an unknown codec, valid inside one installed artifact.
+const PiMessage = Schema.Unknown as unknown as Schema.Codec<AgentMessage>;
+
 /**
- * Ends the current run and clears pending queues.
+ * What {@link Abort} hands back: the queued messages Pi cleared.
+ *
+ * Stopping must never destroy something the user typed (spec/conversation.md
+ * section 7): the composer restores this text to the editor.
+ *
+ * @category schemas
+ */
+export const AbortOutput = Schema.Struct({
+  clearedSteer: Schema.Array(PiMessage),
+  clearedFollowUp: Schema.Array(PiMessage),
+}).annotate({ identifier: "SessionAbortOutput" });
+export type AbortOutput = typeof AbortOutput.Type;
+
+/**
+ * Ends the current run and returns the queued messages it cleared, so a
+ * composer can put the user's words back in the editor.
  *
  * @category commands
  */
 export const Abort = Rpc.make("session.abort", {
   payload: { sessionId: SessionId },
+  success: AbortOutput,
   error: LookupError,
 });
 
@@ -1124,11 +1145,15 @@ export const layer = (options: LayerOptions) =>
 
       const abort = Effect.fn("Session.abort")(function* (input: Rpc.Payload<typeof Abort>) {
         const found = yield* lookup(input.sessionId);
-        // The cleared-queue result stays internal; the settled event and the
-        // next reload are the client-visible outcome.
-        yield* runPi(() => found.harness.abort());
+        const cleared = yield* runPi(() => found.harness.abort());
         // An aborted run still wrote whatever it wrote before the abort.
         yield* settleSnapshot(input.sessionId, found);
+        // The cleared queue goes back to the caller: stopping never destroys
+        // text the user typed (spec/conversation.md section 7).
+        return {
+          clearedSteer: toWire(cleared.clearedSteer),
+          clearedFollowUp: toWire(cleared.clearedFollowUp),
+        } satisfies AbortOutput;
       });
 
       const steer = Effect.fn("Session.steer")(function* (input: Rpc.Payload<typeof Steer>) {

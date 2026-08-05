@@ -81,7 +81,23 @@ describe("workspace-bound sessions and run control", () => {
           .pipe(Effect.forkScoped);
         yield* Deferred.await(sawStart);
 
-        yield* session.abort({ sessionId: id });
+        // Text queued behind the run must come back when the run is stopped:
+        // stopping never destroys something the user typed (conversation §7).
+        yield* session.followUp({ sessionId: id, text: "and after that, lint" });
+        const cleared = yield* session.abort({ sessionId: id });
+        const restored = cleared.clearedFollowUp
+          .map((message) => (message as { readonly content?: unknown }).content)
+          .map((content) =>
+            typeof content === "string"
+              ? content
+              : Array.isArray(content)
+                ? content
+                    .map((part) => (part as { readonly text?: string }).text ?? "")
+                    .join("")
+                : "",
+          );
+        expect(restored).toEqual(["and after that, lint"]);
+
         yield* Fiber.join(run);
         yield* Deferred.await(sawSettled);
 
