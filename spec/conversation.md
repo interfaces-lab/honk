@@ -158,9 +158,11 @@ change it — there is no in-queue editor. Two paths:
 - **Abort restores**: `abort()` returns the cleared steer and follow-up
   messages (`AbortResult`), and the composer puts that text back in the
   editor. Stopping never destroys something the user typed.
-- **Recall while running** (Pi TUI's Alt+Up): needs a harness dequeue API we
-  have not confirmed at the pinned revision — *unknown; verify against Pi
-  source before building*. Until then, recall rides the abort path.
+- **Recall while running** (Pi TUI's Alt+Up, "Restore queued messages to
+  editor"): shipped TUI behavior at the pinned revision. The harness API it
+  uses is not visible in the 0.83 public typings — *verify in Pi's TUI
+  source when building recall in core*. Until then, recall rides the abort
+  path.
 
 "Stop and send" is therefore a composition, not a verb: abort → text
 restored → prompt.
