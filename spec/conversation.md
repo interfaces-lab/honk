@@ -129,8 +129,19 @@ implementation of chatting with this harness), translated to Honk surfaces.
 | Send while running     | `steer`    | at the loop boundary — after the current batch of tool calls |
 | Queue for after the run | `followUp` | only after the agent finishes all work          |
 
-Queue delivery is a mode, `one-at-a-time` (default) or `all`, mirroring Pi's
-`steeringMode`/`followUpMode` settings.
+While a run is active both verbs stay reachable; a composer setting picks
+which one plain Enter means:
+
+- `sendWhileRunning: "queue"` (default) — Enter queues a follow-up, ⌘⏎
+  steers now. Matches the composer's shipped hint ("⏎ queues · ⌘⏎ sends
+  now").
+- `sendWhileRunning: "steer"` — Enter steers (Pi TUI's default), ⌘⏎ queues.
+
+Shift+Enter stays newline in both modes. Streaming does not change the
+bindings — the verbs mean the same thing at every moment of a run.
+
+Separately from the verb choice, queue **delivery pacing** is Pi's own mode,
+`one-at-a-time` (default) or `all`, mirroring `steeringMode`/`followUpMode`.
 
 ### The queue is harness truth, not client state
 
