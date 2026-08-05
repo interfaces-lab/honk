@@ -26,9 +26,12 @@ import {
   type ConnectionStatus,
   type PendingConnectionPairing,
 } from "./connection-store";
-import { shouldUseDesktopGlass } from "./desktop-bridge";
+import {
+  isDesktopShell,
+  reportDesktopAuthenticatedPaint,
+  shouldUseDesktopGlass,
+} from "./desktop-bridge";
 import { ONBOARDING_PATH } from "./onboarding";
-import { V2_PATH } from "./v2";
 import { AppShell } from "./shell";
 
 // Wordmark is larger than the prose ramp's 16px cap, so its size stays a named intrinsic.
@@ -213,9 +216,16 @@ function GateFrame(props: { readonly children: React.ReactNode }): React.ReactEl
 }
 
 function ConnectingSplash(): React.ReactElement {
-  if (shouldUseDesktopGlass()) {
-    // Keep desktop renderer boot transparent so reload shows only the native glass window.
-    return <></>;
+  const theme = useAppearanceTheme();
+  if (isDesktopShell()) {
+    return (
+      <Shell material={shouldUseDesktopGlass() ? "glass" : "solid"} style={schemeStyles[theme]}>
+        <Shell.TitleBar />
+        <Shell.Stage>
+          <Shell.Sheet />
+        </Shell.Stage>
+      </Shell>
+    );
   }
 
   return (
@@ -379,15 +389,24 @@ function GateByStatus(props: { readonly connection: ConnectionSnapshot }): React
 export function RootGate(): React.ReactElement {
   const connection = useConnection();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  React.useEffect(() => {
+    if (connection.status === "authenticated") {
+      reportDesktopAuthenticatedPaint();
+    }
+  }, [connection.status]);
   // Onboarding owns the whole window and asks nothing of the backend, so it
   // renders straight through the connection gate rather than making first run
   // wait behind a connecting splash.
   if (pathname === ONBOARDING_PATH) {
     return <Outlet />;
   }
-  // The v2 harness talks only to the desktop main process, so it renders
-  // without waiting for the backend connection.
-  if (pathname === V2_PATH) {
+  // The core chat talks only to Honk Core in the desktop main process, so it
+  // renders without waiting for the opencode backend connection.
+  if (pathname === "/v2" || pathname.startsWith("/v2/")) {
+    return <Outlet />;
+  }
+  // Demo pages are self-contained component showcases with no backend dependency.
+  if (pathname.startsWith("/demo/")) {
     return <Outlet />;
   }
   if (connection.status === "authenticated") {

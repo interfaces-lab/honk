@@ -46,8 +46,15 @@ type DesktopBridgeSurface = {
   readonly getWindowChromeState: () => DesktopWindowChromeState;
   readonly onWindowChromeState: (listener: (state: DesktopWindowChromeState) => void) => () => void;
   readonly getOpencodeSidecar: () => Promise<DesktopOpencodeSidecarEndpoint>;
-  // Optional. Absent on web and older preloads. Loopback Honk Core RPC endpoint
-  // for the /debug/core page.
+  readonly reportStartupMilestone?: (
+    milestone: "renderer-sidecar-ready" | "renderer-authenticated",
+  ) => Promise<void>;
+  // Optional. Absent on web and older preloads. Loopback Honk Core RPC
+  // endpoint for the /chat surface.
+  // TODO(core-migration two-core): optional only because opencode and Honk Core
+  // coexist — a host that ships `getOpencodeSidecar` without a core is still a
+  // valid bridge today, so every caller carries a null branch. When Honk Core
+  // is the only backend this becomes required and the null branches go with it.
   readonly getHonkCoreEndpoint?: () => Promise<{ readonly baseUrl: string }>;
   readonly protectRemoteCredential?: (credential: string) => Promise<string>;
   readonly revealRemoteCredential?: (protectedCredential: string) => Promise<string>;
@@ -133,6 +140,12 @@ function readDesktopBridge(): DesktopBridgeSurface | null {
   return bridge;
 }
 
+function reportDesktopStartupMilestone(
+  milestone: "renderer-sidecar-ready" | "renderer-authenticated",
+): Promise<void> | null {
+  return readDesktopBridge()?.reportStartupMilestone?.(milestone) ?? null;
+}
+
 export type DesktopBrowserBridge = Pick<
   DesktopBridgeSurface,
   | "syncBrowserView"
@@ -171,6 +184,14 @@ export function readShellWindowID(): string {
 
 export function shouldUseDesktopGlass(): boolean {
   return readDesktopBridge() !== null && /^Mac/.test(navigator.platform);
+}
+
+export function isDesktopShell(): boolean {
+  return readDesktopBridge() !== null;
+}
+
+export function reportDesktopAuthenticatedPaint(): void {
+  void reportDesktopStartupMilestone("renderer-authenticated");
 }
 
 export function canSetDesktopKeepAwake(): boolean {
@@ -265,6 +286,8 @@ async function waitForSidecarEndpoint(bridge: DesktopBridgeSurface): Promise<voi
     }
     if (snapshot.status === "ready" && snapshot.url !== null && snapshot.url.length > 0) {
       sidecarEndpoint = { url: snapshot.url, password: snapshot.password };
+      const report = reportDesktopStartupMilestone("renderer-sidecar-ready");
+      if (report !== null) await report;
       return;
     }
     if (snapshot.status === "error" || snapshot.status === "stopped") {
