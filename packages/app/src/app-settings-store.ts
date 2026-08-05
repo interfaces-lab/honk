@@ -2,11 +2,11 @@
 // Compact density stays default so OpenCode assistant-message seams stay transport detail.
 
 import {
+  ConversationDensity,
   DEFAULT_CONVERSATION_DENSITY,
-  USER_CONVERSATION_DENSITY_VALUES,
-  type ConversationDensity,
 } from "@honk/shared/conversation-density";
 import { DEFAULT_CURSOR_POINTER_ON_BUTTONS } from "@honk/shared/client-settings";
+import { Schema } from "effect";
 import { setEnabled } from "cuelume";
 import { useSyncExternalStore } from "react";
 
@@ -297,9 +297,7 @@ function hydrate(): AppSettings {
       defaultProjectDirectory: directory,
       defaultThreadEnvironment:
         parsed.defaultThreadEnvironment === "worktree" ? "worktree" : "local",
-      conversationDensity: isConversationDensity(parsed.conversationDensity)
-        ? parsed.conversationDensity
-        : DEFAULT_CONVERSATION_DENSITY,
+      conversationDensity: decodeConversationDensity(parsed.conversationDensity),
       alertSoundsEnabled:
         typeof parsed.alertSoundsEnabled === "boolean"
           ? parsed.alertSoundsEnabled
@@ -336,8 +334,16 @@ function hydrate(): AppSettings {
   }
 }
 
-function isConversationDensity(value: unknown): value is ConversationDensity {
-  return USER_CONVERSATION_DENSITY_VALUES.some((density) => density === value);
+// The shared schema owns the value set AND the legacy migration ("verbose" →
+// "detailed", "minimal" → "compact-all-grouped", …), so an old stored value
+// converges instead of silently resetting to the default.
+const decodeStoredConversationDensity = Schema.decodeUnknownSync(ConversationDensity);
+function decodeConversationDensity(value: unknown): ConversationDensity {
+  try {
+    return decodeStoredConversationDensity(value);
+  } catch {
+    return DEFAULT_CONVERSATION_DENSITY;
+  }
 }
 
 function decodeStringList(value: unknown): readonly string[] {
