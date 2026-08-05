@@ -1,0 +1,159 @@
+// The construction contract from spec/core.md section 6: createHonkCore
+// resolves ready or rejects, core.client() is synchronous, and one core can
+// hand out several independent clients.
+
+import { createModels } from "@earendil-works/pi-ai";
+import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
+import { describe, expect, it } from "vitest";
+
+import type { HonkClient } from "../../src/honk-core";
+import { createHonkCore } from "../../src/honk-core";
+import { Files } from "../../src/files";
+import { Session } from "../../src/session";
+import { createExecutionEnv, messageEntries, textOf } from "../../src/testing";
+import { Workspace } from "../../src/workspace";
+
+const startCore = async () => {
+  const { mkdtemp } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const faux = fauxProvider();
+  const collection = createModels();
+  collection.setProvider(faux.provider);
+  const core = await createHonkCore({
+    // Fresh per core: the data directory is stateful now, and a shared fixed
+    // path would leak sessions and lease conflicts between runs.
+    dataDirectory: await mkdtemp(join(tmpdir(), "honk-core-data-")),
+    createModels: () => collection,
+    createExecutionEnv,
+  });
+  return { core, faux };
+};
+
+// Trust is a first-class step, never an implicit retry: the first open refuses,
+// consent is recorded, the second open is ready. Trust canonicalizes through
+// the real filesystem, so the directory must exist.
+const openTrusted = async (sdk: HonkClient, directory: string) => {
+  const { mkdir } = await import("node:fs/promises");
+  await mkdir(directory, { recursive: true });
+  const refused = await sdk.workspace.open({ directory });
+  expect(refused.type).toBe("trust_required");
+  await sdk.workspace.trust({ directory });
+  const opened = await sdk.workspace.open({ directory });
+  if (opened.type !== "ready") throw new Error("expected a ready workspace after trust");
+  return opened;
+};
+
+describe("createHonkCore", () => {
+  it("drives a session end to end through the public sdk", async () => {
+    const { core, faux } = await startCore();
+    const sdk = core.client();
+
+    const workspace = await openTrusted(sdk, "/tmp/honk-core-test/repo");
+    const session = await sdk.session.create({ workspaceId: workspace.id });
+
+    faux.setResponses([() => Promise.resolve(fauxAssistantMessage("Hello from Pi."))]);
+    await sdk.session.prompt({ sessionId: session.id, text: "Say hello" });
+
+    const state = await sdk.session.reload({ sessionId: session.id });
+    expect(state.status).toBe("idle");
+    expect(messageEntries(state.entries).map(textOf)).toEqual(["Say hello", "Hello from Pi."]);
+
+    await core.close();
+  });
+
+  it("hands out independent clients from one core", async () => {
+    const { core } = await startCore();
+    const first = core.client();
+    const second = core.client();
+
+    const workspace = await openTrusted(first, "/tmp/honk-core-test/shared");
+
+    // Trust is core state, not client state: the second client sees it without
+    // repeating the flow.
+    const opened = await second.workspace.open({ directory: "/tmp/honk-core-test/shared" });
+    expect(opened).toMatchObject({ type: "ready", id: workspace.id });
+
+    // Closing one interface leaves the core and its other interfaces running.
+    await first.close();
+    const session = await second.session.create({ workspaceId: workspace.id });
+    expect(session.workspaceId).toBe(workspace.id);
+
+    await core.close();
+  });
+
+  it("rejects with the owning error class, not a wrapper", async () => {
+    const { core } = await startCore();
+    const sdk = core.client();
+
+    await expect(
+      sdk.session.reload({ sessionId: Session.SessionId.make("nope") }),
+    ).rejects.toBeInstanceOf(Session.NotFoundError);
+
+    // A relative directory has no canonical form the core may resolve.
+    await expect(sdk.workspace.open({ directory: "relative/path" })).rejects.toBeInstanceOf(
+      Workspace.OpenError,
+    );
+
+    await core.close();
+  });
+
+  it("streams events as an async iterable that detaches on break", async () => {
+    const { core, faux } = await startCore();
+    const sdk = core.client();
+
+    const workspace = await openTrusted(sdk, "/tmp/honk-core-test/events");
+    const session = await sdk.session.create({ workspaceId: workspace.id });
+
+    const seen: string[] = [];
+    const watching = (async () => {
+      for await (const frame of sdk.session.events({ sessionId: session.id })) {
+        seen.push(frame.type === "live" ? "live" : frame.event.type);
+        if (frame.type === "event" && frame.event.type === "settled") break;
+      }
+    })();
+
+    // The head frame proves the subscription is live before the prompt runs, so
+    // prompting cannot outrun the stream.
+    faux.setResponses([() => Promise.resolve(fauxAssistantMessage("Streamed."))]);
+    await sdk.session.prompt({ sessionId: session.id, text: "Stream something" });
+    await watching;
+
+    expect(seen[0]).toBe("live");
+    expect(seen).toContain("agent_start");
+    expect(seen.at(-1)).toBe("settled");
+
+    await core.close();
+  });
+});
+
+describe("sdk.files through the public client", () => {
+  it("reads and writes inside a trusted workspace and refuses an escape", async () => {
+    const { mkdtemp } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+
+    const directory = await mkdtemp(join(tmpdir(), "honk-sdk-files-"));
+    const { core } = await startCore();
+    const sdk = core.client();
+    const workspace = await openTrusted(sdk, directory);
+
+    await sdk.files.write({
+      workspaceId: workspace.id,
+      path: "notes/todo.md",
+      content: "# Todo\n",
+    });
+    const read = await sdk.files.read({ workspaceId: workspace.id, path: "notes/todo.md" });
+    expect(read).toMatchObject({ type: "text", text: "# Todo\n" });
+
+    const listed = await sdk.files.list({ workspaceId: workspace.id, path: "notes" });
+    expect(listed.map((entry) => entry.path)).toContain("notes/todo.md");
+
+    // The workspace directory is the boundary, through the public client too.
+    await expect(
+      sdk.files.read({ workspaceId: workspace.id, path: "../escape.txt" }),
+    ).rejects.toBeInstanceOf(Files.EscapeError);
+
+    await core.close();
+  });
+});

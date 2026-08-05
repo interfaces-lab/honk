@@ -1,0 +1,1 @@
+/Users/workgyver/Developer/honk/packages/core/AGENTS.md
