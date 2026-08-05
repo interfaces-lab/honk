@@ -138,7 +138,11 @@ export function ThreadSurface({
   const { server, sessionID: threadId } = sessionRef;
   const client = getOpenCodeClient(server);
   const ref = openCodeSessionRef(server, threadId);
-  const runtime: ThreadRuntime = { ref, client, tabKey: openCodeSessionKey(ref) };
+  const runtime: ThreadRuntime = {
+    ref,
+    client,
+    tabKey: openCodeSessionKey(ref),
+  };
   const ownsQueue = ownsThreadComposerQueue(state.summary.parentSessionId);
   const composerElementRef = React.useRef<HTMLFormElement | null>(null);
   const surfaceElementRef = React.useRef<HTMLDivElement | null>(null);
@@ -219,6 +223,7 @@ export function ThreadSurface({
         );
       });
     });
+    // react-doctor-disable-next-line react-doctor/effect-needs-cleanup -- React 19 runs the callback-ref teardown below, which disconnects this observer.
     observer.observe(element);
 
     return () => {
@@ -320,6 +325,7 @@ export function ThreadSurface({
             <ThreadStream
               threadId={threadId}
               state={state}
+              restorationKey={runtime.tabKey}
               bottomClearancePx={composerObstructionHeight}
               editDraft={editDraft}
               editComposer={inlineEditComposer}
@@ -328,7 +334,7 @@ export function ThreadSurface({
               openTaskPartID={selectedTaskLink?.partID ?? null}
               taskLinkByPartID={taskLinkByPartID}
               hasActiveSubagent={hasActiveSubagent}
-              onOpenTask={(part) => {
+              onOpenTask={(part: ToolPart) => {
                 if (part.id === selectedTaskLink?.partID) {
                   minimizeTaskPreview();
                 } else {
@@ -348,7 +354,7 @@ export function ThreadSurface({
             ownsQueue={ownsQueue}
             allowQueueBatchStart={ownsQueue && !hasActiveSubagent && !hasPendingShell}
             {...(focusOnTypeScope === undefined ? {} : { focusOnTypeScope })}
-            renderTrays={(hasQueue) =>
+            renderTrays={(hasQueue: boolean) =>
               selectedTaskLink === null && editDraft === null ? (
                 <ThreadTray
                   threadId={threadId}

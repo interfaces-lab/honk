@@ -397,13 +397,12 @@ export function ThreadComposer({
 
   const stopRun = (): void => {
     const client = runtime.client;
-    if (client === null || isStopping) {
-      return;
-    }
+    if (isStopping || client === null) return;
+    const request = interruptSession(client, threadId);
     setStopping(true);
     // A user stop must not fire the next queued message at the agent.
     suppressDrainRef.current = true;
-    void interruptSession(client, threadId)
+    void request
       .catch((error: unknown) => {
         const message = errorMessage(error);
         toastActions.add({
@@ -423,8 +422,12 @@ export function ThreadComposer({
   const dispatchingRef = React.useRef(false);
   const suppressDrainRef = React.useRef(false);
   const prevQueueCanDrainRef = React.useRef(queueCanDrain);
+  const queueCanDrainRef = React.useRef(queueCanDrain);
   const editingQueueIdRef = React.useRef(editingQueueId);
-  editingQueueIdRef.current = editingQueueId;
+  React.useEffect(() => {
+    queueCanDrainRef.current = queueCanDrain;
+    editingQueueIdRef.current = editingQueueId;
+  }, [editingQueueId, queueCanDrain]);
 
   const dispatchPrompt = (item: QueueItem, restoreToQueue: boolean): void => {
     const client = runtime.client;
@@ -433,11 +436,12 @@ export function ThreadComposer({
       return;
     }
     dispatchingRef.current = true;
-    void sendSessionPrompt(client, threadId, {
+    const request = sendSessionPrompt(client, threadId, {
       text: item.text,
       agent: item.agent ?? threadAgentName(mode, sessionAgent),
       ...(item.files.length > 0 ? { files: promptFilesFromPaths(item.files) } : {}),
-    })
+    });
+    void request
       .catch((error: unknown) => {
         // A queued message stays visible in the tray instead of vanishing with the failure.
         if (restoreToQueue) unshiftThreadMessage(queueKey, item);
@@ -551,7 +555,7 @@ export function ThreadComposer({
   };
 
   const tryDrainQueue = (): void => {
-    if (!queueCanDrain || dispatchingRef.current) return;
+    if (!queueCanDrainRef.current || dispatchingRef.current) return;
     const head = readThreadQueue(queueKey)[0];
     if (head === undefined || head.id === editingQueueIdRef.current) return;
     shiftThreadMessage(queueKey);
@@ -661,7 +665,7 @@ export function ThreadComposer({
           text: input.text,
           files: input.files,
           editorState: input.editorState,
-          agent: input.agent,
+          ...(input.agent === undefined ? {} : { agent: input.agent }),
         },
         ownsQueue,
       );
@@ -735,7 +739,7 @@ export function ThreadComposer({
             client={runtime.client}
             modes={MODES}
             currentMode={mode}
-            onModeSelect={(id) => {
+            onModeSelect={(id: (typeof MODES)[number]["id"]) => {
               modeActions.setThreadMode(runtime.tabKey, id);
             }}
             localCommands={APP_HOST_CAPABILITIES.directoryAttach ? THREAD_COMMANDS : []}
