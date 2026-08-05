@@ -1,12 +1,14 @@
 import { createRootRoute, createRoute, createRouter, redirect } from "@tanstack/react-router";
 
 import { RootErrorView, RootGate, RootNotFoundView } from "./boot";
+import { ChatStartPage } from "./chat/start-page";
+import { ChatThreadPage } from "./chat/thread-page";
 import { HomePage } from "./home";
+import { ModelMenuDemoPage } from "./model-menu-demo";
 import { NewSessionPage } from "./new-session";
 import { ONBOARDING_PATH, OnboardingPage } from "./onboarding";
 import { SessionWorkbenchLayout } from "./session-workbench-layout";
 import { ThreadPage } from "./thread/page";
-import { V2_PATH, V2Page } from "./v2";
 
 const rootRoute = createRootRoute({
   component: RootGate,
@@ -32,11 +34,17 @@ const onboardingRoute = createRoute({
   component: OnboardingPage,
 });
 
-// Manual harness for the Honk Core RPC host in the desktop main process.
-const v2Route = createRoute({
+// The Honk Core surface: the chat the opencode thread routes migrate to.
+const chatStartRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: V2_PATH,
-  component: V2Page,
+  path: "/v2",
+  component: ChatStartPage,
+});
+
+const chatThreadRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/v2/$sessionId",
+  component: ChatThreadPage,
 });
 
 const sessionRoute = createRoute({
@@ -83,6 +91,14 @@ const changesRoute = createRoute({
   },
 });
 
+// Dev demo: the single-menu model selector with the safe-triangle hover overlay.
+// Static state only; RootGate lets /demo/ paths render without a backend connection.
+const modelMenuDemoRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/demo/model-menu",
+  component: ModelMenuDemoPage,
+});
+
 const newSessionRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/new-session",
@@ -95,7 +111,9 @@ const newSessionRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   onboardingRoute,
-  v2Route,
+  chatStartRoute,
+  chatThreadRoute,
+  modelMenuDemoRoute,
   newSessionRoute,
   sessionRoute.addChildren([
     threadRoute.addChildren([workbenchRoute, sideChatRoute, browserRoute, changesRoute]),
