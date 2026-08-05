@@ -39,8 +39,9 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { createInterface } from "node:readline/promises";
 
-import { createHonkClient, createHonkCore } from "../src/honk-core";
+import { createHonkClient, createHonkCore, Models } from "../src/honk-core";
 import { createNodeExecutionEnv } from "../src/node";
 
 const defaultDataDirectory = "/tmp/honk-core-desktop";
@@ -156,6 +157,7 @@ const commands: Record<string, Command> = {
         providers: readonly {
           id: string;
           configured: boolean;
+          methods: readonly string[];
           authType?: string;
           source?: string;
           models: readonly unknown[];
@@ -164,6 +166,7 @@ const commands: Record<string, Command> = {
       return providers.map((provider) => ({
         id: provider.id,
         configured: provider.configured,
+        ...(provider.methods.length > 0 ? { login: provider.methods.join("|") } : {}),
         ...(provider.authType !== undefined ? { auth: provider.authType } : {}),
         ...(provider.source !== undefined ? { source: provider.source } : {}),
         models: provider.models.length,
@@ -172,7 +175,7 @@ const commands: Record<string, Command> = {
   },
   login: {
     tag: "models.set_credential",
-    usage: "login <providerId> <key>",
+    usage: "login <providerId> [key]   (no key runs the provider's own flow, e.g. OAuth)",
     payload: ([providerId, key]) => (providerId && key ? { providerId, key } : undefined),
   },
   logout: {
@@ -205,6 +208,63 @@ const usage = () => {
   process.exit(1);
 };
 
+/**
+ * Interactive provider login, driven by Pi's own flows in this terminal.
+ *
+ * OAuth is interactive and provider-owned, so it enters through a host
+ * surface — this one — not a wire command (spec/core.md section 11). The flow
+ * writes the shared auth.json in the data directory; a running desktop host
+ * reads that store per request, so the new credential applies immediately
+ * without restarting anything.
+ */
+const interactiveLogin = async (dataDirectory: string, providerId: string): Promise<void> => {
+  const { builtinModels } = await import("@earendil-works/pi-ai/providers/all");
+  const { registerBunOAuthFlows } = await import("@earendil-works/pi-ai/bun-oauth");
+  registerBunOAuthFlows();
+
+  const credentials = Models.credentialStore(createNodeExecutionEnv(dataDirectory));
+  const collection = builtinModels({ credentials });
+  const provider = collection.getProvider(providerId);
+  if (provider === undefined) {
+    console.error(`Unknown provider: ${providerId}`);
+    process.exit(1);
+  }
+  const type = provider.auth.oauth !== undefined ? "oauth" : "api_key";
+  if (type === "api_key" && provider.auth.apiKey?.login === undefined) {
+    console.error(
+      `${providerId} uses ambient credentials (env vars, config files); there is nothing to log in to.`,
+    );
+    process.exit(1);
+  }
+
+  const terminal = createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    await collection.login(providerId, type, {
+      prompt: async (prompt) => {
+        if (prompt.type === "select") {
+          for (const option of prompt.options) {
+            console.error(`  ${option.id}  ${option.label}`);
+          }
+          return terminal.question(`${prompt.message}: `);
+        }
+        return terminal.question(`${prompt.message}: `);
+      },
+      notify: (event) => {
+        if (event.type === "info") console.error(event.message);
+        else if (event.type === "auth_url") {
+          console.error(`Open this URL to continue:\n  ${event.url}`);
+          if (event.instructions !== undefined) console.error(event.instructions);
+        } else if (event.type === "device_code") {
+          console.error(`Visit ${event.verificationUri} and enter code: ${event.userCode}`);
+        }
+      },
+    });
+  } finally {
+    terminal.close();
+  }
+  console.log(`ok: ${providerId} logged in (${type})`);
+};
+
 /** Both modes speak the public client object, addressed by command tags. */
 const sdkCall =
   (sdk: Record<string, unknown>): Call =>
@@ -231,6 +291,13 @@ const main = async () => {
   const url = takeFlag("--url");
   const dataDirectory = takeFlag("--data") ?? defaultDataDirectory;
   const [name, ...rest] = args;
+
+  // Interactive login runs Pi's own flow locally against the shared
+  // credential store — no host, no wire command.
+  if (name === "login" && rest.length === 1 && rest[0] !== undefined) {
+    return interactiveLogin(dataDirectory, rest[0]);
+  }
+
   const command = name ? commands[name] : undefined;
   if (!command) return usage();
   const payload = command.payload(rest);

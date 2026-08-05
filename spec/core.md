@@ -206,7 +206,7 @@ if (workspace.type !== "ready") return;
 
 const session = await sdk.session.create({
   workspaceId: workspace.id,
-  model: { provider: "anthropic", id: "claude-sonnet-4-6" },
+  model: { providerId: "anthropic", modelId: "claude-sonnet-4-6" },
 });
 
 await sdk.mcp.connect({ workspaceId: workspace.id, server: "github" });
@@ -229,32 +229,18 @@ revision. This is the production shape, with names shortened only where Honk
 still needs to implement the surrounding store and extension loading:
 
 ```ts
-import {
-  AgentHarness,
-  createJsonlSessionStore,
-  createScanningSessionSearch,
-  createSessionRepository,
-} from "@earendil-works/pi-agent-core";
+import { AgentHarness, JsonlSessionRepo } from "@earendil-works/pi-agent-core";
 import { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 
-const storageEnv = new NodeExecutionEnv({ cwd: dataDirectory });
-const sessionStore = createJsonlSessionStore({
-  fs: storageEnv,
-  sessionsRoot,
-});
-const sessionRepository = createSessionRepository({
-  store: sessionStore,
-  search: createScanningSessionSearch(sessionStore),
-});
+const storage = new NodeExecutionEnv({ cwd: dataDirectory });
+const repo = new JsonlSessionRepo({ fs: storage, sessionsRoot: "sessions" });
 
 const models = builtinModels({ credentials });
 const model = models.getModel(providerId, modelId);
 if (!model) throw new Error(`Unknown Pi model: ${providerId}/${modelId}`);
 
-const session = await sessionRepository.create({
-  cwd: workspaceDirectory,
-});
+const session = await repo.create({ cwd: workspaceDirectory });
 const workspaceEnv = new NodeExecutionEnv({ cwd: workspaceDirectory });
 
 const harness = new AgentHarness({
@@ -262,17 +248,21 @@ const harness = new AgentHarness({
   models,
   model,
   tools: builtInAndExtensionTools,
-  toolContext: { env: workspaceEnv },
+  toolContext: () => ({ env: workspaceEnv }),
   resources,
   systemPrompt,
 });
 ```
 
-The core owns `sessionStore` for its entire lifetime. It shuts down and waits
-for every harness before calling the store's async disposer. A test may use
-`await using store = createInMemorySessionStore()`, but production sessions use
-the JSONL store above until the SQLite store described by Pi is ready for this
-path.
+The core owns the repository for its entire lifetime and restores sessions
+lazily: the first command naming a stored session reopens it, gated by the
+same trust store that gated its creation. Alongside the `sessions/` tree the
+data directory holds `workspaces.json` — trust decisions with their stable
+ids — `auth.json` — the Pi `CredentialStore`, one credential per provider —
+and the writer lease, a heartbeat file whose freshness is the liveness
+signal: a clean shutdown removes it, a crash lets it expire. Tests may use
+Pi's in-memory repository; production stays on JSONL until the SQLite store
+described by Pi is ready for this path.
 
 `builtinModels({ credentials })` registers Pi's provider collection without a
 Honk allowlist. Honk may add providers with `models.setProvider()`. The harness
@@ -298,7 +288,7 @@ const sdk = await createHonkClient({ transport });
 
 const session = await sdk.session.create({
   workspaceId,
-  model: { provider: "anthropic", id: "claude-sonnet-4-6" },
+  model: { providerId: "anthropic", modelId: "claude-sonnet-4-6" },
 });
 
 await sdk.session.prompt({
@@ -544,8 +534,7 @@ schemas for `SessionSnapshot` (authoritative read with phase, revision, and
 transcript), `TranscriptItem`, and `TranscriptProgress` deltas, produced by
 Pi-owned projections in `pi-server` (`toProtocolUserMessage`,
 `toProtocolAssistantMessage`, `toProtocolToolResultMessage`). Snapshots remain
-authoritative and deltas are advisory, which is the same read model as section
-9. Neither package is published to npm at 0.83.0; `pi-agent-core` and `pi-ai`
+authoritative and deltas are advisory, which is the same read model as section 9. Neither package is published to npm at 0.83.0; `pi-agent-core` and `pi-ai`
 are.
 
 When Honk serves a genuinely remote or version-skewed client, it adopts those
@@ -582,6 +571,43 @@ await harness.setTools(allTools, activeToolNames);
 Passing `activeToolNames` matters. Pi retains the previous active names when it
 is omitted. A removed MCP tool could otherwise fail validation, and a new tool
 would remain inactive.
+
+### A turn captures a checkpoint; tools gate attribution
+
+Every settled turn captures a whole-workspace checkpoint: a hidden parentless
+commit under `refs/honk/checkpoints/<sessionId>/<entryId>`, written through a
+scratch index so the user's index, `HEAD`, branches, and log never move. The
+git object store is the only storage, and the ref name is the entire
+bookkeeping — no second transcript, no Honk database. OpenCode's message
+snapshots, t3 code's checkpoints, and Cursor's checkpoints all converge on
+this mechanism.
+
+The diff between consecutive checkpoints is the truth about _content_: it sees
+what a shell redirect wrote, what a build step generated, and what an MCP
+server changed — everything an argument-reading fold structurally cannot.
+What a snapshot cannot say is _whose_ write it was, so the turn's own tool
+calls gate the diff:
+
+- A tool that cannot write (`read`) never affects attribution.
+- A tool that writes exactly the paths its arguments name (`write`, `edit`)
+  declares them, and a turn that used only declaring tools claims only the
+  paths it named. This is what keeps a sibling session's edits — two sessions
+  can share one directory — and the user's own hand edits out of a turn's
+  receipt.
+- A tool whose writes are not derivable from its arguments (`bash`, an MCP or
+  extension tool) is opaque, and an opaque turn claims the whole diff. The
+  gate errs open: over-claiming a path is a visible, correctable mistake,
+  while dropping one is an invisible lie.
+
+Three consequences we accept:
+
+- The receipt is advisory for the transcript, never authoritative for the
+  working tree. `sdk.git` owns what is actually on disk.
+- A workspace without a git repository has no checkpoints, so `changes`
+  honestly reports nothing rather than guessing from arguments.
+- Attribution is by time window. A hand edit made during an opaque turn lands
+  in that turn's receipt; worktree isolation, when it arrives, is the real
+  fix, and every shipped checkpoint product accepts the same limit today.
 
 An extension owns schemas for values it introduces. If it exposes a Pi value,
 it imports Pi's schema once that schema exists. Until then, that value cannot
@@ -816,12 +842,13 @@ Build these in order:
 1. One harness, one fake model, one prompt, and one session reload.
 2. Disconnect and reconnect three clients while the prompt is running.
 3. Deliver a live event during reload and prove the handoff does not lose it.
-4. Drive one session end to end from the desktop renderer through the RPC
-   host: create, prompt, live events, and a reloaded transcript on screen.
+4. Drive one workspace-bound session end to end from the desktop renderer
+   through the RPC host: trust, create, prompt, queue, steer, abort, live
+   events, and a reloaded transcript on screen.
    Core exists to be consumed; this experiment proves the consumption path
    before extensions widen the surface.
-5. Refuse an untrusted workspace, then trust it and install an extension that
-   adds a tool and an `sdk.*` namespace.
+5. Install an extension in a trusted workspace that adds a tool and an `sdk.*`
+   namespace.
 6. Restore after a host restart, then add files, Git, and one MCP server.
 
 Use Pi's faux provider for deterministic loop tests. Each experiment should end
