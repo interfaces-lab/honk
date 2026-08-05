@@ -1,0 +1,124 @@
+# The conversation surface
+
+How a Honk thread renders an agent turn: what the user sees while the agent
+works, what it collapses to when the agent finishes, and who controls how much
+detail is on screen.
+
+Reference: Cursor 3.15.1 (`workbench.glass.main.js`, sha256 `020a4bce8862b87b…`),
+investigated per `docs/cursor-parity-handbook.md`. Behavioral rules below are
+translated, not transplanted. Pi's TUI is the reference for narration.
+
+## 1. The turn grammar
+
+A Pi assistant turn is an ordered stream of content blocks: text, tool calls,
+text, tool calls. Tool results arrive separately, keyed by call id. That order
+is the whole segmentation model — nothing new is stored:
+
+```
+turn    := planning? segment* summary?
+segment := headline (one assistant text block)
+           followed by a run of tool calls and their results
+```
+
+- **Planning** is the gap between the user's message and the first block. The
+  surface shows a "Planning next move" shimmer.
+- **A headline** is any assistant text block emitted between tool work. The
+  model narrates naturally; Honk does not prompt for it. A segment without a
+  preceding text block gets no headline and still renders.
+- **The summary** is the turn's final text block. It stays visible after the
+  turn collapses.
+
+## 2. Disclosure layers
+
+Every turn renders at one of four layers. Same data, different depth:
+
+| Layer | Shows                                                        |
+| ----- | ------------------------------------------------------------ |
+| L0    | "Worked for 5m 16s" + the ending summary                     |
+| L1    | Segment headlines + the rolling preview window               |
+| L2    | Full transcript: every headline, every tool row              |
+| L3    | One tool row opened: arguments, output, diff                 |
+
+Clicks walk down: L0 header → L1/L2, preview window → L2, tool row → L3.
+Collapse walks back up.
+
+## 3. Density is state, on two axes
+
+- **The setting** is the existing app-wide `conversationDensity` from
+  `@honk/shared/conversation-density` — an Effect schema with three runtime
+  values (legacy stored values migrate at decode). It picks the default layer
+  per phase:
+
+  | Value                            | While running | After settle |
+  | -------------------------------- | ------------- | ------------ |
+  | `compact-all-grouped` (Compact)  | L1            | L0           |
+  | `compact-ungrouped` (Balanced)   | L1            | L1           |
+  | `detailed` (Detailed)            | L2            | L2           |
+
+- **The per-turn override** is written by clicking a turn's surfaces and wins
+  over the setting for that turn only.
+
+Effective layer = `turnOverride ?? densityDefault(phase)`. That one line is
+the whole reconciliation. Even at `detailed`, L3 stays closed until clicked —
+density never auto-opens raw tool output.
+
+## 4. The grouping rule
+
+Only read-shaped work groups. Minimum two consecutive read-shaped calls form
+a group ("Read 3 files"). **Edits and shell commands never disappear into a
+group** — at every density they keep a visible row. This is the safety rule:
+anything that could change the world stays on screen.
+
+There is exactly one classifier: core's `Tools.writesOf`, the same split the
+checkpoint attribution gate uses. `"none"` is read-shaped; `"declared"` and
+`"opaque"` are not — so an unknown tool (MCP, future built-ins) never groups,
+erring toward visible. As the harness grows read-only tools (grep, glob,
+fetch), they become groupable by joining the classifier, not by joining a
+transcript list.
+
+## 5. The preview window
+
+One surface with two states. It never unmounts:
+
+- **Running**: a fixed-height, one-line ticker under the current headline.
+  Shows the active tool as `action detail` ("bash pnpm vitest run …"),
+  shimmering. Labels swap **in place** — the window never grows, the layout
+  never shifts. While the model writes prose, the text streams **outside the
+  window** as ordinary transcript markdown, Cursor-style; the window holds
+  its last completed label. When the next block arrives the prose takes its
+  place — a tool call makes it the new segment's headline and the window
+  resumes with that tool's label; the end of the turn makes it the summary.
+  The ticker is the turn's single status organ: retry countdowns and
+  queued-prompt counts render here too.
+
+  A tool row shows its name exactly once: the step's `name` is the only name
+  source, and `detail` is a path or command extracted from the arguments —
+  never the tool's name repeated. (The old transcript projection copied the
+  result's `toolName` into a title and rendered "Read Read"; that path is
+  deleted and the shape makes it unexpressible.)
+- **Settled**: the same surface becomes the header — "Worked for 5m 16s",
+  or "Stopped" / "Canceled" when the run did not finish. A failed turn
+  collapses like a finished one; only the label tells the truth.
+
+## 6. Motion rules
+
+- The ticker window is fixed height; only text moves. Outgoing label floats
+  up ~7px and fades; incoming rises in. ~220ms, ease-out.
+- **The ✓ beat**: when a tool finishes, its shimmer stops and a ✓ stamps for
+  ~260ms before the next label enters. Progress is shown, not implied.
+- Roll-ups happen inside the ticker: when reads cross the group minimum, the
+  label becomes the rolled line ("Read 3 files…").
+- Settling is a becoming, not a replacement: the ticker turns into the
+  duration header in place; the summary fades in.
+- Expansion animates height measured from content. Rows inside never animate
+  individually. Density flips are layout-stable: geometry is measured before
+  the flip, so text-variant changes cannot cause width or height jumps.
+- Under `prefers-reduced-motion`, swaps become instant and the shimmer
+  becomes static muted text.
+
+## 7. What this deletes
+
+Permission and question trays (core has no mid-run asks), the subagent tray
+(Pi has no child sessions), and composer modes (Pi's knobs are model and
+thinking level). The old message/part turn model in `transcript-model` is
+replaced by the segment grammar above.
