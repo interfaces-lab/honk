@@ -50,6 +50,7 @@ import { Git } from "./git";
 import { Lease } from "./lease";
 import { Models } from "./models";
 import { Session } from "./session";
+import { Tools } from "./tools";
 import { Workspace } from "./workspace";
 
 // Pi and Honk error classes are re-exported here so an application narrows
@@ -58,7 +59,10 @@ import { Workspace } from "./workspace";
 // sdk.session call carries the same instance Pi threw.
 export { AgentHarnessError, SessionError } from "@earendil-works/pi-agent-core";
 export { LeaseError } from "./lease";
-export { Files, Git, Lease, Models, Session, Workspace };
+// Tools ships the write-attribution classifier (`Tools.writesOf`) so surfaces
+// share one read-shaped/write-shaped split with the checkpoint gate instead
+// of keeping a second tool list.
+export { Files, Git, Lease, Models, Session, Tools, Workspace };
 
 /**
  * The complete Honk command catalog: one RPC group covering every namespace.
@@ -167,6 +171,17 @@ export interface HonkClient {
     readonly get: Call<typeof Session.Get>;
     readonly delete: Call<typeof Session.Delete>;
     readonly events: Subscribe<typeof Session.Events>;
+
+    /**
+     * The read-to-live handoff, packaged (spec section 9): subscribe, then
+     * one authoritative read, then advisory events with a repair read at
+     * each commit point — serialized, so reads never overlap. A surface
+     * renders `state` frames as truth and `event` frames as liveness, and
+     * reimplements no timing rules of its own.
+     */
+    readonly watch: (input: {
+      readonly sessionId: Session.SessionId;
+    }) => AsyncIterable<SessionWatchFrame>;
   };
 
   /**
@@ -436,31 +451,28 @@ export const createHonkCore = async (options: HonkCoreOptions): Promise<HonkCore
     // Each method binds one RPC to one public name. A contract test asserts the
     // mapping is total and disjoint, so an RPC cannot ship unreachable or
     // reachable from two namespaces.
+    const session = {
+      create: (input) => runtime.runPromise(rpc["session.create"](input)),
+      prompt: (input) => runtime.runPromise(rpc["session.prompt"](input)),
+      steer: (input) => runtime.runPromise(rpc["session.steer"](input)),
+      followUp: (input) => runtime.runPromise(rpc["session.follow_up"](input)),
+      abort: (input) => runtime.runPromise(rpc["session.abort"](input)),
+      reload: (input) => runtime.runPromise(rpc["session.reload"](input)),
+      changes: (input) => runtime.runPromise(rpc["session.changes"](input)),
+      setWorkspace: (input) => runtime.runPromise(rpc["session.set_workspace"](input)),
+      revert: (input) => runtime.runPromise(rpc["session.revert"](input)),
+      list: (input) => runtime.runPromise(rpc["session.list"](input)),
+      get: (input) => runtime.runPromise(rpc["session.get"](input)),
+      delete: (input) => runtime.runPromise(rpc["session.delete"](input)),
+      events: (input) => Stream.toAsyncIterableWith(rpc["session.events"](input), context),
+    } satisfies Omit<HonkClient["session"], "watch">;
+
     return {
       workspace: {
         open: (input) => runtime.runPromise(rpc["workspace.open"](input)),
         trust: (input) => runtime.runPromise(rpc["workspace.trust"](input)),
       },
-      session: {
-        create: (input) => runtime.runPromise(rpc["session.create"](input)),
-        prompt: (input) => runtime.runPromise(rpc["session.prompt"](input)),
-        steer: (input) => runtime.runPromise(rpc["session.steer"](input)),
-        followUp: (input) => runtime.runPromise(rpc["session.follow_up"](input)),
-        abort: (input) => runtime.runPromise(rpc["session.abort"](input)),
-        reload: (input) => runtime.runPromise(rpc["session.reload"](input)),
-        changes: (input) => runtime.runPromise(rpc["session.changes"](input)),
-        setWorkspace: (input) => runtime.runPromise(rpc["session.set_workspace"](input)),
-        revert: (input) => runtime.runPromise(rpc["session.revert"](input)),
-        list: (input) => runtime.runPromise(rpc["session.list"](input)),
-        get: (input) => runtime.runPromise(rpc["session.get"](input)),
-        delete: (input) => runtime.runPromise(rpc["session.delete"](input)),
-        // TODO(core-migration §9): the read-to-live handoff buffer belongs
-        // here, not in each application. The client should start listening,
-        // note a local event sequence, perform the authoritative read, then
-        // apply the newer events it buffered. Today every caller reimplements
-        // that, and the /v2 page instead reloads on every event.
-        events: (input) => Stream.toAsyncIterableWith(rpc["session.events"](input), context),
-      },
+      session: { ...session, watch: (input) => watchSession(session, input) },
       files: {
         find: (input) => runtime.runPromise(rpc["files.find"](input)),
         list: (input) => runtime.runPromise(rpc["files.list"](input)),
@@ -550,26 +562,28 @@ export const createHonkClient = async (options: HonkClientOptions): Promise<Honk
     RpcClient.make(Rpcs).pipe(Effect.provideService(Scope.Scope, runtime.scope)),
   );
 
+  const session = {
+    create: (input) => runtime.runPromise(rpc["session.create"](input)),
+    prompt: (input) => runtime.runPromise(rpc["session.prompt"](input)),
+    steer: (input) => runtime.runPromise(rpc["session.steer"](input)),
+    followUp: (input) => runtime.runPromise(rpc["session.follow_up"](input)),
+    abort: (input) => runtime.runPromise(rpc["session.abort"](input)),
+    reload: (input) => runtime.runPromise(rpc["session.reload"](input)),
+    changes: (input) => runtime.runPromise(rpc["session.changes"](input)),
+    setWorkspace: (input) => runtime.runPromise(rpc["session.set_workspace"](input)),
+    revert: (input) => runtime.runPromise(rpc["session.revert"](input)),
+    list: (input) => runtime.runPromise(rpc["session.list"](input)),
+    get: (input) => runtime.runPromise(rpc["session.get"](input)),
+    delete: (input) => runtime.runPromise(rpc["session.delete"](input)),
+    events: (input) => Stream.toAsyncIterableWith(rpc["session.events"](input), context),
+  } satisfies Omit<HonkClient["session"], "watch">;
+
   return {
     workspace: {
       open: (input) => runtime.runPromise(rpc["workspace.open"](input)),
       trust: (input) => runtime.runPromise(rpc["workspace.trust"](input)),
     },
-    session: {
-      create: (input) => runtime.runPromise(rpc["session.create"](input)),
-      prompt: (input) => runtime.runPromise(rpc["session.prompt"](input)),
-      steer: (input) => runtime.runPromise(rpc["session.steer"](input)),
-      followUp: (input) => runtime.runPromise(rpc["session.follow_up"](input)),
-      abort: (input) => runtime.runPromise(rpc["session.abort"](input)),
-      reload: (input) => runtime.runPromise(rpc["session.reload"](input)),
-      changes: (input) => runtime.runPromise(rpc["session.changes"](input)),
-      setWorkspace: (input) => runtime.runPromise(rpc["session.set_workspace"](input)),
-      revert: (input) => runtime.runPromise(rpc["session.revert"](input)),
-      list: (input) => runtime.runPromise(rpc["session.list"](input)),
-      get: (input) => runtime.runPromise(rpc["session.get"](input)),
-      delete: (input) => runtime.runPromise(rpc["session.delete"](input)),
-      events: (input) => Stream.toAsyncIterableWith(rpc["session.events"](input), context),
-    },
+    session: { ...session, watch: (input) => watchSession(session, input) },
     files: {
       find: (input) => runtime.runPromise(rpc["files.find"](input)),
       list: (input) => runtime.runPromise(rpc["files.list"](input)),
@@ -605,6 +619,82 @@ export const createHonkClient = async (options: HonkClientOptions): Promise<Honk
     close: () => runtime.dispose(),
   };
 };
+
+/**
+ * One frame of {@link HonkClient.session.watch}.
+ *
+ * `state` is authoritative: committed entries, run status, and per-turn
+ * change receipts from one consistent read. `event` is advisory — Pi's live
+ * event, for streaming text and activity — and is always eventually followed
+ * by the `state` frame that makes it durable or moot.
+ *
+ * @category client
+ */
+export type SessionWatchFrame =
+  | {
+      readonly type: "state";
+      readonly entries: readonly Session.SessionTreeEntry[];
+      readonly status: Session.RunStatus;
+      readonly turns: Session.ChangesOutput["turns"];
+    }
+  | { readonly type: "event"; readonly event: Session.AgentHarnessEvent };
+
+/** The session calls a watch composes; both client constructors pass their own. */
+interface SessionWatchCalls {
+  readonly reload: Call<typeof Session.Reload>;
+  readonly changes: Call<typeof Session.Changes>;
+  readonly events: Subscribe<typeof Session.Events>;
+}
+
+/**
+ * The watch policy, once, for every client (spec/core.md section 9).
+ *
+ * The `live` head frame proves the subscription is active before the first
+ * authoritative read, so nothing can slip between subscribe and reload.
+ * After that, a commit point — a message committed, a run settled, a run
+ * started (which committed the prompt) — triggers one repair read; the
+ * generator serializes them by construction, so reads never overlap and a
+ * burst of events cannot pile up concurrent reloads. Receipts refresh only
+ * where they can change: at attach and at settlement.
+ *
+ * TODO(core-migration §9): each repair read is still a full transcript read,
+ * O(n^2) over a long thread. Applying committed entries from the events
+ * themselves needs Pi to carry the entry (not just the message) in
+ * `message_end`.
+ */
+async function* watchSession(
+  calls: SessionWatchCalls,
+  input: { readonly sessionId: Session.SessionId },
+): AsyncGenerator<SessionWatchFrame, void, undefined> {
+  let turns: Session.ChangesOutput["turns"] = [];
+
+  const state = async (refreshTurns: boolean): Promise<SessionWatchFrame> => {
+    if (refreshTurns) {
+      // A workspace without a repository has no receipts; that must not end
+      // the watch, so a failed changes read keeps the previous receipts.
+      turns = await calls.changes(input).then(
+        (output) => output.turns,
+        () => turns,
+      );
+    }
+    const snapshot = await calls.reload(input);
+    return { type: "state", entries: snapshot.entries, status: snapshot.status, turns };
+  };
+
+  for await (const frame of calls.events(input)) {
+    if (frame.type === "live") {
+      yield await state(true);
+      continue;
+    }
+    yield { type: "event", event: frame.event };
+    const kind = frame.event.type;
+    if (kind === "agent_start" || kind === "message_end") {
+      yield await state(false);
+    } else if (kind === "settled") {
+      yield await state(true);
+    }
+  }
+}
 
 /**
  * The in-process transport: a client and a server for the same group, wired

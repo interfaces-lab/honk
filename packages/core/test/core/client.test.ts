@@ -125,6 +125,44 @@ describe("createHonkCore", () => {
 
     await core.close();
   });
+
+  it("watch hands a surface authoritative state frames around advisory events", async () => {
+    const { core, faux } = await startCore();
+    const sdk = core.client();
+
+    const workspace = await openTrusted(sdk, "/tmp/honk-core-test/watch");
+    const session = await sdk.session.create({ workspaceId: workspace.id });
+
+    const frames: { readonly type: string; readonly texts?: readonly (string | undefined)[] }[] =
+      [];
+    const watching = (async () => {
+      for await (const frame of sdk.session.watch({ sessionId: session.id })) {
+        if (frame.type === "state") {
+          const texts = messageEntries(frame.entries).map(textOf);
+          frames.push({ type: "state", texts });
+          // The state after settlement carries the whole committed turn.
+          if (texts.length === 2) break;
+        } else {
+          frames.push({ type: frame.event.type });
+        }
+      }
+    })();
+
+    faux.setResponses([() => Promise.resolve(fauxAssistantMessage("Watched."))]);
+    await sdk.session.prompt({ sessionId: session.id, text: "Watch this" });
+    await watching;
+
+    // Attach delivers authoritative truth before any event.
+    expect(frames[0]).toEqual({ type: "state", texts: [] });
+    // Every event is eventually followed by a state frame, and the final
+    // state holds the committed conversation.
+    expect(frames.map((frame) => frame.type)).toContain("agent_start");
+    const finalState = frames.at(-1);
+    expect(finalState?.type).toBe("state");
+    expect(finalState?.texts).toEqual(["Watch this", "Watched."]);
+
+    await core.close();
+  });
 });
 
 describe("sdk.files through the public client", () => {

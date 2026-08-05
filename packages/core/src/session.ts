@@ -38,9 +38,11 @@
  */
 
 import type {
+  AgentHarnessErrorCode,
   AgentHarnessEvent,
   AgentHarnessOptions,
   Session as PiSession,
+  SessionErrorCode,
   SessionTreeEntry,
 } from "@earendil-works/pi-agent-core";
 import {
@@ -51,7 +53,7 @@ import {
 } from "@earendil-works/pi-agent-core";
 import type { Models as PiModels } from "@earendil-works/pi-ai";
 import type { Scope } from "effect";
-import { Context, Effect, Layer, PubSub, Ref, Schema, Stream } from "effect";
+import { Context, Effect, Layer, PubSub, Ref, Schema, SchemaGetter, Stream } from "effect";
 import { Rpc, RpcGroup } from "effect/unstable/rpc";
 
 import { Git } from "./git";
@@ -119,21 +121,78 @@ export class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()(
 ) {}
 
 /**
+ * Pi's error code unions, restated as literal lists so the wire schema below
+ * is closed. `satisfies` pins each list to Pi's own union: a Pi pin bump that
+ * adds or removes a code breaks this file at compile time instead of
+ * silently widening the wire contract.
+ */
+const HARNESS_ERROR_CODES = [
+  "busy",
+  "invalid_state",
+  "invalid_argument",
+  "session",
+  "hook",
+  "auth",
+  "compaction",
+  "branch_summary",
+  "unknown",
+] as const satisfies readonly AgentHarnessErrorCode[];
+
+const SESSION_ERROR_CODES = [
+  "not_found",
+  "invalid_session",
+  "invalid_entry",
+  "invalid_fork_target",
+  "storage",
+  "unknown",
+] as const satisfies readonly SessionErrorCode[];
+
+/** The serialized form: which Pi class, its stable code, and its message. */
+const PiErrorWire = Schema.Union([
+  Schema.Struct({
+    kind: Schema.tag("harness"),
+    code: Schema.Literals(HARNESS_ERROR_CODES),
+    message: Schema.String,
+  }),
+  Schema.Struct({
+    kind: Schema.tag("session"),
+    code: Schema.Literals(SESSION_ERROR_CODES),
+    message: Schema.String,
+  }),
+]);
+
+/**
  * Pi's own error classes as they cross this boundary.
  *
- * The error a caller receives is the real `AgentHarnessError` or
- * `SessionError` instance — never a Honk lookalike — so `instanceof` and
- * Pi's own `code` unions keep working (spec section 6, invariant 9).
- * `Schema.declare` over the instance check is the whole in-process contract;
- * a remote transport additionally needs Pi's wire schemas, which remains the
- * standing blocker for remote session commands.
+ * The error a caller receives is a real `AgentHarnessError` or `SessionError`
+ * instance — never a Honk lookalike — so `instanceof` and Pi's own `code`
+ * unions keep working (spec section 6, invariant 9). In process the instance
+ * passes through untouched. Over a serialized transport it encodes to
+ * {@link PiErrorWire} and decodes by reconstructing the same Pi class from
+ * its stable fields; only the host-side `cause` chain stays behind.
  *
  * @category errors
  */
-export const PiError = Schema.declare(
-  (value): value is AgentHarnessError | SessionError =>
-    value instanceof AgentHarnessError || value instanceof SessionError,
-  { identifier: "PiError" },
+export const PiError = PiErrorWire.pipe(
+  Schema.decodeTo(
+    Schema.declare(
+      (value): value is AgentHarnessError | SessionError =>
+        value instanceof AgentHarnessError || value instanceof SessionError,
+      { identifier: "PiError" },
+    ),
+    {
+      decode: SchemaGetter.transform((wire) =>
+        wire.kind === "harness"
+          ? new AgentHarnessError(wire.code, wire.message)
+          : new SessionError(wire.code, wire.message),
+      ),
+      encode: SchemaGetter.transform((error) =>
+        error instanceof AgentHarnessError
+          ? ({ kind: "harness", code: error.code, message: error.message } as const)
+          : ({ kind: "session", code: error.code, message: error.message } as const),
+      ),
+    },
+  ),
 );
 export type PiError = AgentHarnessError | SessionError;
 

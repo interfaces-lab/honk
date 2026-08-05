@@ -62,7 +62,9 @@ export type ModelSummary = typeof ModelSummary.Type;
  * `configured` is Pi's `checkAuth` verdict: the provider has complete auth —
  * a stored credential, an ambient env var, or keyless access. `source` is
  * Pi's human-readable label for where that auth came from ("ANTHROPIC_API_KEY",
- * "OAuth"), for status UI only.
+ * "OAuth"), for status UI only. `methods` are the ways a user can configure
+ * the provider: which entry field or login flow a settings surface should
+ * offer. Ambient-only providers list neither.
  *
  * @category schemas
  */
@@ -70,6 +72,7 @@ export const ProviderSummary = Schema.Struct({
   id: Schema.NonEmptyString,
   name: Schema.String,
   configured: Schema.Boolean,
+  methods: Schema.Array(Schema.Literals(["api_key", "oauth"])),
   authType: Schema.optionalKey(Schema.Literals(["api_key", "oauth"])),
   source: Schema.optionalKey(Schema.String),
   models: Schema.Array(ModelSummary),
@@ -298,10 +301,16 @@ const make = (options: LayerOptions): Effect.Effect<Interface> =>
         // checkAuth reads stored credentials and ambient env without
         // refreshing OAuth, so listing the catalog never touches a network.
         const check = yield* Effect.promise(() => collection.checkAuth(provider.id));
+        // A provider is user-configurable by key entry only when Pi's api-key
+        // auth carries a login step; ambient-only providers omit it.
+        const methods: ("api_key" | "oauth")[] = [];
+        if (provider.auth.apiKey?.login !== undefined) methods.push("api_key");
+        if (provider.auth.oauth !== undefined) methods.push("oauth");
         providers.push({
           id: provider.id,
           name: provider.name,
           configured: check !== undefined,
+          methods,
           ...(check?.type !== undefined ? { authType: check.type } : {}),
           ...(check?.source !== undefined ? { source: check.source } : {}),
           models: provider.getModels().map((model) => ({ id: model.id, name: model.name })),

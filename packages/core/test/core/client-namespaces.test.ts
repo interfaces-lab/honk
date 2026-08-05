@@ -41,6 +41,13 @@ const namespacesOf = (sdk: HonkClient) => {
   );
 };
 
+// Methods the client composes from other commands rather than binding to one
+// RPC. Every entry here must be justified: `watch` is the spec section 9
+// read-to-live handoff over events + reload + changes.
+const COMPOSED_METHODS: Readonly<Record<string, readonly string[]>> = {
+  session: ["watch"],
+};
+
 describe("the public client namespaces", () => {
   it("reaches every RPC in the catalog exactly once", async () => {
     const core = await startCore();
@@ -58,15 +65,21 @@ describe("the public client namespaces", () => {
     // No namespace in the catalog is missing from the client.
     expect([...namespaces.keys()].sort()).toEqual([...byNamespace.keys()].sort());
 
-    // Every command in a namespace has exactly one method, so none is
-    // unreachable and none is bound twice under a second name.
+    // Every command in a namespace has exactly one method — none unreachable,
+    // none bound twice — plus only the composed methods declared above.
+    let composedCount = 0;
     for (const [namespace, tags] of byNamespace) {
-      expect(namespaces.get(namespace)).toHaveLength(tags.length);
+      const composed = COMPOSED_METHODS[namespace] ?? [];
+      composedCount += composed.length;
+      const methods = namespaces.get(namespace) ?? [];
+      expect(methods).toHaveLength(tags.length + composed.length);
+      for (const method of composed) expect(methods).toContain(method);
     }
 
-    // And nothing extra: the client invents no command the wire does not carry.
+    // And nothing extra: the client invents no command beyond the wire
+    // catalog and its declared compositions.
     const methodCount = [...namespaces.values()].flat().length;
-    expect(methodCount).toBe(Rpcs.requests.size);
+    expect(methodCount).toBe(Rpcs.requests.size + composedCount);
 
     await core.close();
   });
