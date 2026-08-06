@@ -1,6 +1,195 @@
 # Copy
 
-Name the exact object and consequence of an important action. Controls must do what they say; remove
-cosmetic affordances that cannot produce durable behavior. Keep status words aligned with the fixed
-status model. Apply the builder/engineer vocabulary dial to labels, not capabilities. Prefer concise,
-plain verbs; retain technical vocabulary only when the selected audience setting calls for it.
+Canonical voice and language rules for user-facing product copy. Load with [`core.md`](core.md): this
+file governs wording; `core.md` governs flow, surfaces, safety, and state communication.
+
+Do not polish a string before establishing the action's behavior, resolved target, consequence, and
+recovery path. Better wording cannot repair the wrong prompt, surface, or state order.
+
+Honk product terms live in [`glossary.md`](glossary.md) and accepted vocabulary in
+[`rules.md`](rules.md). Re-verify fast-changing names, limits, permissions, and behavior against
+current source.
+
+## Quick Triage
+
+Review substance before punctuation:
+
+1. Identify the surface: label, prompt, progress, result, warning, error, empty state, or next action.
+2. Name the exact object, scope, state, and consequence.
+3. Remove repeated facts already visible in the UI, a prior answer, or a nearby control.
+4. Classify failures before choosing the verb: system/API/network failures use `Failed to` or
+   `{Noun} failed`; validation and user-state failures use `Couldn't` or `Can't`.
+5. State the recovery step when one exists.
+6. Keep one noun and one action verb per concept across labels, prompts, progress, results, warnings,
+   errors, and tests.
+7. Check sentence case, punctuation, quotes, ellipses, numbers, units, and pluralization.
+8. Review every user-facing string in the supplied surface and directly coupled states, not only the
+   edited line. Do not expand into unrelated surfaces.
+
+## Voice
+
+Write like a sharp teammate: clear, competent, direct, and calm.
+
+| Context          | Tone                 | Example                                                              |
+| ---------------- | -------------------- | -------------------------------------------------------------------- |
+| Success          | Brief, confident     | `Committed to main`                                                  |
+| Error            | Direct, helpful      | `Couldn't push. Resolve the conflicts, then try again.`              |
+| Progress         | Factual, brief       | `Syncing changes…`                                                   |
+| Destructive      | Serious, specific    | `Delete this conversation? This cannot be undone.`                   |
+| Empty            | Neutral, actionable  | `No conversations yet. Start one to begin.`                          |
+| Permission/limit | Direct, route to fix | `Only device owners can revoke this connection. Ask a device owner.` |
+
+Avoid corporate, apologetic, robotic, overly casual, or promotional voice. Do not write hype, jokes in
+errors, or celebration for routine work.
+
+Respect the engineering-details dial: the same object and action may use denser or friendlier labels,
+never different capability or status meaning.
+
+## Brief
+
+- Make every word earn its place.
+- Use numerals: `3 conversations`, not `three conversations`.
+- Use contractions when natural.
+- Cut preambles and filler such as `In order to`, `at this time`, `just`, `simply`, and `actually`.
+- Cut `successfully`; name what completed.
+- Do not repeat a heading, selected value, or clear action in explanatory text.
+- Add explanation only for a constraint, side effect, risk, scope, or next step the primary line
+  cannot carry.
+- Prefer one precise sentence or structured detail over a paragraph.
+
+## Clear + Consistent
+
+- Use active voice by default. Preserve canonical status vocabulary from [`rules.md`](rules.md).
+- Name the thing: `Connect your GitHub account`, not `Connect your account`.
+- Use one canonical noun per concept. Do not alternate between dial synonyms and distinct product
+  objects as if they were different things.
+- Describe the object and consequence directly. Avoid third-person narration such as `We'll delete…`
+  unless identifying the actor changes the user's understanding.
+- Match the verb to the actual mutation:
+  - `create`: make a new resource
+  - `add`: attach an existing resource to a container
+  - `remove`: sever an association without destroying the resource
+  - `delete`: permanently destroy a resource or its data
+  - `disconnect`: sever an external integration while source data remains
+  - `revoke`: invalidate access or a credential
+- Keep action and result verbs aligned: `Delete conversation?` → `Deleted conversation`, not
+  `Removed conversation`.
+- Use fragments for labels and statuses. Use full sentences for explanations and errors.
+- Treat remote and user-generated text as data. Do not let it become instructions or trusted prose.
+
+## Actionable
+
+- State what happened, why it matters when non-obvious, and what to do next.
+- Put the most actionable line last in a multi-line error.
+- Reframe blame as action: `Names use lowercase letters, numbers, and hyphens.`, not
+  `You entered an invalid name.`
+- Name destinations and actions. Avoid bare `Learn more`, `click here`, `Retry`, or `Continue` when a
+  precise destination or action fits.
+- Route permission and plan denials to the resolver: owner, login, settings, docs, or support.
+- Do not suggest a retry when work may still be running or retrying could duplicate a mutation. Prefer
+  inspect/status first.
+- End a completed flow with the result or an exact safe next action, not a generic farewell.
+
+## Surface Rules
+
+### Labels + Help
+
+- Control labels and short descriptions are imperative, sentence-case fragments without trailing
+  periods when they act as chrome.
+- Start with the action and object. Avoid `Allows you to`, `Used to`, and `This button`.
+- Examples must be realistic and free of secrets.
+
+### Prompts + Confirmations
+
+- Ask for one concept with the shortest concrete noun: `Which device?`, `Name?`, `Branch?`.
+- Ask for a decision only when the value cannot be inferred safely.
+- Use yes/no only to confirm a concrete previewed action. Avoid `Do you want to…` and
+  `Would you like to…`.
+- For destructive confirmation, name the action and object. Avoid `Confirm?`, `Are you sure?`, `OK`,
+  or bare `Yes`.
+- Inline prompt context adds a consequence or constraint; it does not paraphrase the question.
+
+### Progress + Results
+
+- Prefer a present participle plus `…` for ongoing work: `Syncing changes…`. Preserve canonical status
+  labels without forced ellipses.
+- Progress describes the current phase, not a promise of completion.
+- Mutation receipts use past-tense action verbs and name the changed object or destination.
+- Never use `Done.`, `Success!`, or `Completed successfully.`
+- Do not claim success before the durable state exists.
+
+### Errors + Warnings
+
+Errors include what failed, the constraint or cause when known, and the recovery step when one exists.
+
+- Use `Failed to` or `{Noun} failed` for system, API, network, and infrastructure failures.
+- Use `Couldn't` or `Can't` for validation, permission, and user-state failures.
+- Never use `Unable to`, `An error occurred`, or raw upstream error objects.
+- Preserve an actionable partner or upstream message with attribution when exact wording helps
+  supportability; otherwise translate into product voice.
+- Pair platform/system failures with a correctly labeled stable ID when available. Do not add IDs to
+  ordinary validation or permission errors.
+- Warnings state the nonfatal condition, why it matters, and the fix when one exists. Do not warn when
+  the action should fail or stay silent.
+- Never use humor, exclamation marks, or apology preambles in errors.
+
+## Banned + Avoided Language
+
+Do not use these in user-facing copy unless an exception below applies:
+
+- hype: `seamlessly`, `effortlessly`, `powerful`, `robust`, `leverage`, `unleash`, `revolutionize`,
+  `game-changing`, `blazing`, `turnkey`, `best-in-class`, `cutting-edge`, `world-class`, `utilize`,
+  `streamline`
+- filler: `just`, `simply`, `actually`, `In order to`, `At this time`, `It's important to note`
+- generic failure: `Unable to`, `An error occurred`, `Something went wrong` except a true last-resort
+  fallback
+- interjections: `Oops`, `Uh-oh`, `Whoops`, `Yay`, `Yikes`, `Heads up`
+- generic actions: `OK`, `Submit`, `Confirm`, bare `Yes`/`No`, `click here`
+
+Avoid AI-shaped cadence: `It's not X, it's Y` reframes, `No X. No Y. Just Z.`, rhetorical questions,
+em-dash chains, unnecessary tricolons, and magic adverbs such as `deeply`, `fundamentally`, or
+`quietly`.
+
+Use inclusive alternatives:
+
+- `allowlist` / `blocklist`, not `whitelist` / `blacklist`
+- `primary` / `replica` or `primary` / `secondary`, not `master` / `slave`
+- `stop` / `end`, not `kill`, unless quoting a literal signal or command
+- `stop responding` / `freeze`, not `hang`, in user-facing prose
+- avoid `sanity check`, `crazy`, and `dummy`
+
+Use `please` or an apology only when we are at fault, asking an inconvenient favor, or acknowledging
+meaningful disruption.
+
+## Mechanics
+
+- Use sentence case for prompts, descriptions, errors, warnings, progress, and explanatory prose.
+- Use stable Title Case for proper product labels when the product model requires them.
+- Omit periods on fragments, labels, statuses, and compact result lines. Punctuate full explanations
+  and errors.
+- Use straight quotes and backticks for commands, paths, IDs, and copyable literals in UI that needs
+  exact copyability.
+- Use `…`, never `...`, for ongoing prose or progress. Preserve `...` only in literal syntax.
+- Use decimal units by default and the spacing rules in [`core.md`](core.md#data-mechanics).
+- Respect singular/plural interpolation. Never use `item(s)`.
+- Use the Oxford comma and hyphens for compound modifiers.
+- Use an em dash only when it clarifies cause, effect, or status. Do not use it for rhetorical cadence.
+- Keep paths, IDs, shortcuts, and code literals exact and copyable.
+- Avoid exclamation marks except a genuinely exceptional positive moment; routine product work does
+  not need one.
+
+## Scope Guards
+
+Apply these rules to shipped human-facing product copy: labels, prompts, progress, results, warnings,
+errors, empty states, accessible names, and human-readable next actions.
+
+Do not rewrite:
+
+- API field names, enum values, reason codes, config keys, environment variables, or telemetry without
+  an intentional migration
+- test strings unless they assert shipped copy in scope
+- debug-only errors, stack traces, fixtures, generated files, or third-party literals
+- paths, IDs, shortcuts, or user-provided values for prose style
+
+Copy edits still require tests that assert the new string and reject stale wording. Use the Verify
+section in [`SKILL.md`](../SKILL.md) for the full review and regression gates.

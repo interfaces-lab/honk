@@ -119,6 +119,7 @@ Always read this directory's `AGENTS.md`, `references/product-judgment.md`, and
 | Product, flow, or component decision                                             | `references/product-judgment.md` + `references/surfaces.md`                       |
 | Implementation, material visual change, or full review                           | `references/interface-quality.md`                                                 |
 | Copy or accessible names                                                         | `references/copy.md` + `references/glossary.md` + applicable surface reference    |
+| Flow, prompts, surfaces, safety, or state communication                          | `references/core.md` + `references/copy.md`                                       |
 | Overflow, localization, extreme data, network, error, stale, or offline behavior | `references/resilience.md`                                                        |
 | Honk interaction or component pattern                                            | `references/patterns.md` + the focused file under `exemplars/`                    |
 | Web layout, typography, color, spacing, or StyleX                                | global `stylex` + `styling-tokens` skills (`~/.agents/skills`)                    |
