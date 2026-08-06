@@ -3,7 +3,15 @@ import { describe, expect, it } from "vitest";
 import type { Session } from "@honk/core/session";
 
 import type { ChatEvent, ChatState } from "./chat-model";
-import { effectiveLayer, initialState, reduce, threadItems, tickerOf, turnViews } from "./chat-model";
+import {
+  conversationItems,
+  effectiveLayer,
+  initialState,
+  reduce,
+  segmentRows,
+  tickerOf,
+  turnViews,
+} from "./chat-model";
 
 const fold = (events: readonly ChatEvent[], from: ChatState = initialState): ChatState =>
   events.reduce(reduce, from);
@@ -120,168 +128,41 @@ describe("chat model", () => {
   });
 });
 
-describe("thread items", () => {
-  it("projects user and assistant messages natively", () => {
-    const items = threadItems(
-      [userEntry("u1", "Say hello"), assistantEntry("a1", "Hello from faux")],
-      null,
-    );
-    expect(items).toEqual([
-      { kind: "user", id: "u1", text: "Say hello" },
-      {
-        kind: "assistant",
-        id: "a1",
-        live: false,
-        blocks: [{ kind: "text", key: "a1:0", text: "Hello from faux" }],
-        error: null,
-      },
-    ]);
-  });
-
-  it("pairs tool results onto the calls that made them, never as rows", () => {
-    const call = {
-      type: "message",
-      id: "a1",
-      message: {
-        role: "assistant",
-        content: [{ type: "toolCall", id: "call-1", name: "read", arguments: { path: "a.ts" } }],
-      },
-    } as unknown as Session.SessionTreeEntry;
-    const result = {
-      type: "message",
-      id: "t1",
-      message: {
-        role: "toolResult",
-        toolCallId: "call-1",
-        isError: false,
-        content: [{ type: "text", text: "file body" }],
-      },
-    } as unknown as Session.SessionTreeEntry;
-
-    const items = threadItems([call, result], null);
-    expect(items).toHaveLength(1);
-    const assistant = items[0];
-    if (assistant?.kind !== "assistant") throw new Error("expected an assistant item");
-    expect(assistant.blocks).toEqual([
-      {
-        kind: "tool",
-        key: "a1:0",
-        name: "read",
-        args: JSON.stringify({ path: "a.ts" }, null, 2),
-        state: "ok",
-        output: "file body",
-      },
-    ]);
-  });
-
-  it("marks an unanswered tool call running and a failed one failed", () => {
-    const call = (id: string, callId: string) =>
-      ({
-        type: "message",
-        id,
-        message: {
-          role: "assistant",
-          content: [{ type: "toolCall", id: callId, name: "bash", arguments: {} }],
-        },
-      }) as unknown as Session.SessionTreeEntry;
-    const failure = {
-      type: "message",
-      id: "t1",
-      message: {
-        role: "toolResult",
-        toolCallId: "c1",
-        isError: true,
-        content: [{ type: "text", text: "boom" }],
-      },
-    } as unknown as Session.SessionTreeEntry;
-
-    const items = threadItems([call("a1", "c1"), failure, call("a2", "c2")], null);
-    const states = items.flatMap((item) =>
-      item.kind === "assistant"
-        ? item.blocks.map((block) => (block.kind === "tool" ? block.state : block.kind))
-        : [],
-    );
-    expect(states).toEqual(["error", "running"]);
-  });
-
-  it("attaches a turn's git receipt after its settling entry", () => {
-    const entries = [userEntry("u1", "change it"), assistantEntry("a1", "done")];
-    const turns = [
-      {
-        entryId: "a1",
-        files: [
-          {
-            file: "src/index.ts",
-            status: "modified",
-            tracked: true,
-            binary: false,
-            additions: 3,
-            deletions: 1,
-          },
-        ],
-      },
-    ] as unknown as Session.ChangesOutput["turns"];
-
-    const items = threadItems(entries, null, turns);
-    expect(items.map((item) => item.kind)).toEqual(["user", "assistant", "receipt"]);
-    const receipt = items.at(-1);
-    if (receipt?.kind !== "receipt") throw new Error("expected a receipt item");
-    expect(receipt.files[0]?.file).toBe("src/index.ts");
-  });
-
-  it("omits receipts for turns that touched nothing", () => {
-    const turns = [{ entryId: "a1", files: [] }] as unknown as Session.ChangesOutput["turns"];
-    const items = threadItems([assistantEntry("a1", "just talk")], null, turns);
-    expect(items.map((item) => item.kind)).toEqual(["assistant"]);
-  });
-
-  it("renders transcript markers as notices, not fabricated messages", () => {
+describe("conversation items", () => {
+  it("renders each turn at its user entry, with markers interleaved in order", () => {
     const modelChange = {
       type: "model_change",
       id: "m1",
       provider: "anthropic",
       modelId: "claude-sonnet-4-6",
     } as unknown as Session.SessionTreeEntry;
-    const move = {
-      type: "custom",
-      id: "w1",
-      customType: "honk.workspace_change",
-      data: { directory: "/tmp/elsewhere" },
-    } as unknown as Session.SessionTreeEntry;
-    const label = { type: "label", id: "l1" } as unknown as Session.SessionTreeEntry;
-
-    expect(threadItems([modelChange, move, label], null)).toEqual([
-      { kind: "notice", id: "m1", text: "Model: anthropic/claude-sonnet-4-6" },
-      { kind: "notice", id: "w1", text: "Moved to /tmp/elsewhere" },
-    ]);
-  });
-
-  it("projects compaction with its summary for the divider", () => {
     const compaction = {
       type: "compaction",
       id: "c1",
       summary: "Earlier discussion about auth",
       tokensBefore: 52_000,
     } as unknown as Session.SessionTreeEntry;
-    expect(threadItems([compaction], null)).toEqual([
-      { kind: "compaction", id: "c1", summary: "Earlier discussion about auth", tokensBefore: 52_000 },
-    ]);
-  });
+    const label = { type: "label", id: "l1" } as unknown as Session.SessionTreeEntry;
 
-  it("appends the streaming message as a live assistant row with a stable id", () => {
-    const streaming = {
-      role: "assistant",
-      timestamp: 1234,
-      stopReason: "pending",
-      content: [{ type: "text", text: "typing…" }],
-    } as unknown as Parameters<typeof threadItems>[1];
-
-    const items = threadItems([userEntry("u1", "Go")], streaming);
-    const liveRow = items.at(-1);
-    if (liveRow?.kind !== "assistant") throw new Error("expected a live assistant item");
-    expect(liveRow.id).toBe("live:1234");
-    expect(liveRow.live).toBe(true);
-    expect(liveRow.blocks).toEqual([{ kind: "text", key: "live:1234:0", text: "typing…" }]);
+    const items = conversationItems(
+      [
+        modelChange,
+        userEntry("u1", "Say hello"),
+        assistantEntry("a1", "Hello from faux"),
+        compaction,
+        userEntry("u2", "again"),
+        label,
+      ],
+      null,
+    );
+    expect(items.map((item) => (item.kind === "turn" ? `turn:${item.turn.id}` : item.kind))).toEqual(
+      ["notice", "turn:u1", "compaction", "turn:u2"],
+    );
+    expect(items[0]).toEqual({
+      kind: "notice",
+      id: "m1",
+      text: "Model: anthropic/claude-sonnet-4-6",
+    });
   });
 
   it("handles plain string content", () => {
@@ -290,7 +171,8 @@ describe("thread items", () => {
       id: "u1",
       message: { role: "user", content: "plain" },
     } as unknown as Session.SessionTreeEntry;
-    expect(threadItems([entry], null)).toEqual([{ kind: "user", id: "u1", text: "plain" }]);
+    const items = conversationItems([entry], null);
+    expect(items[0]?.kind === "turn" && items[0].turn.userText).toBe("plain");
   });
 });
 
@@ -380,6 +262,92 @@ describe("turn grammar", () => {
   it("unknown tools never group: opaque classifies as not read-shaped", () => {
     const turns = turnViews([userEntry("u1", "go"), toolCall("a1", "c1", "some-mcp-tool")]);
     expect(turns[0]?.segments[0]?.steps[0]?.readShaped).toBe(false);
+  });
+
+  it("folds the streaming message into the open turn", () => {
+    const streaming = {
+      role: "assistant",
+      timestamp: 1234,
+      content: [
+        { type: "text", text: "Reading the config first" },
+        { type: "toolCall", id: "c9", name: "read", arguments: { path: "conf.ts" } },
+        { type: "text", text: "The port was wrong" },
+      ],
+    } as unknown as Parameters<typeof turnViews>[1];
+
+    const turns = turnViews([userEntry("u1", "fix it")], streaming);
+    expect(turns).toHaveLength(1);
+    const turn = turns[0];
+    expect(turn?.segments).toHaveLength(1);
+    expect(turn?.segments[0]?.headline).toBe("Reading the config first");
+    expect(turn?.segments[0]?.steps[0]).toMatchObject({ key: "c9", state: "running" });
+    // The trailing text is the summary-so-far: it streams outside the preview
+    // window and becomes the next headline if another tool call arrives.
+    expect(turn?.summary).toBe("The port was wrong");
+  });
+
+  it("attaches the change receipt to the turn that earned it", () => {
+    const changes = [
+      {
+        entryId: "a1",
+        files: [
+          {
+            file: "src/index.ts",
+            status: "modified",
+            tracked: true,
+            binary: false,
+            additions: 3,
+            deletions: 1,
+          },
+        ],
+      },
+      { entryId: "a2", files: [] },
+    ] as unknown as Session.ChangesOutput["turns"];
+
+    const turns = turnViews(
+      [
+        userEntry("u1", "change it"),
+        assistantEntry("a1", "done"),
+        userEntry("u2", "and this"),
+        assistantEntry("a2", "nothing to do"),
+      ],
+      null,
+      changes,
+    );
+    expect(turns[0]?.files.map((file) => file.file)).toEqual(["src/index.ts"]);
+    // A turn that touched nothing shows no receipt.
+    expect(turns[1]?.files).toEqual([]);
+  });
+
+  it("a failed turn carries the model's error message", () => {
+    const failed = {
+      type: "message",
+      id: "a1",
+      timestamp: "2026-08-06T10:00:01.000Z",
+      message: {
+        role: "assistant",
+        stopReason: "error",
+        errorMessage: "overloaded_error",
+        content: [],
+      },
+    } as unknown as Session.SessionTreeEntry;
+    const turns = turnViews([userEntry("u1", "go"), failed]);
+    expect(turns[0]?.outcome).toBe("failed");
+    expect(turns[0]?.error).toBe("overloaded_error");
+  });
+
+  it("segment rows group consecutive reads and never a write", () => {
+    const step = (key: string, readShaped: boolean) =>
+      ({ key, readShaped }) as unknown as Parameters<typeof segmentRows>[0][number];
+    const rows = segmentRows([
+      step("r1", true),
+      step("r2", true),
+      step("w1", false),
+      step("r3", true),
+    ]);
+    expect(
+      rows.map((row) => (row.kind === "group" ? row.steps.map((s) => s.key) : row.step.key)),
+    ).toEqual([["r1", "r2"], "w1", "r3"]);
   });
 });
 

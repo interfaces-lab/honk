@@ -1,18 +1,23 @@
-// The chat transcript: Pi thread items rendered with the app's real message
-// components — UserMessage, AssistantMessage, ToolCallLine, ChangeReceipt,
-// CompactionDivider, NoticeRow. No opencode projection in between
-// (spec/core.md section 6).
+// The chat transcript, rendered in the turn grammar (spec/conversation.md):
+// every turn shows at its effective disclosure layer — L0 collapses to the
+// worked-for header and summary, L1 shows headlines with read-shaped work
+// grouped, L2 shows every row, L3 is a row's own expansion. The live turn
+// streams prose as ordinary markdown while the TurnStatus ticker names the
+// active tool, and every settled turn shows what the agent edited.
 
-import { ChangeReceipt, ToolCallLine, UserMessage, type ToolCallState } from "@honk/ui";
+import { ChangeReceipt, ToolCallLine, UserMessage, WorkGroup, type ToolCallState } from "@honk/ui";
 import { AssistantMessage } from "@honk/ui/assistant-message";
 import { CompactionDivider } from "@honk/ui/compaction-divider";
 import { NoticeRow } from "@honk/ui/notice-row";
 import { colorVars, fontVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
+import type { ConversationDensity } from "@honk/shared/conversation-density";
 
 import { Markdown } from "../markdown";
-import type { AssistantBlock, ThreadItem } from "./chat-model";
+import type { ConversationItem, DisclosureLayer, TickerState, TurnSegment, TurnStep, TurnView } from "./chat-model";
+import { effectiveLayer, segmentRows } from "./chat-model";
+import { TurnStatus } from "./turn-status";
 
 export const TRANSCRIPT_MAX_WIDTH = "760px";
 const TOOL_IO_MAX_HEIGHT = "240px";
@@ -34,11 +39,10 @@ const styles = stylex.create({
     paddingBlock: spaceVars["--honk-space-panel-pad"],
     paddingInline: spaceVars["--honk-space-panel-pad"],
   },
-  thinking: {
-    fontSize: fontVars["--honk-font-size-detail"],
-    color: colorVars["--honk-color-text-muted"],
-    whiteSpace: "pre-wrap",
-    overflowWrap: "anywhere",
+  turn: {
+    display: "flex",
+    flexDirection: "column",
+    gap: spaceVars["--honk-space-gutter"],
   },
   toolIo: {
     margin: 0,
@@ -51,6 +55,20 @@ const styles = stylex.create({
     overflowWrap: "anywhere",
     paddingInline: spaceVars["--honk-space-gutter"],
   },
+  // The settled header is the turn's collapse control; the button chrome is
+  // the header itself, so the wrapper stays bare.
+  headerButton: {
+    display: "block",
+    width: "fit-content",
+    maxWidth: "100%",
+    padding: 0,
+    borderStyle: "none",
+    backgroundColor: "transparent",
+    textAlign: "left",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    fontSize: "inherit",
+  },
   // Transcript markers (model choice, workspace moves) are context, not
   // messages: a quiet centered line, not a warning banner.
   notice: {
@@ -60,33 +78,21 @@ const styles = stylex.create({
   },
 });
 
-const toolCallState: Record<"running" | "ok" | "error", ToolCallState> = {
+const toolCallState: Record<TurnStep["state"], ToolCallState> = {
   running: "running",
   ok: "done",
   error: "failed",
 };
 
-/** The first string argument that looks like a path names most built-in tools' target. */
-const toolDetail = (args: string): string | undefined => {
-  try {
-    const parsed = JSON.parse(args) as Record<string, unknown>;
-    const candidate = parsed.path ?? parsed.file ?? parsed.command;
-    return typeof candidate === "string" && candidate.length > 0 ? candidate : undefined;
-  } catch {
-    return undefined;
-  }
-};
-
-function ToolBlock({ block }: { readonly block: Extract<AssistantBlock, { kind: "tool" }> }) {
+function StepRow({ step }: { readonly step: TurnStep }): React.ReactElement {
   const [expanded, setExpanded] = React.useState(false);
-  const detail = toolDetail(block.args);
-  const bodyId = `tool-io-${block.key}`;
+  const bodyId = `tool-io-${step.key}`;
   return (
     <div>
       <ToolCallLine
-        verb={block.name}
-        {...(detail === undefined ? {} : { detail })}
-        state={toolCallState[block.state]}
+        verb={step.name}
+        {...(step.detail === null ? {} : { detail: step.detail })}
+        state={toolCallState[step.state]}
         isExpanded={expanded}
         onToggle={() => {
           setExpanded((open) => !open);
@@ -95,53 +101,155 @@ function ToolBlock({ block }: { readonly block: Extract<AssistantBlock, { kind: 
       />
       {expanded && (
         <div id={bodyId}>
-          {block.args.length > 0 && <pre {...stylex.props(styles.toolIo)}>{block.args}</pre>}
-          {block.output.length > 0 && <pre {...stylex.props(styles.toolIo)}>{block.output}</pre>}
+          {step.args.length > 0 && <pre {...stylex.props(styles.toolIo)}>{step.args}</pre>}
+          {step.output.length > 0 && <pre {...stylex.props(styles.toolIo)}>{step.output}</pre>}
         </div>
       )}
     </div>
   );
 }
 
-function AssistantItem({ item }: { readonly item: Extract<ThreadItem, { kind: "assistant" }> }) {
+/** A rolled run of reads: one line until opened, then every row (spec §4). */
+function ReadGroup({ steps }: { readonly steps: readonly TurnStep[] }): React.ReactElement {
+  const [expanded, setExpanded] = React.useState(false);
+  const isRunning = steps.some((step) => step.state === "running");
   return (
-    <AssistantMessage isStreaming={item.live}>
-      {item.blocks.map((block) =>
-        block.kind === "text" ? (
-          <Markdown key={block.key} text={block.text} isStreaming={item.live} />
-        ) : block.kind === "thinking" ? (
-          <div key={block.key} {...stylex.props(styles.thinking)}>
-            {block.text}
-          </div>
+    <WorkGroup isRunning={isRunning}>
+      <WorkGroup.Header
+        verb="Read"
+        detail={`${String(steps.length)} files`}
+        isRunning={isRunning}
+        isExpanded={expanded}
+        onToggle={() => {
+          setExpanded((open) => !open);
+        }}
+      />
+      {expanded && steps.map((step) => <StepRow key={step.key} step={step} />)}
+    </WorkGroup>
+  );
+}
+
+function SegmentView({
+  segment,
+  layer,
+  live,
+}: {
+  readonly segment: TurnSegment;
+  readonly layer: DisclosureLayer;
+  readonly live: boolean;
+}): React.ReactElement {
+  return (
+    <div>
+      {segment.headline !== null && <Markdown text={segment.headline} isStreaming={live} />}
+      {layer >= 2
+        ? segment.steps.map((step) => <StepRow key={step.key} step={step} />)
+        : segmentRows(segment.steps).map((row) =>
+            row.kind === "step" ? (
+              <StepRow key={row.step.key} step={row.step} />
+            ) : (
+              <ReadGroup key={row.steps[0]?.key ?? segment.id} steps={row.steps} />
+            ),
+          )}
+    </div>
+  );
+}
+
+function TurnBlock({
+  turn,
+  live,
+  ticker,
+  density,
+}: {
+  readonly turn: TurnView;
+  readonly live: boolean;
+  readonly ticker: TickerState;
+  readonly density: ConversationDensity;
+}): React.ReactElement {
+  // The per-turn override: a click wins over the setting for this turn only.
+  const [override, setOverride] = React.useState<DisclosureLayer | null>(null);
+  const phase = live ? "running" : "settled";
+  const layer = effectiveLayer(override, density, phase);
+
+  const status = (
+    <TurnStatus
+      phase={phase}
+      ticker={ticker}
+      outcome={turn.outcome}
+      durationMs={turn.durationMs}
+    />
+  );
+
+  return (
+    <div {...stylex.props(styles.turn)}>
+      <UserMessage>{turn.userText}</UserMessage>
+      <AssistantMessage isStreaming={live}>
+        {layer >= 1 &&
+          turn.segments.map((segment) => (
+            <SegmentView key={segment.id} segment={segment} layer={layer} live={live} />
+          ))}
+        {live ? (
+          status
         ) : (
-          <ToolBlock key={block.key} block={block} />
-        ),
-      )}
-      {item.error !== null && <NoticeRow severity="error" message={item.error} />}
-    </AssistantMessage>
+          // Clicks walk the layers: the header opens a collapsed turn to the
+          // density's expanded form and collapses it back (spec §2).
+          <button
+            type="button"
+            aria-expanded={layer >= 1}
+            data-canonical-control-exception="Turn disclosure header: the TurnStatus surface is the control's whole chrome; button styling would double it."
+            onClick={() => {
+              setOverride(layer === 0 ? (density === "detailed" ? 2 : 1) : 0);
+            }}
+            {...stylex.props(styles.headerButton)}
+          >
+            {status}
+          </button>
+        )}
+        {turn.summary !== null && <Markdown text={turn.summary} isStreaming={live} />}
+        {turn.error !== null && <NoticeRow severity="error" message={turn.error} />}
+        {!live && turn.files.length > 0 && (
+          // What the agent edited, at every settle — the change receipt maps
+          // Git's statuses one to one.
+          <ChangeReceipt
+            files={turn.files.map((file) => ({
+              path: file.file,
+              additions: file.additions,
+              deletions: file.deletions,
+              status: file.status,
+            }))}
+          />
+        )}
+      </AssistantMessage>
+    </div>
   );
 }
 
 export function ChatTranscript({
   items,
+  running,
+  ticker,
+  density,
 }: {
-  readonly items: readonly ThreadItem[];
+  readonly items: readonly ConversationItem[];
+  readonly running: boolean;
+  readonly ticker: TickerState;
+  readonly density: ConversationDensity;
 }): React.ReactElement {
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
-  const lastItem = items.at(-1);
+  const lastTurn = items.findLast(
+    (item): item is Extract<ConversationItem, { kind: "turn" }> => item.kind === "turn",
+  );
 
-  // Follow the conversation: keyed on the last row's identity and content
-  // size so streaming text keeps the view pinned without a resize observer.
+  // Follow the conversation: keyed on the last turn's identity and content
+  // size so streaming keeps the view pinned without a resize observer.
   const lastSize =
-    lastItem?.kind === "assistant"
-      ? lastItem.blocks.reduce(
-          (total, block) =>
-            total + (block.kind === "tool" ? block.output.length : block.text.length),
-          0,
-        )
-      : 0;
+    lastTurn === undefined
+      ? 0
+      : lastTurn.turn.segments.reduce((total, segment) => total + segment.steps.length, 0) +
+        (lastTurn.turn.summary?.length ?? 0);
   const followKey =
-    lastItem === undefined ? "" : `${lastItem.id}:${String(items.length)}:${String(lastSize)}`;
+    lastTurn === undefined
+      ? ""
+      : `${lastTurn.turn.id}:${String(items.length)}:${String(lastSize)}`;
   React.useEffect(() => {
     const node = scrollRef.current;
     if (node !== null) node.scrollTop = node.scrollHeight;
@@ -152,29 +260,22 @@ export function ChatTranscript({
       <div {...stylex.props(styles.column)}>
         {items.map((item) => {
           switch (item.kind) {
-            case "user":
-              return <UserMessage key={item.id}>{item.text}</UserMessage>;
-            case "assistant":
-              return <AssistantItem key={item.id} item={item} />;
+            case "turn":
+              return (
+                <TurnBlock
+                  key={item.turn.id}
+                  turn={item.turn}
+                  live={running && item.turn.id === lastTurn?.turn.id}
+                  ticker={ticker}
+                  density={density}
+                />
+              );
             case "compaction":
               return (
                 <CompactionDivider
                   key={item.id}
                   summary={item.summary}
                   tokensBefore={item.tokensBefore}
-                />
-              );
-            case "receipt":
-              return (
-                <ChangeReceipt
-                  key={item.id}
-                  // Git's change statuses are exactly the receipt's statuses.
-                  files={item.files.map((file) => ({
-                    path: file.file,
-                    additions: file.additions,
-                    deletions: file.deletions,
-                    status: file.status,
-                  }))}
                 />
               );
             case "notice":

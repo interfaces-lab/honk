@@ -113,36 +113,6 @@ export const reduce = (state: ChatState, event: ChatEvent): ChatState => {
 // Thread projection
 // ---------------------------------------------------------------------------
 
-export type AssistantBlock =
-  | { readonly kind: "text"; readonly key: string; readonly text: string }
-  | { readonly kind: "thinking"; readonly key: string; readonly text: string }
-  | {
-      readonly kind: "tool";
-      readonly key: string;
-      readonly name: string;
-      readonly args: string;
-      readonly state: "running" | "ok" | "error";
-      readonly output: string;
-    };
-
-export type ThreadItem =
-  | { readonly kind: "user"; readonly id: string; readonly text: string }
-  | {
-      readonly kind: "assistant";
-      readonly id: string;
-      readonly live: boolean;
-      readonly blocks: readonly AssistantBlock[];
-      readonly error: string | null;
-    }
-  | { readonly kind: "notice"; readonly id: string; readonly text: string }
-  | {
-      readonly kind: "compaction";
-      readonly id: string;
-      readonly summary: string;
-      readonly tokensBefore: number;
-    }
-  | { readonly kind: "receipt"; readonly id: string; readonly files: readonly Git.FileChange[] };
-
 type PiMessage = Extract<Session.SessionTreeEntry, { readonly type: "message" }>["message"];
 type PiToolResult = Extract<PiMessage, { readonly role: "toolResult" }>;
 
@@ -158,47 +128,6 @@ const formatArgs = (args: unknown): string => {
   } catch {
     return String(args);
   }
-};
-
-const assistantItem = (
-  id: string,
-  message: StreamingAssistantMessage,
-  toolResults: ReadonlyMap<string, PiToolResult>,
-  live: boolean,
-): ThreadItem => {
-  const blocks: AssistantBlock[] = [];
-  for (const [index, block] of message.content.entries()) {
-    const key = `${id}:${String(index)}`;
-    if (block.type === "text") {
-      blocks.push({ kind: "text", key, text: block.text });
-    } else if (block.type === "thinking") {
-      blocks.push({
-        kind: "thinking",
-        key,
-        text: block.redacted ? "Reasoning was redacted by the provider." : block.thinking,
-      });
-    } else {
-      const result = toolResults.get(block.id);
-      blocks.push({
-        kind: "tool",
-        key,
-        name: block.name,
-        args: formatArgs(block.arguments),
-        state: result === undefined ? "running" : result.isError ? "error" : "ok",
-        output: result === undefined ? "" : toolResultText(result),
-      });
-    }
-  }
-  return {
-    kind: "assistant",
-    id,
-    live,
-    blocks,
-    error:
-      message.stopReason === "error"
-        ? (message.errorMessage ?? "The model request failed.")
-        : null,
-  };
 };
 
 const noticeOf = (entry: Session.SessionTreeEntry): string | null => {
@@ -268,6 +197,10 @@ export interface TurnView {
   readonly durationMs: number | null;
   /** How the turn ended. A stopped or failed turn still collapses; only the label tells. */
   readonly outcome: "done" | "stopped" | "failed";
+  /** What this turn edited — the change receipt shown when the turn settles. */
+  readonly files: readonly Git.FileChange[];
+  /** The failing model request's message, when outcome is failed. */
+  readonly error: string | null;
 }
 
 /** The most human string in a tool's arguments, shared by rows and the ticker. */
@@ -278,14 +211,28 @@ export const stepDetail = (args: unknown): string | null => {
   return typeof candidate === "string" && candidate.length > 0 ? candidate : null;
 };
 
-/** Folds committed entries into the turn grammar. Pure; streaming joins later. */
-export const turnViews = (entries: readonly Session.SessionTreeEntry[]): readonly TurnView[] => {
+/**
+ * Folds committed entries — and, when a run streams, the live assistant
+ * message — into the turn grammar. The streaming message is not an entry yet,
+ * so its blocks fold into the open turn through the same per-block rules: its
+ * trailing text is the turn's summary-so-far, streamed outside the preview
+ * window until the next block decides what it was (spec §5).
+ */
+export const turnViews = (
+  entries: readonly Session.SessionTreeEntry[],
+  streamingMessage: StreamingAssistantMessage | null = null,
+  changes: Session.ChangesOutput["turns"] = [],
+): readonly TurnView[] => {
   const toolResults = new Map<string, PiToolResult>();
   for (const entry of entries) {
     if (entry.type === "message" && entry.message.role === "toolResult") {
       toolResults.set(entry.message.toolCallId, entry.message);
     }
   }
+  // The receipt keys on the turn's settling entry — whatever kind it is.
+  const receiptByEntry = new Map(
+    changes.filter((turn) => turn.files.length > 0).map((turn) => [turn.entryId, turn.files]),
+  );
 
   const turns: TurnView[] = [];
   let turn: {
@@ -295,6 +242,8 @@ export const turnViews = (entries: readonly Session.SessionTreeEntry[]): readonl
     startedAt: string;
     lastAt: string;
     outcome: TurnView["outcome"];
+    files: readonly Git.FileChange[];
+    error: string | null;
   } | null = null;
   let segment: { id: string; headline: string | null; steps: TurnStep[] } | null = null;
   // Assistant text is pending until the next block decides what it was: a
@@ -321,46 +270,33 @@ export const turnViews = (entries: readonly Session.SessionTreeEntry[]): readonl
             ? ended - started
             : null,
         outcome: turn.outcome,
+        files: turn.files,
+        error: turn.error,
       });
     }
     turn = null;
     pendingText = null;
   };
 
-  for (const entry of entries) {
-    if (entry.type !== "message") continue;
-    const { message } = entry;
-
-    if (message.role === "user") {
-      closeTurn();
-      turn = {
-        id: entry.id,
-        userText: textOfMessage(message),
-        segments: [],
-        startedAt: entry.timestamp,
-        lastAt: entry.timestamp,
-        outcome: "done",
-      };
-      continue;
-    }
-    if (turn === null) continue;
-    turn.lastAt = entry.timestamp;
-    if (message.role !== "assistant") continue;
-
-    // The last assistant verdict wins: a retried turn that finishes cleanly
-    // is done, a turn whose final message aborted or errored says so.
-    if (message.stopReason === "aborted") turn.outcome = "stopped";
-    else if (message.stopReason === "error") turn.outcome = "failed";
-    else turn.outcome = "done";
-
-    for (const block of message.content) {
+  // One block walk shared by committed messages and the streaming one. The
+  // sourceId keys segments; the running count keeps sibling segment ids apart.
+  const foldAssistantBlocks = (
+    blocks: StreamingAssistantMessage["content"],
+    sourceId: string,
+  ) => {
+    if (turn === null) return;
+    for (const block of blocks) {
       if (block.type === "text") {
         closeSegment();
         pendingText = pendingText === null ? block.text : `${pendingText}\n\n${block.text}`;
       } else if (block.type === "toolCall") {
         if (pendingText !== null || segment === null) {
           closeSegment();
-          segment = { id: entry.id, headline: pendingText, steps: [] };
+          segment = {
+            id: `${sourceId}:${String(turn.segments.length)}`,
+            headline: pendingText,
+            steps: [],
+          };
           pendingText = null;
         }
         const result = toolResults.get(block.id);
@@ -376,9 +312,88 @@ export const turnViews = (entries: readonly Session.SessionTreeEntry[]): readonl
       }
       // thinking blocks are L3 detail; the grammar skips them.
     }
+  };
+
+  for (const entry of entries) {
+    if (entry.type !== "message") {
+      const files = receiptByEntry.get(entry.id);
+      if (files !== undefined && turn !== null) turn.files = files;
+      continue;
+    }
+    const { message } = entry;
+
+    if (message.role === "user") {
+      closeTurn();
+      turn = {
+        id: entry.id,
+        userText: textOfMessage(message),
+        segments: [],
+        startedAt: entry.timestamp,
+        lastAt: entry.timestamp,
+        outcome: "done",
+        files: [],
+        error: null,
+      };
+      continue;
+    }
+    if (turn === null) continue;
+    turn.lastAt = entry.timestamp;
+    const files = receiptByEntry.get(entry.id);
+    if (files !== undefined) turn.files = files;
+    if (message.role !== "assistant") continue;
+
+    // The last assistant verdict wins: a retried turn that finishes cleanly
+    // is done, a turn whose final message aborted or errored says so.
+    if (message.stopReason === "aborted") {
+      turn.outcome = "stopped";
+      turn.error = null;
+    } else if (message.stopReason === "error") {
+      turn.outcome = "failed";
+      turn.error = message.errorMessage ?? "The model request failed.";
+    } else {
+      turn.outcome = "done";
+      turn.error = null;
+    }
+
+    foldAssistantBlocks(message.content, entry.id);
   }
+
+  if (streamingMessage !== null && turn !== null) {
+    foldAssistantBlocks(streamingMessage.content, `live:${String(streamingMessage.timestamp)}`);
+  }
+
   closeTurn();
   return turns;
+};
+
+// ---------------------------------------------------------------------------
+// Segment rows (spec §4): how a segment's steps read at L1.
+// ---------------------------------------------------------------------------
+
+export type SegmentRow =
+  | { readonly kind: "step"; readonly step: TurnStep }
+  // A run of consecutive read-shaped steps at the group minimum. Edits and
+  // shell commands never disappear into a group.
+  | { readonly kind: "group"; readonly steps: readonly TurnStep[] };
+
+export const segmentRows = (steps: readonly TurnStep[]): readonly SegmentRow[] => {
+  const rows: SegmentRow[] = [];
+  let reads: TurnStep[] = [];
+  const flush = () => {
+    if (reads.length >= GROUP_MIN) rows.push({ kind: "group", steps: reads });
+    else for (const step of reads) rows.push({ kind: "step", step });
+    reads = [];
+  };
+  for (const step of steps) {
+    if (step.readShaped) {
+      reads.push(step);
+    } else {
+      flush();
+      rows.push({ kind: "step", step });
+    }
+  }
+  flush();
+  return rows;
 };
 
 // ---------------------------------------------------------------------------
@@ -457,34 +472,35 @@ export const tickerOf = (state: ChatState): TickerState => {
 };
 
 /**
- * Projects the committed transcript, the live streaming message, and the
- * per-turn change receipts into the rows the thread renders. Tool results
- * pair onto the calls that made them and never render as rows of their own;
- * a turn's receipt renders after the entry whose settlement captured it.
+ * The transcript's row sequence: turns in the grammar above, with the
+ * non-message entries the grammar skips — compaction dividers and context
+ * notices — interleaved in document order.
  */
-export const threadItems = (
+export type ConversationItem =
+  | { readonly kind: "turn"; readonly turn: TurnView }
+  | { readonly kind: "notice"; readonly id: string; readonly text: string }
+  | {
+      readonly kind: "compaction";
+      readonly id: string;
+      readonly summary: string;
+      readonly tokensBefore: number;
+    };
+
+export const conversationItems = (
   entries: readonly Session.SessionTreeEntry[],
   streamingMessage: StreamingAssistantMessage | null,
-  turns: Session.ChangesOutput["turns"] = [],
-): readonly ThreadItem[] => {
-  const toolResults = new Map<string, PiToolResult>();
-  for (const entry of entries) {
-    if (entry.type === "message" && entry.message.role === "toolResult") {
-      toolResults.set(entry.message.toolCallId, entry.message);
-    }
-  }
-  const receiptByEntry = new Map(
-    turns.filter((turn) => turn.files.length > 0).map((turn) => [turn.entryId, turn.files] as const),
+  changes: Session.ChangesOutput["turns"] = [],
+): readonly ConversationItem[] => {
+  const turnById = new Map(
+    turnViews(entries, streamingMessage, changes).map((turn) => [turn.id, turn]),
   );
 
-  const items: ThreadItem[] = [];
+  const items: ConversationItem[] = [];
   for (const entry of entries) {
     if (entry.type === "message") {
-      if (entry.message.role === "user") {
-        items.push({ kind: "user", id: entry.id, text: textOfMessage(entry.message) });
-      } else if (entry.message.role === "assistant") {
-        items.push(assistantItem(entry.id, entry.message, toolResults, false));
-      }
+      // A turn renders at its user entry; the rest of its messages fold in.
+      const turn = turnById.get(entry.id);
+      if (turn !== undefined) items.push({ kind: "turn", turn });
     } else if (entry.type === "compaction") {
       items.push({
         kind: "compaction",
@@ -496,25 +512,6 @@ export const threadItems = (
       const notice = noticeOf(entry);
       if (notice !== null) items.push({ kind: "notice", id: entry.id, text: notice });
     }
-
-    // The receipt keys on the turn's settling entry — whatever kind it is.
-    const files = receiptByEntry.get(entry.id);
-    if (files !== undefined) items.push({ kind: "receipt", id: `receipt:${entry.id}`, files });
   }
-
-  if (streamingMessage !== null) {
-    // Pi keeps one timestamp across updates of a single assistant message, so
-    // the live row's identity is stable within a stream and never collides
-    // with a later tool-loop message.
-    items.push(
-      assistantItem(
-        `live:${String(streamingMessage.timestamp)}`,
-        streamingMessage,
-        toolResults,
-        true,
-      ),
-    );
-  }
-
   return items;
 };

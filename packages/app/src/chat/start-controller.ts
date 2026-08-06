@@ -87,31 +87,28 @@ export function useChatStart(input: {
   const openingDirectory = state.step === "opening" ? state.directory : null;
   const ready = state.step === "ready";
 
-  const applyCatalog = React.useCallback(
-    (providers: readonly ProviderCatalogEntry[]): void => {
-      setModelOptions(
-        providers
-          .filter((provider) => provider.configured)
-          .flatMap((provider) =>
-            provider.models.map((entry) => ({
-              providerId: provider.id,
-              modelId: entry.id,
-              label: `${provider.id} / ${entry.name}`,
-            })),
-          ),
-      );
-      setProviderSetups(
-        providers
-          .filter((provider) => !provider.configured && provider.methods.length > 0)
-          .map((provider) => ({
-            id: provider.id,
-            name: provider.name,
-            methods: provider.methods,
+  const applyCatalog = (providers: readonly ProviderCatalogEntry[]): void => {
+    setModelOptions(
+      providers
+        .filter((provider) => provider.configured)
+        .flatMap((provider) =>
+          provider.models.map((entry) => ({
+            providerId: provider.id,
+            modelId: entry.id,
+            label: `${provider.id} / ${entry.name}`,
           })),
-      );
-    },
-    [],
-  );
+        ),
+    );
+    setProviderSetups(
+      providers
+        .filter((provider) => !provider.configured && provider.methods.length > 0)
+        .map((provider) => ({
+          id: provider.id,
+          name: provider.name,
+          methods: provider.methods,
+        })),
+    );
+  };
 
   // Entering the opening step is the only trigger for the open call, whether
   // the step came from a picked directory or a completed trust. One cause,
