@@ -80,7 +80,7 @@ export const Rpcs = Workspace.Rpcs.merge(Session.Rpcs, Files.Rpcs, Git.Rpcs, Mod
  *
  * The client repeats no payload, result, or error type: `Call` reads the
  * payload and success types straight off the `Rpc`, so a schema change in
- * `session.ts` or `workspace.ts` reaches the public API with no edit here.
+ * `session` or `workspace` reaches the public API with no edit here.
  *
  * The returned promise fulfills with the success value or rejects with the
  * owning domain's error instance. Effect's `runPromise` squashes the failure
@@ -123,6 +123,17 @@ export type Subscribe<R extends Rpc.Any> = (
 ) => AsyncIterable<Rpc.SuccessChunk<R>>;
 
 /**
+ * One SDK namespace, derived from a domain's `commands` record: one
+ * {@link Call} per command. The namespaces below repeat no method lists — a
+ * command added to a domain's record appears here with no edit.
+ *
+ * @category types
+ */
+export type NamespaceOf<Commands extends Record<string, Rpc.Any>> = {
+  readonly [K in keyof Commands]: Call<Commands[K]>;
+};
+
+/**
  * One interface attached to a running core.
  *
  * Namespaces group calls; they do not hide execution. Every method takes one
@@ -143,10 +154,7 @@ export interface HonkClient {
    * which is a product state and not a failure. It must not read
    * workspace-controlled configuration or create a harness before that check.
    */
-  readonly workspace: {
-    readonly open: Call<typeof Workspace.Open>;
-    readonly trust: Call<typeof Workspace.Trust>;
-  };
+  readonly workspace: NamespaceOf<typeof Workspace.commands>;
 
   /**
    * Session lifecycle and run control, each call landing on the real Pi
@@ -157,19 +165,7 @@ export interface HonkClient {
    * temporary notification channel that lets an attached interface update
    * without reloading after every change.
    */
-  readonly session: {
-    readonly create: Call<typeof Session.Create>;
-    readonly prompt: Call<typeof Session.Prompt>;
-    readonly steer: Call<typeof Session.Steer>;
-    readonly followUp: Call<typeof Session.FollowUp>;
-    readonly abort: Call<typeof Session.Abort>;
-    readonly reload: Call<typeof Session.Reload>;
-    readonly changes: Call<typeof Session.Changes>;
-    readonly setWorkspace: Call<typeof Session.SetWorkspace>;
-    readonly revert: Call<typeof Session.Revert>;
-    readonly list: Call<typeof Session.List>;
-    readonly get: Call<typeof Session.Get>;
-    readonly delete: Call<typeof Session.Delete>;
+  readonly session: NamespaceOf<typeof Session.commands> & {
     readonly events: Subscribe<typeof Session.Events>;
 
     /**
@@ -191,15 +187,7 @@ export interface HonkClient {
    * the workspace directory fails rather than resolving. No absolute host path
    * reaches a client.
    */
-  readonly files: {
-    readonly find: Call<typeof Files.Find>;
-    readonly list: Call<typeof Files.List>;
-    readonly read: Call<typeof Files.Read>;
-    readonly write: Call<typeof Files.Write>;
-    readonly delete: Call<typeof Files.Delete>;
-    readonly createDirectory: Call<typeof Files.CreateDirectory>;
-    readonly rename: Call<typeof Files.Rename>;
-  };
+  readonly files: NamespaceOf<typeof Files.commands>;
 
   /**
    * Version control for a trusted workspace.
@@ -213,24 +201,7 @@ export interface HonkClient {
    * whole-workspace commits the session layer captures on every settled turn,
    * diffs to answer "what did *this* turn do", and restores to revert to one.
    */
-  readonly git: {
-    readonly status: Call<typeof Git.Status>;
-    readonly diff: Call<typeof Git.Diff>;
-    readonly filePatch: Call<typeof Git.FilePatch>;
-    readonly fileImage: Call<typeof Git.FileImage>;
-    readonly fileContent: Call<typeof Git.FileContent>;
-    readonly branches: Call<typeof Git.Branches>;
-    readonly checkout: Call<typeof Git.Checkout>;
-    readonly pull: Call<typeof Git.Pull>;
-    readonly discard: Call<typeof Git.Discard>;
-    readonly captureCheckpoint: Call<typeof Git.CaptureCheckpoint>;
-    readonly checkpoints: Call<typeof Git.Checkpoints>;
-    readonly checkpointChanges: Call<typeof Git.CheckpointChanges>;
-    readonly checkpointDiff: Call<typeof Git.CheckpointDiff>;
-    readonly restoreCheckpoint: Call<typeof Git.RestoreCheckpoint>;
-    readonly restoreFiles: Call<typeof Git.RestoreFiles>;
-    readonly deleteCheckpoints: Call<typeof Git.DeleteCheckpoints>;
-  };
+  readonly git: NamespaceOf<typeof Git.commands>;
 
   /**
    * The provider catalog and the credentials that unlock it.
@@ -240,11 +211,7 @@ export interface HonkClient {
    * `deleteCredential` is logout. Which model a session runs on is chosen at
    * {@link HonkClient.session.create} and recorded in the transcript.
    */
-  readonly models: {
-    readonly list: Call<typeof Models.List>;
-    readonly setCredential: Call<typeof Models.SetCredential>;
-    readonly deleteCredential: Call<typeof Models.DeleteCredential>;
-  };
+  readonly models: NamespaceOf<typeof Models.commands>;
 
   /**
    * Detaches this interface.
@@ -404,6 +371,80 @@ export const layer = (options: HonkCoreOptions) => {
 };
 
 /**
+ * Builds the namespace facade over a flat RPC client.
+ *
+ * Written once and shared by {@link createHonkCore} and
+ * {@link createHonkClient}: the two constructors differ only in transport and
+ * `close`, so the method wiring must not exist twice. Method types derive from
+ * the {@link Rpcs} definitions through {@link NamespaceOf}, so a missing or
+ * misbound method is a type error, not a runtime surprise.
+ *
+ * `run` executes one request/response effect; `iterate` turns a stream into
+ * the caller's `AsyncIterable`. Both close over the constructor's runtime.
+ */
+const makeSdk = <E>(
+  rpc: RpcClient.FromGroup<typeof Rpcs, E>,
+  run: <A, EX>(effect: Effect.Effect<A, EX>) => Promise<A>,
+  iterate: <A, EX>(stream: Stream.Stream<A, EX>) => AsyncIterable<A>,
+): Omit<HonkClient, "close"> => {
+  const session = {
+    create: (input) => run(rpc["session.create"](input)),
+    prompt: (input) => run(rpc["session.prompt"](input)),
+    steer: (input) => run(rpc["session.steer"](input)),
+    followUp: (input) => run(rpc["session.follow_up"](input)),
+    abort: (input) => run(rpc["session.abort"](input)),
+    reload: (input) => run(rpc["session.reload"](input)),
+    changes: (input) => run(rpc["session.changes"](input)),
+    setWorkspace: (input) => run(rpc["session.set_workspace"](input)),
+    revert: (input) => run(rpc["session.revert"](input)),
+    list: (input) => run(rpc["session.list"](input)),
+    get: (input) => run(rpc["session.get"](input)),
+    delete: (input) => run(rpc["session.delete"](input)),
+    events: (input) => iterate(rpc["session.events"](input)),
+  } satisfies Omit<HonkClient["session"], "watch">;
+
+  return {
+    workspace: {
+      open: (input) => run(rpc["workspace.open"](input)),
+      trust: (input) => run(rpc["workspace.trust"](input)),
+    },
+    session: { ...session, watch: (input) => watchSession(session, input) },
+    files: {
+      find: (input) => run(rpc["files.find"](input)),
+      list: (input) => run(rpc["files.list"](input)),
+      read: (input) => run(rpc["files.read"](input)),
+      write: (input) => run(rpc["files.write"](input)),
+      delete: (input) => run(rpc["files.delete"](input)),
+      createDirectory: (input) => run(rpc["files.create_directory"](input)),
+      rename: (input) => run(rpc["files.rename"](input)),
+    },
+    git: {
+      status: (input) => run(rpc["git.status"](input)),
+      diff: (input) => run(rpc["git.diff"](input)),
+      filePatch: (input) => run(rpc["git.file_patch"](input)),
+      fileImage: (input) => run(rpc["git.file_image"](input)),
+      fileContent: (input) => run(rpc["git.file_content"](input)),
+      branches: (input) => run(rpc["git.branches"](input)),
+      checkout: (input) => run(rpc["git.checkout"](input)),
+      pull: (input) => run(rpc["git.pull"](input)),
+      discard: (input) => run(rpc["git.discard"](input)),
+      captureCheckpoint: (input) => run(rpc["git.capture_checkpoint"](input)),
+      checkpoints: (input) => run(rpc["git.checkpoints"](input)),
+      checkpointChanges: (input) => run(rpc["git.checkpoint_changes"](input)),
+      checkpointDiff: (input) => run(rpc["git.checkpoint_diff"](input)),
+      restoreCheckpoint: (input) => run(rpc["git.restore_checkpoint"](input)),
+      restoreFiles: (input) => run(rpc["git.restore_files"](input)),
+      deleteCheckpoints: (input) => run(rpc["git.delete_checkpoints"](input)),
+    },
+    models: {
+      list: (input) => run(rpc["models.list"](input)),
+      setCredential: (input) => run(rpc["models.set_credential"](input)),
+      deleteCredential: (input) => run(rpc["models.delete_credential"](input)),
+    },
+  };
+};
+
+/**
  * Starts one Honk Core host for one data directory.
  *
  * Construction has no half-ready state. The returned promise resolves only
@@ -448,63 +489,12 @@ export const createHonkCore = async (options: HonkCoreOptions): Promise<HonkCore
       makeInProcessRpcClient().pipe(Effect.provideService(Scope.Scope, scope)),
     );
 
-    // Each method binds one RPC to one public name. A contract test asserts the
-    // mapping is total and disjoint, so an RPC cannot ship unreachable or
-    // reachable from two namespaces.
-    const session = {
-      create: (input) => runtime.runPromise(rpc["session.create"](input)),
-      prompt: (input) => runtime.runPromise(rpc["session.prompt"](input)),
-      steer: (input) => runtime.runPromise(rpc["session.steer"](input)),
-      followUp: (input) => runtime.runPromise(rpc["session.follow_up"](input)),
-      abort: (input) => runtime.runPromise(rpc["session.abort"](input)),
-      reload: (input) => runtime.runPromise(rpc["session.reload"](input)),
-      changes: (input) => runtime.runPromise(rpc["session.changes"](input)),
-      setWorkspace: (input) => runtime.runPromise(rpc["session.set_workspace"](input)),
-      revert: (input) => runtime.runPromise(rpc["session.revert"](input)),
-      list: (input) => runtime.runPromise(rpc["session.list"](input)),
-      get: (input) => runtime.runPromise(rpc["session.get"](input)),
-      delete: (input) => runtime.runPromise(rpc["session.delete"](input)),
-      events: (input) => Stream.toAsyncIterableWith(rpc["session.events"](input), context),
-    } satisfies Omit<HonkClient["session"], "watch">;
-
     return {
-      workspace: {
-        open: (input) => runtime.runPromise(rpc["workspace.open"](input)),
-        trust: (input) => runtime.runPromise(rpc["workspace.trust"](input)),
-      },
-      session: { ...session, watch: (input) => watchSession(session, input) },
-      files: {
-        find: (input) => runtime.runPromise(rpc["files.find"](input)),
-        list: (input) => runtime.runPromise(rpc["files.list"](input)),
-        read: (input) => runtime.runPromise(rpc["files.read"](input)),
-        write: (input) => runtime.runPromise(rpc["files.write"](input)),
-        delete: (input) => runtime.runPromise(rpc["files.delete"](input)),
-        createDirectory: (input) => runtime.runPromise(rpc["files.create_directory"](input)),
-        rename: (input) => runtime.runPromise(rpc["files.rename"](input)),
-      },
-      git: {
-        status: (input) => runtime.runPromise(rpc["git.status"](input)),
-        diff: (input) => runtime.runPromise(rpc["git.diff"](input)),
-        filePatch: (input) => runtime.runPromise(rpc["git.file_patch"](input)),
-        fileImage: (input) => runtime.runPromise(rpc["git.file_image"](input)),
-        fileContent: (input) => runtime.runPromise(rpc["git.file_content"](input)),
-        branches: (input) => runtime.runPromise(rpc["git.branches"](input)),
-        checkout: (input) => runtime.runPromise(rpc["git.checkout"](input)),
-        pull: (input) => runtime.runPromise(rpc["git.pull"](input)),
-        discard: (input) => runtime.runPromise(rpc["git.discard"](input)),
-        captureCheckpoint: (input) => runtime.runPromise(rpc["git.capture_checkpoint"](input)),
-        checkpoints: (input) => runtime.runPromise(rpc["git.checkpoints"](input)),
-        checkpointChanges: (input) => runtime.runPromise(rpc["git.checkpoint_changes"](input)),
-        checkpointDiff: (input) => runtime.runPromise(rpc["git.checkpoint_diff"](input)),
-        restoreCheckpoint: (input) => runtime.runPromise(rpc["git.restore_checkpoint"](input)),
-        restoreFiles: (input) => runtime.runPromise(rpc["git.restore_files"](input)),
-        deleteCheckpoints: (input) => runtime.runPromise(rpc["git.delete_checkpoints"](input)),
-      },
-      models: {
-        list: (input) => runtime.runPromise(rpc["models.list"](input)),
-        setCredential: (input) => runtime.runPromise(rpc["models.set_credential"](input)),
-        deleteCredential: (input) => runtime.runPromise(rpc["models.delete_credential"](input)),
-      },
+      ...makeSdk(
+        rpc,
+        (effect) => runtime.runPromise(effect),
+        (stream) => Stream.toAsyncIterableWith(stream, context),
+      ),
       close: () => Effect.runPromise(Scope.close(scope, Exit.void)),
     };
   };
@@ -529,10 +519,8 @@ export interface HonkClientOptions {
  *
  * The remote counterpart of {@link HonkCore.client}: the same interface, the
  * same command catalog, with ndjson framing so the session events stream flows
- * over a chunked response. Both constructors spell their namespaces out
- * longhand — `HonkClient`'s method types derive from the {@link Rpcs}
- * definitions, so a missing or misbound method is a type error, not a runtime
- * surprise.
+ * over a chunked response. Both constructors build their facade through the
+ * one shared `makeSdk`, so the two cannot drift.
  *
  * TODO(core-migration §6): Honk and Pi protocol version negotiation that fails
  * the connection on mismatch.
@@ -562,60 +550,12 @@ export const createHonkClient = async (options: HonkClientOptions): Promise<Honk
     RpcClient.make(Rpcs).pipe(Effect.provideService(Scope.Scope, runtime.scope)),
   );
 
-  const session = {
-    create: (input) => runtime.runPromise(rpc["session.create"](input)),
-    prompt: (input) => runtime.runPromise(rpc["session.prompt"](input)),
-    steer: (input) => runtime.runPromise(rpc["session.steer"](input)),
-    followUp: (input) => runtime.runPromise(rpc["session.follow_up"](input)),
-    abort: (input) => runtime.runPromise(rpc["session.abort"](input)),
-    reload: (input) => runtime.runPromise(rpc["session.reload"](input)),
-    changes: (input) => runtime.runPromise(rpc["session.changes"](input)),
-    setWorkspace: (input) => runtime.runPromise(rpc["session.set_workspace"](input)),
-    revert: (input) => runtime.runPromise(rpc["session.revert"](input)),
-    list: (input) => runtime.runPromise(rpc["session.list"](input)),
-    get: (input) => runtime.runPromise(rpc["session.get"](input)),
-    delete: (input) => runtime.runPromise(rpc["session.delete"](input)),
-    events: (input) => Stream.toAsyncIterableWith(rpc["session.events"](input), context),
-  } satisfies Omit<HonkClient["session"], "watch">;
-
   return {
-    workspace: {
-      open: (input) => runtime.runPromise(rpc["workspace.open"](input)),
-      trust: (input) => runtime.runPromise(rpc["workspace.trust"](input)),
-    },
-    session: { ...session, watch: (input) => watchSession(session, input) },
-    files: {
-      find: (input) => runtime.runPromise(rpc["files.find"](input)),
-      list: (input) => runtime.runPromise(rpc["files.list"](input)),
-      read: (input) => runtime.runPromise(rpc["files.read"](input)),
-      write: (input) => runtime.runPromise(rpc["files.write"](input)),
-      delete: (input) => runtime.runPromise(rpc["files.delete"](input)),
-      createDirectory: (input) => runtime.runPromise(rpc["files.create_directory"](input)),
-      rename: (input) => runtime.runPromise(rpc["files.rename"](input)),
-    },
-    git: {
-      status: (input) => runtime.runPromise(rpc["git.status"](input)),
-      diff: (input) => runtime.runPromise(rpc["git.diff"](input)),
-      filePatch: (input) => runtime.runPromise(rpc["git.file_patch"](input)),
-      fileImage: (input) => runtime.runPromise(rpc["git.file_image"](input)),
-      fileContent: (input) => runtime.runPromise(rpc["git.file_content"](input)),
-      branches: (input) => runtime.runPromise(rpc["git.branches"](input)),
-      checkout: (input) => runtime.runPromise(rpc["git.checkout"](input)),
-      pull: (input) => runtime.runPromise(rpc["git.pull"](input)),
-      discard: (input) => runtime.runPromise(rpc["git.discard"](input)),
-      captureCheckpoint: (input) => runtime.runPromise(rpc["git.capture_checkpoint"](input)),
-      checkpoints: (input) => runtime.runPromise(rpc["git.checkpoints"](input)),
-      checkpointChanges: (input) => runtime.runPromise(rpc["git.checkpoint_changes"](input)),
-      checkpointDiff: (input) => runtime.runPromise(rpc["git.checkpoint_diff"](input)),
-      restoreCheckpoint: (input) => runtime.runPromise(rpc["git.restore_checkpoint"](input)),
-      restoreFiles: (input) => runtime.runPromise(rpc["git.restore_files"](input)),
-      deleteCheckpoints: (input) => runtime.runPromise(rpc["git.delete_checkpoints"](input)),
-    },
-    models: {
-      list: (input) => runtime.runPromise(rpc["models.list"](input)),
-      setCredential: (input) => runtime.runPromise(rpc["models.set_credential"](input)),
-      deleteCredential: (input) => runtime.runPromise(rpc["models.delete_credential"](input)),
-    },
+    ...makeSdk(
+      rpc,
+      (effect) => runtime.runPromise(effect),
+      (stream) => Stream.toAsyncIterableWith(stream, context),
+    ),
     close: () => runtime.dispose(),
   };
 };

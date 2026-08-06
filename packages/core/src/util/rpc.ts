@@ -8,3 +8,12 @@ import type { Rpc } from "effect/unstable/rpc";
 export type Method<R extends Rpc.Any> = (
   input: Rpc.Payload<R>,
 ) => Effect.Effect<Rpc.Success<R>, Rpc.Error<R>>;
+
+// A whole service interface derived from a module's `commands` record: one
+// method per command, each typed by its Rpc. Modules declare the record once
+// and derive their Interface from it, so adding a command cannot leave the
+// service shape behind. Stream commands are not request/response methods and
+// stay declared by hand next to the derived part.
+export type ServiceOf<Commands extends Record<string, Rpc.Any>> = {
+  readonly [K in keyof Commands]: Method<Commands[K]>;
+};

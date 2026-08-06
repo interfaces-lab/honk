@@ -18,8 +18,8 @@
       "import": "./src/workspace.ts"
     },
     "./session": {
-      "types": "./src/session.ts",
-      "import": "./src/session.ts"
+      "types": "./src/session/index.ts",
+      "import": "./src/session/index.ts"
     },
     "./models": {
       "types": "./src/models.ts",
