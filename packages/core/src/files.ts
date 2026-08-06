@@ -49,7 +49,7 @@ import type { FileError, FileInfo, Result as PiResult } from "@earendil-works/pi
 import { Context, Effect, Layer, Path, Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/unstable/rpc";
 
-import type { Method } from "./util/rpc";
+import type { ServiceOf } from "./util/rpc";
 import { Workspace } from "./workspace";
 
 /** How many matches {@link Find} returns when the caller does not say. */
@@ -186,35 +186,6 @@ export class OperationError extends Schema.TaggedErrorClass<OperationError>()(
 ) {}
 
 /**
- * What any path-addressed call can fail with.
- *
- * `Workspace.NotFoundError` is part of it because a file call names a workspace
- * by id, and an id this host does not know is the same refusal the workspace
- * domain already defines. Restating it as a files-specific error would give
- * clients two names for one condition.
- *
- * @category errors
- */
-export type PathError =
-  | EscapeError
-  | NotFoundError
-  | AccessError
-  | OperationError
-  | Workspace.NotFoundError;
-
-/**
- * Every expected failure this domain owns.
- *
- * {@link ExistsError} is the only one {@link PathError} leaves out, because
- * only {@link Rename} can raise it.
- *
- * Code branches on `error.code`, never on `error.message`.
- *
- * @category errors
- */
-export type Error = PathError | ExistsError;
-
-/**
  * What every path-addressed call can fail with.
  *
  * Declared once as a value so the seven RPCs below cannot drift into seven
@@ -235,6 +206,30 @@ export const PathFailure = Schema.Union(pathFailures).annotate({ identifier: "Fi
 export const RenameFailure = Schema.Union([...pathFailures, ExistsError]).annotate({
   identifier: "FilesRenameFailure",
 });
+
+/**
+ * What any path-addressed call can fail with, derived from {@link PathFailure}
+ * so the type and the wire schema cannot list different members.
+ *
+ * `Workspace.NotFoundError` is part of it because a file call names a workspace
+ * by id, and an id this host does not know is the same refusal the workspace
+ * domain already defines. Restating it as a files-specific error would give
+ * clients two names for one condition.
+ *
+ * @category errors
+ */
+export type PathError = typeof PathFailure.Type;
+
+/**
+ * Every expected failure this domain owns, derived from {@link RenameFailure}:
+ * {@link ExistsError} is the only member {@link PathError} leaves out, because
+ * only {@link Rename} can raise it.
+ *
+ * Code branches on `error.code`, never on `error.message`.
+ *
+ * @category errors
+ */
+export type Error = typeof RenameFailure.Type;
 
 /**
  * What {@link Read} answers for a file it will not return as text.
@@ -476,29 +471,38 @@ export const Rename = Rpc.make("files.rename", {
 });
 
 /**
- * The files command catalog.
+ * The files command catalog, declared once.
+ *
+ * Everything else derives from this record: the {@link Rpcs} group, the
+ * service {@link Interface}, and the client namespace in `honk-core`.
  *
  * @category commands
  */
-export class Rpcs extends RpcGroup.make(Find, List, Read, Write, Delete, CreateDirectory, Rename) {}
+export const commands = {
+  find: Find,
+  list: List,
+  read: Read,
+  write: Write,
+  delete: Delete,
+  createDirectory: CreateDirectory,
+  rename: Rename,
+};
 
 /**
- * The files service as in-process callers use it.
+ * The files command group, derived from {@link commands}.
  *
- * Every method type derives from its {@link Rpc} through {@link Method}, so the
+ * @category commands
+ */
+export class Rpcs extends RpcGroup.make(...Object.values(commands)) {}
+
+/**
+ * The files service as in-process callers use it, derived from
+ * {@link commands}: one method per command, each typed by its Rpc, so the
  * service cannot drift from the wire contract.
  *
  * @category service
  */
-export interface Interface {
-  readonly find: Method<typeof Find>;
-  readonly list: Method<typeof List>;
-  readonly read: Method<typeof Read>;
-  readonly write: Method<typeof Write>;
-  readonly delete: Method<typeof Delete>;
-  readonly createDirectory: Method<typeof CreateDirectory>;
-  readonly rename: Method<typeof Rename>;
-}
+export interface Interface extends ServiceOf<typeof commands> {}
 
 /**
  * @category service

@@ -26,6 +26,7 @@ import type {
 import { Context, Effect, Layer, Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/unstable/rpc";
 
+import type { ServiceOf } from "./util/rpc";
 import type { Workspace } from "./workspace";
 
 /**
@@ -207,18 +208,37 @@ export const DeleteCredential = Rpc.make("models.delete_credential", {
 });
 
 /**
- * The models command group.
+ * The models command catalog, declared once.
+ *
+ * Everything else derives from this record: the {@link Rpcs} group, the
+ * wire-facing half of {@link Interface}, and the client namespace in
+ * `honk-core`.
  *
  * @category commands
  */
-export class Rpcs extends RpcGroup.make(List, SetCredential, DeleteCredential) {}
+export const commands = {
+  list: List,
+  setCredential: SetCredential,
+  deleteCredential: DeleteCredential,
+};
+
+/**
+ * The models command group, derived from {@link commands}.
+ *
+ * @category commands
+ */
+export class Rpcs extends RpcGroup.make(...Object.values(commands)) {}
 
 /**
  * The service the session layer and the RPC handlers share.
  *
+ * The wire-facing methods derive from {@link commands}, so the service cannot
+ * drift from the wire contract. `collection` and `resolve` are service-only
+ * additions with no RPC behind them.
+ *
  * @category service
  */
-export interface Interface {
+export interface Interface extends ServiceOf<typeof commands> {
   /**
    * Pi's collection itself, for harness construction.
    *
@@ -239,17 +259,6 @@ export interface Interface {
   readonly resolve: (
     ref?: ModelRef,
   ) => Effect.Effect<Model<Api>, UnknownProviderError | UnknownModelError | NoModelError>;
-
-  readonly list: Effect.Effect<ListOutput>;
-
-  readonly setCredential: (input: {
-    readonly providerId: string;
-    readonly key: string;
-  }) => Effect.Effect<void, UnknownProviderError | CredentialError>;
-
-  readonly deleteCredential: (input: {
-    readonly providerId: string;
-  }) => Effect.Effect<void, UnknownProviderError | CredentialError>;
 }
 
 /**
@@ -295,7 +304,7 @@ const make = (options: LayerOptions): Effect.Effect<Interface> =>
       return model;
     });
 
-    const list = Effect.gen(function* () {
+    const list = Effect.fnUntraced(function* (_input: Rpc.Payload<typeof List>) {
       const providers: ProviderSummary[] = [];
       for (const provider of collection.getProviders()) {
         // checkAuth reads stored credentials and ambient env without
@@ -380,7 +389,7 @@ export const rpcLayer = Rpcs.toLayer(
   Effect.gen(function* () {
     const models = yield* Service;
     return {
-      "models.list": () => models.list,
+      "models.list": (payload) => models.list(payload),
       "models.set_credential": (payload) => models.setCredential(payload),
       "models.delete_credential": (payload) => models.deleteCredential(payload),
     };

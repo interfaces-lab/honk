@@ -32,7 +32,7 @@ import type { ExecutionEnv } from "@earendil-works/pi-agent-core";
 import { Context, Effect, Layer, Path, Ref, Schema, Scope } from "effect";
 import { Rpc, RpcGroup } from "effect/unstable/rpc";
 
-import type { Method } from "./util/rpc";
+import type { ServiceOf } from "./util/rpc";
 
 /**
  * Pi's filesystem and shell capability, re-exported so built-ins type it
@@ -217,24 +217,36 @@ export const Trust = Rpc.make("workspace.trust", {
 });
 
 /**
- * The workspace command catalog.
+ * The workspace command catalog, declared once.
+ *
+ * Everything else derives from this record: the {@link Rpcs} group, the
+ * wire-facing half of {@link Interface}, and the client namespace in
+ * `honk-core`.
  *
  * @category commands
  */
-export class Rpcs extends RpcGroup.make(Open, Trust) {}
+export const commands = {
+  open: Open,
+  trust: Trust,
+};
+
+/**
+ * The workspace command group, derived from {@link commands}.
+ *
+ * @category commands
+ */
+export class Rpcs extends RpcGroup.make(...Object.values(commands)) {}
 
 /**
  * The workspace service as in-process callers use it.
  *
- * Every method type derives from its {@link Rpc} through {@link Method}, so the
- * service cannot drift from the wire contract.
+ * The wire-facing methods derive from {@link commands}, so the service cannot
+ * drift from the wire contract. `find`, `env`, and `locate` are service-only
+ * additions with no RPC behind them.
  *
  * @category service
  */
-export interface Interface {
-  readonly open: Method<typeof Open>;
-  readonly trust: Method<typeof Trust>;
-
+export interface Interface extends ServiceOf<typeof commands> {
   /**
    * Resolves a trusted workspace by id.
    *

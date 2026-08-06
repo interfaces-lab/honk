@@ -71,7 +71,7 @@ describe("the models service", () => {
 
       const program = Effect.gen(function* () {
         const models = yield* Models.Service;
-        const { providers } = yield* models.list;
+        const { providers } = yield* models.list({});
         const faux = providers.find((provider) => provider.id === "faux");
         // The faux provider's auth always resolves, so it reports configured
         // with an empty credential store — the keyless-provider contract.
