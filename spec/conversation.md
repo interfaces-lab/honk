@@ -129,16 +129,18 @@ implementation of chatting with this harness), translated to Honk surfaces.
 | Send while running     | `steer`    | at the loop boundary — after the current batch of tool calls |
 | Queue for after the run | `followUp` | only after the agent finishes all work          |
 
-While a run is active both verbs stay reachable; a composer setting picks
-which one plain Enter means:
+The bindings are fixed, not a setting (accepted rule `composer-queues`:
+one enqueue behavior, never separate send-versus-queue modes):
 
-- `sendWhileRunning: "queue"` (default) — Enter queues a follow-up, ⌘⏎
-  steers now. Matches the composer's shipped hint ("⏎ queues · ⌘⏎ sends
-  now").
-- `sendWhileRunning: "steer"` — Enter steers (Pi TUI's default), ⌘⏎ queues.
+- **Enter always enqueues.** While idle the queue drains immediately, so
+  it feels like send; while a run is active the message queues as a
+  follow-up and the queue rows appear. Matches the composer's shipped hint
+  ("⏎ queues · ⌘⏎ sends now").
+- **⌘⏎ steers** — force-send into the running work. This deliberately
+  diverges from Pi TUI's Enter-steers default.
 
-Shift+Enter stays newline in both modes. Streaming does not change the
-bindings — the verbs mean the same thing at every moment of a run.
+Shift+Enter stays newline. Streaming does not change the bindings — the
+verbs mean the same thing at every moment of a run.
 
 Separately from the verb choice, queue **delivery pacing** is Pi's own mode,
 `one-at-a-time` (default) or `all`, mirroring `steeringMode`/`followUpMode`.
@@ -210,11 +212,14 @@ second kind of message:
   canonical instruction text — the transcript never hides what the model
   was told (core spec §3: what the model saw is what the surface shows).
 - **Failure renders itself.** A marker with no user message after it means
-  the prompt was refused (busy, model error) and no work ran; the chip shows
-  "didn't start". No cleanup, no orphan state to reconcile.
-- **Idle-only.** While a run is active the action buttons disable. A Git
-  action never rides steer or follow-up, so the chip's pairing stays a
-  straight read of entry order and the send-verb contract (§7) is untouched.
+  the model request failed and no work ran; the chip shows "didn't start".
+  No cleanup, no orphan state to reconcile.
+- **Idle-only.** A busy session is refused *before* anything is appended —
+  Pi buffers a running turn's user message until settlement, so a mid-run
+  marker would land before that message and pair with the wrong turn. The
+  action buttons disable while a run is active, a Git action never rides
+  steer or follow-up, and the chip's pairing stays a straight read of entry
+  order; the send-verb contract (§7) is untouched.
 - **The offer is chrome.** The button that starts an action (under a settled
   turn's change receipt, or in a source-control surface) is interface
   chrome like the composer — it exists nowhere in the transcript until

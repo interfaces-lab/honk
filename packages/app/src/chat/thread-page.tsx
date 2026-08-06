@@ -45,7 +45,7 @@ const styles = stylex.create({
 export function ChatThreadPage(): React.ReactElement {
   const params = useParams({ from: "/v2/$sessionId" });
   const sessionId = Session.SessionId.make(params.sessionId);
-  const { state, prompt, steer, stop } = useCoreSession(sessionId);
+  const { state, prompt, steer, stop, runGitAction } = useCoreSession(sessionId);
   const density = useConversationDensity();
 
   if (state.sessionId === null) {
@@ -76,6 +76,9 @@ export function ChatThreadPage(): React.ReactElement {
         running={running}
         ticker={tickerOf(state)}
         density={density}
+        onGitAction={(action) => {
+          void runGitAction(action);
+        }}
       />
       {state.status === "failed" && (
         <div {...stylex.props(styles.banner)}>{state.error ?? "Honk Core failed."}</div>

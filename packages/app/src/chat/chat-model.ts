@@ -475,9 +475,20 @@ export const tickerOf = (state: ChatState): TickerState => {
  * The transcript's row sequence: turns in the grammar above, with the
  * non-message entries the grammar skips — compaction dividers and context
  * notices — interleaved in document order.
+ *
+ * A `honk.git_action` marker pairs with the user message that follows it
+ * (spec/conversation.md §8): the turn renders as one action chip. A marker
+ * with no turn after it means the action never started, and that failure
+ * renders itself.
  */
 export type ConversationItem =
-  | { readonly kind: "turn"; readonly turn: TurnView }
+  | {
+      readonly kind: "turn";
+      readonly turn: TurnView;
+      /** The Git action this turn ran, when a marker precedes it. */
+      readonly gitAction: string | null;
+    }
+  | { readonly kind: "git_action_failed"; readonly id: string; readonly action: string }
   | { readonly kind: "notice"; readonly id: string; readonly text: string }
   | {
       readonly kind: "compaction";
@@ -485,6 +496,12 @@ export type ConversationItem =
       readonly summary: string;
       readonly tokensBefore: number;
     };
+
+const gitActionOf = (entry: Session.SessionTreeEntry): string | null => {
+  if (entry.type !== "custom" || entry.customType !== "honk.git_action") return null;
+  const action = (entry.data as { action?: unknown } | undefined)?.action;
+  return typeof action === "string" ? action : null;
+};
 
 export const conversationItems = (
   entries: readonly Session.SessionTreeEntry[],
@@ -496,11 +513,28 @@ export const conversationItems = (
   );
 
   const items: ConversationItem[] = [];
+  let pendingAction: { readonly id: string; readonly action: string } | null = null;
+  const flushUnstartedAction = () => {
+    if (pendingAction !== null) {
+      items.push({ kind: "git_action_failed", id: pendingAction.id, action: pendingAction.action });
+      pendingAction = null;
+    }
+  };
+
   for (const entry of entries) {
     if (entry.type === "message") {
       // A turn renders at its user entry; the rest of its messages fold in.
       const turn = turnById.get(entry.id);
-      if (turn !== undefined) items.push({ kind: "turn", turn });
+      if (turn !== undefined) {
+        items.push({ kind: "turn", turn, gitAction: pendingAction?.action ?? null });
+        pendingAction = null;
+      }
+      continue;
+    }
+    const action = gitActionOf(entry);
+    if (action !== null) {
+      flushUnstartedAction();
+      pendingAction = { id: entry.id, action };
     } else if (entry.type === "compaction") {
       items.push({
         kind: "compaction",
@@ -513,5 +547,6 @@ export const conversationItems = (
       if (notice !== null) items.push({ kind: "notice", id: entry.id, text: notice });
     }
   }
+  flushUnstartedAction();
   return items;
 };

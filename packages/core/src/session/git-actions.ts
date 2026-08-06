@@ -23,9 +23,10 @@ export const GitActionId = Schema.Literals([
 ]).annotate({ identifier: "GitActionId" });
 export type GitActionId = typeof GitActionId.Type;
 
+// Surface-neutral on purpose: the same action starts from a chat receipt or a
+// source-control panel, and the instructions must not claim an origin.
 const HEADER = [
-  "Run this Git action from Source Control.",
-  "Limit work to the requested Git task.",
+  "Run the requested Git action and nothing else.",
   "Follow AGENTS.md Git rules and stage explicit file paths only (never `git add -A` or `git add .`).",
 ];
 

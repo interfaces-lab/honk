@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "dev:startup-review": "node ../../scripts/check-frontend-startup.mjs && vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",

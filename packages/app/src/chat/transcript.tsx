@@ -5,7 +5,14 @@
 // streams prose as ordinary markdown while the TurnStatus ticker names the
 // active tool, and every settled turn shows what the agent edited.
 
-import { ChangeReceipt, ToolCallLine, UserMessage, WorkGroup, type ToolCallState } from "@honk/ui";
+import {
+  Button,
+  ChangeReceipt,
+  ToolCallLine,
+  UserMessage,
+  WorkGroup,
+  type ToolCallState,
+} from "@honk/ui";
 import { AssistantMessage } from "@honk/ui/assistant-message";
 import { CompactionDivider } from "@honk/ui/compaction-divider";
 import { NoticeRow } from "@honk/ui/notice-row";
@@ -13,7 +20,9 @@ import { colorVars, fontVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 import type { ConversationDensity } from "@honk/shared/conversation-density";
+import type { Session } from "@honk/core/session";
 
+import { GIT_AGENT_ACTIONS, type GitAgentActionId } from "../lib/git-agent-actions";
 import { Markdown } from "../markdown";
 import type { ConversationItem, DisclosureLayer, TickerState, TurnSegment, TurnStep, TurnView } from "./chat-model";
 import { effectiveLayer, segmentRows } from "./chat-model";
@@ -76,6 +85,17 @@ const styles = stylex.create({
     fontSize: fontVars["--honk-font-size-caption"],
     color: colorVars["--honk-color-text-muted"],
   },
+  // The canonical action instructions, readable at the detailed layer.
+  instructions: {
+    fontSize: fontVars["--honk-font-size-detail"],
+    color: colorVars["--honk-color-text-muted"],
+    whiteSpace: "pre-wrap",
+    overflowWrap: "anywhere",
+  },
+  actionOffer: {
+    display: "flex",
+    gap: spaceVars["--honk-space-gutter"],
+  },
 });
 
 const toolCallState: Record<TurnStep["state"], ToolCallState> = {
@@ -83,6 +103,17 @@ const toolCallState: Record<TurnStep["state"], ToolCallState> = {
   ok: "done",
   error: "failed",
 };
+
+// The chat surface offers the judgment-shaped actions that make sense after
+// a turn changed files; branch workflows stay in source control surfaces.
+const OFFERED_ACTIONS: readonly Session.GitActionId[] = ["commit", "commitAndPush"];
+
+const isKnownAction = (action: string): action is GitAgentActionId =>
+  action in GIT_AGENT_ACTIONS;
+
+/** The chip and the offer speak the same label the action buttons ship. */
+const actionLabel = (action: string): string =>
+  isKnownAction(action) ? GIT_AGENT_ACTIONS[action].label : action;
 
 function StepRow({ step }: { readonly step: TurnStep }): React.ReactElement {
   const [expanded, setExpanded] = React.useState(false);
@@ -156,14 +187,20 @@ function SegmentView({
 
 function TurnBlock({
   turn,
+  gitAction,
   live,
   ticker,
   density,
+  onGitAction,
 }: {
   readonly turn: TurnView;
+  /** Set when a `honk.git_action` marker precedes this turn: render a chip. */
+  readonly gitAction: string | null;
   readonly live: boolean;
   readonly ticker: TickerState;
   readonly density: ConversationDensity;
+  /** Present only on the turn whose receipt currently offers actions. */
+  readonly onGitAction: ((action: Session.GitActionId) => void) | null;
 }): React.ReactElement {
   // The per-turn override: a click wins over the setting for this turn only.
   const [override, setOverride] = React.useState<DisclosureLayer | null>(null);
@@ -181,7 +218,17 @@ function TurnBlock({
 
   return (
     <div {...stylex.props(styles.turn)}>
-      <UserMessage>{turn.userText}</UserMessage>
+      {gitAction === null ? (
+        <UserMessage>{turn.userText}</UserMessage>
+      ) : (
+        // The chip is the user's one click rendered as their message; the
+        // canonical instructions stay readable at the detailed layer, so the
+        // transcript never hides what the model was told (spec §8).
+        <>
+          <UserMessage>{actionLabel(gitAction)}</UserMessage>
+          {layer >= 2 && <div {...stylex.props(styles.instructions)}>{turn.userText}</div>}
+        </>
+      )}
       <AssistantMessage isStreaming={live}>
         {layer >= 1 &&
           turn.segments.map((segment) => (
@@ -218,6 +265,23 @@ function TurnBlock({
             }))}
           />
         )}
+        {onGitAction !== null && !live && turn.files.length > 0 && (
+          // The offer is chrome (spec §8): it exists nowhere in the
+          // transcript until clicked, and clicking starts an ordinary turn.
+          <div {...stylex.props(styles.actionOffer)}>
+            {OFFERED_ACTIONS.map((action) => (
+              <Button
+                key={action}
+                size="sm"
+                onClick={() => {
+                  onGitAction(action);
+                }}
+              >
+                {actionLabel(action)}
+              </Button>
+            ))}
+          </div>
+        )}
       </AssistantMessage>
     </div>
   );
@@ -228,11 +292,13 @@ export function ChatTranscript({
   running,
   ticker,
   density,
+  onGitAction,
 }: {
   readonly items: readonly ConversationItem[];
   readonly running: boolean;
   readonly ticker: TickerState;
   readonly density: ConversationDensity;
+  readonly onGitAction: (action: Session.GitActionId) => void;
 }): React.ReactElement {
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
   const lastTurn = items.findLast(
@@ -265,9 +331,24 @@ export function ChatTranscript({
                 <TurnBlock
                   key={item.turn.id}
                   turn={item.turn}
+                  gitAction={item.gitAction}
                   live={running && item.turn.id === lastTurn?.turn.id}
                   ticker={ticker}
                   density={density}
+                  // Only the latest settled work is offerable: an older
+                  // receipt may already be committed, and a running turn is
+                  // refused by the core anyway.
+                  onGitAction={
+                    !running && item.turn.id === lastTurn?.turn.id ? onGitAction : null
+                  }
+                />
+              );
+            case "git_action_failed":
+              return (
+                <NoticeRow
+                  key={item.id}
+                  severity="error"
+                  message={`${actionLabel(item.action)} didn't start.`}
                 />
               );
             case "compaction":

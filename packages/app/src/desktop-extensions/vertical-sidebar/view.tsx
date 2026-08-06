@@ -27,7 +27,6 @@ import {
   iconVars,
   motionVars,
   radiusVars,
-  shellVars,
   sidebarVars,
 } from "@honk/ui/tokens.stylex";
 import {
@@ -45,6 +44,7 @@ import { useAppSettings } from "../../app-settings-store";
 import { canPickFolder, pickFolder } from "../../desktop-bridge";
 import { OpenTabContextMenu, WorkspaceContextMenu } from "../../tab-context-menu";
 import type { HonkDesktopCell, HonkDesktopTabs } from "../sdk";
+import { verticalSidebarLayout } from "./layout.stylex";
 import {
   STATUS_FILTER_OPTIONS,
   buildWorkspaceDrop,
@@ -62,6 +62,7 @@ import {
   type StatusFilter,
   type WorkspaceTabGroup,
 } from "./model";
+import type { VerticalSidebarInput } from "./types";
 
 const DRAG_ACTIVATION_DISTANCE = 4;
 const WORKSPACE_ORDER_CAP = 50;
@@ -82,38 +83,6 @@ const TITLE_MUTED = { color: colorVars["--honk-color-text-muted"] } as const;
 const TITLE_FAINT = { color: colorVars["--honk-color-text-faint"] } as const;
 
 const styles = create({
-  root: {
-    width: "100%",
-    height: "100%",
-    minWidth: 0,
-    minHeight: 0,
-    display: "flex",
-    flexDirection: "column",
-    backgroundColor: "transparent",
-  },
-  // Empty seat that keeps the first row clear of the macOS traffic lights, which sit over the
-  // sidebar's top strip. Cursor reserves the same band with its 35px sidebar top bar.
-  topBar: {
-    height: shellVars["--honk-shell-titlebar-h"],
-    flexShrink: 0,
-    paddingTop: shellVars["--honk-shell-titlebar-seat"],
-  },
-  navigation: {
-    minHeight: 0,
-    flexGrow: 1,
-    overflowY: "auto",
-    paddingInline: sidebarVars["--honk-sidebar-gutter-inline"],
-    paddingBlockStart: sidebarVars["--honk-sidebar-gutter-inline"],
-    paddingBlockEnd: sidebarVars["--honk-sidebar-gutter-inline"],
-  },
-  navigationContent: {
-    minWidth: 0,
-    display: "flex",
-    flexDirection: "column",
-    // Cursor separates its header action stack from the scroller's groups by the group gap
-    // rather than the 1px row gap.
-    gap: sidebarVars["--honk-sidebar-section-gap"],
-  },
   // Cursor masks the scroller instead of drawing a scrolled divider; `black` here is a mask
   // alpha, not a surface color.
   fadeTop: {
@@ -326,11 +295,6 @@ const styles = create({
     fontSize: sidebarVars["--honk-sidebar-label-size"],
     lineHeight: sidebarVars["--honk-sidebar-label-leading"],
   },
-  footer: {
-    flexShrink: 0,
-    paddingInline: sidebarVars["--honk-sidebar-gutter-inline"],
-    paddingBlock: sidebarVars["--honk-sidebar-gutter-inline"],
-  },
 });
 
 // Scales the 20px matrix into the 16px leading slot without changing glyph geometry.
@@ -366,14 +330,6 @@ type WorkspaceDragHandlers = {
   readonly pointerMove: RowPointerHandler;
   readonly pointerUp: RowPointerHandler;
   readonly pointerCancel: RowPointerHandler;
-};
-
-type VerticalSidebarInput = {
-  readonly tabs: HonkDesktopTabs;
-  readonly collapsedGroups: HonkDesktopCell<readonly string[]>;
-  readonly workspaceOrder: HonkDesktopCell<readonly string[]>;
-  readonly workspacesOpen: HonkDesktopCell<boolean>;
-  readonly threadFilters: HonkDesktopCell<readonly StatusFilter[]>;
 };
 
 export function VerticalSidebar(input: VerticalSidebarInput): ReactElement {
@@ -426,16 +382,16 @@ export function VerticalSidebar(input: VerticalSidebarInput): ReactElement {
 
   return (
     <SessionTabPreviewProvider>
-      <aside aria-label="Open tabs" {...props(styles.root)}>
-        <div data-shell-drag-region="" {...props(styles.topBar)} />
+      <aside aria-label="Open tabs" {...props(verticalSidebarLayout.root)}>
+        <div data-shell-drag-region="" {...props(verticalSidebarLayout.topBar)} />
         <nav
           aria-label="Open tabs"
           data-honk-scrollport
           ref={attachScroller}
           onScroll={(event) => publishScrollFade(event.currentTarget, setScrollFade)}
-          {...props(styles.navigation, scrollFadeStyle(scrollFade))}
+          {...props(verticalSidebarLayout.navigation, scrollFadeStyle(scrollFade))}
         >
-          <div {...props(styles.navigationContent)}>
+          <div {...props(verticalSidebarLayout.navigationContent)}>
             <HomeTabRow
               tab={snapshot.tabs.find((tab) => tab.kind === "home")}
               activeKey={snapshot.activeKey}
@@ -458,7 +414,7 @@ export function VerticalSidebar(input: VerticalSidebarInput): ReactElement {
             />
           </div>
         </nav>
-        <div {...props(styles.footer)}>
+        <div {...props(verticalSidebarLayout.footer)}>
           <ListRow size="sm" onClick={tabHandlers.create}>
             <ListRow.Slot>
               <Icon icon={IconPlusSmall} size="sm" tone="muted" />

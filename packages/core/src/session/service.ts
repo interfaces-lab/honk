@@ -29,12 +29,12 @@ import type {
   Delete,
   FollowUp,
   Get,
-  GitAction,
   Interface,
   ListOutput,
   PiError,
   Prompt,
   Revert,
+  RunGitAction,
   RunStatus,
   SessionInfo,
   SessionSummary,
@@ -541,15 +541,22 @@ export const layer = (options: LayerOptions) =>
         yield* runPi(() => found.harness.followUp(input.text));
       });
 
-      const gitAction = Effect.fn("Session.gitAction")(function* (
-        input: Rpc.Payload<typeof GitAction>,
+      const runGitAction = Effect.fn("Session.runGitAction")(function* (
+        input: Rpc.Payload<typeof RunGitAction>,
       ) {
         const found = yield* lookup(input.sessionId);
-        // Marker first, deliberately: a refused prompt (running harness,
-        // model failure) leaves a marker with no turn after it — that *is*
-        // the failure state a surface renders (spec/conversation.md §8).
-        // The instructions ride the prompt's own user message, so model
-        // context and stored transcript stay identical by construction.
+        // Refuse a busy session before appending anything. Pi buffers a
+        // running turn's user message until settlement, so a marker appended
+        // mid-run would land *before* that turn's user message and pair with
+        // the wrong turn. Same class, code, and copy as Pi's own refusal.
+        if (found.run.status === "running") {
+          return yield* Effect.fail(new AgentHarnessError("busy", "AgentHarness is busy"));
+        }
+        // Marker before prompt: if the model request fails, the transcript
+        // keeps a marker with no turn after it — that *is* the failure state
+        // a surface renders (spec/conversation.md §8). The instructions ride
+        // the prompt's own user message, so model context and stored
+        // transcript stay identical by construction.
         yield* runPi(() =>
           found.session.appendCustomEntry("honk.git_action", {
             action: input.action,
@@ -677,7 +684,7 @@ export const layer = (options: LayerOptions) =>
         abort,
         steer,
         followUp,
-        gitAction,
+        runGitAction,
         reload,
         changes,
         setWorkspace,
@@ -728,7 +735,7 @@ export const rpcLayer = Rpcs.toLayer(
       "session.abort": (payload) => session.abort(payload),
       "session.steer": (payload) => session.steer(payload),
       "session.follow_up": (payload) => session.followUp(payload),
-      "session.git_action": (payload) => session.gitAction(payload),
+      "session.run_git_action": (payload) => session.runGitAction(payload),
       "session.changes": (payload) => session.changes(payload),
       "session.set_workspace": (payload) => session.setWorkspace(payload),
       "session.revert": (payload) => session.revert(payload),

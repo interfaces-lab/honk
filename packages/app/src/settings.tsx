@@ -15,16 +15,9 @@ import {
 import { borderVars, colorVars, controlVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as React from "react";
 
-import { SettingsAppearance } from "./settings-appearance";
-import { SettingsGeneral } from "./settings-general";
-import { SettingsHooks } from "./settings-hooks";
-import { SettingsPlugins } from "./settings-plugins";
-import { SettingsProviders } from "./settings-providers";
-import { SettingsRules } from "./settings-rules";
-import { SettingsServers } from "./settings-servers";
-import { SettingsConnections } from "./settings-connections";
-import { SettingsMcp } from "./settings-mcp";
 import { canManageDesktopRemoteHost } from "./desktop-bridge";
+import { SettingsPanelSkeleton } from "./settings-controls";
+import { SETTINGS_DIALOG_STYLE, SETTINGS_DIALOG_TITLE_STYLE } from "./settings-layout";
 import {
   actions as settingsActions,
   useSettingsSelector,
@@ -76,30 +69,38 @@ function sectionLabelFor(id: SettingsSectionId): string {
   return sections.find((item) => item.id === id)?.label ?? "Settings";
 }
 
-const PANELS: Record<SettingsSectionId, React.ComponentType> = {
-  general: SettingsGeneral,
-  servers: SettingsServers,
-  connections: SettingsConnections,
-  providers: SettingsProviders,
-  plugins: SettingsPlugins,
-  rules: SettingsRules,
-  tools: SettingsMcp,
-  hooks: SettingsHooks,
-  appearance: SettingsAppearance,
-};
+const PANELS = {
+  general: React.lazy(() =>
+    import("./settings-general").then((module) => ({ default: module.SettingsGeneral })),
+  ),
+  servers: React.lazy(() =>
+    import("./settings-servers").then((module) => ({ default: module.SettingsServers })),
+  ),
+  connections: React.lazy(() =>
+    import("./settings-connections").then((module) => ({ default: module.SettingsConnections })),
+  ),
+  providers: React.lazy(() =>
+    import("./settings-providers").then((module) => ({ default: module.SettingsProviders })),
+  ),
+  plugins: React.lazy(() =>
+    import("./settings-plugins").then((module) => ({ default: module.SettingsPlugins })),
+  ),
+  rules: React.lazy(() =>
+    import("./settings-rules").then((module) => ({ default: module.SettingsRules })),
+  ),
+  tools: React.lazy(() =>
+    import("./settings-mcp").then((module) => ({ default: module.SettingsMcp })),
+  ),
+  hooks: React.lazy(() =>
+    import("./settings-hooks").then((module) => ({ default: module.SettingsHooks })),
+  ),
+  appearance: React.lazy(() =>
+    import("./settings-appearance").then((module) => ({ default: module.SettingsAppearance })),
+  ),
+} satisfies Record<SettingsSectionId, React.LazyExoticComponent<React.ComponentType>>;
 
 const SETTINGS_WIDE_MEDIA = "@media (min-width: 720px)";
 const SETTINGS_NAV_COMPACT_MAX_HEIGHT = "152px";
-// Dialog.Popup takes overrides as an inline style object, so these stay React.CSSProperties.
-// Every value is named here rather than written inline so the sheet geometry stays tracked.
-//
-// `.cursor-settings-layout-main{padding:0 0 0 48px}` plus the 48px right gutter: Cursor's settings
-// shell keeps a 48px minimum edge on both sides, which is what the sheet leaves to the viewport.
-const SETTINGS_DIALOG_VIEWPORT_GUTTER = "48px";
-// Honk's sheet cap. Cursor's own editor tab is fluid; the sheet keeps a reading-width bound.
-const SETTINGS_DIALOG_MAX_WIDTH = "920px";
-// Reference sheet height with the same 48px total viewport clearance as the width.
-const SETTINGS_DIALOG_HEIGHT = `min(744px, calc(100dvh - ${SETTINGS_DIALOG_VIEWPORT_GUTTER}))`;
 const SETTINGS_CLOSE_CLEARANCE = `calc(${spaceVars["--honk-space-panel-pad"]} + ${controlVars["--honk-control-h-md"]} + ${spaceVars["--honk-space-gutter"]})`;
 // `.cursor-settings-tab-content{gap:28px}` (`--cursor-spacing-7`): section-to-section rhythm.
 const SETTINGS_SECTION_GAP = "28px";
@@ -108,25 +109,6 @@ const SETTINGS_SECTION_GAP = "28px";
 const SETTINGS_CONTENT_MAX_WIDTH = "680px";
 // `.cursor-settings-sidebar-cells{gap:1px}`.
 const SETTINGS_NAV_ITEM_GAP = "1px";
-const VISUALLY_HIDDEN_TITLE_SIZE = "1px";
-const SETTINGS_DIALOG_STYLE: React.CSSProperties = {
-  width: `calc(100% - ${SETTINGS_DIALOG_VIEWPORT_GUTTER})`,
-  maxWidth: SETTINGS_DIALOG_MAX_WIDTH,
-  height: SETTINGS_DIALOG_HEIGHT,
-  maxHeight: SETTINGS_DIALOG_HEIGHT,
-  padding: 0,
-  gap: 0,
-  overflow: "hidden",
-};
-const SETTINGS_DIALOG_TITLE_STYLE: React.CSSProperties = {
-  position: "absolute",
-  width: VISUALLY_HIDDEN_TITLE_SIZE,
-  height: VISUALLY_HIDDEN_TITLE_SIZE,
-  overflow: "hidden",
-  clipPath: "inset(50%)",
-  whiteSpace: "nowrap",
-};
-
 const styles = stylex.create({
   root: {
     flexGrow: 1,
@@ -344,7 +326,11 @@ export function SettingsOverlay(): React.ReactElement {
             </header>
             <div key={section} {...stylex.props(styles.panelScroll)}>
               <div {...stylex.props(styles.panelColumn)}>
-                <Panel />
+                <React.Suspense
+                  fallback={<SettingsPanelSkeleton label={sectionLabelFor(section)} />}
+                >
+                  <Panel />
+                </React.Suspense>
               </div>
             </div>
           </div>

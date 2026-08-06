@@ -1,7 +1,7 @@
 import { createOpenCodeServer, openCodeSessionRef, type OpenCodeClient } from "@honk/opencode";
 import { describe, expect, it, vi } from "vitest";
 
-import { createChangesResource, fileStatusGlyph } from "./workbench-changes";
+import { createChangesResource, fileStatusGlyph } from "./workbench-changes-resource";
 
 const server = createOpenCodeServer({ origin: "http://127.0.0.1:4096" });
 const ref = openCodeSessionRef(server.key, "ses_changes");

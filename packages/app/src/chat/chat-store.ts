@@ -127,6 +127,8 @@ export interface CoreChat {
   readonly prompt: (text: string) => Promise<void>;
   readonly steer: (text: string) => Promise<void>;
   readonly stop: () => Promise<void>;
+  /** Starts an agent-driven Git action; the transcript shows it as a chip. */
+  readonly runGitAction: (action: Session.GitActionId) => Promise<void>;
 }
 
 function command(
@@ -171,5 +173,10 @@ export function useCoreSession(sessionId: Session.SessionId): CoreChat {
     },
     steer: (text) => command(sessionId, (client) => client.session.steer({ sessionId, text })),
     stop: () => command(sessionId, (client) => client.session.abort({ sessionId })),
+    runGitAction: (action) => {
+      const handle = handles.get(sessionId);
+      if (handle !== undefined) dispatch(handle, { type: "prompted" });
+      return command(sessionId, (client) => client.session.runGitAction({ sessionId, action }));
+    },
   };
 }

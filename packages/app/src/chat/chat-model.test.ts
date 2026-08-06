@@ -174,6 +174,38 @@ describe("conversation items", () => {
     const items = conversationItems([entry], null);
     expect(items[0]?.kind === "turn" && items[0].turn.userText).toBe("plain");
   });
+
+  it("pairs a git action marker with the turn that follows it", () => {
+    const marker = {
+      type: "custom",
+      id: "g1",
+      customType: "honk.git_action",
+      data: { action: "commitAndPush" },
+    } as unknown as Session.SessionTreeEntry;
+
+    const items = conversationItems(
+      [marker, userEntry("u1", "canonical instructions"), assistantEntry("a1", "Committed.")],
+      null,
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]?.kind === "turn" && items[0].gitAction).toBe("commitAndPush");
+    // A typed turn carries no action.
+    const typed = conversationItems([userEntry("u2", "hello")], null);
+    expect(typed[0]?.kind === "turn" && typed[0].gitAction).toBeNull();
+  });
+
+  it("a marker with no turn after it renders as a failed action", () => {
+    const marker = {
+      type: "custom",
+      id: "g1",
+      customType: "honk.git_action",
+      data: { action: "commit" },
+    } as unknown as Session.SessionTreeEntry;
+
+    const items = conversationItems([userEntry("u1", "before"), marker], null);
+    expect(items.map((item) => item.kind)).toEqual(["turn", "git_action_failed"]);
+    expect(items[1]?.kind === "git_action_failed" && items[1].action).toBe("commit");
+  });
 });
 
 describe("turn grammar", () => {

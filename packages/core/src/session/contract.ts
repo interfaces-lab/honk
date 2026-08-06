@@ -279,17 +279,17 @@ export const Abort = Rpc.make("session.abort", {
 });
 
 /**
- * Starts an agent-driven Git action (spec/conversation.md section 8).
+ * Runs an agent-driven Git action (spec/conversation.md section 8).
  *
  * One handler appends a `honk.git_action` marker entry and prompts the
  * harness with the core-owned canonical instructions — in that order, so a
  * refused prompt leaves a marker with no turn after it, which *is* the
  * failure state and needs no cleanup. Idle-only by construction: a running
- * harness refuses the prompt with Pi's own `invalid_state`.
+ * harness refuses the prompt with Pi's own `busy`.
  *
  * @category commands
  */
-export const GitAction = Rpc.make("session.git_action", {
+export const RunGitAction = Rpc.make("session.run_git_action", {
   payload: {
     sessionId: SessionId,
     action: GitActionId,
@@ -603,7 +603,7 @@ export const commands = {
   abort: Abort,
   steer: Steer,
   followUp: FollowUp,
-  gitAction: GitAction,
+  runGitAction: RunGitAction,
   reload: Reload,
   changes: Changes,
   setWorkspace: SetWorkspace,

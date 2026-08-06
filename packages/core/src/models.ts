@@ -120,7 +120,7 @@ export class UnknownModelError extends Schema.TaggedErrorClass<UnknownModelError
   "ModelsUnknownModelError",
   {
     code: Schema.tag("models.unknown_model"),
-    message: Schema.tag("This provider offers no such model."),
+    message: Schema.tag("This provider does not offer this model."),
     providerId: Schema.NonEmptyString,
     modelId: Schema.NonEmptyString,
   },

@@ -1,12 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
-import {
-  openCodeSessionKey,
-  type OpenCodeClient,
-  type OpenCodeServerKey,
-  type OpenCodeSessionRef,
-  type OpenCodeVcsFileDiff,
-  type OpenCodeVcsFileStatus,
-} from "@honk/opencode";
+import { type OpenCodeSessionRef, type OpenCodeVcsFileStatus } from "@honk/opencode";
 import { AlertDialog, Button, Checkbox, Icon, IconButton, Menu, Spinner, Text } from "@honk/ui";
 import {
   IconArrowRotateClockwise,
@@ -48,12 +41,18 @@ import { sendSessionPrompt } from "./session-prompt";
 import { actions as toastActions } from "./toast-store";
 import { WorkbenchChangesCard } from "./workbench-changes-card";
 import { WorkbenchChangesFileTree } from "./workbench-changes-file-tree";
+import { workbenchChangesLayout } from "./workbench-changes-layout.stylex";
+import {
+  changesResourceFor,
+  type ChangesScope,
+  useWorkbenchChangesSnapshot,
+} from "./workbench-changes-resource";
 import { getOpenCodeClient } from "./watch-registry";
 
-const CHANGES_RESOURCE_GRACE_MS = 30_000;
 const DIFF_STYLE_STORAGE_KEY = "honk:git-diff-style";
 const RAIL_STORAGE_KEY = "honk:git-changes-rail";
 const SCOPE_STORAGE_KEY = "honk:git-changes-scope";
+const EMPTY_FILES: readonly OpenCodeVcsFileStatus[] = Object.freeze([]);
 // Cursor fixes the rail header at a structural height beyond Honk's control-height scale.
 const SCOPE_ROW_MIN_HEIGHT = "36px";
 // Cursor's resizable changes rail uses these default, floor, and ceiling measures.
@@ -77,27 +76,7 @@ const SPLIT_DIVIDER_COLOR = `color-mix(in srgb, ${colorVars["--honk-color-on-acc
 
 type DiffStyle = "unified" | "split";
 
-// The three comparisons OpenCode V2 can actually answer: `vcs.diff` mode "git"
-// (working tree vs HEAD), mode "branch" (merge-base of the default branch vs the
-// working tree), and the session's newest user turn via `sessions.lastTurnDiff`.
-// Cursor's staged/unstaged/per-commit scopes have no route here and are omitted.
-type ChangesScope = "git" | "branch" | "lastTurn";
-
 const styles = stylex.create({
-  root: {
-    flexGrow: 1,
-    minWidth: 0,
-    minHeight: 0,
-    display: "flex",
-    flexDirection: "column",
-  },
-  toolbar: {
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    gap: spaceVars["--honk-space-gutter"],
-    padding: spaceVars["--honk-space-gutter"],
-  },
   branch: {
     minWidth: 0,
     flexShrink: 1,
@@ -106,9 +85,6 @@ const styles = stylex.create({
     gap: controlVars["--honk-control-gap"],
     overflow: "hidden",
     color: colorVars["--honk-color-text-muted"],
-  },
-  spacer: {
-    flexGrow: 1,
   },
   // Copy-on-click carries no chrome; a pointer cursor is the whole affordance (matches the old panel).
   branchCopyable: {
@@ -352,232 +328,7 @@ const styles = stylex.create({
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
-  center: {
-    flexGrow: 1,
-    minHeight: 0,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spaceVars["--honk-space-gutter"],
-    padding: spaceVars["--honk-space-panel-pad"],
-    textAlign: "center",
-  },
 });
-
-type ChangesReady = {
-  readonly branch: string | null;
-  readonly defaultBranch: string | null;
-  readonly files: readonly OpenCodeVcsFileStatus[];
-  readonly diffs: ReadonlyMap<string, OpenCodeVcsFileDiff>;
-  // The file list paints from info+status immediately; patches stream in after. While true,
-  // an absent patch means "still loading" rather than "binary/oversized".
-  readonly diffsPending: boolean;
-};
-
-type ChangesSnapshot =
-  | { readonly phase: "loading" }
-  | { readonly phase: "error"; readonly message: string }
-  | ({ readonly phase: "ready" } & ChangesReady);
-
-type ChangesResource = {
-  readonly getSnapshot: () => ChangesSnapshot;
-  readonly subscribe: (listener: () => void) => () => void;
-  readonly refresh: () => void;
-  readonly observeThreadRunning: (isRunning: boolean) => void;
-};
-
-type ChangesClient = Pick<OpenCodeClient, "vcs"> & {
-  readonly sessions: Pick<OpenCodeClient["sessions"], "lastTurnDiff">;
-};
-type ChangesClientResolver = (server: OpenCodeServerKey) => ChangesClient | null;
-
-const changesResources = new Map<string, ChangesResource>();
-const INITIAL_CHANGES_SNAPSHOT: ChangesSnapshot = Object.freeze({ phase: "loading" });
-const EMPTY_FILES: readonly OpenCodeVcsFileStatus[] = Object.freeze([]);
-
-function indexDiffs(
-  diffs: readonly OpenCodeVcsFileDiff[],
-): ReadonlyMap<string, OpenCodeVcsFileDiff> {
-  return new Map(diffs.map((diff) => [diff.file, Object.freeze(diff)]));
-}
-
-function createChangesResource(
-  sessionRef: OpenCodeSessionRef,
-  directory: string,
-  scope: ChangesScope,
-  resolveClient: ChangesClientResolver = getOpenCodeClient,
-): ChangesResource {
-  let snapshot = INITIAL_CHANGES_SNAPSHOT;
-  let requested = false;
-  let inFlight = false;
-  let refreshQueued = false;
-  let sequence = 0;
-  let lastThreadRunning: boolean | undefined;
-  let releaseTimer: ReturnType<typeof setTimeout> | null = null;
-  const listeners = new Set<() => void>();
-  const key = changesResourceKey(sessionRef, directory, scope);
-
-  const publish = (next: ChangesSnapshot): void => {
-    snapshot = Object.freeze(next);
-    for (const listener of listeners) listener();
-  };
-
-  const load = async (client: ChangesClient, current: number): Promise<void> => {
-    const info = await client.vcs.info({ directory });
-    if (sequence !== current) return;
-    const branch = info.branch ?? null;
-    const defaultBranch = info.default_branch ?? null;
-
-    if (scope === "git") {
-      // The working tree is the one scope with a status route, so its file list can
-      // paint before the heavy per-file `diff` call returns every patch.
-      const files = await client.vcs.status({ directory });
-      if (sequence !== current) return;
-      publish({
-        phase: "ready",
-        branch,
-        defaultBranch,
-        files: Object.freeze([...files]),
-        diffs: new Map(),
-        diffsPending: true,
-      });
-      const diffs = await client.vcs.diff({ directory, mode: "git" });
-      if (sequence !== current || snapshot.phase !== "ready") return;
-      publish({ ...snapshot, diffs: indexDiffs(diffs), diffsPending: false });
-      return;
-    }
-
-    // Every other scope has no status equivalent: its file list is whatever the diff
-    // reported, so there is nothing to paint early.
-    const diffs =
-      scope === "branch"
-        ? await client.vcs.diff({ directory, mode: "branch" })
-        : await client.sessions.lastTurnDiff(sessionRef);
-    if (sequence !== current) return;
-    publish({
-      phase: "ready",
-      branch,
-      defaultBranch,
-      files: Object.freeze(
-        diffs.map((diff) => ({
-          file: diff.file,
-          additions: diff.additions,
-          deletions: diff.deletions,
-          status: diff.status ?? "modified",
-        })),
-      ),
-      diffs: indexDiffs(diffs),
-      diffsPending: false,
-    });
-  };
-
-  const refresh = (): void => {
-    requested = true;
-    if (inFlight) {
-      refreshQueued = true;
-      return;
-    }
-    const client = resolveClient(sessionRef.server);
-    if (client === null) {
-      publish({ phase: "error", message: "Honk is not connected to OpenCode." });
-      return;
-    }
-
-    inFlight = true;
-    const currentSequence = ++sequence;
-    void load(client, currentSequence)
-      .catch((error: unknown) => {
-        if (sequence !== currentSequence) return;
-        publish({ phase: "error", message: errorMessage(error) });
-      })
-      .finally(() => {
-        if (sequence !== currentSequence) return;
-        inFlight = false;
-        if (refreshQueued) {
-          refreshQueued = false;
-          refresh();
-        }
-      });
-  };
-
-  return {
-    getSnapshot: () => snapshot,
-    subscribe(listener) {
-      if (releaseTimer !== null) {
-        clearTimeout(releaseTimer);
-        releaseTimer = null;
-      }
-      listeners.add(listener);
-      if (!requested) refresh();
-      return () => {
-        listeners.delete(listener);
-        if (listeners.size === 0) {
-          releaseTimer = setTimeout(() => {
-            if (listeners.size === 0) changesResources.delete(key);
-          }, CHANGES_RESOURCE_GRACE_MS);
-        }
-      };
-    },
-    refresh,
-    observeThreadRunning(isRunning) {
-      if (lastThreadRunning === true && !isRunning) refresh();
-      lastThreadRunning = isRunning;
-    },
-  };
-}
-
-function changesResourceKey(
-  sessionRef: OpenCodeSessionRef,
-  directory: string,
-  scope: ChangesScope,
-): string {
-  return `${openCodeSessionKey(sessionRef)}:${directory}:${scope}`;
-}
-
-// One resource per scope: switching scopes swaps the resource rather than mutating a
-// shared one, so the grace timer keeps the previous scope warm for an instant switch back.
-function changesResourceFor(
-  sessionRef: OpenCodeSessionRef,
-  directory: string,
-  scope: ChangesScope,
-): ChangesResource {
-  const key = changesResourceKey(sessionRef, directory, scope);
-  const existing = changesResources.get(key);
-  if (existing !== undefined) return existing;
-  const created = createChangesResource(sessionRef, directory, scope);
-  changesResources.set(key, created);
-  return created;
-}
-
-function useWorkbenchChangesSnapshot(
-  sessionRef: OpenCodeSessionRef,
-  directory: string,
-  scope: ChangesScope,
-  isThreadRunning: boolean,
-): ChangesSnapshot {
-  const resource = changesResourceFor(sessionRef, directory, scope);
-  const snapshot = React.useSyncExternalStore(
-    resource.subscribe,
-    resource.getSnapshot,
-    resource.getSnapshot,
-  );
-  React.useEffect(() => {
-    resource.observeThreadRunning(isThreadRunning);
-  }, [isThreadRunning, resource]);
-  return snapshot;
-}
-
-function fileStatusGlyph(status: OpenCodeVcsFileStatus["status"]): "A" | "D" | "M" {
-  switch (status) {
-    case "added":
-      return "A";
-    case "deleted":
-      return "D";
-    case "modified":
-      return "M";
-  }
-}
 
 function readDiffStyle(): DiffStyle {
   if (typeof window === "undefined") return "unified";
@@ -1018,12 +769,12 @@ function WorkbenchChanges({
   // fetch is slow or broken is never a dead end.
   if (snapshot.phase === "loading") {
     return (
-      <div {...stylex.props(styles.root)}>
-        <div {...stylex.props(styles.toolbar)}>
+      <div {...stylex.props(workbenchChangesLayout.root)}>
+        <div {...stylex.props(workbenchChangesLayout.toolbar)}>
           {scopeMenu}
-          <span {...stylex.props(styles.spacer)} />
+          <span {...stylex.props(workbenchChangesLayout.spacer)} />
         </div>
-        <div {...stylex.props(styles.center)}>
+        <div {...stylex.props(workbenchChangesLayout.center)}>
           <Spinner label="Loading changes" tone="muted" />
         </div>
       </div>
@@ -1032,12 +783,12 @@ function WorkbenchChanges({
 
   if (snapshot.phase === "error") {
     return (
-      <div {...stylex.props(styles.root)}>
-        <div {...stylex.props(styles.toolbar)}>
+      <div {...stylex.props(workbenchChangesLayout.root)}>
+        <div {...stylex.props(workbenchChangesLayout.toolbar)}>
           {scopeMenu}
-          <span {...stylex.props(styles.spacer)} />
+          <span {...stylex.props(workbenchChangesLayout.spacer)} />
         </div>
-        <div {...stylex.props(styles.center)}>
+        <div {...stylex.props(workbenchChangesLayout.center)}>
           <Text as="p" size="sm" tone="muted" weight="regular">
             Can't load changes
           </Text>
@@ -1082,11 +833,11 @@ function WorkbenchChanges({
 
   if (files.length === 0) {
     return (
-      <div {...stylex.props(styles.root)}>
-        <div {...stylex.props(styles.toolbar)}>
+      <div {...stylex.props(workbenchChangesLayout.root)}>
+        <div {...stylex.props(workbenchChangesLayout.toolbar)}>
           {scopeMenu}
           {branchChip}
-          <span {...stylex.props(styles.spacer)} />
+          <span {...stylex.props(workbenchChangesLayout.spacer)} />
           <Button size="sm" variant="quiet" onClick={resource.refresh}>
             Refresh
           </Button>
@@ -1102,7 +853,7 @@ function WorkbenchChanges({
             onStop={stopGitAction}
           />
         </div>
-        <div {...stylex.props(styles.center)}>
+        <div {...stylex.props(workbenchChangesLayout.center)}>
           <Text as="p" size="sm" tone="muted" weight="regular">
             {activeScope.empty.title}
           </Text>
@@ -1125,6 +876,8 @@ function WorkbenchChanges({
     >
       <WorkbenchChangesCard
         file={file}
+        server={server}
+        directory={directory}
         patch={snapshot.diffs.get(file.file)?.patch}
         patchPending={diffsPending}
         diffStyle={diffStyle}
@@ -1155,11 +908,11 @@ function WorkbenchChanges({
   ));
 
   return (
-    <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.toolbar)}>
+    <div {...stylex.props(workbenchChangesLayout.root)}>
+      <div {...stylex.props(workbenchChangesLayout.toolbar)}>
         {scopeMenu}
         {branchChip}
-        <span {...stylex.props(styles.spacer)} />
+        <span {...stylex.props(workbenchChangesLayout.spacer)} />
         <Menu.Root>
           <Menu.Trigger
             render={
@@ -1327,5 +1080,4 @@ function WorkbenchChanges({
   );
 }
 
-export { WorkbenchChanges, createChangesResource, fileStatusGlyph, useWorkbenchChangesSnapshot };
-export type { ChangesResource, ChangesSnapshot };
+export { WorkbenchChanges };

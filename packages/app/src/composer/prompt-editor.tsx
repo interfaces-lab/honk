@@ -60,8 +60,13 @@ import {
 } from "./prompt-editor-nodes";
 import { type ComposerCommand, type PromptComposerFile } from "../open-code-view";
 import { physicalAttachmentsFromPromptFiles } from "./prompt-files";
-import { PromptMenu, type PromptMenuAnchor, type PromptMenuItem } from "./prompt-menu";
+import { loadPromptMenu } from "./prompt-menu-resource";
+import type { PromptMenuAnchor, PromptMenuItem } from "./prompt-menu";
 import { useSessionInventoryWatchSelector } from "../use-sdk-watch";
+
+const DeferredPromptMenu = React.lazy(() =>
+  loadPromptMenu().then((module) => ({ default: module.PromptMenu })),
+);
 
 const EDITOR_MIN_HEIGHT = "52px";
 // Screen-level backstop only. Hosts bound the editor through the flex chain (minHeight: 0 down to
@@ -945,6 +950,7 @@ function PromptEditorInner({
       setMenuStatus("idle");
       return;
     }
+    void loadPromptMenu().catch(() => undefined);
     const root = editor.getRootElement();
     const anchor = {
       getBoundingClientRect: () => triggerRect(range),
@@ -1522,31 +1528,33 @@ function PromptEditorInner({
         }}
       />
       {menu !== null && menuAnchor !== null && (
-        <PromptMenu
-          anchor={menuAnchor}
-          items={items}
-          selectedIndex={selectedIndex}
-          placement={menuPlacement}
-          listboxId={menuId}
-          isLoading={menuStatus === "loading"}
-          emptyLabel={
-            menuStatus === "loading"
-              ? "Loading suggestions…"
-              : menuStatus === "error"
-                ? "Couldn’t load suggestions"
-                : menu.kind === "file"
-                  ? "No matching files or folders"
-                  : menu.kind === "chat"
-                    ? "No matching chats"
-                    : "No matching commands"
-          }
-          onSelect={applyItem}
-          onHighlight={(index) => {
-            setIsKeyboardNavigation(false);
-            setSelectedIndex(index);
-          }}
-          isKeyboardNavigation={isKeyboardNavigation}
-        />
+        <React.Suspense fallback={null}>
+          <DeferredPromptMenu
+            anchor={menuAnchor}
+            items={items}
+            selectedIndex={selectedIndex}
+            placement={menuPlacement}
+            listboxId={menuId}
+            isLoading={menuStatus === "loading"}
+            emptyLabel={
+              menuStatus === "loading"
+                ? "Loading suggestions…"
+                : menuStatus === "error"
+                  ? "Couldn’t load suggestions"
+                  : menu.kind === "file"
+                    ? "No matching files or folders"
+                    : menu.kind === "chat"
+                      ? "No matching chats"
+                      : "No matching commands"
+            }
+            onSelect={applyItem}
+            onHighlight={(index) => {
+              setIsKeyboardNavigation(false);
+              setSelectedIndex(index);
+            }}
+            isKeyboardNavigation={isKeyboardNavigation}
+          />
+        </React.Suspense>
       )}
 
       <AttachmentList

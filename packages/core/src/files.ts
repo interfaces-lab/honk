@@ -142,7 +142,7 @@ export class AccessError extends Schema.TaggedErrorClass<AccessError>()("FilesAc
  */
 export class ExistsError extends Schema.TaggedErrorClass<ExistsError>()("FilesExistsError", {
   code: Schema.tag("files.already_exists"),
-  message: Schema.tag("Something already exists at this path."),
+  message: Schema.tag("A file or folder already exists at this path."),
   path: Schema.String,
 }) {}
 

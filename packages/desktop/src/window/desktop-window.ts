@@ -362,6 +362,8 @@ const make = Effect.gen(function* () {
   const state = yield* DesktopState.DesktopState;
   const context = yield* Effect.context<DesktopWindowRuntimeServices>();
   const runPromise = Effect.runPromiseWith(context);
+  const isStartupReviewEnabled =
+    environment.isDevelopment && process.env.HONK_STARTUP_REVIEW === "1";
 
   const syncMainWindowAppearance = (window: Electron.BrowserWindow): Effect.Effect<void> =>
     electronTheme.shouldUseDarkColors.pipe(
@@ -389,6 +391,7 @@ const make = Effect.gen(function* () {
   }): Effect.fn.Return<CreatedDesktopWindow, DesktopWindowError> {
     const window = yield* electronWindow.create(input.options);
     markStartupMilestone("browser-window-created");
+    const startupReviewWindowCreatedAtMs = isStartupReviewEnabled ? process.uptime() * 1_000 : null;
     const ready = windowReadyPromise(window);
 
     const trustedOrigin = input.appUrl.origin;
@@ -485,6 +488,15 @@ const make = Effect.gen(function* () {
     window.once("ready-to-show", () => {
       markStartupMilestone("renderer-ready-to-show");
       sendWindowChromeState(window);
+      if (startupReviewWindowCreatedAtMs !== null) {
+        const readyAtMs = process.uptime() * 1_000;
+        console.log(
+          `[frontend startup review] electron-ready ${JSON.stringify({
+            processMs: Math.round(readyAtMs),
+            windowMs: Math.round(readyAtMs - startupReviewWindowCreatedAtMs),
+          })}`,
+        );
+      }
     });
 
     if (input.revealWhenReady) {

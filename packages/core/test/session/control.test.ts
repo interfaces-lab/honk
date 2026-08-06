@@ -1,6 +1,7 @@
 // Workspace binding and run control: create's trust gate, abort, followUp,
 // and steer. The prompt/reload basics live in lifecycle.test.ts.
 
+import { AgentHarnessError } from "@earendil-works/pi-agent-core";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai/providers/faux";
 import { describe, expect, it } from "@effect/vitest";
 import { Deferred, Effect, Fiber, Stream } from "effect";
@@ -151,6 +152,85 @@ describe("workspace-bound sessions and run control", () => {
         ]);
         expect(textOf(messages[3])).toBe("Second answer");
         expect(after.status).toBe("idle");
+      });
+
+      yield* program.pipe(Effect.scoped, Effect.provide(appLayer));
+    }),
+  );
+
+  it.effect("runGitAction lands as marker → canonical instructions → turn", () =>
+    Effect.gen(function* () {
+      const { faux, appLayer } = makeFauxSessionLayer();
+      faux.setResponses([fauxAssistantMessage("Committed.")]);
+
+      const program = Effect.gen(function* () {
+        const session = yield* Session.Service;
+        const workspace = yield* openTrustedWorkspace("/tmp/honk-session-tests");
+        const { id } = yield* session.create({ workspaceId: workspace.id });
+
+        yield* session.runGitAction({ sessionId: id, action: "commitAndPush", files: ["src/a.ts"] });
+
+        const after = yield* session.reload({ sessionId: id });
+        // The marker precedes the prompt's user message (spec/conversation §8):
+        // the surface pairs the two into one chip.
+        const marker = after.entries.find((entry) => entry.type === "custom");
+        expect(marker).toMatchObject({
+          customType: "honk.git_action",
+          data: { action: "commitAndPush", files: ["src/a.ts"] },
+        });
+        const messages = messageEntries(after.entries);
+        expect(messages.map((entry) => entry.message.role)).toEqual(["user", "assistant"]);
+        // The instructions are the turn's real user message — what the model
+        // saw is what the transcript stores.
+        expect(textOf(messages[0])).toBe(
+          Session.instructionsFor("commitAndPush", ["src/a.ts"]),
+        );
+        expect(textOf(messages[0])).toContain("Push the current branch");
+        expect(after.status).toBe("idle");
+      });
+
+      yield* program.pipe(Effect.provide(appLayer));
+    }),
+  );
+
+  it.effect("a busy session refuses runGitAction before appending anything", () =>
+    Effect.gen(function* () {
+      const { faux, appLayer } = makeFauxSessionLayer();
+      const { response, release } = gatedResponse("still working");
+      faux.setResponses([response]);
+
+      const program = Effect.gen(function* () {
+        const session = yield* Session.Service;
+        const workspace = yield* openTrustedWorkspace("/tmp/honk-session-tests");
+        const { id } = yield* session.create({ workspaceId: workspace.id });
+
+        const sawStart = yield* Deferred.make<void>();
+        const stream = yield* session.events({ sessionId: id });
+        yield* stream.pipe(
+          Stream.runForEach((event) =>
+            event.type === "agent_start" ? Deferred.succeed(sawStart, undefined) : Effect.void,
+          ),
+          Effect.forkScoped,
+        );
+        const run = yield* session.prompt({ sessionId: id, text: "Keep going" }).pipe(
+          Effect.forkScoped,
+        );
+        yield* Deferred.await(sawStart);
+
+        const error = yield* session.runGitAction({ sessionId: id, action: "commit" }).pipe(
+          Effect.flip,
+        );
+        expect(error).toBeInstanceOf(AgentHarnessError);
+        expect((error as AgentHarnessError).code).toBe("busy");
+
+        release();
+        yield* Fiber.join(run);
+
+        // Nothing was appended: Pi buffers a running turn's user message
+        // until settlement, so a mid-run marker would land before it and
+        // pair with the wrong turn. The refusal must come first.
+        const after = yield* session.reload({ sessionId: id });
+        expect(after.entries.some((entry) => entry.type === "custom")).toBe(false);
       });
 
       yield* program.pipe(Effect.scoped, Effect.provide(appLayer));
