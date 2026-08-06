@@ -11,9 +11,10 @@ import * as React from "react";
 import { Session } from "@honk/core/session";
 
 import { useCoreSession } from "./chat-controller";
-import { threadItems } from "./chat-model";
+import { threadItems, tickerOf, turnViews } from "./chat-model";
 import { ChatComposer } from "./composer";
-import { ChatTranscript } from "./transcript";
+import { ChatTranscript, TRANSCRIPT_MAX_WIDTH } from "./transcript";
+import { TurnStatus } from "./turn-status";
 
 const styles = stylex.create({
   root: {
@@ -38,6 +39,14 @@ const styles = stylex.create({
     paddingInline: spaceVars["--honk-space-panel-pad"],
     fontSize: fontVars["--honk-font-size-detail"],
     color: colorVars["--honk-color-text-muted"],
+  },
+  // Same column as the transcript so the ticker lines up with the messages.
+  statusRail: {
+    boxSizing: "border-box",
+    width: "100%",
+    maxWidth: TRANSCRIPT_MAX_WIDTH,
+    marginInline: "auto",
+    paddingInline: spaceVars["--honk-space-panel-pad"],
   },
 });
 
@@ -65,9 +74,25 @@ export function ChatThreadPage(): React.ReactElement {
     );
   }
 
+  // Interim placement: the status surface sits above the composer until the
+  // turn renderer (#12) moves it into each turn's header.
+  const turns = turnViews(state.entries);
+  const lastTurn = turns.at(-1);
+  const running = state.status === "running";
+
   return (
     <div data-thread-panel="" {...stylex.props(styles.root)}>
       <ChatTranscript items={threadItems(state.entries, state.streamingMessage, state.turns)} />
+      {(running || lastTurn !== undefined) && (
+        <div {...stylex.props(styles.statusRail)}>
+          <TurnStatus
+            phase={running ? "running" : "settled"}
+            ticker={tickerOf(state)}
+            outcome={lastTurn?.outcome ?? "done"}
+            durationMs={lastTurn?.durationMs ?? null}
+          />
+        </div>
+      )}
       {state.status === "failed" && (
         <div {...stylex.props(styles.banner)}>{state.error ?? "Honk Core failed."}</div>
       )}

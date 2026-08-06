@@ -11,12 +11,10 @@ import { colorVars, fontVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
-import type { Git } from "@honk/core";
-
 import { Markdown } from "../markdown";
 import type { AssistantBlock, ThreadItem } from "./chat-model";
 
-const TRANSCRIPT_MAX_WIDTH = "760px";
+export const TRANSCRIPT_MAX_WIDTH = "760px";
 const TOOL_IO_MAX_HEIGHT = "240px";
 
 const styles = stylex.create({
@@ -67,7 +65,6 @@ const toolCallState: Record<"running" | "ok" | "error", ToolCallState> = {
   ok: "done",
   error: "failed",
 };
-
 
 /** The first string argument that looks like a path names most built-in tools' target. */
 const toolDetail = (args: string): string | undefined => {

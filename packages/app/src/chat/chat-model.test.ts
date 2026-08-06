@@ -387,10 +387,7 @@ describe("ticker and turn timing", () => {
   const running = (content: readonly unknown[]): ChatState => ({
     ...initialState,
     status: "running",
-    streamingMessage:
-      content.length === 0 && false
-        ? null
-        : ({ role: "assistant", content } as unknown as ChatState["streamingMessage"]),
+    streamingMessage: { role: "assistant", content } as unknown as ChatState["streamingMessage"],
   });
 
   it("plans before any block streams, and while thinking streams", () => {
@@ -409,6 +406,38 @@ describe("ticker and turn timing", () => {
       { type: "toolCall", id: "c1", name: "bash", arguments: { command: "pnpm vitest run" } },
     ]);
     expect(tickerOf(state)).toEqual({ kind: "step", name: "bash", detail: "pnpm vitest run" });
+  });
+
+  it("rolls up a trailing run of reads at the group minimum", () => {
+    const read = (id: string, path: string) => ({
+      type: "toolCall",
+      id,
+      name: "read",
+      arguments: { path },
+    });
+    // One read is a step; the second crosses the minimum and rolls up.
+    expect(tickerOf(running([read("c1", "a.ts")]))).toEqual({
+      kind: "step",
+      name: "read",
+      detail: "a.ts",
+    });
+    expect(tickerOf(running([read("c1", "a.ts"), read("c2", "b.ts")]))).toEqual({
+      kind: "rollup",
+      count: 2,
+    });
+    // A text block breaks the run: only the segment's trailing reads count.
+    expect(
+      tickerOf(running([read("c1", "a.ts"), { type: "text", text: "Now" }, read("c2", "b.ts")])),
+    ).toEqual({ kind: "step", name: "read", detail: "b.ts" });
+    // A writing tool never disappears into a roll-up (spec §4).
+    expect(
+      tickerOf(
+        running([
+          read("c1", "a.ts"),
+          { type: "toolCall", id: "c2", name: "edit", arguments: { path: "b.ts", edits: [] } },
+        ]),
+      ),
+    ).toEqual({ kind: "step", name: "edit", detail: "b.ts" });
   });
 
   it("reports writing while prose streams, idle when not running", () => {

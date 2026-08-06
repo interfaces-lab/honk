@@ -422,7 +422,11 @@ export type TickerState =
   | { readonly kind: "idle" }
   | { readonly kind: "planning" }
   | { readonly kind: "writing" }
-  | { readonly kind: "step"; readonly name: string; readonly detail: string | null };
+  | { readonly kind: "step"; readonly name: string; readonly detail: string | null }
+  | { readonly kind: "rollup"; readonly count: number };
+
+/** Minimum consecutive read-shaped calls before work rolls up (spec §4). */
+export const GROUP_MIN = 2;
 
 /**
  * Derives the live label from the streaming message's newest block. Before
@@ -433,9 +437,19 @@ export type TickerState =
  */
 export const tickerOf = (state: ChatState): TickerState => {
   if (state.status !== "running") return { kind: "idle" };
-  const last = state.streamingMessage?.content.at(-1);
+  const content = state.streamingMessage?.content ?? [];
+  const last = content.at(-1);
   if (last === undefined) return { kind: "planning" };
   if (last.type === "toolCall") {
+    // The trailing run of read-shaped calls rolls up once it crosses the
+    // group minimum (spec §6) — a text block or a writing tool breaks it.
+    let reads = 0;
+    for (let index = content.length - 1; index >= 0; index -= 1) {
+      const block = content[index];
+      if (block?.type !== "toolCall" || !isReadShaped(block.name, block.arguments)) break;
+      reads += 1;
+    }
+    if (reads >= GROUP_MIN) return { kind: "rollup", count: reads };
     return { kind: "step", name: last.name, detail: stepDetail(last.arguments) };
   }
   if (last.type === "text") return { kind: "writing" };
