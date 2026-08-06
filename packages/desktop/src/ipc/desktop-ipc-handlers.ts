@@ -19,6 +19,7 @@ import { attachPty, closePty, listPty, openPty, resizePty, writePty } from "./me
 import { getClientSettings, setClientSettings } from "./methods/client-settings";
 import { protectRemoteCredential, revealRemoteCredential } from "./methods/remote-credentials";
 import { logRendererDiagnostic } from "./methods/renderer-diagnostics";
+import { reportStartupMilestone } from "./methods/startup-probe";
 import {
   cancelRemotePairing,
   getRemotePairingState,
@@ -105,4 +106,5 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(installUpdate);
   yield* ipc.handle(checkForUpdate);
   yield* ipc.handle(logRendererDiagnostic);
+  yield* ipc.handle(reportStartupMilestone);
 }).pipe(Effect.withSpan("desktop.ipc.installHandlers"));

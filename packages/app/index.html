@@ -13,13 +13,14 @@
       } catch {
         document.documentElement.style.colorScheme = "light dark";
       }
+      if (window.desktopBridge) {
+        document.documentElement.setAttribute("data-shell-platform", "electron");
+      }
     </script>
     <link rel="stylesheet" href="/src/index.css" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <!-- ui.sh picker toolbar: temporary, removed when layout comparison is done -->
-    <script src="https://ui.sh/ui-picker.js"></script>
   </body>
 </html>

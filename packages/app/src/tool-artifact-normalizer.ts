@@ -210,9 +210,4 @@ function measurePatchChanges(patch: string): {
 }
 
 export { measurePatchChanges, normalizePatchForFile, toolArtifact };
-export type {
-  ToolArtifact,
-  ToolArtifactFile,
-  ToolDiffArtifact,
-  ToolSourceArtifact,
-};
+export type { ToolArtifact, ToolArtifactFile, ToolDiffArtifact, ToolSourceArtifact };

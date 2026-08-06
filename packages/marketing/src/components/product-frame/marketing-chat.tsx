@@ -1,6 +1,10 @@
 import * as stylex from "@stylexjs/stylex";
-import { Button, Text, ToolCallLine, UserMessage, WorkGroup } from "@honk/ui";
 import { AssistantMessage } from "@honk/ui/assistant-message";
+import { Button } from "@honk/ui/button";
+import { Text } from "@honk/ui/text";
+import { ToolCallLine } from "@honk/ui/tool-call";
+import { UserMessage } from "@honk/ui/user-message";
+import { WorkGroup } from "@honk/ui/work-group";
 import {
   composerStateBandHeightPx,
   composerVars,
@@ -84,8 +88,8 @@ const styles = stylex.create({
 
 const dynamic = stylex.create({
   streamClearance: (px: number) => ({
-    paddingBlockEnd: `${String(px)}px`,
-    "--_transcript-overlay-height": `${String(px)}px`,
+    paddingBlockEnd: `${px}px`,
+    "--_transcript-overlay-height": `${px}px`,
   }),
 });
 

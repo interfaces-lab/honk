@@ -19,5 +19,4 @@ describe("session workbench layout lifetime", () => {
       ),
     ).not.toBe(workbenchWorkspaceKey(openCodeSessionRef(server.key, "ses_a"), location));
   });
-
 });

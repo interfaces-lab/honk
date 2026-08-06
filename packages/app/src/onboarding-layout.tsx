@@ -33,8 +33,7 @@ const toothSpacing = (ring: Ring): number => 360 / ring.teeth;
 
 const add = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y });
 const scale = (v: Vec, s: number): Vec => ({ x: v.x * s, y: v.y * s });
-const bearingDeg = (from: Vec, to: Vec): number =>
-  Math.atan2(to.y - from.y, to.x - from.x) / DEG;
+const bearingDeg = (from: Vec, to: Vec): number => Math.atan2(to.y - from.y, to.x - from.x) / DEG;
 const frac = (v: number): number => ((v % 1) + 1) % 1;
 
 type SpinDir = 1 | -1;
@@ -320,31 +319,6 @@ function GearTrain({
         <GearGroup gear={TRAIN.s} spinStyle={styles.gearS} />
         <GearGroup gear={TRAIN.m} spinStyle={styles.gearM} />
         <GearGroup gear={TRAIN.l} spinStyle={styles.gearL} />
-      </g>
-    </svg>
-  );
-}
-
-// The colossus: one enormous gear cropped by the left edge — the same
-// radial-line vocabulary at architectural scale. It meshes with nothing, so
-// only the shared circular pitch (pitch radius / teeth = 3, like every ring in
-// the train) ties it to the same gear world.
-const COLOSSUS_RING: Ring = { outer: 396, hole: 324, teeth: 120 }; // pitch 360
-const COLOSSUS_CENTER: Vec = { x: 20, y: 430 };
-
-function GearColossus(): React.ReactElement {
-  return (
-    <svg
-      viewBox={`0 0 ${VIEW.w} ${VIEW.h}`}
-      preserveAspectRatio="xMidYMid slice"
-      {...stylex.props(styles.artSvg)}
-    >
-      <g stroke={INK} strokeWidth={LINE_WIDTH} strokeLinecap="round">
-        <g transform={`translate(${COLOSSUS_CENTER.x} ${COLOSSUS_CENTER.y})`}>
-          <g {...stylex.props(styles.spin, styles.gearColossus)}>
-            <RingLines ring={{ ...COLOSSUS_RING, phase: 0 }} />
-          </g>
-        </g>
       </g>
     </svg>
   );

@@ -1,4 +1,4 @@
-import type { OpenCodeClient } from "@honk/opencode";
+import { OpenCodeRequestError, type OpenCodeClient } from "@honk/opencode";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -50,24 +50,23 @@ describe("workbench file viewer content states", () => {
     expect(state).toEqual({ phase: "oversized", characters: text.length });
   });
 
-  // `files.read` answers "" for a missing path and for a genuinely empty file alike, so the two
-  // states are only separable by listing the parent directory.
-  it("separates a deleted file from an empty one through the parent listing", async () => {
-    const read = vi.fn().mockResolvedValue({ kind: "text", text: "" });
+  it("separates a deleted file from an empty one through the raw read response", async () => {
     const missing = await settle({
-      read,
-      list: vi.fn().mockResolvedValue({ data: [{ path: "src/other.ts", type: "file" }] }),
+      read: vi
+        .fn()
+        .mockRejectedValue(
+          new OpenCodeRequestError("fs.read", "Not found", new Response(null, { status: 404 })),
+        ),
     });
     const empty = await settle({
-      read,
-      list: vi.fn().mockResolvedValue({ data: [{ path: "src/value.ts", type: "file" }] }),
+      read: vi.fn().mockResolvedValue({ kind: "text", text: "" }),
     });
 
     expect(missing.state).toEqual({ phase: "missing" });
     expect(empty.state).toEqual({ phase: "empty" });
   });
 
-  it("lists the workspace root for a file with no parent segment", async () => {
+  it("does not need a directory listing to recognize an empty root file", async () => {
     const list = vi.fn().mockResolvedValue({ data: [] });
 
     await settle(
@@ -75,7 +74,22 @@ describe("workbench file viewer content states", () => {
       "README.md",
     );
 
-    expect(list).toHaveBeenCalledWith(undefined, { directory: "/repo" });
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it("writes the current draft against the loaded contents", async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    const resource = createFileViewerResource("/repo", "src/value.ts", () =>
+      client({ read: vi.fn(), write }),
+    );
+
+    await resource.save("const value = 1;\n", "const value = 2;\n");
+
+    expect(write).toHaveBeenCalledWith(
+      "src/value.ts",
+      { expectedContents: "const value = 1;\n", contents: "const value = 2;\n" },
+      { directory: "/repo" },
+    );
   });
 
   it("reports a failed read and recovers on retry", async () => {

@@ -23,13 +23,13 @@ Ordered by how hard the requirement actually is:
 
 The candidate inventory, by job — not by screen design:
 
-| # | Page | Job | Required? |
-| - | ---- | --- | --------- |
-| 1 | Welcome | Identify the product; offer the one fork: start now with defaults, or configure first | Yes — it is the entry |
-| 2 | Coding accounts | Connect Codex and/or detect Claude Code | The only real gate; skippable but consequential |
-| 3 | Project folder | Choose the default folder; set worktree default | Optional |
-| 4 | Alerts | Decide when background work may interrupt | Optional |
-| 5 | Ready / orientation | Hand over the minimal mental model (Enter queues, ⌘⏎ steers, ⌘K finds, ⌘W never stops work) and exit to Home | Yes — it is the exit |
+| #   | Page                | Job                                                                                                          | Required?                                       |
+| --- | ------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| 1   | Welcome             | Identify the product; offer the one fork: start now with defaults, or configure first                        | Yes — it is the entry                           |
+| 2   | Coding accounts     | Connect Codex and/or detect Claude Code                                                                      | The only real gate; skippable but consequential |
+| 3   | Project folder      | Choose the default folder; set worktree default                                                              | Optional                                        |
+| 4   | Alerts              | Decide when background work may interrupt                                                                    | Optional                                        |
+| 5   | Ready / orientation | Hand over the minimal mental model (Enter queues, ⌘⏎ steers, ⌘K finds, ⌘W never stops work) and exit to Home | Yes — it is the exit                            |
 
 Workspace trust is deliberately **not** a page yet — see open decisions.
 

@@ -1,47 +1,16 @@
-@import "../../app/src/index.css";
+@import "tailwindcss";
+@import "@honk/ui/platform-tokens.css";
+@import "@honk/ui/tailwind.css";
+
+@stylex;
 
 @source "./**/*.{ts,tsx}";
 
-/* Geist (self-hosted from the geist package). */
-@font-face {
-  font-family: "Geist Sans";
-  src: url("../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2") format("woff2");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Geist Mono";
-  src: url("../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2") format("woff2");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-/* Newsreader (self-hosted from @fontsource-variable). Editorial serif for long-form prose. */
-@font-face {
-  font-family: Newsreader;
-  src: url("../node_modules/@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2")
-    format("woff2-variations");
-  font-weight: 200 800;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: Newsreader;
-  src: url("../node_modules/@fontsource-variable/newsreader/files/newsreader-latin-opsz-italic.woff2")
-    format("woff2-variations");
-  font-weight: 200 800;
-  font-style: italic;
-  font-display: swap;
-}
-
 @theme inline {
-  --font-geist-sans: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-geist-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
-  --font-serif: "Newsreader", ui-serif, Georgia, serif;
+  --font-geist-sans: var(--font-geist-sans-family), ui-sans-serif, system-ui, sans-serif;
+  --font-geist-mono:
+    var(--font-geist-mono-family), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-serif: var(--font-newsreader-family), ui-serif, Georgia, serif;
   --font-heading: var(--font-geist-sans);
   --font-body: var(--font-serif);
 
@@ -170,8 +139,7 @@ body::after {
   content: none;
 }
 
-#root,
-#root > * {
+#marketing-root {
   display: block;
   width: 100%;
   height: auto;

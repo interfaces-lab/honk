@@ -444,7 +444,9 @@ function FolderStep({
       <SetupPanel label="Default project folder">
         <SetupRow
           title={directory === null ? "No folder chosen" : folderName(directory)}
-          description={directory ?? "Choose one now, or pick a folder each time you start a thread."}
+          description={
+            directory ?? "Choose one now, or pick a folder each time you start a thread."
+          }
           control={
             <Button
               size="sm"

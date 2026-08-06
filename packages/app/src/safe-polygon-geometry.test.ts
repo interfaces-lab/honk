@@ -4,7 +4,7 @@ import {
   computeSafeZone,
   isPointInPolygon,
   isPointInSafeZone,
-} from "./model-menu-demo-geometry";
+} from "./safe-polygon-geometry";
 
 // A trigger row on the left, a taller submenu opening to its right — the demo's layout
 // and the shape the screenshots show.

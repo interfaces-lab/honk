@@ -24,10 +24,13 @@ interface DesktopOpencodeSidecarEndpoint {
   readonly password: string | null;
 }
 
+type RendererStartupMilestone = "renderer-sidecar-ready" | "renderer-authenticated";
+
 type DesktopBridgeWithAux = DesktopBridge<never> & {
   readonly getAuxEndpoint: () => Promise<DesktopAuxEndpoint | null>;
   readonly getHonkCoreEndpoint: () => Promise<{ readonly baseUrl: string }>;
   readonly getOpencodeSidecar: () => Promise<DesktopOpencodeSidecarEndpoint>;
+  readonly reportStartupMilestone?: (milestone: RendererStartupMilestone) => Promise<void>;
   readonly pty: DesktopPtyBridge;
 };
 
@@ -61,6 +64,7 @@ const BROWSER_AUTOMATION_OPEN_CHANNEL = "desktop:browser-automation-open";
 const GET_AUX_ENDPOINT_CHANNEL = "desktop:get-aux-endpoint";
 const GET_HONK_CORE_ENDPOINT_CHANNEL = "desktop:get-honk-core-endpoint";
 const GET_OPENCODE_SIDECAR_CHANNEL = "desktop:get-opencode-sidecar";
+const REPORT_STARTUP_MILESTONE_CHANNEL = "desktop:report-startup-milestone";
 const PERSIST_MCP_SERVER_CHANNEL = "desktop:persist-mcp-server";
 const GET_CLAUDE_AUTH_STATUS_CHANNEL = "desktop:get-claude-auth-status";
 const GET_WINDOW_CHROME_STATE_CHANNEL = "desktop:get-window-chrome-state";
@@ -156,6 +160,12 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   getAuxEndpoint: () => ipcRenderer.invoke(GET_AUX_ENDPOINT_CHANNEL),
   getHonkCoreEndpoint: () => ipcRenderer.invoke(GET_HONK_CORE_ENDPOINT_CHANNEL),
   getOpencodeSidecar: () => ipcRenderer.invoke(GET_OPENCODE_SIDECAR_CHANNEL),
+  ...(process.env.HONK_DEV_STARTUP_PROBE === "1"
+    ? {
+        reportStartupMilestone: (milestone: RendererStartupMilestone) =>
+          ipcRenderer.invoke(REPORT_STARTUP_MILESTONE_CHANNEL, milestone),
+      }
+    : {}),
   persistMcpServer: (input) => ipcRenderer.invoke(PERSIST_MCP_SERVER_CHANNEL, input),
   getClaudeAuthStatus: () => ipcRenderer.invoke(GET_CLAUDE_AUTH_STATUS_CHANNEL),
   getWindowChromeState: readWindowChromeState,

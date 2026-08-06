@@ -4,8 +4,12 @@ import { toolTodos, type ToolTodo } from "../tool-part-projection";
 import { QUEUED_TASKS_METADATA_KEY } from "./queued-tasks";
 import { projectPlanTasks } from "./plan-todo-projection";
 
-export type ThreadMessage = ThreadViewState["messages"][number];
-export type ThreadPart = ThreadViewState["parts"][number];
+export type ThreadTranscriptState = Pick<
+  ThreadViewState,
+  "activity" | "messages" | "parts" | "permissions" | "questions"
+>;
+export type ThreadMessage = ThreadTranscriptState["messages"][number];
+export type ThreadPart = ThreadTranscriptState["parts"][number];
 export type ToolPart = Extract<ThreadPart, { readonly type: "tool" }>;
 export type TextPart = Extract<ThreadPart, { readonly type: "text" }>;
 export type ReasoningPart = Extract<ThreadPart, { readonly type: "reasoning" }>;

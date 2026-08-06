@@ -8,6 +8,7 @@ import {
   type Virtualizer,
 } from "@tanstack/react-virtual";
 import * as React from "react";
+import { flushSync } from "react-dom";
 
 import {
   shouldAdjustConversationScrollPosition,
@@ -53,6 +54,11 @@ type ElementScrollOptions = Parameters<typeof elementScroll>[1];
 // accumulated deltas, so dropping superseded writes is lossless.
 const scrollGenerations = new WeakMap<Virtualizer<HTMLDivElement, HTMLDivElement>, number>();
 
+// Per-instance hook that synchronously commits the conversation's render so
+// the sizer reflects the latest measurements before an adjustment write.
+// Registered by the component because only React can flush its own render.
+const sizerCommits = new WeakMap<Virtualizer<HTMLDivElement, HTMLDivElement>, () => void>();
+
 function scrollWithDeferredAdjustments(
   offset: number,
   options: ElementScrollOptions,
@@ -64,8 +70,20 @@ function scrollWithDeferredAdjustments(
     elementScroll(offset, options, instance);
     return;
   }
-  // Adjustment writes must land after the sizer grows, or the browser clamps them.
+  // An adjustment write and the geometry it compensates must land in the same
+  // paint. The write happens here in a microtask, while the grown sizer and
+  // the moved rows commit in a *scheduled* React render — writing against the
+  // stale layout tears the frame two ways: targets past the stale
+  // scrollHeight get clamped to the old bottom (the viewport dumps back down
+  // on every first measurement while the reader scrolls up), and un-clamped
+  // writes shift the scrollport a frame before the rows move under it (the
+  // pinned-message flicker). Force the commit, then write, so one paint
+  // carries both.
   queueMicrotask(() => {
+    if (scrollGenerations.get(instance) !== generation) return;
+    sizerCommits.get(instance)?.();
+    // The forced commit can mount and measure new rows, issuing a newer
+    // adjusted write that supersedes this one.
     if (scrollGenerations.get(instance) !== generation) return;
     elementScroll(offset, options, instance);
   });
@@ -115,7 +133,10 @@ const dynamic = stylex.create({
     insetBlockStart: `${String(topPx)}px`,
     height: `${String(heightPx)}px`,
   }),
-  rowGap: (px: number) => ({ paddingBlockEnd: `${String(px)}px` }),
+  rowGaps: (leadingPx: number, trailingPx: number) => ({
+    paddingBlockStart: `${String(leadingPx)}px`,
+    paddingBlockEnd: `${String(trailingPx)}px`,
+  }),
 });
 
 export type VirtualConversationController = {
@@ -134,7 +155,14 @@ export type VirtualConversationProps<Row> = {
   readonly getRowId: (row: Row) => string;
   readonly isStickyRow: (row: Row) => boolean;
   readonly estimateRowSize: (row: Row) => number;
-  readonly getRowGapPx: (row: Row, index: number) => number;
+  // Row gaps render as padding inside the measured element, so they are part
+  // of the row's virtual size. Both callbacks must be stable for a row's
+  // lifetime: the trailing gap may depend only on the row itself, the leading
+  // gap only on the row and its predecessor. A gap that depended on the *next*
+  // row would flip when a sibling streams in, re-measuring settled rows and
+  // shifting virtual geometry a frame behind the DOM.
+  readonly getRowLeadingGapPx: (row: Row, index: number) => number;
+  readonly getRowTrailingGapPx: (row: Row) => number;
   readonly renderRow: (row: Row, index: number) => React.ReactNode;
   readonly onRowElement?: (row: Row, index: number, element: HTMLDivElement | null) => void;
   readonly footer?: React.ReactNode;
@@ -153,7 +181,8 @@ export function VirtualConversation<Row>({
   getRowId,
   isStickyRow,
   estimateRowSize,
-  getRowGapPx,
+  getRowLeadingGapPx,
+  getRowTrailingGapPx,
   renderRow,
   onRowElement,
   footer,
@@ -181,6 +210,13 @@ export function VirtualConversation<Row>({
   // own echo and must not change follow intent — this is what prevents the
   // programmatic snap from re-arming follow against the user.
   const expectedOffsetRef = React.useRef<number | null>(null);
+  // Gesture ledger, shared by the scroll listeners and the controller: only
+  // attributed events may change follow intent. Untagged scroll events —
+  // browser clamps during sizer shrink, measurement adjustments — must
+  // neither release nor re-arm follow, or a clamp landing at the bottom
+  // pins the reader there while unmeasured history settles.
+  const pointerDownRef = React.useRef(false);
+  const lastUserInputAtRef = React.useRef(Number.NEGATIVE_INFINITY);
 
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: spacerIndex + 1,
@@ -192,7 +228,9 @@ export function VirtualConversation<Row>({
     },
     estimateSize: (index) => {
       const row = rows[index];
-      if (row !== undefined) return estimateRowSize(row) + getRowGapPx(row, index);
+      if (row !== undefined) {
+        return estimateRowSize(row) + getRowLeadingGapPx(row, index) + getRowTrailingGapPx(row);
+      }
       return index === footerIndex ? footerEstimatePx : bottomClearancePx;
     },
     overscan: DEFAULT_OVERSCAN,
@@ -214,11 +252,25 @@ export function VirtualConversation<Row>({
   });
   const virtualItems = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
+  const [, forceRender] = React.useReducer((count: number) => count + 1, 0);
 
   React.useLayoutEffect(() => {
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, delta, instance) =>
       shouldAdjustConversationScrollPosition(item, delta, instance, stickyIndexes);
   }, [stickyIndexes, virtualizer]);
+
+  // Adjustment writes call this (via scrollWithDeferredAdjustments) when their
+  // target lies beyond the current sizer, so the plane height re-renders from
+  // the fresh measurements before the browser can clamp the write. Runs from a
+  // microtask, never during render, so flushSync is legal here.
+  React.useLayoutEffect(() => {
+    sizerCommits.set(virtualizer, () => {
+      flushSync(forceRender);
+    });
+    return () => {
+      sizerCommits.delete(virtualizer);
+    };
+  }, [virtualizer]);
 
   // Reserve only the live composer obstruction. Content growth creates scroll room as it arrives,
   // so the active turn rises through the viewport instead of preallocating a blank response area.
@@ -232,19 +284,15 @@ export function VirtualConversation<Row>({
 
   React.useLayoutEffect(() => {
     if (scrollElement === null) return;
-    // Gesture ledger: attribution state is effect-local because it only feeds
-    // these listeners; the effect re-runs only when the scrollport remounts.
-    let pointerDown = false;
-    let lastUserInputAt = Number.NEGATIVE_INFINITY;
     // A real gesture stamps the attribution window and retires any pending
     // echo so a coincidental offset match cannot mislabel the user's own
     // scroll as programmatic.
     const markUserInput = (): void => {
-      lastUserInputAt = Date.now();
+      lastUserInputAtRef.current = Date.now();
       expectedOffsetRef.current = null;
     };
     const isUserAttributed = (): boolean =>
-      pointerDown || Date.now() - lastUserInputAt <= USER_INPUT_WINDOW_MS;
+      pointerDownRef.current || Date.now() - lastUserInputAtRef.current <= USER_INPUT_WINDOW_MS;
     const handleScroll = (): void => {
       const expected = expectedOffsetRef.current;
       if (
@@ -262,26 +310,27 @@ export function VirtualConversation<Row>({
         return;
       }
       // Inside the band: an upward user gesture releases immediately (touch
-      // drags and scrollbar grabs produce no wheel event); reaching the
-      // bottom re-engages; anything else keeps the current intent. The
-      // hysteresis is what stops a small scroll-up from being clobbered
-      // back into following by its own scroll event.
+      // drags and scrollbar grabs produce no wheel event); a user-attributed
+      // return to the bottom re-engages; anything else keeps the current
+      // intent. Requiring attribution on both sides means a browser clamp or
+      // measurement adjustment that happens to land at the bottom cannot
+      // re-arm follow against a reader who scrolled away.
       if (isUserAttributed() && virtualizer.scrollDirection === "backward") {
         shouldFollowRef.current = false;
         return;
       }
-      if (distance <= REENGAGE_THRESHOLD_PX) shouldFollowRef.current = true;
+      if (isUserAttributed() && distance <= REENGAGE_THRESHOLD_PX) shouldFollowRef.current = true;
     };
     const handleWheel = (event: WheelEvent): void => {
       markUserInput();
       if (event.deltaY < 0) shouldFollowRef.current = false;
     };
     const handlePointerDown = (): void => {
-      pointerDown = true;
+      pointerDownRef.current = true;
       markUserInput();
     };
     const handlePointerUp = (): void => {
-      pointerDown = false;
+      pointerDownRef.current = false;
       markUserInput();
     };
     const handleKeyDown = (event: KeyboardEvent): void => {
@@ -300,20 +349,26 @@ export function VirtualConversation<Row>({
     scrollElement.addEventListener("scroll", handleScroll, { passive: true });
     scrollElement.addEventListener("wheel", handleWheel, { passive: true });
     scrollElement.addEventListener("pointerdown", handlePointerDown, { passive: true });
+    // Chromium delivers mousedown but not reliably pointerdown for scrollbar
+    // interactions; without this a scrollbar drag would be unattributed.
+    scrollElement.addEventListener("mousedown", handlePointerDown, { passive: true });
     scrollElement.addEventListener("touchstart", markUserInput, { passive: true });
     scrollElement.addEventListener("touchmove", markUserInput, { passive: true });
     scrollElement.addEventListener("keydown", handleKeyDown);
     window.addEventListener("pointerup", handlePointerUp, { passive: true });
     window.addEventListener("pointercancel", handlePointerUp, { passive: true });
+    window.addEventListener("mouseup", handlePointerUp, { passive: true });
     return () => {
       scrollElement.removeEventListener("scroll", handleScroll);
       scrollElement.removeEventListener("wheel", handleWheel);
       scrollElement.removeEventListener("pointerdown", handlePointerDown);
+      scrollElement.removeEventListener("mousedown", handlePointerDown);
       scrollElement.removeEventListener("touchstart", markUserInput);
       scrollElement.removeEventListener("touchmove", markUserInput);
       scrollElement.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
+      window.removeEventListener("mouseup", handlePointerUp);
     };
   }, [nearEndThresholdPx, scrollElement, virtualizer]);
 
@@ -380,10 +435,13 @@ export function VirtualConversation<Row>({
       scrollToIndex: (index, options) => {
         // Explicit navigation owns the viewport: release follow and retire any
         // pending follow echo so the jump is neither fought by a streaming
-        // follow write nor misattributed. Landing at the bottom re-engages
-        // follow through the scroll handler like any user return.
+        // follow write nor misattributed. The jump is a user act (a click),
+        // so it stamps the attribution window — landing at the bottom inside
+        // it re-engages follow through the scroll handler like any user
+        // return.
         shouldFollowRef.current = false;
         expectedOffsetRef.current = null;
+        lastUserInputAtRef.current = Date.now();
         virtualizer.scrollToIndex(index, {
           align: options?.align ?? "start",
           behavior: options?.behavior ?? "auto",
@@ -435,7 +493,10 @@ export function VirtualConversation<Row>({
                 data-virtual-conversation-row=""
                 {...stylex.props(
                   styles.stickyContent,
-                  dynamic.rowGap(getRowGapPx(row, virtualRow.index)),
+                  dynamic.rowGaps(
+                    getRowLeadingGapPx(row, virtualRow.index),
+                    getRowTrailingGapPx(row),
+                  ),
                 )}
               >
                 {renderRow(row, virtualRow.index)}
@@ -455,7 +516,10 @@ export function VirtualConversation<Row>({
             {...stylex.props(
               styles.row,
               dynamic.rowStart(virtualRow.start),
-              dynamic.rowGap(row === undefined ? 0 : getRowGapPx(row, virtualRow.index)),
+              dynamic.rowGaps(
+                row === undefined ? 0 : getRowLeadingGapPx(row, virtualRow.index),
+                row === undefined ? 0 : getRowTrailingGapPx(row),
+              ),
             )}
           >
             {row === undefined ? footer : renderRow(row, virtualRow.index)}

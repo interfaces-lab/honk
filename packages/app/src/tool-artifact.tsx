@@ -334,8 +334,7 @@ function getRenderableToolPatch(
 
   try {
     const files = normalized.flatMap((patch) => {
-      const prepared =
-        contextLines === undefined ? patch : trimPatchContext(patch, contextLines);
+      const prepared = contextLines === undefined ? patch : trimPatchContext(patch, contextLines);
       return parsePatchFiles(prepared, patchCacheKey(prepared), true).flatMap(
         (parsed) => parsed.files,
       );

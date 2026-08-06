@@ -23,11 +23,12 @@
     "@lydell/node-pty": "1.2.0-beta.12"
   },
   "devDependencies": {
+    "@earendil-works/pi-ai": "0.83.0",
     "@effect/platform-node": "catalog:",
     "@electron/asar": "3.4.1",
     "@honk/app": "workspace:*",
-    "@honk/core": "workspace:*",
     "@honk/cli": "workspace:*",
+    "@honk/core": "workspace:*",
     "@honk/opencode": "workspace:*",
     "@honk/shared": "workspace:*",
     "@honk/ui": "workspace:*",

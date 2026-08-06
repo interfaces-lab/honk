@@ -6,12 +6,13 @@ import {
   type OpenCodeServerKey,
 } from "@honk/opencode";
 import { basename } from "@honk/shared/paths";
-import { Icon, ListRow, Matrix, Pill, Spinner, StatusDot, Text } from "@honk/ui";
+import { Icon, ListRow, Matrix, Pill, StatusDot, Text } from "@honk/ui";
 import {
   colorVars,
   controlVars,
   fontVars,
   iconVars,
+  motionVars,
   radiusVars,
   sidebarVars,
   spaceVars,
@@ -77,6 +78,16 @@ const SCROLL_EDGE_EPSILON = 1;
 // Narrower than the composer footer's branch label: this pill shares ListRow.Meta with the
 // relative timestamp, so the branch gives up width the footer does not have to.
 const THREAD_META_BRANCH_MAX_WIDTH = "160px";
+// The placeholder widths vary like real labels while the shared ListRow owns exact row geometry.
+const SKELETON_TITLE_WIDE = "64%";
+const SKELETON_TITLE_MEDIUM = "48%";
+const SKELETON_TITLE_NARROW = "36%";
+const SKELETON_META_WIDTH = "44px";
+
+const skeletonPulse = stylex.keyframes({
+  from: { opacity: 0.45 },
+  to: { opacity: 0.8 },
+});
 
 const styles = stylex.create({
   branchLabel: { maxWidth: THREAD_META_BRANCH_MAX_WIDTH },
@@ -345,6 +356,56 @@ const styles = stylex.create({
     color: colorVars["--honk-color-text-faint"],
     fontVariantNumeric: "tabular-nums",
   },
+  skeletonBlock: {
+    display: "block",
+    height: fontVars["--honk-leading-title"],
+    borderRadius: radiusVars["--honk-radius-pill"],
+    backgroundColor: colorVars["--honk-color-layer-03"],
+  },
+  // One parent animation keeps every placeholder in phase and avoids one animation per block.
+  skeletonSet: {
+    opacity: 0.65,
+    animationName: {
+      default: skeletonPulse,
+      "@media (prefers-reduced-motion: reduce)": "none",
+    },
+    animationDuration: {
+      default: motionVars["--honk-motion-duration-shimmer"],
+      "@media (prefers-reduced-motion: reduce)": "0s",
+    },
+    animationDirection: "alternate",
+    animationIterationCount: "infinite",
+    animationTimingFunction: motionVars["--honk-motion-ease-out"],
+  },
+  skeletonProjectRows: {
+    display: "flex",
+    flexDirection: "column",
+    // oxlint-disable-next-line honk/design-no-raw-values -- matches the existing 1px project-row separation exactly
+    gap: HAIRLINE,
+  },
+  skeletonAvatar: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    flexShrink: 0,
+    borderRadius: radiusVars["--honk-radius-avatar"],
+  },
+  skeletonTitleWide: {
+    width: SKELETON_TITLE_WIDE,
+  },
+  skeletonTitleMedium: {
+    width: SKELETON_TITLE_MEDIUM,
+  },
+  skeletonTitleNarrow: {
+    width: SKELETON_TITLE_NARROW,
+  },
+  skeletonMeta: {
+    width: SKELETON_META_WIDTH,
+    height: fontVars["--honk-leading-detail"],
+  },
+  skeletonGroupLabel: {
+    width: SKELETON_TITLE_NARROW,
+    height: fontVars["--honk-leading-detail"],
+  },
   center: {
     flexGrow: 1,
     display: "flex",
@@ -411,14 +472,6 @@ function HomePage(): React.ReactElement {
     });
   };
 
-  if (isConnecting) {
-    return (
-      <div {...stylex.props(styles.center)}>
-        <Spinner label="Connecting to workspace" tone="muted" />
-      </div>
-    );
-  }
-
   return (
     <div {...stylex.props(styles.grid)}>
       <div {...stylex.props(styles.composerLane)}>
@@ -450,6 +503,7 @@ function HomePage(): React.ReactElement {
         <ProjectNav
           projects={projectFilters}
           projectOrder={appSettings.homeProjectOrder}
+          isLoading={isConnecting}
           selectedKey={selectedProjectKey}
           onSelect={selectProject}
           onAddProject={addProject}
@@ -457,7 +511,9 @@ function HomePage(): React.ReactElement {
         />
 
         <section {...stylex.props(styles.content)} aria-label="Threads">
-          {isDisconnected ? (
+          {isConnecting ? (
+            <HomeThreadLoadingRows />
+          ) : isDisconnected ? (
             <div {...stylex.props(styles.notice)}>
               <Text as="p" size="sm" tone="faint">
                 {watch.status === "unauthorized"
@@ -467,7 +523,7 @@ function HomePage(): React.ReactElement {
             </div>
           ) : null}
 
-          {threads.length === 0 ? (
+          {isConnecting ? null : threads.length === 0 ? (
             <div {...stylex.props(styles.center)}>
               <Text as="p" size="sm" tone="muted" weight="regular">
                 No threads yet
@@ -684,9 +740,85 @@ function ThreadAvatar({
   );
 }
 
+const PROJECT_LOADING_ROWS = Object.freeze([
+  { key: "project-loading-1", titleStyle: styles.skeletonTitleMedium },
+  { key: "project-loading-2", titleStyle: styles.skeletonTitleNarrow },
+]);
+
+const THREAD_LOADING_ROWS = Object.freeze([
+  { key: "thread-loading-1", titleStyle: styles.skeletonTitleWide },
+  { key: "thread-loading-2", titleStyle: styles.skeletonTitleMedium },
+  { key: "thread-loading-3", titleStyle: styles.skeletonTitleWide },
+  { key: "thread-loading-4", titleStyle: styles.skeletonTitleNarrow },
+  { key: "thread-loading-5", titleStyle: styles.skeletonTitleMedium },
+]);
+
+function SkeletonBlock({ style }: { readonly style: stylex.StyleXStyles }): React.ReactElement {
+  return <span {...stylex.props(styles.skeletonBlock, style)} />;
+}
+
+function HomeProjectLoadingRows(): React.ReactElement {
+  return (
+    <div aria-hidden {...stylex.props(styles.skeletonSet, styles.skeletonProjectRows)}>
+      {/* "All" is the one inventory-independent project row; only its count is pending. */}
+      <ListRow isSelected disabled tabIndex={-1}>
+        <ProjectAvatar label="All" colorKey={PROJECT_ALL_KEY} />
+        <ListRow.Content>
+          <ListRow.Title>All</ListRow.Title>
+        </ListRow.Content>
+        <ListRow.Meta>
+          <SkeletonBlock style={styles.skeletonMeta} />
+        </ListRow.Meta>
+      </ListRow>
+      {PROJECT_LOADING_ROWS.map((row) => (
+        <ListRow key={row.key} disabled tabIndex={-1}>
+          <SkeletonBlock style={styles.skeletonAvatar} />
+          <ListRow.Content>
+            <SkeletonBlock style={row.titleStyle} />
+          </ListRow.Content>
+          <ListRow.Meta>
+            <SkeletonBlock style={styles.skeletonMeta} />
+          </ListRow.Meta>
+        </ListRow>
+      ))}
+    </div>
+  );
+}
+
+function HomeThreadLoadingRows(): React.ReactElement {
+  return (
+    <div
+      role="status"
+      aria-label="Loading workspace"
+      {...stylex.props(styles.scrollEdgeWrap, styles.scrollEdgeWrapGrow)}
+    >
+      <div {...stylex.props(styles.scroll)}>
+        <div aria-hidden {...stylex.props(styles.scrollContent, styles.skeletonSet)}>
+          <div {...stylex.props(styles.groupHead)}>
+            <SkeletonBlock style={styles.skeletonGroupLabel} />
+            <SkeletonBlock style={styles.skeletonMeta} />
+          </div>
+          {THREAD_LOADING_ROWS.map((row) => (
+            <ListRow key={row.key} disabled tabIndex={-1}>
+              <SkeletonBlock style={styles.skeletonAvatar} />
+              <ListRow.Content>
+                <SkeletonBlock style={row.titleStyle} />
+              </ListRow.Content>
+              <ListRow.Meta>
+                <SkeletonBlock style={styles.skeletonMeta} />
+              </ListRow.Meta>
+            </ListRow>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProjectNav({
   projects,
   projectOrder,
+  isLoading,
   selectedKey,
   onSelect,
   onAddProject,
@@ -694,6 +826,7 @@ function ProjectNav({
 }: {
   readonly projects: readonly ProjectFilter[];
   readonly projectOrder: readonly string[];
+  readonly isLoading: boolean;
   readonly selectedKey: string;
   readonly onSelect: (key: string) => void;
   readonly onAddProject: () => void;
@@ -708,7 +841,7 @@ function ProjectNav({
   });
 
   return (
-    <aside {...stylex.props(styles.nav)} aria-label="Projects">
+    <aside {...stylex.props(styles.nav)} aria-label="Projects" aria-busy={isLoading}>
       <div {...stylex.props(styles.navHead)}>Projects</div>
       <div {...stylex.props(styles.scrollEdgeWrap)}>
         <div
@@ -717,54 +850,58 @@ function ProjectNav({
           onScroll={projectScroll.onScroll}
           {...stylex.props(styles.navRows)}
         >
-          {projects.map((project) => {
-            const canReorder = project.key !== PROJECT_ALL_KEY;
-            const isDragging = drag.visual?.sourceKey === project.key;
-            const dropAfter = drag.visual?.anchorKey === project.key ? drag.visual.dropAfter : null;
-            return (
-              <div
-                key={project.key}
-                {...(canReorder ? { "data-honk-home-project-key": project.key } : {})}
-                {...stylex.props(
-                  styles.projectRow,
-                  isDragging && styles.projectDragging,
-                  dropAfter !== null && styles.projectDropIndicator,
-                  dropAfter === false && styles.projectDropBefore,
-                  dropAfter === true && styles.projectDropAfter,
-                )}
-              >
-                <ListRow
-                  isSelected={project.key === selectedKey}
-                  aria-current={project.key === selectedKey ? "page" : undefined}
-                  {...(canReorder
-                    ? {
-                        "aria-keyshortcuts": "Alt+ArrowUp Alt+ArrowDown",
-                        "data-honk-home-project-key": project.key,
-                        onKeyDown: drag.handlers.keyDown,
-                        onPointerCancel: drag.handlers.pointerCancel,
-                        onPointerDown: drag.handlers.pointerDown,
-                        onPointerMove: drag.handlers.pointerMove,
-                        onPointerUp: drag.handlers.pointerUp,
-                      }
-                    : {})}
-                  onClick={() => {
-                    onSelect(project.key);
-                  }}
-                >
-                  <ProjectAvatar label={project.label} colorKey={project.key} />
-                  <ListRow.Content>
-                    <ListRow.Title>{project.label}</ListRow.Title>
-                  </ListRow.Content>
-                  <ListRow.Meta>
-                    {project.statuses[0] !== undefined && (
-                      <HomeStatusGlyph status={project.statuses[0]} />
+          {isLoading ? <HomeProjectLoadingRows /> : null}
+          {isLoading
+            ? null
+            : projects.map((project) => {
+                const canReorder = project.key !== PROJECT_ALL_KEY;
+                const isDragging = drag.visual?.sourceKey === project.key;
+                const dropAfter =
+                  drag.visual?.anchorKey === project.key ? drag.visual.dropAfter : null;
+                return (
+                  <div
+                    key={project.key}
+                    {...(canReorder ? { "data-honk-home-project-key": project.key } : {})}
+                    {...stylex.props(
+                      styles.projectRow,
+                      isDragging && styles.projectDragging,
+                      dropAfter !== null && styles.projectDropIndicator,
+                      dropAfter === false && styles.projectDropBefore,
+                      dropAfter === true && styles.projectDropAfter,
                     )}
-                    {project.count}
-                  </ListRow.Meta>
-                </ListRow>
-              </div>
-            );
-          })}
+                  >
+                    <ListRow
+                      isSelected={project.key === selectedKey}
+                      aria-current={project.key === selectedKey ? "page" : undefined}
+                      {...(canReorder
+                        ? {
+                            "aria-keyshortcuts": "Alt+ArrowUp Alt+ArrowDown",
+                            "data-honk-home-project-key": project.key,
+                            onKeyDown: drag.handlers.keyDown,
+                            onPointerCancel: drag.handlers.pointerCancel,
+                            onPointerDown: drag.handlers.pointerDown,
+                            onPointerMove: drag.handlers.pointerMove,
+                            onPointerUp: drag.handlers.pointerUp,
+                          }
+                        : {})}
+                      onClick={() => {
+                        onSelect(project.key);
+                      }}
+                    >
+                      <ProjectAvatar label={project.label} colorKey={project.key} />
+                      <ListRow.Content>
+                        <ListRow.Title>{project.label}</ListRow.Title>
+                      </ListRow.Content>
+                      <ListRow.Meta>
+                        {project.statuses[0] !== undefined && (
+                          <HomeStatusGlyph status={project.statuses[0]} />
+                        )}
+                        {project.count}
+                      </ListRow.Meta>
+                    </ListRow>
+                  </div>
+                );
+              })}
           <ListRow onClick={onAddProject}>
             <ListRow.Slot style={LEADING_SLOT_STYLE}>
               <Icon icon={IconFolderAddRight} size="sm" tone="muted" />

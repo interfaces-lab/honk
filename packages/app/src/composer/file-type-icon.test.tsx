@@ -41,9 +41,7 @@ describe("file type icon", () => {
 
   it("lets an explicit tone override the icon pack color", () => {
     const iconClass = (path: string) =>
-      renderToStaticMarkup(<FileTypeIcon path={path} tone="muted" />).match(
-        /class="([^"]+)"/,
-      )?.[1];
+      renderToStaticMarkup(<FileTypeIcon path={path} tone="muted" />).match(/class="([^"]+)"/)?.[1];
 
     expect(iconClass("component.tsx")).toBe(iconClass("settings.json"));
   });

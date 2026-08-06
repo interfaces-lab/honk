@@ -392,6 +392,7 @@ const makeSdk = <E>(
     prompt: (input) => run(rpc["session.prompt"](input)),
     steer: (input) => run(rpc["session.steer"](input)),
     followUp: (input) => run(rpc["session.follow_up"](input)),
+    gitAction: (input) => run(rpc["session.git_action"](input)),
     abort: (input) => run(rpc["session.abort"](input)),
     reload: (input) => run(rpc["session.reload"](input)),
     changes: (input) => run(rpc["session.changes"](input)),

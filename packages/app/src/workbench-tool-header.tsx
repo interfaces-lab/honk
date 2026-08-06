@@ -1,11 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { Combobox, FileTypeIcon, Icon, IconButton, Tooltip, type Glyph } from "@honk/ui";
-import {
-  IconCrossSmall,
-  IconExpand45,
-  IconMinimize45,
-  IconPlusSmall,
-} from "@honk/ui/icons";
+import { IconCrossSmall, IconExpand45, IconMinimize45, IconPlusSmall } from "@honk/ui/icons";
 import { basename } from "@honk/shared/paths";
 import {
   colorVars,
@@ -22,28 +17,33 @@ import { workbenchLayout } from "./workbench-layout.stylex";
 const HAIRLINE = "1px";
 const HEADER_SEPARATOR_SHADOW = `inset 0 -${HAIRLINE} 0 ${colorVars["--honk-color-border-muted"]}`;
 const FOCUS_RING_OFFSET_INSET = "-1px";
-// Cursor clamps composer tab labels to 200px; honk has no width token at that size.
+// Labels clamp at 200px and truncate with an ellipsis at rest; honk has no width token at that
+// size.
 const TAB_MAX_WIDTH = "200px";
 const TAB_GAP = "1px";
-// Cursor insets the tab strip by 4px, parks the close button at the same 4px from the pill edge,
-// and pads each tab 5px/6px (--cursor-spacing-1-25/-1-5).
+// The strip is inset 4px, the close button parks at the same 4px from the pill edge, and each tab
+// pads 5px/6px inline.
 const TAB_STRIP_INSET = "4px";
 const TAB_PAD_START = "5px";
 const TAB_PAD_END = "6px";
-// Glass centers a 25px pill in a 35px bar via 5px block padding on the tab container. Honk's bar
-// is 36px, so the same 5px inset per side lands the pill at 26px.
+// The pill floats centered in the 36px bar with a 5px block inset per side, landing it at 26px.
 const TAB_PILL_HEIGHT = "calc(100% - 10px)";
-// Cursor Glass fades the label under the close button instead of reserving space for it
-// (`.auxiliarybar .composite-bar-action-tab .action-label`, CSS bytes 1048218 and 1048925).
-// Rest is Cursor's no-op two-stop mask verbatim, so the revealed mask has a same-shaped gradient to
-// interpolate from. Revealed keeps Cursor's 40px legibility floor and its 8px ramp; only the
-// transparent tail is rescaled from Cursor's 12px, because honk's close control is bigger than
-// Cursor's 14px glyph at `right: 0`. Honk's control is a 24px IconButton inset 4px from the pill
-// edge holding a 12px glyph, and the label's trailing edge sits 6px inside that pill edge, so the
-// glyph reaches 16px past the label; 20px keeps Cursor's 4px of slack beyond the glyph.
-const TAB_LABEL_MASK_REST = "linear-gradient(90deg, #000 100%, transparent 0)";
-const TAB_LABEL_MASK_REVEALED =
-  "linear-gradient(90deg, #000 max(40px, calc(100% - 28px)), transparent calc(100% - 20px))";
+// The close button overlays the pill's trailing cap: a 24px hit box inset 1px puts the 12px
+// glyph's center 13px from the pill edge — dead center of the 26px-tall cap on both axes.
+const TAB_CLOSE_INSET = "1px";
+// Masks are physical gradients, so the pill flips a single angle var under `:dir(rtl)` and both
+// masks read it: 90deg fades the label's trailing (inline-end) edge in LTR, 270deg mirrors it.
+const TAB_FADE_ANGLE_LTR = "90deg";
+const TAB_FADE_ANGLE_RTL = "270deg";
+const TAB_FADE_ANGLE = `var(--_tab-fade-angle, ${TAB_FADE_ANGLE_LTR})`;
+// On hover the label dissolves under the revealed close button instead of reserving space for it.
+// Rest is a no-op two-stop mask, so the revealed mask has a same-shaped gradient to interpolate
+// from. Revealed geometry: the glyph spans 19px→7px from the pill edge and the label ends 6px
+// inside it, so the glyph's leading edge lands 13px inside the label; the fade is fully
+// transparent by 12px with a 12px ramp, and has no opaque floor — a short label fades under the
+// glyph rather than colliding with it.
+const TAB_LABEL_MASK_REST = `linear-gradient(${TAB_FADE_ANGLE}, #000 100%, transparent 0)`;
+const TAB_LABEL_MASK_REVEALED = `linear-gradient(${TAB_FADE_ANGLE}, #000 calc(100% - 24px), transparent calc(100% - 12px))`;
 
 const styles = stylex.create({
   root: {
@@ -76,12 +76,12 @@ const styles = stylex.create({
     alignItems: "stretch",
     // oxlint-disable-next-line honk/design-no-raw-values -- 1px seam between adjacent tab controls is a fixed hairline, no spacing token owns it
     gap: TAB_GAP,
-    // oxlint-disable-next-line honk/design-no-raw-values -- Cursor's 4px tab-strip inset; no spacing token sits between 0 and the 8px gutter
+    // oxlint-disable-next-line honk/design-no-raw-values -- 4px tab-strip inset is fixed geometry; no spacing token sits between 0 and the 8px gutter
     paddingInlineStart: TAB_STRIP_INSET,
     boxSizing: "border-box",
     flexShrink: 0,
   },
-  // Cursor Glass tab: a pill centered in the bar, not a full-height segment. StyleX 0.19 has no
+  // The tab is a pill centered in the bar, not a full-height segment. StyleX 0.19 has no
   // descendant selectors, so the pill exposes the close-button reveal and the label fade through
   // private `--_` vars its children read.
   tabItem: {
@@ -93,6 +93,11 @@ const styles = stylex.create({
     borderRadius: radiusVars["--honk-radius-control"],
     display: "flex",
     alignItems: "center",
+    // One angle drives both label masks, so RTL flips the whole fade in one place.
+    "--_tab-fade-angle": {
+      default: TAB_FADE_ANGLE_LTR,
+      ":dir(rtl)": TAB_FADE_ANGLE_RTL,
+    },
     // Hover reveals close; focus-within keeps it usable when a keyboard lands on it. Pointers
     // without hover never reach either state, so they get the close button permanently.
     "--_reveal": {
@@ -109,24 +114,22 @@ const styles = stylex.create({
     },
     // The label fades out under the revealed close button rather than reserving room for it, so an
     // idle tab keeps its full label and hovering one never re-measures the strip.
-    // oxlint-disable honk/design-no-raw-values -- Cursor Glass mask stops, bytes 1048218 (rest) and 1048925 (revealed); `#000` is a mask alpha keyword, not a themed color, and no colorVars entry can express "fully opaque" here
     "--_label-mask": {
       default: TAB_LABEL_MASK_REST,
       "@media (hover: none)": TAB_LABEL_MASK_REVEALED,
       ":focus-within": TAB_LABEL_MASK_REVEALED,
       ":hover": { "@media (hover: hover)": TAB_LABEL_MASK_REVEALED },
     },
-    // oxlint-enable honk/design-no-raw-values
     color: {
       default: colorVars["--honk-color-text-muted"],
       ":hover": { "@media (hover: hover)": colorVars["--honk-color-text-primary"] },
     },
-    // Hover and active share one 6% fill; only the text color separates them, as in Glass.
+    // Hover and active share one 6% fill; only the text color separates them.
     backgroundColor: {
       default: "transparent",
       ":hover": { "@media (hover: hover)": colorVars["--honk-color-tab-hover"] },
     },
-    // Glass ships no box-shadow on tabs in any state: the raised reading comes from the fill plus
+    // Tabs ship no box-shadow in any state: the raised reading comes from the fill plus
     // the pill radius alone. Do not add elevation here.
     fontFamily: fontVars["--honk-font-family-ui"],
     fontSize: fontVars["--honk-font-size-body"],
@@ -140,7 +143,8 @@ const styles = stylex.create({
     },
     transitionTimingFunction: motionVars["--honk-motion-ease-out"],
   },
-  // Active reuses the hover fill and brightens the label; the close button still reveals on hover.
+  // Active reuses the hover fill and brightens the label; its close button stays visible so the
+  // reserved slot never reads as a void on a filled pill.
   tabItemActive: {
     color: colorVars["--honk-color-text-primary"],
     backgroundColor: colorVars["--honk-color-tab-hover"],
@@ -152,9 +156,9 @@ const styles = stylex.create({
     display: "flex",
     alignItems: "center",
     gap: controlVars["--honk-control-gap"],
-    // oxlint-disable-next-line honk/design-no-raw-values -- Cursor's --cursor-spacing-1-25 tab lead-in; no control pad token is 5px
+    // oxlint-disable-next-line honk/design-no-raw-values -- 5px tab lead-in is fixed geometry; no control pad token is 5px
     paddingInlineStart: TAB_PAD_START,
-    // oxlint-disable-next-line honk/design-no-raw-values -- Cursor's --cursor-spacing-1-5 tab trail; no control pad token is 6px
+    // oxlint-disable-next-line honk/design-no-raw-values -- 6px tab trail is fixed geometry; no control pad token is 6px
     paddingInlineEnd: TAB_PAD_END,
     borderWidth: 0,
     // Paints no fill of its own; the radius only exists so the focus ring traces the pill.
@@ -162,7 +166,7 @@ const styles = stylex.create({
     color: "inherit",
     backgroundColor: "transparent",
     font: "inherit",
-    // Honk deliberately keeps an accent focus ring where Cursor ships none: a stronger, visible
+    // Honk deliberately keeps an accent focus ring here: a stronger, visible
     // keyboard affordance is worth the divergence from the bundle.
     outlineColor: colorVars["--honk-color-accent"],
     outlineStyle: { default: "none", ":focus-visible": "solid" },
@@ -170,15 +174,16 @@ const styles = stylex.create({
     outlineOffset: FOCUS_RING_OFFSET_INSET,
   },
   // Masked on the label alone: the leading tab glyph is a sibling, so it never enters the fade, and
-  // the gradient is opaque from 0 so the label's own leading edge stays intact.
+  // the gradient is opaque from 0 so the label's own leading edge stays intact. At rest a clamped
+  // label truncates with an ellipsis; the fade is purely the hover treatment under the close glyph.
   tabLabel: {
     minWidth: 0,
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
     maskImage: "var(--_label-mask, none)",
-    // Cursor runs this fade at .2s ease-out, but honk's pill already cross-fades its fill and text
-    // at the hover duration; sharing that timing keeps one hover reading instead of two.
+    // The pill already cross-fades its fill and text at the hover duration; sharing that timing
+    // keeps one hover reading instead of two.
     transitionProperty: "mask-image",
     transitionDuration: {
       default: motionVars["--honk-motion-duration-hover"],
@@ -186,18 +191,36 @@ const styles = stylex.create({
     },
     transitionTimingFunction: motionVars["--honk-motion-ease-out"],
   },
-  // The close button is out of flow, pinned over the label tail, and hidden until the tab is
-  // hovered or focused. The reveal lives on this presentational wrapper so the pointer-events var
-  // stays off IconButton's typed `style` prop, while the button itself remains keyboard-focusable.
-  closeSlot: {
+  // The close control is a bare glyph pinned over the pill's trailing cap, hidden until the pill
+  // is hovered or focused: it paints no fill in any state, so the pill's background stays the only
+  // one, and the label fades beneath it instead of moving aside. IconButton would bring its quiet
+  // hover fill, hence a raw button holding only color, focus ring, and geometry.
+  closeButton: {
     position: "absolute",
-    insetInlineEnd: TAB_STRIP_INSET,
+    insetInlineEnd: TAB_CLOSE_INSET,
     insetBlock: 0,
     zIndex: 1,
+    marginBlock: "auto",
     display: "flex",
     alignItems: "center",
+    justifyContent: "center",
+    boxSizing: "border-box",
+    width: controlVars["--honk-control-h-sm"],
+    height: controlVars["--honk-control-h-sm"],
+    padding: 0,
+    borderWidth: 0,
+    borderRadius: radiusVars["--honk-radius-control"],
+    backgroundColor: "transparent",
+    color: {
+      default: "inherit",
+      ":hover": { "@media (hover: hover)": colorVars["--honk-color-text-primary"] },
+    },
     opacity: "var(--_reveal, 0)",
     pointerEvents: "var(--_close-pointer-events, none)",
+    outlineColor: colorVars["--honk-color-accent"],
+    outlineStyle: { default: "none", ":focus-visible": "solid" },
+    outlineWidth: controlVars["--honk-control-focus-ring-width"],
+    outlineOffset: FOCUS_RING_OFFSET_INSET,
   },
   newTabAction: {
     flexShrink: 0,
@@ -248,6 +271,7 @@ type WorkbenchToolHeaderMenuItem = {
   readonly icon: Glyph;
   readonly disabled?: boolean;
 };
+
 
 function WorkbenchToolHeader({
   tabs,
@@ -394,19 +418,17 @@ function WorkbenchToolHeader({
                     ) : null}
                   </button>
                   {tab.closable ? (
-                    <span {...stylex.props(styles.closeSlot)}>
-                      <IconButton
-                        type="button"
-                        aria-label={`Close ${tab.label}`}
-                        size="sm"
-                        variant="quiet"
-                        onClick={() => {
-                          closeAndRestoreFocus(tab, index);
-                        }}
-                      >
-                        <Icon icon={IconCrossSmall} size="xs" />
-                      </IconButton>
-                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Close ${tab.label}`}
+                      data-canonical-control-exception="The close glyph rides the pill's own fill; a canonical IconButton would paint a second background inside it."
+                      {...stylex.props(styles.closeButton)}
+                      onClick={() => {
+                        closeAndRestoreFocus(tab, index);
+                      }}
+                    >
+                      <Icon icon={IconCrossSmall} size="xs" />
+                    </button>
                   ) : null}
                 </div>
               );

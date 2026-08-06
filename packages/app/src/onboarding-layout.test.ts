@@ -11,13 +11,11 @@ const DEG = Math.PI / 180;
 
 type Vec = { readonly x: number; readonly y: number };
 
-const pitchRadius = (ring: { outer: number; hole: number }): number =>
-  (ring.outer + ring.hole) / 2;
+const pitchRadius = (ring: { outer: number; hole: number }): number => (ring.outer + ring.hole) / 2;
 
 const distance = (a: Vec, b: Vec): number => Math.hypot(a.x - b.x, a.y - b.y);
 
-const bearingDeg = (from: Vec, to: Vec): number =>
-  Math.atan2(to.y - from.y, to.x - from.x) / DEG;
+const bearingDeg = (from: Vec, to: Vec): number => Math.atan2(to.y - from.y, to.x - from.x) / DEG;
 
 const gears = { s: TRAIN.s, m: TRAIN.m, l: TRAIN.l } as const;
 
@@ -87,7 +85,7 @@ describe("gear train meshing", () => {
     const spacing = 360 / ring.teeth;
     const omega = (360 / gear.periodS) * gear.spin;
     const period = spacing / Math.abs(omega);
-    const first = (((contactBearing - ring.phase) / omega) % period + period) % period;
+    const first = ((((contactBearing - ring.phase) / omega) % period) + period) % period;
     const times: number[] = [];
     for (let t = first; t < windowS; t += period) {
       times.push(t);
@@ -105,8 +103,7 @@ describe("gear train meshing", () => {
       expect(timesA.length).toBeGreaterThan(2);
       expect(timesB.length).toBeGreaterThan(2);
 
-      const beat =
-        (360 / mesh.a.ring.teeth / (360 / mesh.a.gear.periodS));
+      const beat = 360 / mesh.a.ring.teeth / (360 / mesh.a.gear.periodS);
       const merged = [
         ...timesA.map((t) => ({ t, source: "a" })),
         ...timesB.map((t) => ({ t, source: "b" })),

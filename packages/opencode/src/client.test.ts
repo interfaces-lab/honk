@@ -126,39 +126,62 @@ describe("createOpenCodeClient sessions.list", () => {
     expect(list).toHaveBeenNthCalledWith(2, {});
   });
 
-  it("reads text files through the stable file namespace", async () => {
-    const read = vi.fn(() =>
-      Promise.resolve(response({ type: "text" as const, content: "export const a = 1" })),
+  it("reads byte-accurate text through the V2 filesystem route", async () => {
+    const request = vi.fn((_input: RequestInfo | URL) =>
+      Promise.resolve(
+        new Response("export const a = 1;  \n", {
+          headers: { "content-type": "text/plain; charset=utf-8" },
+        }),
+      ),
     );
-    sdk.createOpencodeClient.mockReturnValue({ file: { read } } as unknown as OpencodeClient);
+    sdk.createOpencodeClient.mockReturnValue({} as unknown as OpencodeClient);
 
-    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }));
+    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }), {
+      fetch: request,
+    });
     const result = await client.files.read("src/index.ts", {
       directory: "/Users/test/Documents",
     });
     client.close();
 
-    expect(result).toEqual({ kind: "text", text: "export const a = 1" });
-    expect(read).toHaveBeenCalledWith({
-      path: "src/index.ts",
-      directory: "/Users/test/Documents",
-    });
+    expect(result).toEqual({ kind: "text", text: "export const a = 1;  \n" });
+    const sent = request.mock.calls[0]?.[0];
+    expect(sent).toBeInstanceOf(Request);
+    const url = new URL((sent as Request).url);
+    expect(url.pathname).toBe("/api/fs/read/src/index.ts");
+    expect(url.searchParams.get("location[directory]")).toBe("/Users/test/Documents");
   });
 
-  it("reads binary files as base64 with their mime type", async () => {
-    const read = vi.fn(() =>
+  it("preserves a UTF-8 byte order mark", async () => {
+    const request = vi.fn((_input: RequestInfo | URL) =>
       Promise.resolve(
-        response({
-          type: "binary" as const,
-          content: "AQI=",
-          encoding: "base64" as const,
-          mimeType: "image/png",
+        new Response(new Uint8Array([0xef, 0xbb, 0xbf, 0x61]), {
+          headers: { "content-type": "text/plain" },
         }),
       ),
     );
-    sdk.createOpencodeClient.mockReturnValue({ file: { read } } as unknown as OpencodeClient);
+    sdk.createOpencodeClient.mockReturnValue({} as unknown as OpencodeClient);
 
-    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }));
+    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }), {
+      fetch: request,
+    });
+    const result = await client.files.read("src/index.ts");
+    client.close();
+
+    expect(result).toEqual({ kind: "text", text: "\uFEFFa" });
+  });
+
+  it("reads binary files as base64 with their mime type", async () => {
+    const request = vi.fn(() =>
+      Promise.resolve(
+        new Response(new Uint8Array([1, 2]), { headers: { "content-type": "image/png" } }),
+      ),
+    );
+    sdk.createOpencodeClient.mockReturnValue({} as unknown as OpencodeClient);
+
+    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }), {
+      fetch: request,
+    });
     const result = await client.files.read("assets/icon.png", {
       directory: "/Users/test/Documents",
     });
@@ -167,68 +190,143 @@ describe("createOpenCodeClient sessions.list", () => {
     expect(result).toEqual({ kind: "binary", base64: "AQI=", mimeType: "image/png" });
   });
 
-  it("omits mimeType entirely when the sidecar does not report one", async () => {
-    const read = vi.fn(() =>
+  it("omits mimeType entirely for undecodable bytes without a content type", async () => {
+    const request = vi.fn(() =>
       Promise.resolve(
-        response({ type: "binary" as const, content: "AQI=", encoding: "base64" as const }),
+        new Response(new Uint8Array([0xff, 0xfe]), {
+          headers: { "content-type": "" },
+        }),
       ),
     );
-    sdk.createOpencodeClient.mockReturnValue({ file: { read } } as unknown as OpencodeClient);
+    sdk.createOpencodeClient.mockReturnValue({} as unknown as OpencodeClient);
 
-    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }));
+    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }), {
+      fetch: request,
+    });
     const result = await client.files.read("assets/blob.bin");
     client.close();
 
-    expect(result).toEqual({ kind: "binary", base64: "AQI=" });
+    expect(result).toEqual({ kind: "binary", base64: "//4=" });
     expect("mimeType" in result).toBe(false);
   });
 
   it("sends no location keys when the location is omitted", async () => {
-    const read = vi.fn(() => Promise.resolve(response({ type: "text" as const, content: "a" })));
-    sdk.createOpencodeClient.mockReturnValue({ file: { read } } as unknown as OpencodeClient);
+    const request = vi.fn((_input: RequestInfo | URL) => Promise.resolve(new Response("a")));
+    sdk.createOpencodeClient.mockReturnValue({} as unknown as OpencodeClient);
 
-    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }));
+    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }), {
+      fetch: request,
+    });
     await client.files.read("src/index.ts");
     client.close();
 
-    expect(read).toHaveBeenCalledWith({ path: "src/index.ts" });
+    const sent = request.mock.calls[0]?.[0] as Request;
+    expect(new URL(sent.url).search).toBe("");
   });
 
-  it("cannot distinguish a missing file from an empty one", async () => {
-    // The 1.18.1 sidecar answers 200 {type:"text",content:""} for a missing or
-    // unreadable path. There is no signal to turn into a throw; do not invent one.
-    const read = vi.fn(() => Promise.resolve(response({ type: "text" as const, content: "" })));
-    sdk.createOpencodeClient.mockReturnValue({ file: { read } } as unknown as OpencodeClient);
+  it("reads an empty file without a parent directory listing", async () => {
+    const request = vi.fn(() => Promise.resolve(new Response("")));
+    sdk.createOpencodeClient.mockReturnValue({} as unknown as OpencodeClient);
 
-    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }));
-    const result = await client.files.read("does/not/exist.ts");
+    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }), {
+      fetch: request,
+    });
+    const result = await client.files.read("empty.ts");
     client.close();
 
     expect(result).toEqual({ kind: "text", text: "" });
   });
 
   it("surfaces read failures as OpenCodeRequestError with the response status", async () => {
-    // A directory path or one escaping the location dies server-side as a 500 defect,
-    // not the declared 400.
-    const read = vi.fn(() =>
-      Promise.resolve({
-        data: undefined,
-        error: { data: { message: "Path is not a file" } },
-        request: new Request("http://opencode.test"),
-        response: new Response(undefined, { status: 500 }),
-      }),
+    const request = vi.fn(() =>
+      Promise.resolve(new Response("Path is not a file", { status: 400 })),
     );
-    sdk.createOpencodeClient.mockReturnValue({ file: { read } } as unknown as OpencodeClient);
+    sdk.createOpencodeClient.mockReturnValue({} as unknown as OpencodeClient);
 
-    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }));
+    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }), {
+      fetch: request,
+    });
     const failure = await client.files.read("src/").catch((error: unknown) => error);
     client.close();
 
     expect(failure).toBeInstanceOf(OpenCodeRequestError);
     expect(failure).toMatchObject({
       message: "Path is not a file",
-      operation: "file.read",
-      status: 500,
+      operation: "fs.read",
+      status: 400,
+    });
+  });
+
+  it("saves text through a contextual VCS patch", async () => {
+    const apply = vi.fn(() => Promise.resolve(response({ applied: true })));
+    sdk.createOpencodeClient.mockReturnValue({ vcs: { apply } } as unknown as OpencodeClient);
+
+    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }));
+    await client.files.write(
+      "src/value.ts",
+      { expectedContents: "const value = 1;\n", contents: "const value = 2;\n" },
+      { directory: "/Users/test/Documents" },
+    );
+    client.close();
+
+    expect(apply).toHaveBeenCalledOnce();
+    expect(apply).toHaveBeenCalledWith({
+      directory: "/Users/test/Documents",
+      patch: expect.stringContaining("-const value = 1;\n+const value = 2;"),
+    });
+  });
+
+  it("quotes file names with spaces in the generated patch", async () => {
+    const apply = vi.fn(() => Promise.resolve(response({ applied: true })));
+    sdk.createOpencodeClient.mockReturnValue({ vcs: { apply } } as unknown as OpencodeClient);
+
+    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }));
+    await client.files.write("src dir/value file.ts", {
+      expectedContents: "one\n",
+      contents: "two\n",
+    });
+    client.close();
+
+    expect(apply).toHaveBeenCalledWith({
+      patch: expect.stringContaining('--- "a/src dir/value file.ts"'),
+    });
+  });
+
+  it("does not call the sidecar when the file has no edits", async () => {
+    const apply = vi.fn();
+    sdk.createOpencodeClient.mockReturnValue({ vcs: { apply } } as unknown as OpencodeClient);
+
+    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }));
+    await client.files.write("src/value.ts", { expectedContents: "same", contents: "same" });
+    client.close();
+
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a rejected patch from a non-git or overlapping working tree", async () => {
+    const apply = vi.fn(() =>
+      Promise.resolve({
+        data: undefined,
+        error: {
+          name: "VcsApplyError",
+          data: { message: "Patch can't be applied", reason: "not-clean" },
+        },
+        request: new Request("http://opencode.test"),
+        response: new Response(undefined, { status: 400 }),
+      }),
+    );
+    sdk.createOpencodeClient.mockReturnValue({ vcs: { apply } } as unknown as OpencodeClient);
+
+    const client = createOpenCodeClient(createOpenCodeServer({ origin: "http://opencode.test" }));
+    const failure = await client.files
+      .write("src/value.ts", { expectedContents: "one", contents: "two" })
+      .catch((error: unknown) => error);
+    client.close();
+
+    expect(failure).toMatchObject({
+      message: "Patch can't be applied",
+      operation: "vcs.apply",
+      status: 400,
     });
   });
 

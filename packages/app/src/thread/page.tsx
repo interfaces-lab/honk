@@ -1,5 +1,5 @@
 import { openCodeSessionKey } from "@honk/opencode";
-import { Spinner, Text } from "@honk/ui";
+import { Text } from "@honk/ui";
 import { spaceVars } from "@honk/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useParams } from "@tanstack/react-router";
@@ -49,13 +49,7 @@ export function ThreadPage(): React.ReactElement {
   const isDisconnected = watch.status === "closed" || watch.status === "unauthorized";
 
   if (isConnecting) {
-    return (
-      <div {...stylex.props(styles.page)}>
-        <div {...stylex.props(styles.center)}>
-          <Spinner label="Connecting to thread" tone="muted" />
-        </div>
-      </div>
-    );
+    return <div {...stylex.props(styles.page)} />;
   }
   if (state === null) {
     return (

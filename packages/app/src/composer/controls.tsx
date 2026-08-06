@@ -1,17 +1,7 @@
-import {
-  Button,
-  Icon,
-  IconButton,
-  ListRow,
-  Menu,
-  Pill,
-  Popover,
-  PreviewCard,
-  Text,
-  Tooltip,
-} from "@honk/ui";
+import { Button, Icon, IconButton, Menu, Pill, PreviewCard, Text, Tooltip } from "@honk/ui";
 import {
   IconArrowRotateCounterClockwise,
+  IconChevronRightMedium,
   IconClawd,
   IconGlobe,
   IconKimi,
@@ -31,6 +21,7 @@ import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
 import type { PromptEditorHandle } from "./types";
+import { usePreviewPanelHold, type PreviewPanelHold } from "./preview-panel-hold";
 import { DEFAULT_MODE, modeById, nextModeId, type ModeId } from "../modes";
 import {
   actions as selectionActions,
@@ -56,7 +47,7 @@ import {
 } from "../presets";
 import { providerAuthActions, useProviderAuth } from "../provider-auth";
 import { actions as settingsActions } from "../settings-store";
-import { colorVars, controlVars, fontVars, radiusVars } from "@honk/ui/tokens.stylex";
+import { controlVars, fontVars } from "@honk/ui/tokens.stylex";
 
 // Cursor draws the composer mode as one chip: 12px text on a 16px line in a 2px x 8px box
 // (`.composer-mode-pill-button`). Honk's `Pill size="inline"` is tuned for chips sitting in running
@@ -100,69 +91,18 @@ export function ModeControl({
   );
 }
 
-// Plain objects: @honk/ui `style` hatches merge inline CSS, not StyleX styles.
-// The picker is a menu-class popup: same edge gutter, radius, and row rhythm as the
-// Menu/Combobox primitives instead of the popover's content padding.
-const POPUP_SURFACE_STYLE: React.CSSProperties = {
-  padding: controlVars["--honk-control-menu-pad"],
-  borderRadius: radiusVars["--honk-radius-menu"],
-};
-// Hidden meta copy of the level affordance so row content never flows under the
-// interactive overlay drawn in its place.
-const RESERVED_META_STYLE: React.CSSProperties = { visibility: "hidden" };
 // "Default" reads as a quickpick description right after the label, leaving the
 // trailing edge to the radio check.
 const DEFAULT_META_STYLE: React.CSSProperties = { marginInlineStart: 0 };
 const CARD_TEXT_STYLE: React.CSSProperties = { margin: 0 };
-const MODEL_PICKER_WIDTH = "272px";
 const MODEL_PREVIEW_WIDTH = "236px";
 
 const styles = stylex.create({
-  popup: {
-    display: "flex",
-    flexDirection: "column",
-    width: MODEL_PICKER_WIDTH,
-  },
   modelIndicator: {
     display: "inline-flex",
     alignItems: "center",
     gap: controlVars["--honk-control-gap"],
     minWidth: 0,
-  },
-  separator: {
-    height: controlVars["--honk-control-border-width"],
-    // oxlint-disable-next-line honk/design-no-raw-values -- 3px is the compact menu separator's vertical breathing room; no spacing token owns this inset
-    marginBlock: "3px",
-    marginInline: `calc(-1 * ${controlVars["--honk-control-menu-pad"]})`,
-    backgroundColor: colorVars["--honk-color-border-muted"],
-  },
-  groupLabel: {
-    display: "block",
-    paddingInline: controlVars["--honk-control-pad-sm"],
-    // oxlint-disable-next-line honk/design-no-raw-values -- 3px keeps compact menu group labels vertically balanced; no spacing token owns this inset
-    paddingBlock: "3px",
-  },
-  rowWrap: {
-    position: "relative",
-    "--_honk-model-row-actions-opacity": {
-      default: 0,
-      ":hover": { "@media (hover: hover)": 1 },
-      ":focus-within": 1,
-    },
-    "--_honk-model-row-actions-pointer-events": {
-      default: "none",
-      ":hover": { "@media (hover: hover)": "auto" },
-      ":focus-within": "auto",
-    },
-  },
-  rowActions: {
-    position: "absolute",
-    insetBlock: 0,
-    insetInlineEnd: controlVars["--honk-control-pad-sm"],
-    display: "flex",
-    alignItems: "center",
-    opacity: "var(--_honk-model-row-actions-opacity)",
-    pointerEvents: "var(--_honk-model-row-actions-pointer-events)",
   },
   card: {
     display: "flex",
@@ -360,131 +300,6 @@ function singleEditOptions(
   };
 }
 
-// Every configurable row reveals reset/edit actions on hover or focus, independently
-// of selection. Its option menu stays open across thinking-level and Fast changes. Rows
-// are never disabled: a disconnected account is explained in the preview card but the
-// pick still goes through and fails at runtime.
-function PickerRow({
-  isSelected,
-  onSelect,
-  meta,
-  edit,
-  preview,
-  children,
-}: {
-  readonly isSelected: boolean;
-  readonly onSelect: () => void;
-  readonly meta: string;
-  readonly edit?: PickerEditOptions | undefined;
-  readonly preview: React.ReactNode;
-  readonly children: React.ReactNode;
-}): React.ReactElement {
-  const [menuOpen, setMenuOpen] = React.useState(false);
-  const [previewOpen, setPreviewOpen] = React.useState(false);
-  const levelLabel =
-    edit === undefined ? "" : (edit.stops.find((stop) => stop.id === edit.value)?.label ?? "");
-  const optionsLabel = `${levelLabel}${edit?.fast?.value === true ? " Fast" : ""}`;
-
-  return (
-    <div {...stylex.props(styles.rowWrap)}>
-      <PreviewCard.Root
-        open={previewOpen && !menuOpen && !(isSelected && edit !== undefined)}
-        onOpenChange={setPreviewOpen}
-      >
-        <PreviewCard.Trigger
-          render={
-            <ListRow
-              role="radio"
-              size="menu"
-              aria-checked={isSelected}
-              isSelected={isSelected}
-              tabIndex={isSelected ? 0 : -1}
-              onClick={onSelect}
-            />
-          }
-        >
-          {children}
-          {meta.length === 0 ? null : (
-            <Text size="xs" tone="muted">
-              {meta}
-            </Text>
-          )}
-          {edit === undefined ? null : (
-            <ListRow.Meta style={RESERVED_META_STYLE}>
-              Edit
-              {edit.onReset === undefined ? null : (
-                <Icon icon={IconArrowRotateCounterClockwise} size="xs" />
-              )}
-            </ListRow.Meta>
-          )}
-        </PreviewCard.Trigger>
-        <PreviewCard.Popup>{preview}</PreviewCard.Popup>
-      </PreviewCard.Root>
-      {edit === undefined ? null : (
-        <span {...stylex.props(styles.rowActions)}>
-          <Menu.Root open={menuOpen} onOpenChange={setMenuOpen}>
-            <Menu.Trigger
-              render={
-                <ListRow.Action
-                  variant="meta"
-                  isActive={menuOpen}
-                  aria-label={`${edit.ariaLabel}: ${optionsLabel}`}
-                />
-              }
-            >
-              Edit
-            </Menu.Trigger>
-            <Menu.Popup side="inline-end" align="start">
-              <ModelOptionsMenu edit={edit} />
-            </Menu.Popup>
-          </Menu.Root>
-          {edit.onReset === undefined ? null : (
-            <ListRow.Action
-              variant="meta"
-              aria-label="Reset to default"
-              title="Reset to default"
-              onClick={edit.onReset}
-            >
-              <Icon icon={IconArrowRotateCounterClockwise} size="xs" />
-            </ListRow.Action>
-          )}
-        </span>
-      )}
-    </div>
-  );
-}
-
-export function ThinkingLevelControl(): React.ReactElement | null {
-  const selection = useModelSelection();
-  const edit =
-    selection.active === "fusion"
-      ? fusionEditOptions(selection)
-      : singleEditOptions(
-          selection,
-          selection.singleFamily,
-          SINGLE_MODEL_ROWS.find((row) => row.family === selection.singleFamily)?.title ??
-            selection.singleFamily,
-        );
-  if (edit === undefined) return null;
-  const levelLabel = edit.stops.find((stop) => stop.id === edit.value)?.label ?? edit.value;
-  const label = `${levelLabel}${edit.fast?.value === true ? " · Fast" : ""}`;
-
-  return (
-    <Menu.Root>
-      <Menu.Trigger
-        render={
-          <Button type="button" size="sm" variant="quiet" aria-label={`Thinking level: ${label}`} />
-        }
-      >
-        {label}
-      </Menu.Trigger>
-      <Menu.Popup>
-        <ModelOptionsMenu edit={edit} />
-      </Menu.Popup>
-    </Menu.Root>
-  );
-}
-
 const SINGLE_MODEL_ROWS: readonly {
   readonly family: SingleFamilyId;
   readonly title: string;
@@ -566,22 +381,88 @@ export function ThreadModelIndicator(props: {
   );
 }
 
+type PickerRowId = "fusion" | SingleFamilyId;
+
+// A model row: radio item that commits on click, plus a hover-held explanation panel
+// opening inline-start. The panel's lifetime is owned by the shared hold logic; Base UI
+// alone would dismiss it from menu focus movement (see preview-panel-hold.ts).
+function ModelPickerRow({
+  hold,
+  id,
+  title,
+  meta,
+  icon,
+  panel,
+}: {
+  readonly hold: PreviewPanelHold<PickerRowId>;
+  readonly id: PickerRowId;
+  readonly title: string;
+  readonly meta: string;
+  readonly icon: React.ReactNode;
+  readonly panel: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <PreviewCard.Root
+      open={hold.openId === id}
+      onOpenChange={(open) => {
+        hold.handleOpenChange(id, open);
+      }}
+    >
+      <PreviewCard.Trigger render={<Menu.RadioItem value={id} closeOnClick ref={hold.rowRef(id)} />}>
+        <Menu.ItemIcon>{icon}</Menu.ItemIcon>
+        {title}
+        {meta.length === 0 ? null : <Menu.ItemMeta>{meta}</Menu.ItemMeta>}
+      </PreviewCard.Trigger>
+      <PreviewCard.Popup
+        ref={hold.panelRef}
+        side="inline-start"
+        align="start"
+        aria-label={`About ${title}`}
+        style={hold.panelStyle}
+      >
+        {panel}
+      </PreviewCard.Popup>
+    </PreviewCard.Root>
+  );
+}
+
+// One menu owns the whole selection, Cursor-style: thinking level and Fast for the
+// active pick up top, then the model list as a hover-revealed submenu whose rows carry
+// hover-held explanation panels. Hover only reveals; every mutation is a click.
 export function ModelSelector(): React.ReactElement {
   const selection = useModelSelection();
   const auth = useProviderAuth();
   const connectivity = providerConnectivity(auth);
   const label = selectionLabel(selection);
   const plan = submissionModel(selection);
+  const [submenuOpen, setSubmenuOpen] = React.useState(false);
+  const hold = usePreviewPanelHold<PickerRowId>();
+
+  const activeTitle =
+    selection.active === "fusion"
+      ? "Fusion"
+      : (SINGLE_MODEL_ROWS.find((row) => row.family === selection.singleFamily)?.title ??
+        selection.singleFamily);
+  const edit =
+    selection.active === "fusion"
+      ? fusionEditOptions(selection)
+      : singleEditOptions(selection, selection.singleFamily, activeTitle);
+  const activeRowId: PickerRowId = selection.active === "fusion" ? "fusion" : selection.singleFamily;
 
   return (
-    <Popover.Root
+    <Menu.Root
       onOpenChange={(open) => {
         // The local claude CLI's auth can change outside the app (a terminal
         // `claude login`/logout), so re-probe it every time the picker opens.
-        if (open) void providerAuthActions.refreshClaude();
+        if (open) {
+          void providerAuthActions.refreshClaude();
+        } else {
+          setSubmenuOpen(false);
+          hold.reset();
+        }
       }}
     >
-      <Popover.Trigger
+      <Menu.Trigger
         render={
           <Button
             type="button"
@@ -589,133 +470,132 @@ export function ModelSelector(): React.ReactElement {
             variant="quiet"
             aria-label={`Model: ${label}`}
             iconStart={<ModelIcon model={plan.model} />}
-          >
-            {label}
-          </Button>
+          />
         }
-      />
-      <Popover.Popup side="bottom" align="start" sideOffset={4} style={POPUP_SURFACE_STYLE}>
-        <div
-          {...stylex.props(styles.popup)}
-          role="radiogroup"
-          aria-label="Model"
-          onKeyDown={onModelRadioGroupKeyDown}
-        >
-          <PickerRow
-            isSelected={selection.active === "fusion"}
-            onSelect={() => {
-              selectionActions.selectFusion();
+      >
+        {label}
+      </Menu.Trigger>
+      <Menu.Popup side="bottom" align="start" sideOffset={4}>
+        {edit === undefined ? null : (
+          <>
+            <ModelOptionsMenu edit={edit} />
+            {edit.onReset === undefined ? null : (
+              <Menu.Item closeOnClick={false} onClick={edit.onReset}>
+                <Menu.ItemIcon>
+                  <Icon icon={IconArrowRotateCounterClockwise} size="xs" />
+                </Menu.ItemIcon>
+                Reset to default
+              </Menu.Item>
+            )}
+            <Menu.Separator />
+          </>
+        )}
+        <Menu.Group>
+          <Menu.GroupLabel>Model</Menu.GroupLabel>
+          {/*
+            Controlled: each row's explanation panel lives in its own FloatingTree, so
+            the submenu's safe-polygon child check cannot see it. Veto hover-closes
+            while a panel is held; the hold logic dismisses the panel when the pointer
+            truly leaves, and the next close request then goes through.
+          */}
+          <Menu.SubmenuRoot
+            open={submenuOpen}
+            onOpenChange={(open) => {
+              if (!open && hold.isActive()) return;
+              setSubmenuOpen(open);
+              if (!open) hold.reset();
             }}
-            meta={stopLabel(selection.stop)}
-            edit={fusionEditOptions(selection)}
-            preview={
-              <ModelPreviewCard
-                title="Fusion"
-                provider="Multi-model"
-                description="One model orchestrates, one executes."
-                detail={
-                  <>
-                    {HONK_AGENT_PAIRINGS.map((pairing) => (
-                      <Text
-                        key={pairing.stop}
-                        as="p"
-                        size="xs"
-                        tone="muted"
-                        style={CARD_TEXT_STYLE}
-                      >
-                        {`${stopLabel(pairing.stop)} · ${modelName(pairing.main.id)} + ${modelName(pairing.sidekick.id)}`}
-                      </Text>
-                    ))}
-                    <Text as="p" size="xs" tone="faint" style={CARD_TEXT_STYLE}>
-                      {codexStatusLine(connectivity)}
-                    </Text>
-                  </>
-                }
-              />
-            }
           >
-            <ListRow.Content>
-              <ListRow.Title>Fusion</ListRow.Title>
-              <ListRow.Description>One model orchestrates, one executes</ListRow.Description>
-            </ListRow.Content>
-          </PickerRow>
-          <div aria-hidden="true" {...stylex.props(styles.separator)} />
-          <div {...stylex.props(styles.groupLabel)}>
-            <Text size="xs" tone="muted">
-              Single models
-            </Text>
-          </div>
-          {SINGLE_MODEL_ROWS.map((row) => {
-            const variantFamily = row.family === KIMI_MODEL_ID ? undefined : row.family;
-            const variant =
-              variantFamily === undefined ? undefined : selection.variants[variantFamily];
-            const fastFamily = supportsFast(row.family) ? row.family : undefined;
-            const fast = fastFamily === undefined ? undefined : selection.fast[fastFamily];
-            const disconnected = familyConnectivity(row.family, connectivity) === false;
-            return (
-              <PickerRow
-                key={row.family}
-                isSelected={selection.active === "single" && selection.singleFamily === row.family}
-                onSelect={() => {
-                  selectionActions.selectSingle(row.family);
+            <Menu.SubmenuTrigger>
+              {activeTitle}
+              <Menu.ItemMeta>
+                <Icon icon={IconChevronRightMedium} size="xs" tone="faint" />
+              </Menu.ItemMeta>
+            </Menu.SubmenuTrigger>
+            <Menu.SubmenuPopup aria-label="Model">
+              <Menu.RadioGroup
+                value={activeRowId}
+                onValueChange={(value) => {
+                  if (value === "fusion") selectionActions.selectFusion();
+                  else selectionActions.selectSingle(value as SingleFamilyId);
                 }}
-                meta={
-                  variant === undefined
-                    ? ""
-                    : `${variantLabel(variant)}${fast === true ? " Fast" : ""}`
-                }
-                edit={singleEditOptions(selection, row.family, row.title)}
-                preview={
-                  <ModelPreviewCard
-                    title={row.title}
-                    provider={row.provider}
-                    description={row.description}
-                    connectMessage={disconnected ? row.connectMessage : undefined}
-                    detail={
-                      <Text as="p" size="xs" tone="muted" style={CARD_TEXT_STYLE}>
-                        {variant === undefined
-                          ? "No thinking-level control; runs at the gateway default."
-                          : `Thinking ${variantLabel(variant)} — ${VARIANT_MEANINGS[variant]}.`}
-                      </Text>
-                    }
-                  />
-                }
               >
-                <ListRow.Slot>
-                  <ModelIcon model={row.model} />
-                </ListRow.Slot>
-                <ListRow.Title>{row.title}</ListRow.Title>
-              </PickerRow>
-            );
-          })}
-        </div>
-      </Popover.Popup>
-    </Popover.Root>
+                <ModelPickerRow
+                  hold={hold}
+                  id="fusion"
+                  title="Fusion"
+                  meta={stopLabel(selection.stop)}
+                  icon={null}
+                  panel={
+                    <ModelPreviewCard
+                      title="Fusion"
+                      provider="Multi-model"
+                      description="One model orchestrates, one executes."
+                      detail={
+                        <>
+                          {HONK_AGENT_PAIRINGS.map((pairing) => (
+                            <Text
+                              key={pairing.stop}
+                              as="p"
+                              size="xs"
+                              tone="muted"
+                              style={CARD_TEXT_STYLE}
+                            >
+                              {`${stopLabel(pairing.stop)} · ${modelName(pairing.main.id)} + ${modelName(pairing.sidekick.id)}`}
+                            </Text>
+                          ))}
+                          <Text as="p" size="xs" tone="faint" style={CARD_TEXT_STYLE}>
+                            {codexStatusLine(connectivity)}
+                          </Text>
+                        </>
+                      }
+                    />
+                  }
+                />
+                {SINGLE_MODEL_ROWS.map((row) => {
+                  const variantFamily = row.family === KIMI_MODEL_ID ? undefined : row.family;
+                  const variant =
+                    variantFamily === undefined ? undefined : selection.variants[variantFamily];
+                  const fastFamily = supportsFast(row.family) ? row.family : undefined;
+                  const fast = fastFamily === undefined ? undefined : selection.fast[fastFamily];
+                  const disconnected = familyConnectivity(row.family, connectivity) === false;
+                  return (
+                    <ModelPickerRow
+                      key={row.family}
+                      hold={hold}
+                      id={row.family}
+                      title={row.title}
+                      meta={
+                        variant === undefined
+                          ? ""
+                          : `${variantLabel(variant)}${fast === true ? " Fast" : ""}`
+                      }
+                      icon={<ModelIcon model={row.model} />}
+                      panel={
+                        <ModelPreviewCard
+                          title={row.title}
+                          provider={row.provider}
+                          description={row.description}
+                          connectMessage={disconnected ? row.connectMessage : undefined}
+                          detail={
+                            <Text as="p" size="xs" tone="muted" style={CARD_TEXT_STYLE}>
+                              {variant === undefined
+                                ? "No thinking-level control; runs at the gateway default."
+                                : `Thinking ${variantLabel(variant)} — ${VARIANT_MEANINGS[variant]}.`}
+                            </Text>
+                          }
+                        />
+                      }
+                    />
+                  );
+                })}
+              </Menu.RadioGroup>
+            </Menu.SubmenuPopup>
+          </Menu.SubmenuRoot>
+        </Menu.Group>
+      </Menu.Popup>
+    </Menu.Root>
   );
-}
-
-const RADIO_ARROW_DELTAS: Readonly<Record<string, number>> = {
-  ArrowDown: 1,
-  ArrowRight: 1,
-  ArrowUp: -1,
-  ArrowLeft: -1,
-};
-
-// ARIA radio-group keyboard pattern for the picker: the selected row is the
-// group's single Tab stop (roving tabindex above) and arrows move focus
-// between rows, wrapping at the ends, selecting the row they land on. Keys
-// landing on the pencil actions fall through untouched.
-function onModelRadioGroupKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
-  const delta = RADIO_ARROW_DELTAS[event.key];
-  if (delta === undefined) return;
-  const radios = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]'));
-  const index = radios.indexOf(event.target as HTMLElement);
-  if (index === -1) return;
-  event.preventDefault();
-  const next = radios[(index + delta + radios.length) % radios.length];
-  if (next === undefined) return;
-  next.focus();
-  next.click();
 }
 
 export function ComposerAttachmentButton(props: {

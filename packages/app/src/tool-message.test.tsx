@@ -226,16 +226,14 @@ describe("tool artifact rendering", () => {
   });
 
   it("does not hide large diffs behind an unobserved local threshold", () => {
-    const large = getRenderableToolPatch(
+    const large = getRenderableToolPatch([
       [
-        [
-          "--- a/big.ts",
-          "+++ b/big.ts",
-          "@@ -0,0 +1,650 @@",
-          ...Array.from({ length: 650 }, (_, index) => `+line ${String(index + 1)}`),
-        ].join("\n"),
-      ],
-    );
+        "--- a/big.ts",
+        "+++ b/big.ts",
+        "@@ -0,0 +1,650 @@",
+        ...Array.from({ length: 650 }, (_, index) => `+line ${String(index + 1)}`),
+      ].join("\n"),
+    ]);
 
     expect(large?.kind).toBe("files");
   });
@@ -340,9 +338,7 @@ describe("tool artifact rendering", () => {
       <ToolArtifactPreview
         artifact={{
           kind: "diff",
-          files: [
-            { path: "value.ts", additions: 0, deletions: 0, patch: "not a unified patch" },
-          ],
+          files: [{ path: "value.ts", additions: 0, deletions: 0, patch: "not a unified patch" }],
         }}
         isExpanded={false}
       />,

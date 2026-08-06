@@ -128,7 +128,11 @@ export function readThreadQueue(threadId: string): readonly QueueItem[] {
 }
 
 export function useThreadQueue(threadId: string): readonly QueueItem[] {
-  return React.useSyncExternalStore(subscribe, () => readThreadQueue(threadId));
+  return React.useSyncExternalStore(
+    subscribe,
+    () => readThreadQueue(threadId),
+    () => EMPTY_QUEUE,
+  );
 }
 
 export function enqueueThreadMessage(

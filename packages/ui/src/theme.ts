@@ -407,16 +407,10 @@ export const colorProvenance = {
   syntaxKeyword: source("Cursor Light token Keywords", "Honk dark diff theme keyword"),
   syntaxString: source("Cursor Light token Strings", "Honk dark diff theme string"),
   syntaxNumber: source("Cursor Light token Integers", "Honk dark diff theme number"),
-  syntaxFunction: source(
-    "Cursor Light token Function Names",
-    "Honk dark diff theme function",
-  ),
+  syntaxFunction: source("Cursor Light token Function Names", "Honk dark diff theme function"),
   syntaxType: source("Cursor Light semantic type", "Honk dark diff theme type"),
   syntaxProperty: source("Cursor Light token Properties", "Honk dark diff theme property"),
-  syntaxPunctuation: source(
-    "Cursor Light token Punctuation",
-    "Honk dark diff theme punctuation",
-  ),
+  syntaxPunctuation: source("Cursor Light token Punctuation", "Honk dark diff theme punctuation"),
   terminalBlack: source("Cursor 3.11.25 terminalAnsiBlack", "Honk git terminal ANSI black"),
   terminalRed: source("errFg", "Honk git terminal ANSI red"),
   terminalGreen: source("okFg", "Honk git terminal ANSI green"),
@@ -520,7 +514,7 @@ const webMetrics = {
   },
   font: {
     familyUi: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    familyMono: 'Menlo, Monaco, Consolas, "Courier New", monospace',
+    familyMono: 'Menlo, Consolas, "Courier New", monospace',
     familyRounded:
       'ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     sizeBody: 13,

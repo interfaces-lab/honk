@@ -33,6 +33,7 @@ import {
   type VcsFileStatus as OpenCodeVcsFileStatus,
   type VcsInfo as OpenCodeVcsInfo,
 } from "@opencode-ai/sdk/v2/client";
+import { createTwoFilesPatch } from "diff";
 
 import { openCodeAuthorizationHeader } from "./connection";
 import type { OpenCodeEventSourceFactory } from "./event-stream";
@@ -208,11 +209,14 @@ type OpenCodeModelApi = {
   ) => Promise<OpenCodeLocatedResult<OpenCodeModelInfo>>;
 };
 
-// `/file/content` collapses "missing", "unreadable", and "empty" into an empty
-// text body, and trims text content — never treat this as the file's bytes.
 type OpenCodeFileContent =
   | { readonly kind: "text"; readonly text: string }
   | { readonly kind: "binary"; readonly base64: string; readonly mimeType?: string };
+
+type OpenCodeFileWriteInput = {
+  readonly contents: string;
+  readonly expectedContents: string;
+};
 
 type OpenCodeFileApi = {
   readonly find: (
@@ -226,12 +230,16 @@ type OpenCodeFileApi = {
     path?: string,
     location?: OpenCodeLocationQuery,
   ) => Promise<OpenCodeLocatedResult<OpenCodeFileSystemEntry>>;
-  // Viewer source, not an editor source: text is trimmed, so it is not byte-accurate,
-  // and a missing or unreadable path is indistinguishable from an empty file. Callers
-  // that need existence must `list` the parent directory first. `path` is
-  // location-relative or absolute inside the location; a directory path (including a
-  // `list` entry with its trailing separator) fails with an OpenCodeRequestError.
+  // Byte-accurate editor source. `path` is location-relative and a missing,
+  // unreadable, or directory path rejects with an OpenCodeRequestError.
   readonly read: (path: string, location?: OpenCodeLocationQuery) => Promise<OpenCodeFileContent>;
+  // Applies a contextual patch from the expected contents to the new contents. A
+  // concurrent change touching the same context rejects instead of overwriting it.
+  readonly write: (
+    path: string,
+    input: OpenCodeFileWriteInput,
+    location?: OpenCodeLocationQuery,
+  ) => Promise<void>;
 };
 
 type OpenCodeCommandApi = {
@@ -345,9 +353,7 @@ const OPEN_CODE_CAPABILITIES = Object.freeze({
   sessions: OPEN_CODE_SESSION_CAPABILITIES,
   agents: true,
   models: true,
-  // There is no file write route on the sidecar; the only working-tree mutation
-  // is a whole-patch `vcs.apply`, which trimmed read output cannot drive.
-  files: Object.freeze({ find: true, list: true, read: true, write: false }),
+  files: Object.freeze({ find: true, list: true, read: true, write: true }),
   commands: true,
   skills: true,
   vcs: true,
@@ -524,6 +530,107 @@ function attachmentFilename(file: OpenCodePromptFileAttachment): string {
   }
 }
 
+function fileReadUrl(
+  origin: string,
+  path: string,
+  location: OpenCodeLocationQuery | undefined,
+): URL {
+  const encodedPath = normalizeFilePatchPath(path).split("/").map(encodeURIComponent).join("/");
+  const url = new URL(`/api/fs/read/${encodedPath}`, `${origin.replace(/\/+$/, "")}/`);
+  if (location?.directory !== undefined) {
+    url.searchParams.set("location[directory]", location.directory);
+  }
+  if (location?.workspaceID !== undefined) {
+    url.searchParams.set("location[workspace]", location.workspaceID);
+  }
+  return url;
+}
+
+function responseMimeType(response: Response): string | undefined {
+  const value = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  return value === undefined || value.length === 0 ? undefined : value;
+}
+
+function isKnownBinaryMimeType(mimeType: string | undefined): boolean {
+  return (
+    mimeType?.startsWith("image/") === true ||
+    mimeType?.startsWith("audio/") === true ||
+    mimeType?.startsWith("video/") === true ||
+    mimeType?.startsWith("font/") === true ||
+    mimeType === "application/pdf" ||
+    mimeType === "application/zip" ||
+    mimeType === "application/gzip"
+  );
+}
+
+function decodeFileBytes(bytes: Uint8Array, mimeType: string | undefined): OpenCodeFileContent {
+  if (!isKnownBinaryMimeType(mimeType) && !bytes.includes(0)) {
+    try {
+      return {
+        kind: "text",
+        text: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes),
+      };
+    } catch {
+      // Invalid UTF-8 is binary even when the server reports a generic media type.
+    }
+  }
+  return {
+    kind: "binary",
+    base64: encodeBase64(bytes),
+    ...(mimeType === undefined ? {} : { mimeType }),
+  };
+}
+
+function encodeBase64(bytes: Uint8Array): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let encoded = "";
+  for (let index = 0; index < bytes.length; index += 3) {
+    const first = bytes[index] ?? 0;
+    const second = bytes[index + 1] ?? 0;
+    const third = bytes[index + 2] ?? 0;
+    const group = (first << 16) | (second << 8) | third;
+    encoded += alphabet[(group >> 18) & 63] ?? "";
+    encoded += alphabet[(group >> 12) & 63] ?? "";
+    encoded += index + 1 < bytes.length ? (alphabet[(group >> 6) & 63] ?? "") : "=";
+    encoded += index + 2 < bytes.length ? (alphabet[group & 63] ?? "") : "=";
+  }
+  return encoded;
+}
+
+function normalizeFilePatchPath(path: string): string {
+  const normalized = path.replace(/\\/g, "/");
+  if (
+    normalized.length === 0 ||
+    normalized.startsWith("/") ||
+    /^[A-Za-z]:\//.test(normalized) ||
+    normalized.split("/").some((segment) => segment === "..")
+  ) {
+    throw new Error(`File path must stay inside the selected workspace: ${path}`);
+  }
+  return normalized;
+}
+
+function gitPatchPath(path: string, side: "a" | "b"): string {
+  return JSON.stringify(`${side}/${normalizeFilePatchPath(path)}`);
+}
+
+function createFileWritePatch(path: string, expectedContents: string, contents: string): string {
+  const generated = createTwoFilesPatch(
+    "before",
+    "after",
+    expectedContents,
+    contents,
+    undefined,
+    undefined,
+    { context: 4 },
+  );
+  const hunkStart = generated.indexOf("@@");
+  if (hunkStart < 0) return "";
+  const oldPath = gitPatchPath(path, "a");
+  const newPath = gitPatchPath(path, "b");
+  return `diff --git ${oldPath} ${newPath}\n--- ${oldPath}\n+++ ${newPath}\n${generated.slice(hunkStart)}`;
+}
+
 function promptFilePart(
   file: OpenCodePromptFileAttachment,
   directory: string,
@@ -598,6 +705,7 @@ function createOpenCodeClient(
     headers,
     ...(options?.fetch !== undefined ? { fetch: options.fetch } : {}),
   });
+  const request = options?.fetch ?? globalThis.fetch;
   const eventControllers = new Set<AbortController>();
   const sessionLocations = new Map<string, OpenCodeLocationRef>();
   const sessionLocationLoads = new Map<string, Promise<OpenCodeLocationRef>>();
@@ -1042,18 +1150,31 @@ function createOpenCodeClient(
       return requireData(result, "fs.list");
     },
     async read(path, location) {
-      // Stable-plane route: the generated sdk.v2.fs.read cannot address a file
-      // because it hardcodes the wildcard URL.
-      const content = requireData(
-        await sdk.file.read({ path, ...locationQuery(location) }),
-        "file.read",
+      // The generated V2 method currently leaves its wildcard unsubstituted, so
+      // address the same endpoint through the configured transport directly.
+      const response = await request(
+        new Request(fileReadUrl(server.origin, path, location), { headers }),
       );
-      if (content.type === "text") return { kind: "text", text: content.content };
-      return {
-        kind: "binary",
-        base64: content.content,
-        ...(content.mimeType === undefined ? {} : { mimeType: content.mimeType }),
-      };
+      if (!response.ok) {
+        throw new OpenCodeRequestError("fs.read", await response.text(), response);
+      }
+      return decodeFileBytes(
+        new Uint8Array(await response.arrayBuffer()),
+        responseMimeType(response),
+      );
+    },
+    async write(path, input, location) {
+      if (input.contents === input.expectedContents) return;
+      const patch = createFileWritePatch(path, input.expectedContents, input.contents);
+      if (patch.length === 0) return;
+      const result = await sdk.vcs.apply({ ...locationQuery(location), patch });
+      const applied = requireData(result, "vcs.apply");
+      if (!applied.applied) {
+        throw new OpenCodeRequestError(
+          "vcs.apply",
+          "The file changed before the edit could be saved. Reload it and try again.",
+        );
+      }
     },
   };
 
@@ -1289,6 +1410,7 @@ export type {
   OpenCodeEvent,
   OpenCodeFileApi,
   OpenCodeFileContent,
+  OpenCodeFileWriteInput,
   OpenCodeFileSystemEntry,
   OpenCodeListSessionsInput,
   OpenCodeLocatedResult,

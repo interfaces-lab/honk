@@ -167,7 +167,7 @@ const controlDefaults = {
 
 const fontDefaults = {
   "--honk-font-family-ui": '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  "--honk-font-family-mono": 'Menlo, Monaco, Consolas, "Courier New", monospace',
+  "--honk-font-family-mono": 'Menlo, Consolas, "Courier New", monospace',
   "--honk-font-family-rounded":
     'ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   "--honk-font-size-body": "13px",

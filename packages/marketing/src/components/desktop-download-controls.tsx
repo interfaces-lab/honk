@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { IconApple, IconArrowDown, IconChevronDownMedium } from "central-icons";
 
-import { Menu } from "@honk/ui";
+import { Menu } from "@honk/ui/menu";
 
 import { cn } from "../lib/classes";
 import {

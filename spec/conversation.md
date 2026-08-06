@@ -192,7 +192,38 @@ Core commands this contract still owes: `session.abort` returning the
 cleared queue, queue-mode settings, `session.navigateTree`, and active-path
 reloads. `queue_update` already flows to clients through `session.events`.
 
-## 8. What this deletes
+## 8. Git actions in the conversation
+
+A Git action ("Commit & Push", "Create Branch & Commit", …) is an agent turn
+the user starts with one click instead of typed text. Nothing about it is a
+second kind of message:
+
+- **One core command.** `session.gitAction` appends a `honk.git_action`
+  marker entry (`{action, files?}`) and prompts the harness with the
+  action's canonical instructions — server-side, in that order, in one
+  handler. The instruction text lives in core, so every client that names an
+  action sends the same words; the app owns only labels.
+- **The chip is a rendering, not an entry kind.** The transcript pairs the
+  marker with the user message that follows it and renders the pair as one
+  chip: the action label, the loading label while the paired turn runs, the
+  turn's outcome and receipt at settle. Expanding the chip shows the
+  canonical instruction text — the transcript never hides what the model
+  was told (core spec §3: what the model saw is what the surface shows).
+- **Failure renders itself.** A marker with no user message after it means
+  the prompt was refused (busy, model error) and no work ran; the chip shows
+  "didn't start". No cleanup, no orphan state to reconcile.
+- **Idle-only.** While a run is active the action buttons disable. A Git
+  action never rides steer or follow-up, so the chip's pairing stays a
+  straight read of entry order and the send-verb contract (§7) is untouched.
+- **The offer is chrome.** The button that starts an action (under a settled
+  turn's change receipt, or in a source-control surface) is interface
+  chrome like the composer — it exists nowhere in the transcript until
+  clicked, and then only as the real entries above.
+
+The turn a chip starts is an ordinary turn: grammar, density, disclosure,
+and receipts apply unchanged.
+
+## 9. What this deletes
 
 Permission and question trays (core has no mid-run asks), the subagent tray
 (Pi has no child sessions), and composer modes (Pi's knobs are model and

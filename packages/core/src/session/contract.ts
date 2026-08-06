@@ -23,6 +23,8 @@ import { Models } from "../models";
 import type { ServiceOf } from "../util/rpc";
 import { Workspace } from "../workspace";
 
+import { GitActionId } from "./git-actions";
+
 /**
  * Pi's own types, re-exported so consumers can type Pi values without adding a
  * Pi dependency of their own. Core stays the single owner of the Pi version
@@ -273,6 +275,27 @@ export type AbortOutput = typeof AbortOutput.Type;
 export const Abort = Rpc.make("session.abort", {
   payload: { sessionId: SessionId },
   success: AbortOutput,
+  error: LookupError,
+});
+
+/**
+ * Starts an agent-driven Git action (spec/conversation.md section 8).
+ *
+ * One handler appends a `honk.git_action` marker entry and prompts the
+ * harness with the core-owned canonical instructions — in that order, so a
+ * refused prompt leaves a marker with no turn after it, which *is* the
+ * failure state and needs no cleanup. Idle-only by construction: a running
+ * harness refuses the prompt with Pi's own `invalid_state`.
+ *
+ * @category commands
+ */
+export const GitAction = Rpc.make("session.git_action", {
+  payload: {
+    sessionId: SessionId,
+    action: GitActionId,
+    /** Explicit path scope, folded into the instructions when present. */
+    files: Schema.optionalKey(Schema.Array(Schema.NonEmptyString)),
+  },
   error: LookupError,
 });
 
@@ -580,6 +603,7 @@ export const commands = {
   abort: Abort,
   steer: Steer,
   followUp: FollowUp,
+  gitAction: GitAction,
   reload: Reload,
   changes: Changes,
   setWorkspace: SetWorkspace,

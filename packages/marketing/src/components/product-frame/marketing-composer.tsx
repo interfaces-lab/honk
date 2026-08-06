@@ -1,5 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
-import { Icon, IconButton, Text } from "@honk/ui";
+import { Icon } from "@honk/ui/icon";
+import { IconButton } from "@honk/ui/button";
+import { Text } from "@honk/ui/text";
 import {
   colorVars,
   composerVars,

@@ -45,6 +45,7 @@
  */
 
 export * from "./contract";
+export * from "./git-actions";
 export * from "./service";
 
 // oxlint-disable-next-line import/no-self-import -- spec/effect.md self-reexport pattern; star imports are banned for consumers.

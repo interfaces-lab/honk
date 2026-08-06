@@ -1,11 +1,6 @@
 import { create, props } from "@stylexjs/stylex";
 import { Icon, Text, type Glyph, type IconTone } from "@honk/ui";
-import {
-  IconCircleBanSign,
-  IconCircleCheck,
-  IconCircleDashed,
-  IconOngoing,
-} from "@honk/ui/icons";
+import { IconCircleBanSign, IconCircleCheck, IconCircleDashed, IconOngoing } from "@honk/ui/icons";
 import {
   colorVars,
   controlVars,

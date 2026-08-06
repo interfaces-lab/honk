@@ -1,8 +1,4 @@
-import {
-  openCodeSessionKey,
-  openCodeSessionRef,
-  type OpenCodeServerKey,
-} from "@honk/opencode";
+import { openCodeSessionKey, openCodeSessionRef, type OpenCodeServerKey } from "@honk/opencode";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const harness = vi.hoisted(() => ({

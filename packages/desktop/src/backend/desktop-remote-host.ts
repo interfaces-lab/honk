@@ -41,8 +41,7 @@ import * as DesktopServerExposure from "./desktop-server-exposure";
 
 const SIDECAR_READY_ATTEMPTS = 400;
 const SIDECAR_READY_INTERVAL = Duration.millis(300);
-const TUNNEL_EXIT_ERROR_MESSAGE =
-  "The temporary link closed. Restart Honk to create a new one.";
+const TUNNEL_EXIT_ERROR_MESSAGE = "The temporary link closed. Restart Honk to create a new one.";
 
 const INITIAL_STATE: DesktopRemoteHostState = {
   status: "disabled",

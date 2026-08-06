@@ -1,12 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
-import {
-  FileTypeIcon,
-  Icon,
-  Popover,
-  type Glyph,
-  type IconSize,
-  type IconTone,
-} from "@honk/ui";
+import { FileTypeIcon, Icon, Popover, type Glyph, type IconSize, type IconTone } from "@honk/ui";
 import {
   IconArrowLeft,
   IconBranch,
@@ -127,11 +120,7 @@ export function PromptMenuItemIcon({
     return <FileTypeIcon path={item.path ?? item.key} size={size} tone={tone} />;
   }
   return (
-    <Icon
-      icon={icon}
-      size={size}
-      tone={item.isCurrent === true ? "accent" : (tone ?? "muted")}
-    />
+    <Icon icon={icon} size={size} tone={item.isCurrent === true ? "accent" : (tone ?? "muted")} />
   );
 }
 

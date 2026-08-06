@@ -41,12 +41,7 @@ import { promptFilesFromPaths, type AppSessionSummary } from "../open-code-view"
 import { actions as tabActions } from "../tab-store";
 import { useSessionInventoryWatch } from "../use-sdk-watch";
 import { getBoundOpenCodeClient, getOpenCodeClient } from "../watch-registry";
-import {
-  ComposerAttachmentButton,
-  ModeControl,
-  ModelSelector,
-  ThinkingLevelControl,
-} from "./controls";
+import { ComposerAttachmentButton, ModeControl, ModelSelector } from "./controls";
 import { readComposerDraft, writeComposerDraft } from "./draft-store";
 import { useFocusOnType, type FocusOnTypeScope } from "./focus-on-type";
 import { suggestedModeForPrompt, type ModeSuggestionUsage } from "./mode-suggestion";
@@ -599,7 +594,6 @@ export function HomeComposer({
               modeActions.setHomeMode(id);
             }}
           />
-          <ThinkingLevelControl />
           <ModelSelector />
           <div {...stylex.props(styles.footerSpacer)} />
           {suggestedMode === null ? null : (

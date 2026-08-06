@@ -10,7 +10,6 @@ import * as React from "react";
 
 import { useConversationDensity } from "../app-settings-store";
 import type { ThreadMessageEdit } from "../composer/types";
-import type { ThreadViewState } from "../open-code-view";
 import {
   buildTranscriptRows,
   groupMessagesIntoTurns,
@@ -19,9 +18,9 @@ import {
   transcriptPartsWithoutQuestions,
   turnHasVisibleActivity,
   type ToolPart,
+  type ThreadTranscriptState,
   type TranscriptRow,
 } from "./transcript-model";
-import { useThreadRuntime } from "./runtime";
 import { SessionRequests } from "./session-requests";
 import type { TaskChildLink } from "./subagent-session";
 import { ThreadTranscriptRow, turnTimelineItem } from "./transcript-turn";
@@ -119,19 +118,27 @@ const getWaitingServerSnapshot = (): null => null;
 // Consecutive assistant blocks sit close together; every other boundary
 // (after a human message, before a diff receipt, between turns) gets the
 // wider section gap, matching the old whole-turn flex spacing.
-function transcriptRowGapPx(rows: readonly TranscriptRow[], index: number): number {
+//
+// The gap decomposes into a trailing part owned by each row and a leading
+// top-up owned by its successor, so every row's padding is fixed the moment
+// the row exists. A single next-dependent gap flipped the previous block's
+// measured padding whenever a same-turn block streamed in, and each flip
+// re-measured a settled row, nudged the virtual geometry a frame behind the
+// DOM, and jittered the transcript under the pinned message.
+//
+//   block -> block (same turn): 8 + 0 = 8
+//   block -> anything else:     8 + 4 = 12
+//   human/diff -> anything:    12 + 0 = 12
+function transcriptRowTrailingGapPx(row: TranscriptRow): number {
+  return row.kind === "block" ? TRANSCRIPT_BLOCK_GAP_PX : TRANSCRIPT_ROW_GAP_PX;
+}
+
+function transcriptRowLeadingGapPx(rows: readonly TranscriptRow[], index: number): number {
+  const previous = rows[index - 1];
   const row = rows[index];
-  const next = rows[index + 1];
-  if (
-    row !== undefined &&
-    next !== undefined &&
-    row.kind === "block" &&
-    next.kind === "block" &&
-    row.turnKey === next.turnKey
-  ) {
-    return TRANSCRIPT_BLOCK_GAP_PX;
-  }
-  return TRANSCRIPT_ROW_GAP_PX;
+  if (previous === undefined || row === undefined || previous.kind !== "block") return 0;
+  const isCompressedPair = row.kind === "block" && row.turnKey === previous.turnKey;
+  return isCompressedPair ? 0 : TRANSCRIPT_ROW_GAP_PX - TRANSCRIPT_BLOCK_GAP_PX;
 }
 
 function useWaitingStatus(input: {
@@ -169,6 +176,8 @@ function useWaitingStatus(input: {
 
 export function ThreadStream({
   state,
+  restorationKey,
+  emptyLabel = WAITING_PLANNING_LABEL,
   bottomClearancePx,
   editDraft = null,
   editComposer = null,
@@ -181,11 +190,13 @@ export function ThreadStream({
   hasActiveSubagent = false,
 }: {
   threadId: string;
-  state: ThreadViewState;
+  state: ThreadTranscriptState;
+  restorationKey: string;
+  emptyLabel?: string;
   bottomClearancePx: number;
   editDraft?: ThreadMessageEdit | null;
   editComposer?: React.ReactNode;
-  onEditMessage: (draft: ThreadMessageEdit) => void;
+  onEditMessage?: (draft: ThreadMessageEdit) => void;
   onReviewChanges?: () => void;
   onOpenFile?: (path: string) => void;
   onOpenTask?: (part: ToolPart) => void;
@@ -193,7 +204,6 @@ export function ThreadStream({
   taskLinkByPartID?: ReadonlyMap<string, TaskChildLink>;
   hasActiveSubagent?: boolean;
 }): React.ReactElement {
-  const runtime = useThreadRuntime();
   const conversationDensity = useConversationDensity();
   const isThreadRunning = state.activity !== "idle";
   const transcriptParts = transcriptPartsWithoutQuestions(state.parts);
@@ -210,7 +220,9 @@ export function ThreadStream({
       ? []
       : [turnTimelineItem(turn, partsByMessageId)],
   );
-  const turnElementsRef = React.useRef(new Map<string, HTMLDivElement>());
+  const turnElementsRef = React.useRef<Map<string, HTMLDivElement> | null>(null);
+  if (turnElementsRef.current === null) turnElementsRef.current = new Map();
+  const turnElements = turnElementsRef.current;
   const scrollportRef = React.useRef<HTMLDivElement | null>(null);
   const virtualControllerRef = React.useRef<VirtualConversationController | null>(null);
   const contentRef = React.useRef<HTMLDivElement | null>(null);
@@ -246,7 +258,7 @@ export function ThreadStream({
 
   const measureTimeline = (): void => {
     const scrollport = scrollportRef.current;
-    if (scrollport === null || turnElementsRef.current.size === 0) return;
+    if (scrollport === null || turnElements.size === 0) return;
 
     const maxScroll = Math.max(0, scrollport.scrollHeight - scrollport.clientHeight);
     const scrollportRect = scrollport.getBoundingClientRect();
@@ -255,7 +267,7 @@ export function ThreadStream({
     const activationPoint =
       scrollport.scrollTop + scrollport.clientHeight * TIMELINE_ACTIVATION_RATIO;
     const scrollportTop = scrollportRect.top;
-    const turnEntries = [...turnElementsRef.current.entries()]
+    const turnEntries = [...turnElements.entries()]
       .map(([id, element]) => ({
         id,
         top: element.getBoundingClientRect().top - scrollportTop + scrollport.scrollTop,
@@ -384,7 +396,7 @@ export function ThreadStream({
               style={{ marginBlockEnd: spaceVars["--honk-space-gutter"] }}
             />
             <Text as="p" size="sm" tone="muted" weight="regular">
-              {WAITING_PLANNING_LABEL}
+              {isThreadRunning ? WAITING_PLANNING_LABEL : emptyLabel}
             </Text>
           </div>
         </div>
@@ -426,18 +438,19 @@ export function ThreadStream({
             getRowId={(row) => row.key}
             isStickyRow={(row) => row.kind === "human"}
             estimateRowSize={(row) => ROW_ESTIMATE_PX[row.kind]}
-            getRowGapPx={(_row, index) => transcriptRowGapPx(rows, index)}
+            getRowLeadingGapPx={(_row, index) => transcriptRowLeadingGapPx(rows, index)}
+            getRowTrailingGapPx={transcriptRowTrailingGapPx}
             bottomClearancePx={bottomClearancePx}
             initialViewportHeightPx={TRANSCRIPT_INITIAL_VIEWPORT_HEIGHT_PX}
             nearEndThresholdPx={TRANSCRIPT_NEAR_END_PX}
             contentVersion={state.parts}
-            restorationKey={runtime.tabKey}
+            restorationKey={restorationKey}
             onRowElement={(row, _index, element) => {
               if (row.kind !== "human") return;
               if (element === null) {
-                turnElementsRef.current.delete(row.turnKey);
+                turnElements.delete(row.turnKey);
               } else {
-                turnElementsRef.current.set(row.turnKey, element);
+                turnElements.set(row.turnKey, element);
               }
               scheduleTimelineMeasure();
             }}
@@ -484,7 +497,7 @@ export function ThreadTranscriptPreview({
   initialViewportHeightPx = PREVIEW_INITIAL_VIEWPORT_HEIGHT_PX,
 }: {
   readonly threadId: string;
-  readonly state: ThreadViewState;
+  readonly state: ThreadTranscriptState;
   readonly scrollElement: HTMLDivElement | null;
   readonly restorationKey?: string;
   readonly initialViewportHeightPx?: number;
@@ -539,7 +552,8 @@ export function ThreadTranscriptPreview({
         getRowId={(row) => row.key}
         isStickyRow={(row) => row.kind === "human"}
         estimateRowSize={(row) => PREVIEW_ROW_ESTIMATE_PX[row.kind]}
-        getRowGapPx={(_row, index) => transcriptRowGapPx(rows, index)}
+        getRowLeadingGapPx={(_row, index) => transcriptRowLeadingGapPx(rows, index)}
+        getRowTrailingGapPx={transcriptRowTrailingGapPx}
         bottomClearancePx={0}
         initialViewportHeightPx={initialViewportHeightPx}
         nearEndThresholdPx={TRANSCRIPT_NEAR_END_PX}

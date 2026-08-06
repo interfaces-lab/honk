@@ -1,4 +1,8 @@
-import type { OpenCodeClient } from "@honk/opencode";
+import {
+  OpenCodeRequestError,
+  type OpenCodeClient,
+  type OpenCodeFileContent,
+} from "@honk/opencode";
 import { normalizePathSeparators } from "@honk/shared/paths";
 import { Button, Icon, IconButton, Spinner, Text } from "@honk/ui";
 import { IconArrowRotateClockwise } from "@honk/ui/icons";
@@ -6,15 +10,11 @@ import { colorVars, fontVars, spaceVars } from "@honk/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
 
-import { useAppearance } from "./appearance-store";
 import { errorMessage } from "./error-message";
-import { readResolvedTheme, useResolvedTheme } from "./lib/use-resolved-theme";
 import { getBoundOpenCodeClient } from "./watch-registry";
 
-// Read-only by construction: OpenCode V2 ships no write route, so this surface renders content and
-// nothing else. `files.read` trims trailing whitespace and cannot distinguish a missing path from an
-// empty file, so an empty read is resolved against a `files.list` of the parent directory before it
-// is reported as either "File not found" or "Empty file".
+// The filesystem read is byte-accurate and edits are persisted as contextual patches. The patch
+// protects concurrent agent/user changes in the edited region instead of replacing the whole file.
 
 const FILE_VIEWER_RESOURCE_GRACE_MS = 30_000;
 // Render cost scales with characters, not bytes on disk, so the cap is measured on what was decoded.
@@ -34,6 +34,7 @@ type FileViewerResource = {
   readonly getSnapshot: () => FileViewerState;
   readonly subscribe: (listener: () => void) => () => void;
   readonly refresh: () => void;
+  readonly save: (expectedContents: string, contents: string) => Promise<void>;
   readonly observeThreadRunning: (isRunning: boolean) => void;
 };
 
@@ -72,7 +73,8 @@ function createFileViewerResource(
     }
     // A reread of an already-rendered file keeps it on screen instead of flashing the spinner; a
     // run that rewrote the file swaps the content in place.
-    if (snapshot.phase !== "ready") publish(LOADING_STATE);
+    const preservesContent = snapshot.phase === "ready" || snapshot.phase === "empty";
+    if (!preservesContent) publish(LOADING_STATE);
     void readFileState(client, directory, path).then(
       (state) => {
         if (currentGeneration !== generation) return;
@@ -80,6 +82,8 @@ function createFileViewerResource(
       },
       (error: unknown) => {
         if (currentGeneration !== generation) return;
+        // A failed background refresh must not evict a mounted editor and its unsaved draft.
+        if (preservesContent) return;
         publish({ phase: "error", message: errorMessage(error) });
       },
     );
@@ -104,6 +108,11 @@ function createFileViewerResource(
       };
     },
     refresh,
+    async save(expectedContents, contents) {
+      const client = resolveClient();
+      if (client === null) throw new Error(NOT_CONNECTED_MESSAGE);
+      await client.files.write(path, { expectedContents, contents }, { directory });
+    },
     observeThreadRunning(isRunning) {
       // The agent may have rewritten this file during the run that just finished.
       if (lastThreadRunning === true && !isRunning) refresh();
@@ -117,19 +126,32 @@ async function readFileState(
   directory: string,
   path: string,
 ): Promise<FileViewerState> {
-  const content = await client.files.read(path, { directory });
+  let content: OpenCodeFileContent;
+  try {
+    content = await client.files.read(path, { directory });
+  } catch (error) {
+    if (error instanceof OpenCodeRequestError && error.status === 404) {
+      return { phase: "missing" };
+    }
+    // The pinned raw endpoint currently turns a missing real path into a generic
+    // server failure. Check the parent only on failure so empty files stay a
+    // single-request fast path while deleted files still get a precise state.
+    try {
+      if (!(await fileExists(client, directory, path))) return { phase: "missing" };
+    } catch {
+      // Preserve the original, more relevant read failure when listing also fails.
+    }
+    throw error;
+  }
   if (content.kind === "binary") {
     return { phase: "binary", mimeType: content.mimeType };
   }
   if (content.text.length > FILE_VIEWER_MAX_CHARACTERS) {
     return { phase: "oversized", characters: content.text.length };
   }
-  if (content.text.length > 0) return { phase: "ready", text: content.text };
-  return (await fileExists(client, directory, path)) ? { phase: "empty" } : { phase: "missing" };
+  return content.text.length > 0 ? { phase: "ready", text: content.text } : { phase: "empty" };
 }
 
-// `files.read` answers "" for a missing path, an unreadable path, and a genuinely empty file alike,
-// so existence is settled by listing the parent directory.
 async function fileExists(
   client: FileViewerClient,
   directory: string,
@@ -205,7 +227,7 @@ const styles = stylex.create({
   },
   breadcrumbSegment: {
     minWidth: 0,
-    // `.monaco-breadcrumb-item{max-width:80%}` (spec CSS 444308) keeps one long segment from
+    // Cursor caps each breadcrumb item at 80% (spec CSS 444308), which keeps one long segment from
     // evicting the rest of the trail.
     maxWidth: "80%",
     overflow: "hidden",
@@ -220,8 +242,14 @@ const styles = stylex.create({
     flexShrink: 0,
     color: colorVars["--honk-color-text-primary"],
   },
-  // Cursor replaces the registered chevron codicon with a literal slash:
-  // `.monaco-breadcrumb-item:before{content:"/";font-size:.9em;opacity:1;padding:0 6px}`.
+  breadcrumbActions: {
+    flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+    gap: spaceVars["--honk-space-gutter"],
+  },
+  // Cursor replaces the registered chevron codicon with a literal slash at 0.9em and 6px inline
+  // padding (spec CSS 480343).
   breadcrumbSeparator: {
     flexShrink: 0,
     // oxlint-disable-next-line honk/design-no-raw-values -- 0.9em keeps the slash at Cursor's breadcrumb-relative type scale (spec CSS 480343); no font token owns an em-relative separator size
@@ -240,18 +268,11 @@ const styles = stylex.create({
     padding: spaceVars["--honk-space-panel-pad"],
     textAlign: "center",
   },
-  // Cursor ships Monaco's own font defaults untouched (spec JS 1009203), which on macOS are 12px at
-  // the 1.5 golden line-height ratio (spec JS 1425741) = 18px. Honk already tokenizes both, and
-  // Monaco reads them off this element rather than having a family hardcoded.
-  editor: {
-    flexGrow: 1,
-    minWidth: 0,
-    minHeight: 0,
-    overflow: "hidden",
-    fontFamily: fontVars["--honk-font-family-mono"],
-    fontSize: fontVars["--honk-font-size-code"],
-    lineHeight: fontVars["--honk-leading-code"],
-  },
+});
+
+const PierreFileView = React.lazy(async () => {
+  const module = await import("./workbench-pierre-file-view");
+  return { default: module.WorkbenchPierreFileView };
 });
 
 function WorkbenchFileViewer({
@@ -274,10 +295,21 @@ function WorkbenchFileViewer({
   React.useEffect(() => {
     resource.observeThreadRunning(isThreadRunning);
   }, [isThreadRunning, resource]);
-  // Inactive panels stay mounted under `display: none`. Latch on the first reveal so Monaco only
-  // sets up in a laid-out box; once revealed the tab keeps its editor across later switches.
+  // Inactive panels stay mounted under `display: none`. Latch on the first reveal so CodeView first
+  // measures a laid-out box; once revealed the tab keeps its surface across later switches.
   const [wasVisible, setWasVisible] = React.useState(isVisible);
   if (isVisible && !wasVisible) setWasVisible(true);
+
+  if (wasVisible && (state.phase === "ready" || state.phase === "empty")) {
+    return (
+      <EditableWorkbenchFile
+        key={resourceKey(directory, path)}
+        path={path}
+        sourceText={state.phase === "ready" ? state.text : ""}
+        resource={resource}
+      />
+    );
+  }
 
   return (
     <div {...stylex.props(styles.root)}>
@@ -299,6 +331,187 @@ function WorkbenchFileViewer({
   );
 }
 
+type EditorSavePhase = "idle" | "saving" | "saved" | "error";
+
+type EditorSession = {
+  readonly baseText: string;
+  readonly draftText: string;
+  readonly observedText: string;
+  readonly externalChange: boolean;
+  readonly savePhase: EditorSavePhase;
+  readonly saveError?: string;
+};
+
+function EditableWorkbenchFile({
+  path,
+  sourceText,
+  resource,
+}: {
+  readonly path: string;
+  readonly sourceText: string;
+  readonly resource: FileViewerResource;
+}): React.ReactElement {
+  const [session, setSession] = React.useState<EditorSession>(() => ({
+    baseText: sourceText,
+    draftText: sourceText,
+    observedText: sourceText,
+    externalChange: false,
+    savePhase: "idle",
+  }));
+
+  if (sourceText !== session.observedText) {
+    setSession((current) => {
+      if (sourceText === current.observedText) return current;
+      if (current.draftText === current.baseText) {
+        return {
+          baseText: sourceText,
+          draftText: sourceText,
+          observedText: sourceText,
+          externalChange: false,
+          savePhase:
+            current.savePhase === "saving"
+              ? "saving"
+              : sourceText === current.baseText
+                ? current.savePhase
+                : "idle",
+        };
+      }
+      return {
+        ...current,
+        observedText: sourceText,
+        externalChange: sourceText !== current.baseText,
+      };
+    });
+  }
+
+  const isDirty = session.draftText !== session.baseText;
+
+  const save = async (): Promise<void> => {
+    const current = session;
+    if (current.savePhase === "saving" || current.draftText === current.baseText) return;
+    const expectedContents = current.baseText;
+    const contents = current.draftText;
+    setSession(({ saveError: _saveError, ...value }) => ({ ...value, savePhase: "saving" }));
+    try {
+      await resource.save(expectedContents, contents);
+      setSession(({ saveError: _saveError, ...value }) => ({
+        ...value,
+        baseText: contents,
+        externalChange: false,
+        savePhase: value.draftText === contents ? "saved" : "idle",
+      }));
+      resource.refresh();
+    } catch (error) {
+      setSession((value) => ({
+        ...value,
+        savePhase: "error",
+        saveError: errorMessage(error),
+      }));
+    }
+  };
+
+  const reload = (): void => {
+    const current = session;
+    if (
+      current.draftText !== current.baseText &&
+      typeof globalThis.confirm === "function" &&
+      !globalThis.confirm("Discard unsaved changes and reload this file?")
+    ) {
+      return;
+    }
+    setSession({
+      baseText: sourceText,
+      draftText: sourceText,
+      observedText: sourceText,
+      externalChange: false,
+      savePhase: "idle",
+    });
+    resource.refresh();
+  };
+
+  const status = editorStatus(session, isDirty);
+
+  return (
+    <div
+      {...stylex.props(styles.root)}
+      onKeyDownCapture={(event) => {
+        if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "s") {
+          event.preventDefault();
+          void save();
+        }
+      }}
+    >
+      <div {...stylex.props(styles.breadcrumbBar)}>
+        <FileBreadcrumbs path={path} />
+        <div {...stylex.props(styles.breadcrumbActions)}>
+          {status === null ? null : (
+            <Text
+              size="xs"
+              tone={status.tone}
+              aria-live="polite"
+              aria-label={
+                session.saveError === undefined
+                  ? status.label
+                  : `${status.label}: ${session.saveError}`
+              }
+              title={session.saveError}
+            >
+              {status.label}
+            </Text>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="quiet"
+            disabled={!isDirty || session.savePhase === "saving"}
+            title="Save file (⌘S or Ctrl+S)"
+            onClick={() => {
+              void save();
+            }}
+          >
+            Save
+          </Button>
+          <IconButton
+            type="button"
+            size="sm"
+            variant="quiet"
+            aria-label={isDirty ? "Discard changes and reload file" : "Reload file"}
+            title={isDirty ? "Discard changes and reload file" : "Reload file"}
+            onClick={reload}
+          >
+            <Icon icon={IconArrowRotateClockwise} size="sm" tone="muted" />
+          </IconButton>
+        </div>
+      </div>
+      <React.Suspense fallback={<FileViewerLoading />}>
+        <PierreFileView
+          path={path}
+          text={session.baseText}
+          onChange={(text) => {
+            setSession(({ saveError: _saveError, ...current }) => ({
+              ...current,
+              draftText: text,
+              savePhase: "idle",
+            }));
+          }}
+        />
+      </React.Suspense>
+    </div>
+  );
+}
+
+function editorStatus(
+  session: EditorSession,
+  isDirty: boolean,
+): { readonly label: string; readonly tone: "muted" | "ok" | "warn" | "err" } | null {
+  if (session.savePhase === "saving") return { label: "Saving…", tone: "muted" };
+  if (session.savePhase === "error") return { label: "Save failed", tone: "err" };
+  if (session.externalChange) return { label: "Changed on disk", tone: "warn" };
+  if (isDirty) return { label: "Unsaved", tone: "warn" };
+  if (session.savePhase === "saved") return { label: "Saved", tone: "ok" };
+  return null;
+}
+
 // The trail is static text: this panel has no explorer to navigate into, and Cursor's own picker
 // contract does not exist here, so rendering segments as buttons would promise a target honk cannot
 // open. The full path stays reachable through the row's title.
@@ -307,7 +520,7 @@ function FileBreadcrumbs({ path }: { readonly path: string }): React.ReactElemen
   return (
     <div {...stylex.props(styles.breadcrumbTrail)} title={path}>
       {segments.map((segment, index) => (
-        <React.Fragment key={`${index}:${segment}`}>
+        <React.Fragment key={segments.slice(0, index + 1).join("/")}>
           {index === 0 ? null : (
             <span aria-hidden {...stylex.props(styles.breadcrumbSeparator)}>
               /
@@ -349,20 +562,6 @@ function FileViewerBody({
   if (state.phase === "missing") {
     return <FileViewerNotice title="File not found" detail={path} mono onRetry={onRetry} />;
   }
-  // An empty file is a watermark, not a failure. Cursor's watermark is a centered column at
-  // `opacity:.5` over `editorWatermark.foreground` = transparent(foreground, .6 dark / .68 light)
-  // (spec CSS 485957 / JS 30861416) — the ~0.34 effective alpha honk's faint tone already carries —
-  // sized like its 13px shortcut rows (spec CSS 487400). The keybinding grid under Cursor's glyph is
-  // dropped: honk has no commands to advertise here. The breadcrumbs above already name the file.
-  if (state.phase === "empty") {
-    return (
-      <div {...stylex.props(styles.center)}>
-        <Text as="p" size="base" tone="faint">
-          Empty file
-        </Text>
-      </div>
-    );
-  }
   // Retrying cannot change either verdict, so neither offers the control.
   if (state.phase === "binary") {
     return (
@@ -387,119 +586,9 @@ function FileViewerBody({
     );
   }
 
-  return <MonacoFileView path={path} text={state.text} />;
-}
-
-type Monaco = typeof import("monaco-editor/editor/editor.api");
-type MonacoEditor = import("monaco-editor/editor/editor.api").editor.IStandaloneCodeEditor;
-type MonacoModel = import("monaco-editor/editor/editor.api").editor.ITextModel;
-type MonacoLoadState =
-  | { readonly phase: "loading" }
-  | { readonly phase: "ready"; readonly monaco: Monaco }
-  | { readonly phase: "error"; readonly message: string };
-
-function MonacoFileView({
-  path,
-  text,
-}: {
-  readonly path: string;
-  readonly text: string;
-}): React.ReactElement {
-  const theme = useResolvedTheme();
-  const appearance = useAppearance();
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  const editorRef = React.useRef<MonacoEditor | null>(null);
-  const modelRef = React.useRef<MonacoModel | null>(null);
-  const textRef = React.useRef(text);
-  const [loadState, setLoadState] = React.useState<MonacoLoadState>({ phase: "loading" });
-
-  React.useEffect(() => {
-    const controller = new AbortController();
-    const load = async (): Promise<void> => {
-      const { loadMonaco } = await import("./lib/monaco");
-      const monaco = await loadMonaco();
-      if (!controller.signal.aborted) setLoadState({ phase: "ready", monaco });
-    };
-    void load().catch((error: unknown) => {
-      if (!controller.signal.aborted) {
-        setLoadState({ phase: "error", message: errorMessage(error) });
-      }
-    });
-    return () => controller.abort();
-  }, []);
-
-  React.useEffect(() => {
-    if (loadState.phase !== "ready" || containerRef.current === null) return;
-    const uri = loadState.monaco.Uri.file(path);
-    const existingModel = loadState.monaco.editor.getModel(uri);
-    const model =
-      existingModel ?? loadState.monaco.editor.createModel(textRef.current, undefined, uri);
-    if (model.getValue() !== textRef.current) model.setValue(textRef.current);
-    const computedStyle = getComputedStyle(containerRef.current);
-    const editor = loadState.monaco.editor.create(containerRef.current, {
-      model,
-      readOnly: true,
-      domReadOnly: true,
-      automaticLayout: true,
-      // Cursor ships the minimap off — a deliberate deviation from upstream VS Code, whose default
-      // is on (spec JS 982150) — and sticky scroll on, capped at 5 lines (spec JS 979232).
-      minimap: { enabled: false },
-      stickyScroll: { enabled: true, maxLineCount: 5 },
-      wordWrap: "off",
-      renderLineHighlight: "line",
-      scrollBeyondLastLine: false,
-      fontSize: Number.parseFloat(computedStyle.fontSize),
-      fontFamily: computedStyle.fontFamily,
-      lineHeight: Number.parseFloat(computedStyle.lineHeight),
-      theme: `honk-${readResolvedTheme()}`,
-      quickSuggestions: false,
-      suggestOnTriggerCharacters: false,
-      parameterHints: { enabled: false },
-      hover: { enabled: "off" },
-      links: false,
-      codeLens: false,
-      colorDecorators: false,
-      lightbulb: { enabled: loadState.monaco.editor.ShowLightbulbIconMode.Off },
-      inlayHints: { enabled: "off" },
-      occurrencesHighlight: "off",
-      selectionHighlight: false,
-    });
-    editorRef.current = editor;
-    modelRef.current = model;
-    return () => {
-      editor.dispose();
-      if (loadState.monaco.editor.getModel(uri) === model) model.dispose();
-      editorRef.current = null;
-      modelRef.current = null;
-    };
-  }, [loadState, path]);
-
-  React.useEffect(() => {
-    textRef.current = text;
-    if (modelRef.current !== null && modelRef.current.getValue() !== text) {
-      modelRef.current.setValue(text);
-    }
-  }, [text]);
-
-  React.useEffect(() => {
-    if (loadState.phase === "ready") loadState.monaco.editor.setTheme(`honk-${theme}`);
-  }, [loadState, theme]);
-
-  React.useEffect(() => {
-    if (editorRef.current === null || containerRef.current === null) return;
-    const computedStyle = getComputedStyle(containerRef.current);
-    editorRef.current.updateOptions({
-      fontSize: Number.parseFloat(computedStyle.fontSize),
-      fontFamily: computedStyle.fontFamily,
-      lineHeight: Number.parseFloat(computedStyle.lineHeight),
-    });
-  }, [appearance.codeFontFamily, appearance.codeFontSize]);
-
-  if (loadState.phase === "loading") return <FileViewerLoading />;
-  if (loadState.phase === "error") {
-    return <FileViewerNotice title="Can't open file" detail={loadState.message} />;
-  }
-  return <div ref={containerRef} {...stylex.props(styles.editor)} />;
+  // Ready and empty text files are handled by EditableWorkbenchFile above. This
+  // branch only exists while the lazy editor waits for its first visible mount.
+  return <FileViewerLoading />;
 }
 
 function FileViewerLoading(): React.ReactElement {

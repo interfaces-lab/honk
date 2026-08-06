@@ -9,6 +9,7 @@ import { join, resolve } from "node:path";
 
 import { desktopDir, resolveElectronPath } from "./electron-launcher.mjs";
 
+const devScriptStartedAt = Date.now();
 const baseSidecarPort = 13973;
 const baseRendererPort = 5733;
 const maxHashOffset = 3_000;
@@ -315,6 +316,10 @@ async function createDesktopDevEnv(baseEnv: NodeJS.ProcessEnv): Promise<NodeJS.P
     HONK_OPENCODE_PORT: String(sidecarPort),
     HONK_OPENCODE_PASSWORD: sidecarPassword,
   };
+
+  if (baseEnv.HONK_DEV_STARTUP_PROBE === "1") {
+    env.HONK_DEV_STARTUP_PROBE_STARTED_AT = String(devScriptStartedAt);
+  }
 
   delete env.ELECTRON_RUN_AS_NODE;
   delete env.VITE_WS_URL;

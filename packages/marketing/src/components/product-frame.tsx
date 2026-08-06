@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 
-import { Shell, TabStrip, type TabDescriptor } from "@honk/ui";
+import { Shell } from "@honk/ui/shell";
+import { TabStrip, type TabDescriptor } from "@honk/ui/tabs";
 import { elevationVars, radiusVars, shellVars } from "@honk/ui/tokens.stylex";
 
 import { cn } from "../lib/classes";

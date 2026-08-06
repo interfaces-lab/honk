@@ -12,12 +12,12 @@ const RETRY_TEST_PATCH = [
   "--- packages/core/src/retry.test.ts",
   "+++ packages/core/src/retry.test.ts",
   "@@ -12,4 +12,6 @@",
-  '-    await vi.advanceTimersByTimeAsync(50);',
-  '-    expect(attempts).toBe(3);',
-  '+    await vi.advanceTimersByTimeAsync(backoffMs(3));',
-  '+    await vi.runAllTicks();',
-  '+    expect(attempts).toBeGreaterThanOrEqual(3);',
-  '+    expect(lastError).toBeUndefined();',
+  "-    await vi.advanceTimersByTimeAsync(50);",
+  "-    expect(attempts).toBe(3);",
+  "+    await vi.advanceTimersByTimeAsync(backoffMs(3));",
+  "+    await vi.runAllTicks();",
+  "+    expect(attempts).toBeGreaterThanOrEqual(3);",
+  "+    expect(lastError).toBeUndefined();",
 ].join("\n");
 
 const SHORTCUT_PATCH = [
@@ -47,7 +47,10 @@ const flakyTestReply: MarketingDemoReply = {
         callId: "demo-grep-retry",
         loading: true,
         toolCall: {
-          tool: { case: "grepToolCall", value: { action: "Grep", details: "advanceTimersByTimeAsync" } },
+          tool: {
+            case: "grepToolCall",
+            value: { action: "Grep", details: "advanceTimersByTimeAsync" },
+          },
         },
       },
     },
@@ -81,7 +84,11 @@ const flakyTestReply: MarketingDemoReply = {
         toolCall: {
           tool: {
             case: "editToolCall",
-            value: { action: "Edit", details: "retry.test.ts", path: "packages/core/src/retry.test.ts" },
+            value: {
+              action: "Edit",
+              details: "retry.test.ts",
+              path: "packages/core/src/retry.test.ts",
+            },
           },
         },
       },
@@ -134,7 +141,10 @@ const shortcutReply: MarketingDemoReply = {
         callId: "demo-edit-keymap",
         loading: true,
         toolCall: {
-          tool: { case: "editToolCall", value: { action: "Edit", details: "keymap.ts", path: "packages/app/src/keymap.ts" } },
+          tool: {
+            case: "editToolCall",
+            value: { action: "Edit", details: "keymap.ts", path: "packages/app/src/keymap.ts" },
+          },
         },
       },
     },
@@ -202,6 +212,7 @@ export const marketingDemoChips = marketingDemoReplies
   .filter((chip): chip is string => chip !== undefined);
 
 export function resolveMarketingReply(text: string): readonly MarketingDemoBeat[] {
-  const reply = marketingDemoReplies.find((candidate) => candidate.match.test(text)) ?? fallbackReply;
+  const reply =
+    marketingDemoReplies.find((candidate) => candidate.match.test(text)) ?? fallbackReply;
   return reply.beats;
 }

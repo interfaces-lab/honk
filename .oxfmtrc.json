@@ -4,6 +4,7 @@
     ".cursor/plans",
     "dist",
     "dist-electron",
+    ".next",
     "node_modules",
     "*.tsbuildinfo",
     "**/routeTree.gen.ts",

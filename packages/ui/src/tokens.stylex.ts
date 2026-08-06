@@ -170,7 +170,7 @@ const shellDefaults = {
 const composerStateBandHeightPx = 44;
 const composerDefaults = {
   "--honk-composer-max-width": "796px",
-  "--honk-composer-state-band-height": `${String(composerStateBandHeightPx)}px`,
+  "--honk-composer-state-band-height": `${composerStateBandHeightPx}px`,
   // Frozen Cursor 3.13 prompt-input semantic colors. These stay composer-scoped instead of
   // retuning Honk's shared accent palette for one specialized inline reference.
   "--honk-composer-reference-foreground": "light-dark(#176C74, #81A1C1)",

@@ -29,6 +29,7 @@ import type {
   Delete,
   FollowUp,
   Get,
+  GitAction,
   Interface,
   ListOutput,
   PiError,
@@ -42,6 +43,7 @@ import type {
   TurnChanges,
 } from "./contract";
 import { NotFoundError, Rpcs, SessionId } from "./contract";
+import { instructionsFor } from "./git-actions";
 
 /**
  * Runs one Pi operation, keeping Pi's typed failures and Pi's crashes apart.
@@ -539,6 +541,25 @@ export const layer = (options: LayerOptions) =>
         yield* runPi(() => found.harness.followUp(input.text));
       });
 
+      const gitAction = Effect.fn("Session.gitAction")(function* (
+        input: Rpc.Payload<typeof GitAction>,
+      ) {
+        const found = yield* lookup(input.sessionId);
+        // Marker first, deliberately: a refused prompt (running harness,
+        // model failure) leaves a marker with no turn after it — that *is*
+        // the failure state a surface renders (spec/conversation.md §8).
+        // The instructions ride the prompt's own user message, so model
+        // context and stored transcript stay identical by construction.
+        yield* runPi(() =>
+          found.session.appendCustomEntry("honk.git_action", {
+            action: input.action,
+            ...(input.files === undefined ? {} : { files: input.files }),
+          }),
+        );
+        yield* runPi(() => found.harness.prompt(instructionsFor(input.action, input.files)));
+        yield* settleSnapshot(input.sessionId, found);
+      });
+
       const reload = Effect.fn("Session.reload")(function* (input: {
         readonly sessionId: SessionId;
       }) {
@@ -656,6 +677,7 @@ export const layer = (options: LayerOptions) =>
         abort,
         steer,
         followUp,
+        gitAction,
         reload,
         changes,
         setWorkspace,
@@ -706,6 +728,7 @@ export const rpcLayer = Rpcs.toLayer(
       "session.abort": (payload) => session.abort(payload),
       "session.steer": (payload) => session.steer(payload),
       "session.follow_up": (payload) => session.followUp(payload),
+      "session.git_action": (payload) => session.gitAction(payload),
       "session.changes": (payload) => session.changes(payload),
       "session.set_workspace": (payload) => session.setWorkspace(payload),
       "session.revert": (payload) => session.revert(payload),

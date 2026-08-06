@@ -19,7 +19,12 @@ import * as Logger from "effect/Logger";
 import * as Option from "effect/Option";
 import * as References from "effect/References";
 import * as Tracer from "effect/Tracer";
-import { OtlpExporter, OtlpLogger, OtlpSerialization, OtlpTracer } from "effect/unstable/observability";
+import {
+  OtlpExporter,
+  OtlpLogger,
+  OtlpSerialization,
+  OtlpTracer,
+} from "effect/unstable/observability";
 
 import * as DesktopEnvironment from "./desktop-environment";
 

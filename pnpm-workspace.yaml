@@ -35,6 +35,17 @@ minimumReleaseAgeExclude:
   - "@legendapp/list@3.3.3"
   - "@khalilgharbaoui/opencode-claude-code-plugin@0.11.0"
   - "@central-icons-react/round-outlined-radius-2-stroke-1.5@1.1.305"
+  - "@stylexswc/plugin-shared@0.18.3"
+  - "@stylexswc/postcss-plugin@0.18.3"
+  - "@stylexswc/rs-compiler-darwin-arm64@0.18.3"
+  - "@stylexswc/rs-compiler-darwin-x64@0.18.3"
+  - "@stylexswc/rs-compiler-linux-arm64-gnu@0.18.3"
+  - "@stylexswc/rs-compiler-linux-x64-gnu@0.18.3"
+  - "@stylexswc/rs-compiler-linux-x64-musl@0.18.3"
+  - "@stylexswc/rs-compiler-win32-arm64-msvc@0.18.3"
+  - "@stylexswc/rs-compiler-win32-x64-msvc@0.18.3"
+  - "@stylexswc/rs-compiler@0.18.3"
+  - "@stylexswc/turbopack-plugin@0.18.3"
 
 patchedDependencies:
   metro@0.84.4: patches/metro@0.84.4.patch
@@ -54,6 +65,7 @@ allowBuilds:
   electron-winstaller: false
   sharp: true
   opencode-ai: true
+  "@swc/core": false
 
 catalog:
   effect: "4.0.0-beta.102"

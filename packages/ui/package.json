@@ -10,8 +10,18 @@
       "default": "./src/index.ts"
     },
     "./assistant-message": "./src/assistant-message.tsx",
+    "./badge": "./src/badge.tsx",
+    "./button": {
+      "react-native": "./src/button.native.tsx",
+      "default": "./src/button.tsx"
+    },
     "./compaction-divider": "./src/compaction-divider.tsx",
+    "./icon": {
+      "react-native": "./src/icon.native.tsx",
+      "default": "./src/icon.tsx"
+    },
     "./icons": "./src/icons.ts",
+    "./menu": "./src/menu.tsx",
     "./notice-row": "./src/notice-row.tsx",
     "./platform-tokens.css": "./src/platform-tokens.css",
     "./platform-tokens.stylex": "./src/platform-tokens.stylex.ts",
@@ -22,7 +32,21 @@
     },
     "./prose-code-block": "./src/prose-code-block.ts",
     "./reasoning-block": "./src/reasoning-block.tsx",
+    "./shell": "./src/shell.tsx",
+    "./status-dot": "./src/status-dot.tsx",
+    "./switch": {
+      "react-native": "./src/switch.native.tsx",
+      "default": "./src/switch.tsx"
+    },
+    "./tabs": "./src/tabs.tsx",
+    "./text": {
+      "react-native": "./src/text.native.tsx",
+      "default": "./src/text.tsx"
+    },
     "./timeline-navigator": "./src/timeline-navigator.tsx",
+    "./tool-call": "./src/tool-call.tsx",
+    "./user-message": "./src/user-message.tsx",
+    "./work-group": "./src/work-group.tsx",
     "./text-field": {
       "react-native": "./src/text-field/index.native.tsx",
       "default": "./src/text-field/index.web.tsx"

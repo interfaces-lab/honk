@@ -22,6 +22,7 @@ import * as ElectronWindow from "../electron/electron-window";
 import { DESKTOP_SCHEME } from "../electron/electron-protocol";
 import * as IpcChannels from "../ipc/channels";
 import * as DesktopAppSettings from "../settings/desktop-app-settings";
+import { markStartupMilestone } from "../startup-probe";
 
 const TITLEBAR_HEIGHT = 40;
 // Match OpenCode desktop traffic lights for the bottom-seated tab band.
@@ -387,6 +388,7 @@ const make = Effect.gen(function* () {
     readonly openDevTools: boolean;
   }): Effect.fn.Return<CreatedDesktopWindow, DesktopWindowError> {
     const window = yield* electronWindow.create(input.options);
+    markStartupMilestone("browser-window-created");
     const ready = windowReadyPromise(window);
 
     const trustedOrigin = input.appUrl.origin;
@@ -481,6 +483,7 @@ const make = Effect.gen(function* () {
       sendWindowChromeState(window);
     });
     window.once("ready-to-show", () => {
+      markStartupMilestone("renderer-ready-to-show");
       sendWindowChromeState(window);
     });
 
@@ -639,6 +642,7 @@ const make = Effect.gen(function* () {
     createMainIfBackendReady,
     handleBackendReady: Effect.gen(function* () {
       yield* Ref.set(state.backendReady, true);
+      markStartupMilestone("backend-ready");
       yield* elog.info("backend ready", { source: "http" });
       yield* createMainIfBackendReady;
     }).pipe(Effect.withSpan("desktop.window.handleBackendReady")),

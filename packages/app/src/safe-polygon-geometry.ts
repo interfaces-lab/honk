@@ -1,10 +1,9 @@
 // Mirror of Base UI's `safePolygon` hover-intent math (floating-ui-react/safePolygon.mjs,
-// sides "right" and "left") so the model-menu demo can draw the exact areas the library
-// keeps hover surfaces open for: the submenu (opens inline-end of its trigger row) and
-// the model explanation panel (a PreviewCard opening inline-start of a model row). Base UI
-// computes these zones privately on every mousemove; they are not exposed, so the demo
-// recomputes them from the same inputs: the pointer position captured when it leaves the
-// trigger, the trigger rect, and the floating popup rect.
+// sides "right" and "left"). Base UI computes these zones privately on every mousemove and
+// does not expose them, so this module recomputes them from the same inputs: the pointer
+// position captured when it leaves the trigger, the trigger rect, and the floating popup
+// rect. Used by the composer model selector's panel-hold logic and drawn live by the
+// /demo/model-menu page.
 
 type Point = { readonly x: number; readonly y: number };
 

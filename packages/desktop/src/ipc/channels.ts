@@ -28,6 +28,7 @@ export const BROWSER_AUTOMATION_OPEN_CHANNEL = "desktop:browser-automation-open"
 export const GET_AUX_ENDPOINT_CHANNEL = "desktop:get-aux-endpoint";
 export const GET_HONK_CORE_ENDPOINT_CHANNEL = "desktop:get-honk-core-endpoint";
 export const GET_OPENCODE_SIDECAR_CHANNEL = "desktop:get-opencode-sidecar";
+export const REPORT_STARTUP_MILESTONE_CHANNEL = "desktop:report-startup-milestone";
 export const PERSIST_MCP_SERVER_CHANNEL = "desktop:persist-mcp-server";
 export const GET_CLAUDE_AUTH_STATUS_CHANNEL = "desktop:get-claude-auth-status";
 export const GET_CLIENT_SETTINGS_CHANNEL = "desktop:get-client-settings";

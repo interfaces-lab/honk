@@ -785,6 +785,19 @@ Each feature owns its domain types. It should reuse Pi types wherever Pi already
 defines the value. It should not force unrelated Git or file values into the
 agent session schema.
 
+Agent-driven Git actions are session commands, not Git namespace methods.
+`session.gitAction` appends a `honk.git_action` custom entry naming the action
+and prompts the harness with core-owned canonical instructions in the same
+handler — append first, so a refused prompt leaves a marker with no turn,
+which is the failure state and needs no cleanup. Judgment work (commit
+messages, branch names, choosing paths) goes through the agent; the Git
+namespace grows typed mutations only for mechanical, fully parameterized
+operations. The marker's data stays minimal — the action id and an optional
+explicit path scope — never a change list that duplicates `session.changes`.
+Plain `custom` entries stay out of model context, so the instruction text
+rides the prompt's own user message: model context and stored transcript
+stay identical by construction.
+
 # Part III: proof
 
 ## 13. Invariants

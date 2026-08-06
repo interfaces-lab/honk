@@ -26,6 +26,7 @@ import * as DesktopAppSettings from "../settings/desktop-app-settings";
 import * as DesktopShellEnvironment from "../shell/desktop-shell-environment";
 import * as DesktopState from "./desktop-state";
 import * as DesktopUpdates from "../updates/desktop-updates";
+import * as DesktopWindow from "../window/desktop-window";
 import { createDesktopAuxServer } from "../aux/server";
 
 const bootstrapLog = EffectLogger.create({ service: "desktop-bootstrap" });
@@ -80,10 +81,15 @@ const bootstrap = Effect.gen(function* () {
   const opencodeSidecar = yield* OpencodeSidecar.OpencodeSidecar;
   const remoteHost = yield* DesktopRemoteHost.DesktopRemoteHost;
   const state = yield* DesktopState.DesktopState;
+  const desktopWindow = yield* DesktopWindow.DesktopWindow;
   yield* bootstrapLog.info("bootstrap start");
 
   yield* installDesktopIpcHandlers;
   yield* bootstrapLog.info("bootstrap ipc handlers registered");
+
+  // The renderer can paint the permanent shell while the sidecar starts. IPC
+  // must be registered first so its preload can observe the starting snapshot.
+  yield* desktopWindow.ensureMain;
 
   if (!(yield* Ref.get(state.quitting))) {
     yield* opencodeSidecar.start.pipe(

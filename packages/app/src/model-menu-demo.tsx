@@ -12,9 +12,11 @@ import { Button, Icon, Menu, PreviewCard, Text } from "@honk/ui";
 import { IconChevronRightMedium } from "@honk/ui/icons";
 import * as stylex from "@stylexjs/stylex";
 import * as React from "react";
+import { createPortal } from "react-dom";
 
 import {
   computeSafeZone,
+  isPointInRect,
   isPointInSafeZone,
   PREVIEW_HOVER_CLOSE_DELAY_MS,
   PREVIEW_HOVER_OPEN_DELAY_MS,
@@ -23,7 +25,7 @@ import {
   SUBMENU_HOVER_OPEN_REST_MS,
   type Point,
   type SafeZone,
-} from "./model-menu-demo-geometry";
+} from "./safe-polygon-geometry";
 import {
   borderVars,
   colorVars,
@@ -103,6 +105,16 @@ const PANEL_STYLE: React.CSSProperties = {
   gap: controlVars["--honk-control-gap"],
   width: PANEL_WIDTH,
 };
+// The submenu's safePolygon runs with blockPointerEvents: during traversal Base UI sets
+// `body { pointer-events: none }` and re-enables only the submenu trigger and popup. The
+// panel is portalled to body, so it inherits `none` and can never be hovered mid-flight.
+// An explicit `auto` opts the panel back in, exactly how Base UI re-enables its own two
+// elements (useHoverInteractionSharedState.mjs `applySafePolygonPointerEventsMutation`).
+const PANEL_POPUP_STYLE: React.CSSProperties = { pointerEvents: "auto" };
+// Demo close-authority grace: the pointer must be continuously outside the hold region
+// this long before the panel dismisses. Covers jitter at the polygon's thin apex and
+// odd travel paths through the gap — double Base UI's 40ms mid-flight grace.
+const PANEL_EXIT_GRACE_MS = 80;
 const PANEL_TEXT_STYLE: React.CSSProperties = { margin: 0 };
 
 type ModelId = (typeof MODELS)[number]["id"];
@@ -162,7 +174,10 @@ const styles = stylex.create({
     width: "100%",
     height: "100%",
     pointerEvents: "none",
-    zIndex: zVars["--honk-z-tooltip"],
+    // Same layer as the popups; DOM order settles the ties. The overlay portals to body
+    // after the menu portals mount and before the panel's, so the zones paint above the
+    // menus (visible across the root popup) but under the panel (its pixels stay solid).
+    zIndex: zVars["--honk-z-popover"],
   },
 });
 
@@ -275,6 +290,10 @@ export function ModelMenuDemoPage(): React.ReactElement {
   // the React render cycle, so they must read the current panel state, not a closure.
   const previewModelIdRef = React.useRef<ModelId | null>(null);
   previewModelIdRef.current = previewModelId;
+  // Latest pointer + panel zone, for deciding on Base UI close requests as they arrive.
+  const latestPointerRef = React.useRef<Point | null>(null);
+  const panelZoneRef = React.useRef<SafeZone | null>(null);
+  const panelCloseTimerRef = React.useRef<number | null>(null);
 
   const submenuTriggerRef = React.useRef<HTMLDivElement | null>(null);
   const submenuPopupRef = React.useRef<HTMLDivElement | null>(null);
@@ -285,20 +304,61 @@ export function ModelMenuDemoPage(): React.ReactElement {
   const anchorRef = React.useRef<Point | null>(null);
   const panelAnchorRef = React.useRef<Point | null>(null);
 
+  // The pointer keeps the panel alive while it is over the panel, over the panel's own
+  // row, or inside the calculated traversal zone. This is the demo's close authority:
+  // Base UI also requests closes for focus reasons (menu highlight moves DOM focus, so
+  // leaving the row blurs it), which would dismiss the panel mid-traversal.
+  const isPointerHoldingPanel = (): boolean => {
+    const pointer = latestPointerRef.current;
+    const openId = previewModelIdRef.current;
+    if (pointer === null || openId === null) return false;
+    const rowRect = modelRowRefs.current.get(openId)?.getBoundingClientRect();
+    if (rowRect !== undefined && isPointInRect(pointer, rowRect)) return true;
+    const panelRect = panelPopupRef.current?.getBoundingClientRect();
+    if (panelRect !== undefined && isPointInRect(pointer, panelRect)) return true;
+    const zone = panelZoneRef.current;
+    return zone !== null && isPointInSafeZone(pointer, zone);
+  };
+
+  const cancelPanelClose = (): void => {
+    if (panelCloseTimerRef.current !== null) {
+      window.clearTimeout(panelCloseTimerRef.current);
+      panelCloseTimerRef.current = null;
+    }
+  };
+
+  const dismissPanel = (): void => {
+    cancelPanelClose();
+    panelAnchorRef.current = null;
+    panelZoneRef.current = null;
+    setPreviewModelId(null);
+  };
+
+  // First outside sample arms the timer; re-entering the hold region disarms it. The
+  // timer also fires when the pointer parks outside and stops producing mousemoves.
+  const schedulePanelClose = (): void => {
+    if (panelCloseTimerRef.current !== null) return;
+    panelCloseTimerRef.current = window.setTimeout(() => {
+      panelCloseTimerRef.current = null;
+      if (!isPointerHoldingPanel()) dismissPanel();
+    }, PANEL_EXIT_GRACE_MS);
+  };
+
   React.useEffect(() => {
     if (!menuOpen) {
       anchorRef.current = null;
       panelAnchorRef.current = null;
+      panelZoneRef.current = null;
+      cancelPanelClose();
       setSnapshot(null);
       return undefined;
     }
-    const within = (point: Point, rect: DOMRect): boolean =>
-      point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom;
     const onMouseMove = (event: MouseEvent): void => {
       const pointer: Point = { x: event.clientX, y: event.clientY };
+      latestPointerRef.current = pointer;
       const triggerRect = submenuTriggerRef.current?.getBoundingClientRect();
       const popupRect = submenuPopupRef.current?.getBoundingClientRect();
-      if (triggerRect !== undefined && within(pointer, triggerRect)) {
+      if (triggerRect !== undefined && isPointInRect(pointer, triggerRect)) {
         anchorRef.current = pointer;
       }
       const anchor = anchorRef.current;
@@ -316,19 +376,42 @@ export function ModelMenuDemoPage(): React.ReactElement {
       const panelRect = previewModelId === null
         ? undefined
         : panelPopupRef.current?.getBoundingClientRect();
-      if (rowRect !== undefined && within(pointer, rowRect)) {
+      if (rowRect !== undefined && isPointInRect(pointer, rowRect)) {
         panelAnchorRef.current = pointer;
       }
       const panelAnchor = panelAnchorRef.current;
       if (rowRect !== undefined && panelRect !== undefined && panelAnchor !== null) {
-        const zone = computeSafeZone(panelAnchor, rowRect, panelRect, "left");
+        const base = computeSafeZone(panelAnchor, rowRect, panelRect, "left");
+        // Affordance widening: Base UI clamps the trough to the shorter element (the
+        // 28px row), leaving most of the travel gap unprotected around a thin polygon.
+        // Hold the full corridor between the panel and the row — the union of both
+        // vertical extents — so any path across the gap keeps the panel alive.
+        const zone: SafeZone = {
+          polygon: base.polygon,
+          trough: {
+            left: panelRect.right - 1,
+            right: rowRect.left + 1,
+            top: Math.min(panelRect.top, rowRect.top),
+            bottom: Math.max(panelRect.bottom, rowRect.bottom),
+          },
+        };
         preview = {
           zone,
           inside:
-            within(pointer, rowRect) ||
-            within(pointer, panelRect) ||
+            isPointInRect(pointer, rowRect) ||
+            isPointInRect(pointer, panelRect) ||
             isPointInSafeZone(pointer, zone),
         };
+      }
+      panelZoneRef.current = preview?.zone ?? null;
+
+      // Close authority with grace: leaving the hold region arms a timer instead of
+      // dismissing on the first outside sample. Vetoed Base UI closes rely on this to
+      // not leave the panel stuck open. Skip while panelRect is unmeasurable: the
+      // popup mounts a tick after open.
+      if (previewModelId !== null && panelRect !== undefined) {
+        if (preview?.inside === true) cancelPanelClose();
+        else schedulePanelClose();
       }
 
       const menuZone = computeSafeZone(anchor, triggerRect, popupRect);
@@ -337,8 +420,8 @@ export function ModelMenuDemoPage(): React.ReactElement {
         menu: {
           zone: menuZone,
           inside:
-            within(pointer, triggerRect) ||
-            within(pointer, popupRect) ||
+            isPointInRect(pointer, triggerRect) ||
+            isPointInRect(pointer, popupRect) ||
             isPointInSafeZone(pointer, menuZone),
         },
         preview,
@@ -347,6 +430,7 @@ export function ModelMenuDemoPage(): React.ReactElement {
     window.addEventListener("mousemove", onMouseMove);
     return () => {
       window.removeEventListener("mousemove", onMouseMove);
+      cancelPanelClose();
     };
   }, [menuOpen, previewModelId]);
 
@@ -450,6 +534,17 @@ export function ModelMenuDemoPage(): React.ReactElement {
                         key={entry.id}
                         open={previewModelId === entry.id}
                         onOpenChange={(open) => {
+                          // Veto closes while the pointer holds the panel: menu highlight
+                          // moves DOM focus, so leaving the row fires a blur-based close
+                          // that ignores the hover polygon. The mousemove close authority
+                          // above dismisses the panel once the pointer truly leaves.
+                          if (
+                            !open &&
+                            previewModelIdRef.current === entry.id &&
+                            isPointerHoldingPanel()
+                          ) {
+                            return;
+                          }
                           panelAnchorRef.current = null;
                           setPreviewModelId((prev) =>
                             open ? entry.id : prev === entry.id ? null : prev,
@@ -478,6 +573,7 @@ export function ModelMenuDemoPage(): React.ReactElement {
                           side="inline-start"
                           align="start"
                           aria-label={`About ${entry.label}`}
+                          style={PANEL_POPUP_STYLE}
                         >
                           <ModelPanel model={entry} effortLabel={effortLabel} />
                         </PreviewCard.Popup>
@@ -532,6 +628,12 @@ export function ModelMenuDemoPage(): React.ReactElement {
         </div>
         <div {...stylex.props(styles.hudRow)}>
           <Text size="xs" tone="muted">
+            Exit grace outside the panel's hold region
+          </Text>
+          <Text size="xs">{PANEL_EXIT_GRACE_MS} ms</Text>
+        </div>
+        <div {...stylex.props(styles.hudRow)}>
+          <Text size="xs" tone="muted">
             Pointer
           </Text>
           <Text size="xs">
@@ -550,7 +652,11 @@ export function ModelMenuDemoPage(): React.ReactElement {
         </div>
       </div>
 
-      {submenuOpen && snapshot !== null ? <SafeZoneOverlay snapshot={snapshot} /> : null}
+      {/* Portalled after the menu portals: equal z-index, so DOM order layers the
+          zones above the menus but below the later-mounted panel. */}
+      {submenuOpen && snapshot !== null
+        ? createPortal(<SafeZoneOverlay snapshot={snapshot} />, document.body)
+        : null}
     </div>
   );
 }
